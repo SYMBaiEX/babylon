@@ -178,8 +178,9 @@ export function TradeConfirmationDialog({
       case 'close-perp':
         return `You're about to close your ${tradeDetails.leverage}x ${tradeDetails.side} position on $${tradeDetails.ticker}`;
       case 'buy-prediction':
+        return `You're about to buy ${tradeDetails.side} shares on this market`;
       case 'sell-prediction':
-        return null;
+        return `You're about to sell ${tradeDetails.side} shares on this market`;
     }
   };
 

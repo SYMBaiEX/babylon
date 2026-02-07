@@ -162,7 +162,7 @@ export function MessageList({
       })}
 
       {/* Empty state */}
-      {messages.length === 0 ? (
+      {messages.length === 0 && (
         <div className="flex h-full items-center justify-center">
           <div className="max-w-md p-8 text-center text-muted-foreground">
             <MessageCircle className="mx-auto mb-4 h-12 w-12 opacity-50" />
@@ -174,9 +174,10 @@ export function MessageList({
             )}
           </div>
         </div>
-      ) : (
-        <div ref={messagesEndRef} />
       )}
+
+      {/* Scroll anchor - always rendered for scroll-to-bottom functionality */}
+      <div ref={messagesEndRef} />
     </>
   );
 }

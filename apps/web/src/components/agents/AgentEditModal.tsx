@@ -16,6 +16,16 @@ import {
   AgentConfigurationData,
   AgentConfigurationForm,
 } from '@/components/agents/AgentConfigurationForm';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 
 const TOTAL_PROFILE_PICTURES = 100;
@@ -72,6 +82,7 @@ export function AgentEditModal({
   const [currentStep, setCurrentStep] = useState<Step>(Step.Profile);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Profile data (step 1)
   const [profileData, setProfileData] = useState({
@@ -316,16 +327,9 @@ export function AgentEditModal({
     }
   };
 
-  // Handle delete
-  const handleDelete = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to delete ${agent.name}? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
+  // Handle delete - performs the actual deletion after confirmation
+  const handleDeleteConfirmed = async () => {
+    setShowDeleteConfirm(false);
     setDeleting(true);
     const token = await getAccessToken();
 
@@ -346,7 +350,7 @@ export function AgentEditModal({
         onClose();
         router.push('/agents');
       } else {
-        const error = await res.json();
+        const error = await res.json().catch(() => ({}) as { error?: string });
         toast.error(error.error || 'Failed to delete agent');
       }
     } catch {
@@ -527,7 +531,7 @@ export function AgentEditModal({
               </div>
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setShowDeleteConfirm(true)}
                 disabled={deleting}
                 className="flex shrink-0 items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 font-medium text-red-500 text-sm transition-colors hover:bg-red-500/20 disabled:opacity-50"
               >
@@ -740,6 +744,30 @@ export function AgentEditModal({
           {stepActions}
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {agent.name}? This action cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirmed}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
