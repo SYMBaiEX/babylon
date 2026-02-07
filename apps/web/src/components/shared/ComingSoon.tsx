@@ -2314,13 +2314,11 @@ export function ComingSoon() {
           createPortal(
             <>
               <div
-                className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm transition-opacity duration-300"
-                onClick={() =>
-                  !isSavingProfile && setShowProfileModal(false)
-                }
+                className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm transition-opacity duration-300"
+                onClick={() => !isSavingProfile && setShowProfileModal(false)}
                 style={{ pointerEvents: 'auto' }}
               />
-              <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4">
+              <div className="pointer-events-none fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto p-4">
                 <div
                   className="pointer-events-auto my-8 w-full max-w-2xl rounded-lg border border-border bg-background shadow-xl transition-all duration-300"
                   onClick={(e) => e.stopPropagation()}
@@ -2361,8 +2359,8 @@ export function ComingSoon() {
                   </div>
                   <form
                     onSubmit={(e) => {
-                      e.preventDefault()
-                      handleSaveProfile()
+                      e.preventDefault();
+                      handleSaveProfile();
                     }}
                     className="space-y-6 p-6"
                   >
@@ -2526,9 +2524,10 @@ export function ComingSoon() {
                               !isCheckingUsername && (
                                 <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
                               )}
-                            {usernameStatus === 'taken' && !isCheckingUsername && (
-                              <X className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-red-500" />
-                            )}
+                            {usernameStatus === 'taken' &&
+                              !isCheckingUsername && (
+                                <X className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-red-500" />
+                              )}
                           </div>
                           {usernameStatus === 'taken' && usernameSuggestion && (
                             <p className="text-muted-foreground text-xs">
@@ -2582,13 +2581,10 @@ export function ComingSoon() {
                       <button
                         type="submit"
                         disabled={(() => {
-                          const username =
-                            profileForm.username?.trim() || ''
+                          const username = profileForm.username?.trim() || '';
                           const displayName =
-                            profileForm.displayName?.trim() || ''
-                          return (
-                            isSavingProfile || !username || !displayName
-                          )
+                            profileForm.displayName?.trim() || '';
+                          return isSavingProfile || !username || !displayName;
                         })()}
                         className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -2603,7 +2599,7 @@ export function ComingSoon() {
                 </div>
               </div>
             </>,
-            document.body,
+            document.body
           )}
       </>
     );
