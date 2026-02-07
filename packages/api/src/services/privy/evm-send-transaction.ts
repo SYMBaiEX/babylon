@@ -125,9 +125,9 @@ export async function sendSponsoredEvmTransaction({
   // The buffer is configurable via PRIVY_JWT_EXPIRY_BUFFER_SECONDS (default: 30s).
   // This catches stale tokens early with a clear error instead of letting them
   // fail at Privy's wallet API with a cryptic "400 Invalid JWT token".
-  const expiryBuffer = Number(
-    process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS ?? 30
-  );
+  const parsedBuffer = Number(process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS);
+  const expiryBuffer =
+    Number.isFinite(parsedBuffer) && parsedBuffer > 0 ? parsedBuffer : 30;
   if (payload.exp && payload.exp < Date.now() / 1000 + expiryBuffer) {
     throw new Error(
       `Privy JWT is expired or about to expire (exp: ${new Date(payload.exp * 1000).toISOString()}). Please refresh your session.`
