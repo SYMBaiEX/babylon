@@ -8,7 +8,7 @@
  */
 
 import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
-import { db, eq, nftSnapshot, users } from '@babylon/db';
+import { db, eq, nftSnapshot, or, sql, users } from '@babylon/db';
 import { nanoid } from 'nanoid';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -60,7 +60,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: 'userId is required' }, { status: 400 });
   }
 
-  // Check if user exists
+  // Strip leading @ and resolve by userId or username
+  const identifier = userId.trim().replace(/^@/, '');
+
   const [user] = await db
     .select({
       id: users.id,
@@ -68,7 +70,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       walletAddress: users.walletAddress,
     })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(
+      or(
+        eq(users.id, identifier),
+        sql`lower(${users.username}) = lower(${identifier})`
+      )
+    )
     .limit(1);
 
   if (!user) {
@@ -79,7 +86,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const [existing] = await db
     .select({ id: nftSnapshot.id })
     .from(nftSnapshot)
-    .where(eq(nftSnapshot.userId, userId))
+    .where(eq(nftSnapshot.userId, user.id))
     .limit(1);
 
   if (existing) {
@@ -100,7 +107,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const newEntry = {
     id: nanoid(),
-    userId,
+    userId: user.id,
     walletAddress: user.walletAddress ?? null,
     rank: rank ?? maxRank + 1,
     points: points ?? 0,
