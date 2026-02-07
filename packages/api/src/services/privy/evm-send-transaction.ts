@@ -121,18 +121,27 @@ export async function sendSponsoredEvmTransaction({
     'sendSponsoredEvmTransaction'
   );
 
-  // Reject tokens that are expired or about to expire (30s buffer).
+  // Reject tokens that are expired or about to expire.
+  // The buffer is configurable via PRIVY_JWT_EXPIRY_BUFFER_SECONDS (default: 30s).
   // This catches stale tokens early with a clear error instead of letting them
   // fail at Privy's wallet API with a cryptic "400 Invalid JWT token".
-  const EXPIRY_BUFFER_SECONDS = 30;
-  if (payload.exp && payload.exp < Date.now() / 1000 + EXPIRY_BUFFER_SECONDS) {
+  const expiryBuffer = Number(
+    process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS ?? 30
+  );
+  if (payload.exp && payload.exp < Date.now() / 1000 + expiryBuffer) {
     throw new Error(
       `Privy JWT is expired or about to expire (exp: ${new Date(payload.exp * 1000).toISOString()}). Please refresh your session.`
     );
   }
 
   const tokenAud = payload.aud;
-  if (typeof appId === 'string') {
+  if (!appId) {
+    logger.warn(
+      'PRIVY_APP_ID is not configured — skipping JWT audience validation. Set PRIVY_APP_ID or NEXT_PUBLIC_PRIVY_APP_ID to enable.',
+      {},
+      'sendSponsoredEvmTransaction'
+    );
+  } else if (typeof appId === 'string') {
     const audMatches =
       tokenAud === appId ||
       (Array.isArray(tokenAud) && tokenAud.includes(appId));
