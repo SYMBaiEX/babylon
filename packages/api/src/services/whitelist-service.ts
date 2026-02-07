@@ -131,6 +131,7 @@ export async function addToWhitelist({
 }: AddToWhitelistParams): Promise<{ id: string; alreadyExists: boolean }> {
   const id = nanoid();
   const now = new Date();
+  const nowISO = now.toISOString();
 
   const [result] = await db
     .insert(whitelist)
@@ -150,11 +151,14 @@ export async function addToWhitelist({
         source: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${source} ELSE ${whitelist.source} END`,
         reason: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${reason ?? null} ELSE ${whitelist.reason} END`,
         grantedBy: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${grantedBy ?? null} ELSE ${whitelist.grantedBy} END`,
-        grantedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${now} ELSE ${whitelist.grantedAt} END`,
+        grantedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${nowISO}::timestamp ELSE ${whitelist.grantedAt} END`,
         revokedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN NULL ELSE ${whitelist.revokedAt} END`,
       },
     })
-    .returning({ id: whitelist.id, revokedAt: whitelist.revokedAt });
+    .returning({ id: whitelist.id });
+
+  // An upsert always returns a row — but guard just in case.
+  if (!result) throw new Error('Whitelist upsert returned no rows');
 
   // If the returned id matches what we tried to insert, it's a new/replaced row.
   // If it doesn't match, the row was already active and untouched.
@@ -351,6 +355,7 @@ export async function importFirst100FromSnapshot(grantedBy?: string) {
     for (const entry of snapshotEntries) {
       const id = nanoid();
       const now = new Date();
+      const nowISO = now.toISOString();
 
       const [row] = await tx
         .insert(whitelist)
@@ -370,11 +375,13 @@ export async function importFirst100FromSnapshot(grantedBy?: string) {
             source: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN 'snapshot_first_100' ELSE ${whitelist.source} END`,
             reason: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${'Imported from NFT snapshot (rank #' + entry.rank + ')'} ELSE ${whitelist.reason} END`,
             grantedBy: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${grantedBy ?? null} ELSE ${whitelist.grantedBy} END`,
-            grantedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${now} ELSE ${whitelist.grantedAt} END`,
+            grantedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${nowISO}::timestamp ELSE ${whitelist.grantedAt} END`,
             revokedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN NULL ELSE ${whitelist.revokedAt} END`,
           },
         })
         .returning({ id: whitelist.id });
+
+      if (!row) throw new Error('Whitelist upsert returned no rows');
 
       if (row.id === id) {
         imported++;
