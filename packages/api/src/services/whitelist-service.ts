@@ -118,8 +118,10 @@ export async function checkWhitelistAccess(
 // ---------------------------------------------------------------------------
 
 /**
- * Add a user to the whitelist. If the user was previously revoked,
- * removes the old entry and creates a fresh one.
+ * Add a user to the whitelist. Uses INSERT ... ON CONFLICT for idempotency.
+ *
+ * If the user has an active (non-revoked) entry, returns alreadyExists: true.
+ * If the user has a revoked entry, replaces it with a fresh active entry.
  */
 export async function addToWhitelist({
   userId,
@@ -127,33 +129,36 @@ export async function addToWhitelist({
   reason,
   grantedBy,
 }: AddToWhitelistParams): Promise<{ id: string; alreadyExists: boolean }> {
-  // Check for existing active entry
-  const [existing] = await db
-    .select({ id: whitelist.id, revokedAt: whitelist.revokedAt })
-    .from(whitelist)
-    .where(eq(whitelist.userId, userId))
-    .limit(1);
-
-  if (existing && !existing.revokedAt) {
-    return { id: existing.id, alreadyExists: true };
-  }
-
-  // Remove revoked entry if exists, then create fresh
-  if (existing) {
-    await db.delete(whitelist).where(eq(whitelist.userId, userId));
-  }
-
   const id = nanoid();
-  await db.insert(whitelist).values({
-    id,
-    userId,
-    source,
-    reason: reason ?? null,
-    grantedBy: grantedBy ?? null,
-    grantedAt: new Date(),
-  });
+  const now = new Date();
 
-  return { id, alreadyExists: false };
+  const [result] = await db
+    .insert(whitelist)
+    .values({
+      id,
+      userId,
+      source,
+      reason: reason ?? null,
+      grantedBy: grantedBy ?? null,
+      grantedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: whitelist.userId,
+      // Only overwrite if the existing row is revoked; otherwise leave it.
+      set: {
+        id: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${id} ELSE ${whitelist.id} END`,
+        source: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${source} ELSE ${whitelist.source} END`,
+        reason: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${reason ?? null} ELSE ${whitelist.reason} END`,
+        grantedBy: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${grantedBy ?? null} ELSE ${whitelist.grantedBy} END`,
+        grantedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${now} ELSE ${whitelist.grantedAt} END`,
+        revokedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN NULL ELSE ${whitelist.revokedAt} END`,
+      },
+    })
+    .returning({ id: whitelist.id, revokedAt: whitelist.revokedAt });
+
+  // If the returned id matches what we tried to insert, it's a new/replaced row.
+  // If it doesn't match, the row was already active and untouched.
+  return { id: result.id, alreadyExists: result.id !== id };
 }
 
 /**
@@ -323,6 +328,7 @@ export async function updateWhitelistConfig({
 
 /**
  * Import users from the NftSnapshot table as 'snapshot_first_100' whitelist entries.
+ * Runs inside a transaction for atomicity — either all entries are imported or none.
  * Skips users who are already whitelisted (active).
  */
 export async function importFirst100FromSnapshot(grantedBy?: string) {
@@ -334,23 +340,55 @@ export async function importFirst100FromSnapshot(grantedBy?: string) {
     .from(nftSnapshot)
     .orderBy(nftSnapshot.rank);
 
-  let imported = 0;
-  let skipped = 0;
-
-  for (const entry of snapshotEntries) {
-    const result = await addToWhitelist({
-      userId: entry.userId,
-      source: 'snapshot_first_100',
-      reason: `Imported from NFT snapshot (rank #${entry.rank})`,
-      grantedBy,
-    });
-
-    if (result.alreadyExists) {
-      skipped++;
-    } else {
-      imported++;
-    }
+  if (snapshotEntries.length === 0) {
+    return { imported: 0, skipped: 0, total: 0 };
   }
 
-  return { imported, skipped, total: snapshotEntries.length };
+  const result = await db.transaction(async (tx) => {
+    let imported = 0;
+    let skipped = 0;
+
+    for (const entry of snapshotEntries) {
+      const id = nanoid();
+      const now = new Date();
+
+      const [row] = await tx
+        .insert(whitelist)
+        .values({
+          id,
+          userId: entry.userId,
+          source: 'snapshot_first_100' as WhitelistSource,
+          reason: `Imported from NFT snapshot (rank #${entry.rank})`,
+          grantedBy: grantedBy ?? null,
+          grantedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: whitelist.userId,
+          // Only overwrite revoked entries; leave active entries untouched.
+          set: {
+            id: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${id} ELSE ${whitelist.id} END`,
+            source: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN 'snapshot_first_100' ELSE ${whitelist.source} END`,
+            reason: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${'Imported from NFT snapshot (rank #' + entry.rank + ')'} ELSE ${whitelist.reason} END`,
+            grantedBy: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${grantedBy ?? null} ELSE ${whitelist.grantedBy} END`,
+            grantedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${now} ELSE ${whitelist.grantedAt} END`,
+            revokedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN NULL ELSE ${whitelist.revokedAt} END`,
+          },
+        })
+        .returning({ id: whitelist.id });
+
+      if (row.id === id) {
+        imported++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return { imported, skipped };
+  });
+
+  return {
+    imported: result.imported,
+    skipped: result.skipped,
+    total: snapshotEntries.length,
+  };
 }

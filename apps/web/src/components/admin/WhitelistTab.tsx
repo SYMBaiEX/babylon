@@ -194,6 +194,15 @@ export function WhitelistTab() {
   }
 
   async function handleRemoveUser(userId: string) {
+    const entry = entries.find((e) => e.userId === userId);
+    const label = entry?.displayName ?? entry?.username ?? userId.slice(0, 12);
+    if (
+      !window.confirm(
+        `Revoke whitelist access for "${label}"? They will be subject to NFT gating again.`
+      )
+    )
+      return;
+
     setRemovingUserId(userId);
     try {
       const res = await fetch('/api/admin/whitelist', {
@@ -257,6 +266,13 @@ export function WhitelistTab() {
   }
 
   async function handleImportFirst100() {
+    if (
+      !window.confirm(
+        'Import all users from the NFT snapshot as whitelisted? This is a bulk operation and cannot be easily undone.'
+      )
+    )
+      return;
+
     setIsImporting(true);
     try {
       const res = await fetch('/api/admin/whitelist/import-first-100', {

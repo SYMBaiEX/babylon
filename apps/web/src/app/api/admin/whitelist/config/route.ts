@@ -52,6 +52,21 @@ export const PUT = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
+  const VALID_CATEGORIES = ['all', 'trading', 'social', 'reputation'] as const;
+  if (
+    leaderboardCategory !== undefined &&
+    !VALID_CATEGORIES.includes(
+      leaderboardCategory as (typeof VALID_CATEGORIES)[number]
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error: `leaderboardCategory must be one of: ${VALID_CATEGORIES.join(', ')}`,
+      },
+      { status: 400 }
+    );
+  }
+
   await updateWhitelistConfig({
     leaderboardRankThreshold,
     leaderboardCategory,
