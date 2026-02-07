@@ -214,7 +214,7 @@ export async function calculatePortfolioBreakdown(
           'transfer_received',
         ])
       )
-      )
+    )
     .limit(1);
 
   const netTransfers = toNumber(transferResult[0]?.netTransfers);
