@@ -11,7 +11,7 @@ import {
   positions,
   users,
 } from '@babylon/db';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
 export interface PortfolioBreakdownSnapshot {
@@ -97,18 +97,36 @@ function calculatePredictionPositionValue(position: {
 export async function calculatePortfolioBreakdown(
   userId: string
 ): Promise<PortfolioBreakdownSnapshot | null> {
+  // User IDs may come in as either the canonical `users.id` or `users.privyId`.
+  // To keep portfolio totals stable across migrations, we treat both as aliases
+  // for the same user when present.
   const userResult = await db
     .select({
+      id: users.id,
+      privyId: users.privyId,
       virtualBalance: users.virtualBalance,
       totalDeposited: users.totalDeposited,
       totalWithdrawn: users.totalWithdrawn,
     })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(or(eq(users.id, userId), eq(users.privyId, userId)))
     .limit(1);
 
-  const user = userResult[0];
+  const user = userResult[0] as
+    | {
+        id: string;
+        privyId: string | null;
+        virtualBalance: unknown;
+        totalDeposited: unknown;
+        totalWithdrawn: unknown;
+      }
+    | undefined;
   if (!user) return null;
+
+  const canonicalUserId = user.id;
+  const positionUserIds = Array.from(
+    new Set([canonicalUserId, user.privyId].filter(Boolean))
+  ) as string[];
 
   const agentRows = await db
     .select({
@@ -116,7 +134,7 @@ export async function calculatePortfolioBreakdown(
       virtualBalance: users.virtualBalance,
     })
     .from(users)
-    .where(and(eq(users.managedBy, userId), eq(users.isAgent, true)));
+    .where(and(eq(users.managedBy, canonicalUserId), eq(users.isAgent, true)));
 
   const agentIds = agentRows.map((a) => a.id);
   const agentCount = agentIds.length;
@@ -126,10 +144,6 @@ export async function calculatePortfolioBreakdown(
     (sum, agent) => sum + toNumber(agent.virtualBalance),
     0
   );
-
-  // Only include user's own positions for totalPoints calculation
-  // Agents are separate accounts and should not contribute to user's totalPoints
-  const positionUserIds = [userId];
 
   const [perpRows, predictionRows] = await Promise.all([
     db
@@ -194,7 +208,7 @@ export async function calculatePortfolioBreakdown(
     .from(pointsTransactions)
     .where(
       and(
-        eq(pointsTransactions.userId, userId),
+        inArray(pointsTransactions.userId, positionUserIds),
         inArray(pointsTransactions.reason, [
           'transfer_sent',
           'transfer_received',
