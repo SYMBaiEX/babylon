@@ -171,7 +171,7 @@ interface ProfileWidgetProps {
 
 export function ProfileWidget({ userId }: ProfileWidgetProps) {
   const router = useRouter();
-  const { needsOnboarding, user } = useAuth();
+  const { user } = useAuth();
   const [portfolio, setPortfolio] = useState<PortfolioBreakdownSnapshot | null>(
     null
   );
@@ -233,12 +233,6 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   useEffect(() => {
     if (!userId) return;
 
-    // Skip fetching profile if current user needs onboarding
-    if (isOwnProfile && needsOnboarding) {
-      setLoading(false);
-      return;
-    }
-
     const fetchData = async (skipCache = false) => {
       // Check cache first (unless explicitly skipping)
       if (!skipCache) {
@@ -288,7 +282,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     // Refresh every 30 seconds (skip cache to get fresh data)
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
-  }, [userId, needsOnboarding, isOwnProfile, widgetCache, applyFetchResult]);
+  }, [userId, widgetCache, applyFetchResult]);
 
   // Retry function for error state - uses the shared fetchProfileWidgetData helper
   const handleRetry = useCallback(async () => {
