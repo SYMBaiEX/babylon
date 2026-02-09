@@ -1,12 +1,8 @@
 'use client';
 
-import type { UserPredictionPosition } from '@babylon/shared';
 import { cn } from '@babylon/shared';
 import { RefreshCw, Wallet } from 'lucide-react';
-import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
-import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import type { PortfolioBreakdownSnapshot } from '@/hooks/usePortfolioPnL';
-import type { DisplayPerpPosition } from '@/types/markets';
 import { formatBalance } from '../../_lib/formatters';
 
 /**
@@ -32,10 +28,6 @@ interface TerminalPortfolioProps {
   onRefresh: () => void;
   /** When true, disables refresh button (e.g., during cooldown) without showing loading spinner */
   refreshDisabled?: boolean;
-  perpPositions: DisplayPerpPosition[];
-  predictionPositions: UserPredictionPosition[];
-  onPerpPositionClosed: () => Promise<void>;
-  onPredictionPositionSold: () => Promise<void>;
 }
 
 /** Helper to format portfolio values with loading state */
@@ -83,10 +75,6 @@ export function TerminalPortfolio({
   portfolioError,
   onRefresh,
   refreshDisabled = false,
-  perpPositions,
-  predictionPositions,
-  onPerpPositionClosed,
-  onPredictionPositionSold,
 }: TerminalPortfolioProps) {
   if (!authenticated) {
     return (
@@ -230,43 +218,6 @@ export function TerminalPortfolio({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-3">
-        <div className="space-y-3">
-          {perpPositions.length === 0 && predictionPositions.length === 0 ? (
-            <div className="flex h-[140px] items-center justify-center rounded border border-white/10 bg-background/20 text-muted-foreground text-sm">
-              No open positions yet.
-            </div>
-          ) : (
-            <>
-              {perpPositions.length > 0 && (
-                <div className="rounded border border-white/10 bg-background/10 p-2">
-                  <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                    Perps ({perpPositions.length})
-                  </div>
-                  <PerpPositionsList
-                    positions={perpPositions}
-                    density="compact"
-                    onPositionClosed={onPerpPositionClosed}
-                  />
-                </div>
-              )}
-
-              {predictionPositions.length > 0 && (
-                <div className="rounded border border-white/10 bg-background/10 p-2">
-                  <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                    Predictions ({predictionPositions.length})
-                  </div>
-                  <PredictionPositionsList
-                    positions={predictionPositions}
-                    density="compact"
-                    onPositionSold={onPredictionPositionSold}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

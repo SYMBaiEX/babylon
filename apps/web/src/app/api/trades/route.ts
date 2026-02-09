@@ -383,6 +383,31 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
   const perpUsersMap = new Map(perpUsers.map((u) => [u.id, u]));
 
+  // Fetch prediction markets for pred_buy/pred_sell balance transactions and NPC prediction trades
+  const predictionMarketIds = [
+    ...new Set([
+      ...balanceTransactions
+        .filter(
+          (tx) =>
+            (tx.type === 'pred_buy' || tx.type === 'pred_sell') && tx.relatedId
+        )
+        .map((tx) => tx.relatedId as string),
+      ...npcTrades
+        .filter((t) => t.marketType === 'prediction' && t.marketId)
+        .map((t) => t.marketId as string),
+    ]),
+  ];
+  const predictionMarkets =
+    predictionMarketIds.length > 0
+      ? await db.market.findMany({
+          where: { id: { in: predictionMarketIds } },
+          select: { id: true, question: true, resolved: true, resolution: true },
+        })
+      : [];
+  const predictionMarketsMap = new Map(
+    predictionMarkets.map((m) => [m.id, m])
+  );
+
   // Merge and sort by timestamp
   // Filter out balance transactions from NPC actors - they have npcTrades entries instead
   const allTrades = [
@@ -391,18 +416,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const user = balanceUsersMap.get(tx.userId);
         return !user?.isActor; // Exclude NPC actors
       })
-      .map((tx) => ({
-        type: 'balance' as const,
-        id: tx.id,
-        timestamp: tx.createdAt,
-        user: balanceUsersMap.get(tx.userId) || null,
-        amount: tx.amount.toString(),
-        balanceBefore: tx.balanceBefore.toString(),
-        balanceAfter: tx.balanceAfter.toString(),
-        transactionType: tx.type,
-        description: tx.description,
-        relatedId: tx.relatedId,
-      })),
+      .map((tx) => {
+        const isPrediction = tx.type === 'pred_buy' || tx.type === 'pred_sell';
+        const market =
+          isPrediction && tx.relatedId
+            ? predictionMarketsMap.get(tx.relatedId) ?? null
+            : null;
+        return {
+          type: 'balance' as const,
+          id: tx.id,
+          timestamp: tx.createdAt,
+          user: balanceUsersMap.get(tx.userId) || null,
+          amount: tx.amount.toString(),
+          balanceBefore: tx.balanceBefore.toString(),
+          balanceAfter: tx.balanceAfter.toString(),
+          transactionType: tx.type,
+          description: tx.description,
+          relatedId: tx.relatedId,
+          market,
+        };
+      }),
     ...pointTransfers.map((tx) => {
       const metadata = tx.metadata
         ? (JSON.parse(tx.metadata) as {
@@ -442,6 +475,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }),
     ...npcTrades.map((trade) => {
       const actor = actorsMap.get(trade.npcActorId);
+      const npcMarket =
+        trade.marketType === 'prediction' && trade.marketId
+          ? predictionMarketsMap.get(trade.marketId) ?? null
+          : null;
       return {
         type: 'npc' as const,
         id: trade.id,
@@ -458,6 +495,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         marketType: trade.marketType,
         ticker: trade.ticker,
         marketId: trade.marketId,
+        marketQuestion: npcMarket?.question ?? null,
         action: trade.action,
         side: trade.side,
         amount: trade.amount,

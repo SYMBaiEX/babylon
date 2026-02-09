@@ -10,7 +10,6 @@ import {
   ArrowUpDown,
   Check,
   ChevronDown,
-  Filter,
   Info,
   Maximize2,
   Minimize2,
@@ -825,7 +824,11 @@ export function MarketsTradingTerminal({
         subtitle: `Scenario ${m.scenario}`,
         valuePrimary: `YES ${formatYesPct(yesPct)}`,
         valueSecondary:
-          m.status !== 'active' ? m.status.toUpperCase() : undefined,
+          m.status !== 'active'
+            ? m.status.toUpperCase()
+            : vol > 0
+              ? `Vol ${Math.round(vol).toLocaleString()}`
+              : undefined,
         change24hPct: null,
         sortVolume: vol,
         sortOpenInterest: 0,
@@ -1035,7 +1038,7 @@ export function MarketsTradingTerminal({
       range: predictionTimeRange,
     });
 
-  const { history: perpHistory, refresh: refreshPerpHistory } = usePerpHistory(
+  const { history: perpHistory } = usePerpHistory(
     selectedPerp?.ticker ?? null,
     { range: perpTimeRange }
   );
@@ -1410,16 +1413,15 @@ export function MarketsTradingTerminal({
             className={cn(
               'shrink-0 rounded p-2 transition-colors hover:bg-muted/20',
               showMarketsMenu ||
-                filter !== 'all' ||
                 sortBy !== 'volume' ||
                 sortDesc !== true
                 ? 'bg-muted/20 text-primary'
                 : 'text-muted-foreground'
             )}
-            aria-label="Filter and sort markets"
-            title="Filter & Sort"
+            aria-label="Sort markets"
+            title="Sort"
           >
-            <Filter size={14} />
+            <ArrowUpDown size={14} />
           </button>
         </div>
 
@@ -1428,40 +1430,31 @@ export function MarketsTradingTerminal({
             id="markets-filter-sort"
             className="fade-in-0 animate-in rounded-md border border-white/10 bg-background/40 py-1 shadow-sm duration-150"
           >
-            <div className="px-3 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
-              Type
-            </div>
-            {(
-              [
-                { id: 'all', label: 'All Markets' },
-                { id: 'favorites', label: 'Favorites' },
-                { id: 'perp', label: 'Perps' },
-                { id: 'prediction', label: 'Prediction' },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-muted/20"
-                onClick={() => {
-                  handleFilterChange(opt.id);
-                  setShowMarketsMenu(false);
-                }}
-              >
-                <span
-                  className={cn(
-                    opt.id === filter
-                      ? 'font-medium text-primary'
-                      : 'text-foreground'
-                  )}
-                >
-                  {opt.label}
-                </span>
-                {opt.id === filter && (
-                  <Check size={12} className="text-primary" />
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/20"
+              onClick={() => {
+                handleFilterChange(filter === 'favorites' ? 'all' : 'favorites');
+              }}
+            >
+              <div
+                className={cn(
+                  'flex h-3.5 w-3.5 items-center justify-center rounded-sm border transition-colors',
+                  filter === 'favorites'
+                    ? 'border-primary bg-primary'
+                    : 'border-muted-foreground/40'
                 )}
-              </button>
-            ))}
+              >
+                {filter === 'favorites' && (
+                  <Check size={10} className="text-primary-foreground" />
+                )}
+              </div>
+              <span className={cn(
+                filter === 'favorites' ? 'font-medium text-primary' : 'text-foreground'
+              )}>
+                Favorites only
+              </span>
+            </button>
 
             <div className="my-1 border-white/10 border-t" />
 
@@ -1504,6 +1497,35 @@ export function MarketsTradingTerminal({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="relative flex shrink-0">
+        {(
+          [
+            { id: 'all', label: 'All' },
+            { id: 'perp', label: 'Perps' },
+            { id: 'prediction', label: 'Prediction' },
+          ] as const
+        ).map((tab) => {
+          const isActive = filter === tab.id || (tab.id === 'all' && filter === 'favorites');
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => handleFilterChange(tab.id)}
+              className={cn(
+                'relative flex-1 py-2.5 text-xs font-semibold transition-colors hover:bg-muted/20',
+                isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+              )}
+            >
+              {tab.label}
+              {isActive && (
+                <div className="absolute right-0 bottom-0 left-0 h-[2px] bg-primary" />
+              )}
+            </button>
+          );
+        })}
+        <div className="absolute right-0 bottom-0 left-0 h-px bg-white/5" />
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -2226,59 +2248,66 @@ export function MarketsTradingTerminal({
             portfolioError={portfolioError}
             onRefresh={handlePortfolioRefresh}
             refreshDisabled={refreshOnCooldown}
-            perpPositions={perpPositions}
-            predictionPositions={predictionPositions}
-            onPerpPositionClosed={handlePerpPositionClosed}
-            onPredictionPositionSold={handlePredictionPositionSold}
           />
         ) : bottomTab === 'positions' ? (
           !authenticated ? (
             <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
               Log in to view positions.
             </div>
-          ) : selected?.kind === 'prediction' ? (
-            <div className="h-full overflow-auto">
-              {selectedPredictionPositions.length > 0 ? (
-                <PredictionPositionsList
-                  positions={selectedPredictionPositions}
-                  density="compact"
-                  onPositionSold={async () => {
-                    invalidateUserPositions();
-                    invalidateWalletBalance();
-                    await Promise.all([
-                      refreshPredictionPositions(),
-                      refreshPerpPositions(),
-                      refreshWalletBalance(),
-                      refreshPredictionHistory(),
-                    ]);
-                  }}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
-                  No open positions
-                </div>
-              )}
+          ) : perpPositions.length === 0 && predictionPositions.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
+              No open positions
             </div>
           ) : (
-            <div className="h-full overflow-auto">
-              {selectedPerpPositions.length > 0 ? (
-                <PerpPositionsList
-                  positions={selectedPerpPositions}
-                  density="compact"
-                  onPositionClosed={async () => {
-                    invalidateUserPositions();
-                    invalidateWalletBalance();
-                    await Promise.all([
-                      refreshPerpPositions(),
-                      refreshPredictionPositions(),
-                      refreshWalletBalance(),
-                      refreshPerpHistory(),
-                    ]);
-                  }}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
-                  No open positions
+            <div className="h-full space-y-2 overflow-auto p-2">
+              {selected?.kind === 'prediction' && selectedPredictionPositions.length > 0 && (
+                <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                  <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                    Selected Market
+                  </div>
+                  <PredictionPositionsList
+                    positions={selectedPredictionPositions}
+                    density="compact"
+                    onPositionSold={handlePredictionPositionSold}
+                  />
+                </div>
+              )}
+              {selected?.kind === 'perp' && selectedPerpPositions.length > 0 && (
+                <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                  <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                    Selected Market
+                  </div>
+                  <PerpPositionsList
+                    positions={selectedPerpPositions}
+                    density="compact"
+                    onPositionClosed={handlePerpPositionClosed}
+                  />
+                </div>
+              )}
+              {perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt).length > 0 && (
+                <div className="rounded border border-white/10 bg-background/10 p-2">
+                  <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    Perps ({perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt).length})
+                  </div>
+                  <PerpPositionsList
+                    positions={perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt)}
+                    density="compact"
+                    onPositionClosed={handlePerpPositionClosed}
+                    onPositionClick={(ticker) => handleSelect({ kind: 'perp', id: ticker })}
+                  />
+                </div>
+              )}
+              {predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId).length > 0 && (
+                <div className="rounded border border-white/10 bg-background/10 p-2">
+                  <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    Predictions ({predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId).length})
+                  </div>
+                  <PredictionPositionsList
+                    positions={predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId)}
+                    density="compact"
+                    onPositionSold={handlePredictionPositionSold}
+                    onPositionClick={(marketId) => handleSelect({ kind: 'prediction', id: marketId })}
+                  />
                 </div>
               )}
             </div>
@@ -2575,49 +2604,68 @@ export function MarketsTradingTerminal({
                     portfolioError={portfolioError}
                     onRefresh={handlePortfolioRefresh}
                     refreshDisabled={refreshOnCooldown}
-                    perpPositions={perpPositions}
-                    predictionPositions={predictionPositions}
-                    onPerpPositionClosed={handlePerpPositionClosed}
-                    onPredictionPositionSold={handlePredictionPositionSold}
                   />
                 ) : bottomTab === 'positions' ? (
                   !authenticated ? (
                     <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
                       Log in to view positions.
                     </div>
-                  ) : selected?.kind === 'prediction' ? (
-                    <div className="h-full overflow-auto overscroll-contain">
-                      <PredictionPositionsList
-                        positions={selectedPredictionPositions}
-                        density="compact"
-                        onPositionSold={async () => {
-                          invalidateUserPositions();
-                          invalidateWalletBalance();
-                          await Promise.all([
-                            refreshPredictionPositions(),
-                            refreshPerpPositions(),
-                            refreshWalletBalance(),
-                            refreshPredictionHistory(),
-                          ]);
-                        }}
-                      />
+                  ) : perpPositions.length === 0 && predictionPositions.length === 0 ? (
+                    <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
+                      No open positions
                     </div>
                   ) : (
-                    <div className="h-full overflow-auto overscroll-contain">
-                      <PerpPositionsList
-                        positions={selectedPerpPositions}
-                        density="compact"
-                        onPositionClosed={async () => {
-                          invalidateUserPositions();
-                          invalidateWalletBalance();
-                          await Promise.all([
-                            refreshPerpPositions(),
-                            refreshPredictionPositions(),
-                            refreshWalletBalance(),
-                            refreshPerpHistory(),
-                          ]);
-                        }}
-                      />
+                    <div className="h-full space-y-2 overflow-auto overscroll-contain p-2">
+                      {selected?.kind === 'prediction' && selectedPredictionPositions.length > 0 && (
+                        <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                          <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                            Selected Market
+                          </div>
+                          <PredictionPositionsList
+                            positions={selectedPredictionPositions}
+                            density="compact"
+                            onPositionSold={handlePredictionPositionSold}
+                          />
+                        </div>
+                      )}
+                      {selected?.kind === 'perp' && selectedPerpPositions.length > 0 && (
+                        <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                          <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                            Selected Market
+                          </div>
+                          <PerpPositionsList
+                            positions={selectedPerpPositions}
+                            density="compact"
+                            onPositionClosed={handlePerpPositionClosed}
+                          />
+                        </div>
+                      )}
+                      {perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt).length > 0 && (
+                        <div className="rounded border border-white/10 bg-background/10 p-2">
+                          <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                            Perps
+                          </div>
+                          <PerpPositionsList
+                            positions={perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt)}
+                            density="compact"
+                            onPositionClosed={handlePerpPositionClosed}
+                            onPositionClick={(ticker) => handleSelect({ kind: 'perp', id: ticker })}
+                          />
+                        </div>
+                      )}
+                      {predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId).length > 0 && (
+                        <div className="rounded border border-white/10 bg-background/10 p-2">
+                          <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                            Predictions
+                          </div>
+                          <PredictionPositionsList
+                            positions={predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId)}
+                            density="compact"
+                            onPositionSold={handlePredictionPositionSold}
+                            onPositionClick={(marketId) => handleSelect({ kind: 'prediction', id: marketId })}
+                          />
+                        </div>
+                      )}
                     </div>
                   )
                 ) : bottomTab === 'trades' ? (
