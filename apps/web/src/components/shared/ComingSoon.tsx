@@ -2594,9 +2594,7 @@ export function ComingSoon() {
                         </button>
                         <button
                           type="submit"
-                          disabled={
-                            isSavingProfile || !isProfileFormValid()
-                          }
+                          disabled={isSavingProfile || !isProfileFormValid()}
                           className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {isSavingProfile
@@ -4088,9 +4086,7 @@ export function ComingSoon() {
                     </button>
                     <button
                       type="submit"
-                      disabled={
-                        isSavingProfile || !isProfileFormValid()
-                      }
+                      disabled={isSavingProfile || !isProfileFormValid()}
                       className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isSavingProfile

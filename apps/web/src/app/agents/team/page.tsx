@@ -215,7 +215,7 @@ export default function TeamChatPage() {
   const [activeRightTabId, setActiveRightTabId] = useState<string | null>(null);
 
   // Bottom panel state
-  const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
+  const [bottomPanelOpen, setBottomPanelOpen] = useState(true);
   const [bottomPanelTab, setBottomPanelTab] =
     useState<BottomPanelTab>('activity');
   const [bottomPanelEntityId, setBottomPanelEntityId] = useState<string | null>(

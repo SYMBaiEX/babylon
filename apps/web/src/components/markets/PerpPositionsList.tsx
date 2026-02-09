@@ -48,12 +48,14 @@ type PerpPosition = DisplayPerpPosition;
 interface PerpPositionsListProps {
   positions: PerpPosition[];
   onPositionClosed?: () => void;
+  onPositionClick?: (ticker: string) => void;
   density?: 'default' | 'compact';
 }
 
 export function PerpPositionsList({
   positions,
   onPositionClosed,
+  onPositionClick,
   density = 'default',
 }: PerpPositionsListProps) {
   const compact = density === 'compact';
@@ -155,8 +157,6 @@ export function PerpPositionsList({
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   };
 
@@ -177,7 +177,7 @@ export function PerpPositionsList({
   }
 
   return (
-    <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
+    <div className={cn(compact ? 'space-y-1.5' : 'space-y-2')}>
       {positionsWithPnL.map(
         ({
           position,
@@ -194,158 +194,124 @@ export function PerpPositionsList({
               key={position.id}
               className={cn(
                 'rounded transition-all',
-                compact ? 'p-3' : 'p-4',
-                isNearLiquidation ? 'bg-red-600/10' : 'bg-muted/40'
+                compact ? 'p-2' : 'p-2.5',
+                isNearLiquidation ? 'bg-red-600/10' : 'bg-muted/40',
+                onPositionClick && 'cursor-pointer hover:bg-muted/60'
               )}
+              onClick={() => onPositionClick?.(position.ticker)}
             >
-              {/* Header */}
-              <div
-                className={cn(
-                  'flex items-center justify-between',
-                  compact ? 'mb-2' : 'mb-3'
-                )}
-              >
-                <div className="flex items-center gap-2">
+              {/* Row 1: Side badge, ticker, PnL */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
                   <span
                     className={cn(
-                      'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
+                      'flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 font-bold text-[11px]',
                       position.side === 'long'
                         ? 'bg-green-600/20 text-green-600'
                         : 'bg-red-600/20 text-red-600'
                     )}
                   >
                     {position.side === 'long' ? (
-                      <TrendingUp size={12} />
+                      <TrendingUp size={10} />
                     ) : (
-                      <TrendingDown size={12} />
+                      <TrendingDown size={10} />
                     )}
                     {position.leverage}x {position.side.toUpperCase()}
                   </span>
-                  <span className="font-bold text-foreground">
+                  <span className="font-bold text-foreground text-xs">
                     ${position.ticker}
                   </span>
-                  {/* Agent position badge */}
                   {position.isAgentPosition && (
-                    <span className="flex items-center gap-1 rounded bg-purple-600/20 px-2 py-1 font-medium text-purple-500 text-xs">
-                      <Bot size={12} />
+                    <span className="flex shrink-0 items-center gap-0.5 rounded bg-purple-600/20 px-1 py-0.5 font-medium text-[11px] text-purple-500">
+                      <Bot size={10} />
                       {position.agentName || 'Agent'}
                     </span>
                   )}
                 </div>
+                <span
+                  className={cn(
+                    'shrink-0 font-bold text-xs',
+                    pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                  )}
+                >
+                  {pnl >= 0 ? '+' : ''}
+                  {formatPrice(pnl)}{' '}
+                  <span className="font-normal text-[11px]">
+                    ({pnl >= 0 ? '+' : ''}
+                    {pnlPercent.toFixed(2)}%)
+                  </span>
+                </span>
+              </div>
 
-                <div className="text-right">
-                  <div
-                    className={cn(
-                      compact ? 'font-bold text-base' : 'font-bold text-lg',
-                      pnl >= 0 ? 'text-green-600' : 'text-red-600'
-                    )}
-                  >
-                    {pnl >= 0 ? '+' : ''}
-                    {formatPrice(pnl)}
-                  </div>
-                  <div
-                    className={cn(
-                      'text-xs',
-                      pnl >= 0 ? 'text-green-600' : 'text-red-600'
-                    )}
-                  >
-                    {pnl >= 0 ? '+' : ''}
-                    {pnlPercent.toFixed(2)}%
-                  </div>
+              {/* Row 2: Price + Stats + Close button */}
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
+                  <span className="font-medium text-foreground">
+                    {formatPrice(position.entryPrice)}
+                    <span className="mx-0.5 text-muted-foreground">&rarr;</span>
+                    {formatPrice(currentPrice)}
+                  </span>
+                  <span className="text-muted-foreground/40">&middot;</span>
+                  <span>
+                    Size{' '}
+                    <span className="font-medium text-foreground">
+                      {formatPrice(position.size)}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground/40">&middot;</span>
+                  <span>
+                    Liq{' '}
+                    <span className="font-medium text-red-600">
+                      {formatPrice(position.liquidationPrice)}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground/40">&middot;</span>
+                  <span>
+                    Fund{' '}
+                    <span
+                      className={cn(
+                        'font-medium',
+                        position.fundingPaid >= 0
+                          ? 'text-red-600'
+                          : 'text-green-600'
+                      )}
+                    >
+                      {position.fundingPaid >= 0 ? '-' : '+'}
+                      {formatPrice(Math.abs(position.fundingPaid))}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground/40">&middot;</span>
+                  <span className="text-foreground">
+                    {formatDate(position.openedAt)}
+                  </span>
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCloseClick(position, currentPrice, pnl, pnlPercent);
+                  }}
+                  disabled={isClosing}
+                  className={cn(
+                    'shrink-0 cursor-pointer rounded-full px-3 py-0.5 font-medium text-xs transition-all',
+                    isNearLiquidation
+                      ? 'bg-red-600 text-primary-foreground hover:bg-red-700'
+                      : 'bg-muted text-foreground hover:bg-muted/80',
+                    isClosing && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  {isClosing ? 'Closing...' : 'Close'}
+                </button>
               </div>
 
               {/* Liquidation Warning */}
               {isNearLiquidation && (
-                <div
-                  className={cn(
-                    'flex items-center gap-2 rounded bg-red-600/20',
-                    compact ? 'mb-2 p-1.5' : 'mb-3 p-2'
-                  )}
-                >
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-600" />
+                <div className="mt-1.5 flex items-center gap-1.5 rounded bg-red-600/20 px-2 py-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />
                   <p className="font-medium text-red-600 text-xs">
                     Near liquidation! {liquidationDistance.toFixed(2)}% away
                   </p>
                 </div>
               )}
-
-              {/* Stats Grid */}
-              <div
-                className={cn(
-                  'grid grid-cols-2 text-xs',
-                  compact ? 'mb-2 gap-1.5' : 'mb-3 gap-2'
-                )}
-              >
-                <div>
-                  <div className="text-muted-foreground">Entry</div>
-                  <div className="font-medium text-foreground">
-                    {formatPrice(position.entryPrice)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Current</div>
-                  <div className="font-medium text-foreground">
-                    {formatPrice(currentPrice)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Liquidation</div>
-                  <div className="font-bold text-red-600">
-                    {formatPrice(position.liquidationPrice)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Size</div>
-                  <div className="font-medium text-foreground">
-                    {formatPrice(position.size)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Funding Paid</div>
-                  <div
-                    className={cn(
-                      'font-medium',
-                      position.fundingPaid >= 0
-                        ? 'text-red-600'
-                        : 'text-green-600'
-                    )}
-                  >
-                    {position.fundingPaid >= 0 ? '-' : '+'}
-                    {formatPrice(Math.abs(position.fundingPaid))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Opened</div>
-                  <div className="font-medium text-foreground">
-                    {formatDate(position.openedAt)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Close Button */}
-              <button
-                onClick={() =>
-                  handleCloseClick(position, currentPrice, pnl, pnlPercent)
-                }
-                disabled={isClosing}
-                className={cn(
-                  'w-full cursor-pointer rounded py-2 font-medium transition-all',
-                  isNearLiquidation
-                    ? 'bg-red-600 text-primary-foreground hover:bg-red-700'
-                    : 'bg-muted text-foreground hover:bg-muted',
-                  isClosing && 'cursor-not-allowed opacity-50'
-                )}
-              >
-                {isClosing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Closing...
-                  </span>
-                ) : (
-                  'Close Position'
-                )}
-              </button>
             </div>
           );
         }
