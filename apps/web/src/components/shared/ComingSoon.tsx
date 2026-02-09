@@ -1020,7 +1020,7 @@ export function ComingSoon() {
     const trimmedDisplayName = profileForm.displayName?.trim();
     const trimmedBio = profileForm.bio?.trim();
 
-    if (!trimmedUsername || !trimmedDisplayName) {
+    if (!trimmedUsername || !trimmedDisplayName || !trimmedBio) {
       toast.error('Please fill in all required fields.');
       return;
     }
@@ -2554,7 +2554,7 @@ export function ComingSoon() {
                         </div>
                         <div className="space-y-2">
                           <label className="block font-medium text-sm">
-                            Bio
+                            Bio *
                           </label>
                           <textarea
                             value={profileForm.bio}
@@ -2592,7 +2592,8 @@ export function ComingSoon() {
                             const username = profileForm.username?.trim() || '';
                             const displayName =
                               profileForm.displayName?.trim() || '';
-                            return isSavingProfile || !username || !displayName;
+                            const bio = profileForm.bio?.trim() || '';
+                            return isSavingProfile || !username || !displayName || !bio;
                           })()}
                           className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -4050,7 +4051,7 @@ export function ComingSoon() {
 
                     {/* Bio */}
                     <div className="space-y-2">
-                      <label className="block font-medium text-sm">Bio</label>
+                      <label className="block font-medium text-sm">Bio *</label>
                       <textarea
                         value={profileForm.bio}
                         onChange={(e) =>
@@ -4089,7 +4090,8 @@ export function ComingSoon() {
                         const username = profileForm.username?.trim() || '';
                         const displayName =
                           profileForm.displayName?.trim() || '';
-                        return isSavingProfile || !username || !displayName;
+                        const bio = profileForm.bio?.trim() || '';
+                        return isSavingProfile || !username || !displayName || !bio;
                       })()}
                       className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
