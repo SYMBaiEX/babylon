@@ -1163,8 +1163,7 @@ export function MarketsTradingTerminal({
   const selectedPerpPositions = useMemo(() => {
     if (!selectedPerpTickerUpper) return [];
     return perpPositions.filter(
-      (p) =>
-        p.ticker.toUpperCase() === selectedPerpTickerUpper && !p.closedAt
+      (p) => p.ticker.toUpperCase() === selectedPerpTickerUpper && !p.closedAt
     );
   }, [perpPositions, selectedPerpTickerUpper]);
 
