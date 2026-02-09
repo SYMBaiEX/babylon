@@ -1,49 +1,33 @@
-'use client';
-
-import { X } from 'lucide-react';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-
-const STORAGE_KEY = 'nft-banner-dismissed';
+import Image from 'next/image'
+import Link from 'next/link'
 
 export function NftPromoBanner() {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (!localStorage.getItem(STORAGE_KEY)) setIsVisible(true);
-  }, []);
-
-  if (!isVisible) return null;
-
-  const handleDismiss = () => {
-    setIsVisible(false);
-    localStorage.setItem(STORAGE_KEY, 'true');
-  };
-
   return (
-    <div className="fixed top-14 right-0 left-0 z-[60] flex items-center justify-between gap-4 border-[#0066FF]/30 border-b bg-[#0066FF]/90 px-4 py-2 backdrop-blur-sm md:top-0">
-      <p className="min-w-0 text-sm text-white">
-        <span className="font-semibold">ProtoMonkeys</span>
-        <span className="hidden text-white/80 sm:inline">
-          {' '}
-          — Exclusive NFTs for top 100 players on leaderboard
-        </span>
-      </p>
-      <div className="flex shrink-0 items-center gap-2">
-        <Link
-          href="/nft"
-          className="rounded-full bg-white px-4 py-1.5 font-medium text-[#0066FF] text-sm transition-all hover:bg-white/90"
-        >
-          View
-        </Link>
-        <button
-          onClick={handleDismiss}
-          className="rounded-full p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label="Dismiss"
-        >
-          <X className="h-4 w-4" />
-        </button>
+    <div className="mt-14 border-b border-primary/30 bg-primary md:mt-0">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2 text-sm text-primary-foreground">
+          <Image
+            src="/blankmonkey.png"
+            alt="ProtoMonkeys"
+            width={24}
+            height={24}
+            className="h-6 w-6 shrink-0 rounded-full"
+          />
+          <span className="text-base font-bold">ProtoMonkeys</span>
+          <span className="hidden text-primary-foreground/80 sm:inline">
+            {' '}
+            — Exclusive NFTs for top 100 players on leaderboard
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center">
+          <Link
+            href="/nft"
+            className="rounded-full bg-primary-foreground px-4 py-1.5 text-sm font-bold text-primary transition-colors hover:bg-primary-foreground/90"
+          >
+            View
+          </Link>
+        </div>
       </div>
     </div>
-  );
+  )
 }

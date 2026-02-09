@@ -47,7 +47,7 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
           /* Unminted: placeholder with reveal overlay */
           <>
             <Image
-              src="/icon-1024.png"
+              src="/blankwithbg.png"
               alt={`Babylon #${nft.tokenId}`}
               fill
               className="object-cover"
