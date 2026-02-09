@@ -124,6 +124,7 @@ interface ApiPredictionPositionPayload {
   currentProbability?: NumericLike;
   resolved?: boolean;
   resolution?: boolean | null;
+  status?: string;
   // Agent position metadata
   isAgentPosition?: boolean;
   agentId?: string | null;
@@ -184,6 +185,7 @@ function normalizePredictionPosition(
     currentProbability: toNumber(raw.currentProbability, currentPrice),
     resolved: raw.resolved ?? false,
     resolution: raw.resolution ?? null,
+    status: raw.status,
     // Agent position metadata
     isAgentPosition: raw.isAgentPosition ?? false,
     agentId: raw.agentId ?? undefined,
