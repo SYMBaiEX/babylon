@@ -308,17 +308,18 @@ export function ProfileHeaderSkeleton() {
  */
 export function LeaderboardItemSkeleton() {
   return (
-    <div className="p-3 sm:p-4">
+    <div className="px-4 py-1.5 xl:py-3">
       <div className="flex items-center gap-2 sm:gap-4">
-        <Skeleton className="h-8 w-8 shrink-0 rounded" />
-        <Skeleton className="h-10 w-10 shrink-0 rounded-full sm:h-12 sm:w-12" />
-        <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+        <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Skeleton className="h-4 w-24 max-w-full sm:w-32" />
-          <Skeleton className="h-3 w-20 max-w-full sm:w-24" />
+          <Skeleton className="h-3 w-20 max-w-full xl:hidden" />
+          <Skeleton className="hidden h-3 w-20 max-w-full xl:block" />
         </div>
-        <div className="shrink-0 space-y-2 text-right">
-          <Skeleton className="h-4 w-16 sm:h-5 sm:w-20" />
-          <Skeleton className="h-3 w-10 sm:w-12" />
+        <div className="hidden shrink-0 space-y-1.5 text-right xl:block">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-3 w-12" />
         </div>
       </div>
     </div>

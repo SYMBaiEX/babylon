@@ -41,22 +41,18 @@ export function RankBadge({
   let BadgeIcon: typeof Trophy | typeof Medal | typeof Award;
   let badgeColor: string;
   let badgeLabel: string;
-  let glowColor: string;
 
   if (rank === 1) {
     BadgeIcon = Trophy;
-    badgeColor = 'text-yellow-500';
-    glowColor = 'shadow-yellow-500/50';
+    badgeColor = 'text-foreground';
     badgeLabel = '1st Place';
   } else if (rank <= 3) {
     BadgeIcon = Medal;
-    badgeColor = 'text-gray-400';
-    glowColor = 'shadow-gray-400/50';
+    badgeColor = 'text-muted-foreground';
     badgeLabel = `${rank}${rank === 2 ? 'nd' : 'rd'} Place`;
   } else {
     BadgeIcon = Award;
-    badgeColor = 'text-amber-700';
-    glowColor = 'shadow-amber-700/50';
+    badgeColor = 'text-muted-foreground';
     badgeLabel = `Top ${rank}`;
   }
 
@@ -77,18 +73,10 @@ export function RankBadge({
     <div className={`flex items-center gap-2 ${className}`}>
       <div className={`relative ${sizeClasses[size]}`}>
         <BadgeIcon
-          className={`${sizeClasses[size]} ${badgeColor} drop-shadow-lg ${glowColor}`}
+          className={`${sizeClasses[size]} ${badgeColor}`}
           fill="currentColor"
           strokeWidth={1.5}
         />
-        {rank === 1 && (
-          <div className="absolute inset-0 animate-pulse">
-            <BadgeIcon
-              className={`${sizeClasses[size]} ${badgeColor} opacity-50`}
-              fill="currentColor"
-            />
-          </div>
-        )}
       </div>
       {showLabel && (
         <span
@@ -135,18 +123,15 @@ export function RankNumber({
     lg: 'w-10 h-10 text-base',
   };
 
-  let bgColor = 'bg-gray-700';
-  let textColor = 'text-gray-300';
+  let bgColor = 'bg-muted';
+  let textColor = 'text-muted-foreground';
 
-  if (rank === 1) {
-    bgColor = 'bg-gradient-to-br from-yellow-500 to-yellow-600';
-    textColor = 'text-primary-foreground';
-  } else if (rank <= 3) {
-    bgColor = 'bg-gradient-to-br from-gray-400 to-gray-500';
-    textColor = 'text-primary-foreground';
+  if (rank <= 3) {
+    bgColor = 'bg-foreground';
+    textColor = 'text-background';
   } else if (rank <= 10) {
-    bgColor = 'bg-gradient-to-br from-amber-700 to-amber-800';
-    textColor = 'text-primary-foreground';
+    bgColor = 'bg-muted';
+    textColor = 'text-foreground';
   }
 
   return (

@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  formatCurrency,
-  getActorProfileUrl,
-  getProfileUrl,
-} from '@babylon/shared';
+import { getActorProfileUrl, getProfileUrl } from '@babylon/shared';
 import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -16,7 +12,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import type { LeaderboardTab } from '@/components/shared/LeaderboardToggle';
 import { LeaderboardToggle } from '@/components/shared/LeaderboardToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { RankBadge, RankNumber } from '@/components/shared/RankBadge';
+import { RankNumber } from '@/components/shared/RankBadge';
 import { LeaderboardSkeleton } from '@/components/shared/Skeleton';
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
@@ -273,18 +269,6 @@ export default function LeaderboardPage() {
                     ? player.earnedPoints
                     : player.invitePoints;
             const formattedPoints = (displayPoints ?? 0).toLocaleString();
-            const absolutePnL = Math.abs(player.lifetimePnL);
-            const formattedPnL = formatCurrency(absolutePnL);
-            const pnlDisplay =
-              player.lifetimePnL === 0
-                ? formatCurrency(0)
-                : `${player.lifetimePnL > 0 ? '+' : '-'}${formattedPnL}`;
-            const pnlColor =
-              player.lifetimePnL === 0
-                ? 'text-muted-foreground'
-                : player.lifetimePnL > 0
-                  ? 'text-green-500'
-                  : 'text-red-500';
 
             return (
               <div key={player.id} className="flex items-stretch">
@@ -308,9 +292,9 @@ export default function LeaderboardPage() {
                   }
                   className={`hidden flex-1 cursor-pointer px-4 py-3 text-left transition-colors xl:block ${
                     isSelected
-                      ? 'border-[#0066FF] border-l-4 bg-[#0066FF]/20'
+                      ? 'border-l-4 border-l-foreground bg-muted/30'
                       : isCurrentUser
-                        ? 'border-l-4 border-l-[#0066FF] bg-[#0066FF]/10 hover:bg-muted/30'
+                        ? 'border-l-4 border-l-foreground bg-muted/20 hover:bg-muted/30'
                         : 'border-l-4 border-l-transparent hover:bg-muted/30'
                   }`}
                 >
@@ -318,7 +302,7 @@ export default function LeaderboardPage() {
                     <div className="shrink-0">
                       <RankNumber rank={player.rank} size="md" />
                     </div>
-                    <div className="shrink-0">
+                    <div className="relative shrink-0">
                       <Avatar
                         id={player.id}
                         name={player.displayName || player.username || 'User'}
@@ -326,6 +310,14 @@ export default function LeaderboardPage() {
                         size="md"
                         src={player.profileImageUrl || undefined}
                       />
+                      {authenticated && !isCurrentUser && (
+                        <div
+                          className="-bottom-0.5 -right-1 absolute"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <FollowButton userId={player.id} variant="circle" />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
@@ -342,7 +334,7 @@ export default function LeaderboardPage() {
                           />
                         )}
                         {isCurrentUser && (
-                          <span className="rounded bg-[#0066FF] px-2 py-0.5 font-semibold text-primary-foreground text-xs">
+                          <span className="rounded bg-foreground px-2 py-0.5 font-semibold text-background text-xs">
                             YOU
                           </span>
                         )}
@@ -354,88 +346,14 @@ export default function LeaderboardPage() {
                       )}
                     </div>
                     <div className="shrink-0 text-right">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <div className="font-bold text-foreground text-lg">
-                            {formattedPoints}
-                          </div>
-                          <div className="text-muted-foreground text-xs">
-                            {activePointsLabel}
-                          </div>
-                        </div>
-                        {authenticated && !isCurrentUser && (
-                          <div
-                            className="shrink-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FollowButton
-                              userId={player.id}
-                              size="sm"
-                              variant="icon"
-                            />
-                          </div>
-                        )}
+                      <div className="font-bold text-foreground text-lg">
+                        {formattedPoints}
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        {activePointsLabel}
                       </div>
                     </div>
                   </div>
-                  {!player.isActor &&
-                    (player.invitePoints > 0 ||
-                      player.earnedPoints !== 0 ||
-                      player.bonusPoints > 0 ||
-                      player.lifetimePnL !== 0 ||
-                      player.referralCount > 0) && (
-                      <div className="mt-2 ml-16 flex gap-4 text-xs">
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">P&L:</span>
-                          <span className={`font-semibold ${pnlColor}`}>
-                            {pnlDisplay}
-                          </span>
-                        </div>
-                        {player.invitePoints > 0 && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">
-                              Invite:
-                            </span>
-                            <span className="font-semibold text-primary">
-                              {player.invitePoints}
-                            </span>
-                          </div>
-                        )}
-                        {player.earnedPoints !== 0 && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">
-                              Earned:
-                            </span>
-                            <span
-                              className={`font-semibold ${player.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}
-                            >
-                              {player.earnedPoints > 0 ? '+' : ''}
-                              {player.earnedPoints}
-                            </span>
-                          </div>
-                        )}
-                        {player.bonusPoints > 0 && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">
-                              Bonus:
-                            </span>
-                            <span className="font-semibold text-yellow-500">
-                              {player.bonusPoints}
-                            </span>
-                          </div>
-                        )}
-                        {player.referralCount > 0 && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">
-                              Referrals:
-                            </span>
-                            <span className="font-semibold text-primary">
-                              {player.referralCount}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
                 </div>
 
                 {/* Mobile/Tablet: Direct link to profile */}
@@ -444,20 +362,17 @@ export default function LeaderboardPage() {
                   data-testid={
                     player.isActor ? 'npc-entry' : 'leaderboard-entry'
                   }
-                  className={`block flex-1 px-4 py-3 transition-colors xl:hidden ${
+                  className={`block flex-1 px-4 py-1.5 transition-colors xl:hidden ${
                     isCurrentUser
-                      ? 'border-l-4 bg-[#0066FF]/20'
+                      ? 'border-l-4 border-l-foreground bg-muted/20'
                       : 'hover:bg-muted/30'
                   }`}
-                  style={{
-                    borderLeftColor: isCurrentUser ? '#0066FF' : 'transparent',
-                  }}
                 >
                   <div className="flex items-center gap-2 sm:gap-4">
                     <div className="shrink-0">
                       <RankNumber rank={player.rank} size="md" />
                     </div>
-                    <div className="shrink-0">
+                    <div className="relative shrink-0">
                       <Avatar
                         id={player.id}
                         name={player.displayName || player.username || 'User'}
@@ -465,6 +380,11 @@ export default function LeaderboardPage() {
                         size="md"
                         src={player.profileImageUrl || undefined}
                       />
+                      {authenticated && !isCurrentUser && (
+                        <div className="-bottom-0.5 -right-1 absolute">
+                          <FollowButton userId={player.id} variant="circle" />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
@@ -481,75 +401,22 @@ export default function LeaderboardPage() {
                           />
                         )}
                         {isCurrentUser && (
-                          <span className="shrink-0 rounded bg-[#0066FF]/20 px-2 py-0.5 text-[#0066FF] text-xs">
+                          <span className="shrink-0 rounded bg-foreground px-2 py-0.5 text-background text-xs">
                             You
                           </span>
                         )}
                       </div>
-                      {player.username && (
-                        <p className="mb-1 truncate text-muted-foreground text-xs">
-                          @{player.username}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 text-muted-foreground text-xs sm:gap-3 sm:text-sm">
-                        <span className="font-semibold text-foreground">
+                      <div className="flex items-center gap-2 text-xs sm:text-sm">
+                        <span className="font-bold text-foreground">
                           {formattedPoints} pts
                         </span>
-                        <span>{activePointsLabel}</span>
-                        {player.rank <= 3 && <RankBadge rank={player.rank} />}
+                        <span className="text-muted-foreground">
+                          {activePointsLabel}
+                        </span>
                       </div>
-                      {!player.isActor && (
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground text-xs sm:text-sm">
-                          <span className={`${pnlColor} font-semibold`}>
-                            P&L: {pnlDisplay}
-                          </span>
-                          {player.invitePoints > 0 && (
-                            <span>
-                              Invite:{' '}
-                              <span className="font-semibold text-primary">
-                                {player.invitePoints}
-                              </span>
-                            </span>
-                          )}
-                          {player.earnedPoints !== 0 && (
-                            <span>
-                              Earned:{' '}
-                              <span
-                                className={`font-semibold ${player.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}
-                              >
-                                {player.earnedPoints > 0 ? '+' : ''}
-                                {player.earnedPoints}
-                              </span>
-                            </span>
-                          )}
-                          {player.bonusPoints > 0 && (
-                            <span>
-                              Bonus:{' '}
-                              <span className="font-semibold text-yellow-500">
-                                {player.bonusPoints}
-                              </span>
-                            </span>
-                          )}
-                          {player.referralCount > 0 && (
-                            <span>
-                              Referrals:{' '}
-                              <span className="font-semibold text-primary">
-                                {player.referralCount}
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </Link>
-
-                {/* Mobile Follow Button */}
-                {authenticated && !isCurrentUser && (
-                  <div className="flex shrink-0 items-center self-center pr-3 xl:hidden">
-                    <FollowButton userId={player.id} size="sm" variant="icon" />
-                  </div>
-                )}
               </div>
             );
           })}
