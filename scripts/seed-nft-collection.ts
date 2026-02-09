@@ -51,7 +51,11 @@ const getThumbnailUrl = (tokenId: number) => `/api/nft/image/${tokenId}`;
 /** Fetch metadata from IPFS for a given token ID */
 async function fetchIpfsMetadata(
   tokenId: number
-): Promise<{ name: string; description: string } | null> {
+): Promise<{
+  name: string;
+  description: string;
+  attributes: Array<{ trait_type: string; value: string | number }>;
+} | null> {
   try {
     const url = `${IPFS_GATEWAY}/${IPFS_METADATA_CID}/${tokenId}.json`;
     const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
@@ -59,10 +63,18 @@ async function fetchIpfsMetadata(
     const data = (await response.json()) as {
       name?: string;
       description?: string;
+      attributes?: Array<{ trait_type: string; value: string | number }>;
     };
+    // Use the "Name" trait as the NFT name (e.g. "WireMonkey"), fall back to top-level name
+    const nameTrait = data.attributes?.find((a) => a.trait_type === 'Name');
+    const name =
+      typeof nameTrait?.value === 'string'
+        ? nameTrait.value
+        : (data.name ?? `Babylon #${tokenId}`);
     return {
-      name: data.name ?? `Babylon #${tokenId}`,
+      name,
       description: data.description ?? '',
+      attributes: data.attributes ?? [],
     };
   } catch {
     return null;
@@ -247,7 +259,7 @@ async function seedCollection(): Promise<void> {
       storyTitle: name,
       storyContent: storyTemplate,
       metadataUri: `ipfs://${IPFS_METADATA_CID}/${tokenId}.json`,
-      attributes: [
+      attributes: ipfsMetadata?.attributes ?? [
         { trait_type: 'Collection', value: 'Babylon Top 100' },
         { trait_type: 'Token Number', value: tokenId },
         { trait_type: 'Edition', value: 'Genesis' },

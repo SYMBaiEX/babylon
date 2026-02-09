@@ -80,7 +80,7 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
       {/* Info */}
       <div className="p-2.5">
         <h3 className="truncate font-medium text-foreground text-sm">
-          {isMinted ? nft.name : `Babylon #${nft.tokenId}`}
+          {isMinted ? `${nft.name} #${nft.tokenId}` : `ProtoMonkey #${nft.tokenId}`}
         </h3>
         {ownerName ? (
           <p className="truncate text-muted-foreground text-xs">
