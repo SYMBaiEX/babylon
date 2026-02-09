@@ -1159,14 +1159,34 @@ export function MarketsTradingTerminal({
     sellablePositions.hasSellableYes,
   ]);
 
+  const selectedPerpTickerUpper = selectedPerp?.ticker.toUpperCase() ?? null;
   const selectedPerpPositions = useMemo(() => {
-    if (!selectedPerp) return [];
+    if (!selectedPerpTickerUpper) return [];
     return perpPositions.filter(
       (p) =>
-        p.ticker.toUpperCase() === selectedPerp.ticker.toUpperCase() &&
-        !p.closedAt
+        p.ticker.toUpperCase() === selectedPerpTickerUpper && !p.closedAt
     );
-  }, [perpPositions, selectedPerp]);
+  }, [perpPositions, selectedPerpTickerUpper]);
+
+  const otherPerpPositions = useMemo(() => {
+    if (perpPositions.length === 0) return [];
+    if (selected?.kind !== 'perp' || !selectedPerpTickerUpper) {
+      return perpPositions;
+    }
+    return perpPositions.filter(
+      (p) => p.ticker.toUpperCase() !== selectedPerpTickerUpper || p.closedAt
+    );
+  }, [perpPositions, selected?.kind, selectedPerpTickerUpper]);
+
+  const otherPredictionPositions = useMemo(() => {
+    if (predictionPositions.length === 0) return [];
+    if (selected?.kind !== 'prediction' || !selectedPredictionId) {
+      return predictionPositions;
+    }
+    return predictionPositions.filter(
+      (p) => p.marketId.toString() !== selectedPredictionId
+    );
+  }, [predictionPositions, selected?.kind, selectedPredictionId]);
 
   const predictionAmountNum = Number.parseFloat(predictionAmount) || 0;
   const predictionSellSharesNum = Number.parseFloat(predictionSellShares) || 0;
@@ -2293,35 +2313,13 @@ export function MarketsTradingTerminal({
                     />
                   </div>
                 )}
-              {perpPositions.filter(
-                (p) =>
-                  selected?.kind !== 'perp' ||
-                  p.ticker.toUpperCase() !==
-                    selectedPerp?.ticker.toUpperCase() ||
-                  p.closedAt
-              ).length > 0 && (
+              {otherPerpPositions.length > 0 && (
                 <div className="rounded border border-white/10 bg-background/10 p-2">
                   <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                    Perps (
-                    {
-                      perpPositions.filter(
-                        (p) =>
-                          selected?.kind !== 'perp' ||
-                          p.ticker.toUpperCase() !==
-                            selectedPerp?.ticker.toUpperCase() ||
-                          p.closedAt
-                      ).length
-                    }
-                    )
+                    Perps ({otherPerpPositions.length})
                   </div>
                   <PerpPositionsList
-                    positions={perpPositions.filter(
-                      (p) =>
-                        selected?.kind !== 'perp' ||
-                        p.ticker.toUpperCase() !==
-                          selectedPerp?.ticker.toUpperCase() ||
-                        p.closedAt
-                    )}
+                    positions={otherPerpPositions}
                     density="compact"
                     onPositionClosed={handlePerpPositionClosed}
                     onPositionClick={(ticker) =>
@@ -2330,29 +2328,13 @@ export function MarketsTradingTerminal({
                   />
                 </div>
               )}
-              {predictionPositions.filter(
-                (p) =>
-                  selected?.kind !== 'prediction' ||
-                  p.marketId.toString() !== selectedPredictionId
-              ).length > 0 && (
+              {otherPredictionPositions.length > 0 && (
                 <div className="rounded border border-white/10 bg-background/10 p-2">
                   <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                    Predictions (
-                    {
-                      predictionPositions.filter(
-                        (p) =>
-                          selected?.kind !== 'prediction' ||
-                          p.marketId.toString() !== selectedPredictionId
-                      ).length
-                    }
-                    )
+                    Predictions ({otherPredictionPositions.length})
                   </div>
                   <PredictionPositionsList
-                    positions={predictionPositions.filter(
-                      (p) =>
-                        selected?.kind !== 'prediction' ||
-                        p.marketId.toString() !== selectedPredictionId
-                    )}
+                    positions={otherPredictionPositions}
                     density="compact"
                     onPositionSold={handlePredictionPositionSold}
                     onPositionClick={(marketId) =>
@@ -2694,25 +2676,13 @@ export function MarketsTradingTerminal({
                             />
                           </div>
                         )}
-                      {perpPositions.filter(
-                        (p) =>
-                          selected?.kind !== 'perp' ||
-                          p.ticker.toUpperCase() !==
-                            selectedPerp?.ticker.toUpperCase() ||
-                          p.closedAt
-                      ).length > 0 && (
+                      {otherPerpPositions.length > 0 && (
                         <div className="rounded border border-white/10 bg-background/10 p-2">
                           <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                             Perps
                           </div>
                           <PerpPositionsList
-                            positions={perpPositions.filter(
-                              (p) =>
-                                selected?.kind !== 'perp' ||
-                                p.ticker.toUpperCase() !==
-                                  selectedPerp?.ticker.toUpperCase() ||
-                                p.closedAt
-                            )}
+                            positions={otherPerpPositions}
                             density="compact"
                             onPositionClosed={handlePerpPositionClosed}
                             onPositionClick={(ticker) =>
@@ -2721,21 +2691,13 @@ export function MarketsTradingTerminal({
                           />
                         </div>
                       )}
-                      {predictionPositions.filter(
-                        (p) =>
-                          selected?.kind !== 'prediction' ||
-                          p.marketId.toString() !== selectedPredictionId
-                      ).length > 0 && (
+                      {otherPredictionPositions.length > 0 && (
                         <div className="rounded border border-white/10 bg-background/10 p-2">
                           <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                             Predictions
                           </div>
                           <PredictionPositionsList
-                            positions={predictionPositions.filter(
-                              (p) =>
-                                selected?.kind !== 'prediction' ||
-                                p.marketId.toString() !== selectedPredictionId
-                            )}
+                            positions={otherPredictionPositions}
                             density="compact"
                             onPositionSold={handlePredictionPositionSold}
                             onPositionClick={(marketId) =>
