@@ -2709,7 +2709,7 @@ export function ComingSoon() {
                     href={`${appBaseUrl}${canClaimNft ? '/nft' : '/feed'}`}
                     className="flex min-h-[48px] items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 font-semibold text-primary backdrop-blur-sm transition-all duration-200 hover:bg-primary/15"
                   >
-                    <Wallet className="h-4 w-4" />
+                    {canClaimNft && <Wallet className="h-4 w-4" />}
                     {canClaimNft ? 'Claim your NFT' : 'Open the app'}
                   </a>
                 )}
