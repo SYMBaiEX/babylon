@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
+import { uploadImage, validateImageFile } from '@/utils/upload-image';
 
 /**
  * Check if billing feature is enabled
@@ -201,20 +202,9 @@ export default function SettingsPage() {
     coverImage.preview || user?.coverImageUrl || null;
 
   const handleImageSelect = (file: File, type: 'profile' | 'cover'): void => {
-    const allowedTypes = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/webp',
-      'image/gif',
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      setErrorMessage('Please select a valid image file');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage('File size must be less than 10MB');
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setErrorMessage(validationError);
       return;
     }
 
@@ -307,16 +297,8 @@ export default function SettingsPage() {
 
     // Upload images first (if any were changed).
     if (profileImage.file) {
-      const formData = new FormData();
-      formData.append('file', profileImage.file);
-      formData.append('type', 'profile');
-      let uploadResponse: Response;
       try {
-        uploadResponse = await fetch('/api/upload/image', {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body: formData,
-        });
+        nextProfileImageUrl = await uploadImage(profileImage.file, 'profile');
       } catch (err) {
         logger.error(
           'Profile image upload request failed',
@@ -327,28 +309,11 @@ export default function SettingsPage() {
         setSaving(false);
         return;
       }
-      const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
-        url?: string;
-      };
-      if (!uploadResponse.ok || !uploadPayload.url) {
-        setErrorMessage('Failed to upload profile image.');
-        setSaving(false);
-        return;
-      }
-      nextProfileImageUrl = uploadPayload.url;
     }
 
     if (coverImage.file) {
-      const formData = new FormData();
-      formData.append('file', coverImage.file);
-      formData.append('type', 'cover');
-      let uploadResponse: Response;
       try {
-        uploadResponse = await fetch('/api/upload/image', {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body: formData,
-        });
+        nextCoverImageUrl = await uploadImage(coverImage.file, 'cover');
       } catch (err) {
         logger.error(
           'Cover image upload request failed',
@@ -359,15 +324,6 @@ export default function SettingsPage() {
         setSaving(false);
         return;
       }
-      const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
-        url?: string;
-      };
-      if (!uploadResponse.ok || !uploadPayload.url) {
-        setErrorMessage('Failed to upload cover image.');
-        setSaving(false);
-        return;
-      }
-      nextCoverImageUrl = uploadPayload.url;
     }
 
     let response: Response;
@@ -577,7 +533,7 @@ export default function SettingsPage() {
                           />
                         </label>
                       </div>
-                      <div className="-mt-8 flex items-end justify-between gap-3 px-4 pb-4">
+                      <div className="-mt-8 relative z-10 flex items-end justify-between gap-3 px-4 pb-4">
                         <div className="flex items-center gap-3">
                           <div className="h-20 w-20 overflow-hidden rounded-full border-4 border-background bg-background">
                             <Avatar
