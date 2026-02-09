@@ -67,6 +67,7 @@ interface ApiPredictionPositionPayload {
   currentProbability?: NumericLike;
   resolved?: boolean;
   resolution?: boolean | null;
+  status?: string;
 }
 
 /**
@@ -213,6 +214,7 @@ export function useUserPositions(
             unrealizedPnL: toNumber(pos.unrealizedPnL ?? 0),
             resolved: Boolean(pos.resolved),
             resolution: pos.resolution ?? null,
+            status: pos.status,
           };
         }
       ) as UserPredictionPosition[];
