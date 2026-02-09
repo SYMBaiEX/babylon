@@ -507,8 +507,9 @@ export default function SettingsPage() {
                       </button>
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-border">
-                      <div className="relative h-28 bg-muted sm:h-36">
+                    <div className="relative mb-14 sm:mb-16">
+                      {/* Cover Image */}
+                      <div className="group relative h-32 overflow-hidden rounded-lg bg-muted sm:h-40">
                         {currentCoverImageUrl ? (
                           <img
                             src={currentCoverImageUrl}
@@ -518,9 +519,10 @@ export default function SettingsPage() {
                         ) : (
                           <div className="h-full w-full bg-gradient-to-br from-primary/20 to-primary/5" />
                         )}
-                        <label className="absolute right-3 bottom-3 inline-flex cursor-pointer items-center gap-2 rounded-full bg-background/80 px-3 py-2 text-xs backdrop-blur-sm transition-colors hover:bg-background">
-                          <Camera className="h-4 w-4" />
-                          Change cover
+                        <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                          <div className="rounded-full bg-background/90 p-2.5">
+                            <Camera className="h-5 w-5" />
+                          </div>
                           <input
                             type="file"
                             accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
@@ -533,22 +535,23 @@ export default function SettingsPage() {
                           />
                         </label>
                       </div>
-                      <div className="-mt-8 relative z-10 flex items-end justify-between gap-3 px-4 pb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-20 w-20 overflow-hidden rounded-full border-4 border-background bg-background">
-                            <Avatar
-                              id={user?.id || ''}
-                              name={user?.displayName || user?.email || 'User'}
-                              type="user"
-                              size="lg"
-                              src={currentProfileImageUrl || undefined}
-                              imageUrl={currentProfileImageUrl || undefined}
-                              className="h-full w-full"
-                            />
-                          </div>
-                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs transition-colors hover:bg-muted/30">
-                            <Camera className="h-4 w-4" />
-                            Change photo
+
+                      {/* Avatar - overlapping cover */}
+                      <div className="-bottom-12 sm:-bottom-14 absolute left-3 sm:left-4">
+                        <div className="group relative h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-background sm:h-28 sm:w-28">
+                          <Avatar
+                            id={user?.id || ''}
+                            name={user?.displayName || user?.email || 'User'}
+                            type="user"
+                            size="lg"
+                            src={currentProfileImageUrl || undefined}
+                            imageUrl={currentProfileImageUrl || undefined}
+                            className="h-full w-full"
+                          />
+                          <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            <div className="rounded-full bg-background/90 p-2">
+                              <Camera className="h-4 w-4" />
+                            </div>
                             <input
                               type="file"
                               accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
@@ -563,6 +566,10 @@ export default function SettingsPage() {
                         </div>
                       </div>
                     </div>
+
+                    <p className="text-muted-foreground text-xs">
+                      Hover over images to change. Max 5MB, JPG/PNG/GIF/WebP.
+                    </p>
                   </div>
 
                   <div>
