@@ -143,9 +143,11 @@ function UserPnL({
 
   const loading = balanceLoading || perpsLoading || predictionsLoading;
 
-  // Filter to only user's personal positions (exclude agent positions)
+  // Filter to only user's personal active positions (exclude agent positions and non-active)
   const perps = (perpsData ?? []).filter((p) => !p.isAgentPosition);
-  const predictions = (predictionsData ?? []).filter((p) => !p.isAgentPosition);
+  const predictions = (predictionsData ?? []).filter(
+    (p) => !p.isAgentPosition && (!p.status || p.status === 'active')
+  );
 
   const toggleSection = useCallback((section: 'predictions' | 'perps') => {
     setExpandedSections((prev) => {
@@ -452,7 +454,7 @@ function AgentPnLView({
     pointsInPositions,
     isProfitable,
     loading: positionsLoading,
-    predictions,
+    predictions: allPredictions,
     perps,
   } = useAgentTotalPnL({
     agentId,
@@ -461,6 +463,11 @@ function AgentPnLView({
     totalWithdrawn: balanceInfo.totalWithdrawn,
     realizedPnL: balanceInfo.lifetimePnL.toString(),
   });
+
+  // Filter to only active prediction positions (matches check-pnl action)
+  const predictions = allPredictions.filter(
+    (p) => !p.status || p.status === 'active'
+  );
 
   // Fetch balance and agent stats
   const fetchData = useCallback(async () => {
