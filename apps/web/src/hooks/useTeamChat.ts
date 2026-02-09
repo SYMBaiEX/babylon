@@ -22,7 +22,10 @@ import {
 import { toast } from 'sonner';
 import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
 import { MessageTypeEnum } from '@/components/chats/types';
-import { useChatMessages } from '@/hooks/useChatMessages';
+import {
+  OptimisticMessageIdPrefix,
+  useChatMessages,
+} from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -736,7 +739,7 @@ export function useTeamChat(): UseTeamChatReturn {
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Generate unique ID to avoid collisions on rapid sends
-    const optimisticId = `pending-${generateUUID()}`;
+    const optimisticId = `${OptimisticMessageIdPrefix.Pending}${generateUUID()}`;
     addMessage({
       id: optimisticId,
       chatId: teamChat.chatId,
@@ -812,7 +815,7 @@ export function useTeamChat(): UseTeamChatReturn {
       // =========================================================================
       if (useCoordinator) {
         // Add thinking placeholder message immediately
-        const thinkingId = `thinking-coordinator-${generateUUID()}`;
+        const thinkingId = `${OptimisticMessageIdPrefix.Thinking}coordinator-${generateUUID()}`;
         addMessage({
           id: thinkingId,
           chatId: teamChat.chatId,
@@ -943,7 +946,7 @@ export function useTeamChat(): UseTeamChatReturn {
 
       // Add thinking placeholder messages for all agents immediately
       for (const agentId of availableAgents) {
-        const thinkingId = `thinking-${agentId}-${generateUUID()}`;
+        const thinkingId = `${OptimisticMessageIdPrefix.Thinking}${agentId}-${generateUUID()}`;
         thinkingIds.set(agentId, thinkingId);
         addMessage({
           id: thinkingId,
