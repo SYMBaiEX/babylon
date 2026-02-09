@@ -135,7 +135,6 @@ export function LeaderboardWidgetSidebar({
     };
   }, []);
 
-
   return (
     <div
       ref={containerRef}
@@ -145,150 +144,147 @@ export function LeaderboardWidgetSidebar({
         {/* Selected User Widget */}
         {selectedUser && (
           <div className="space-y-4">
-              {/* User Header */}
-              <div className="flex items-center gap-3">
-                <Avatar
-                  id={selectedUser.id}
-                  name={
-                    selectedUser.displayName || selectedUser.username || 'User'
-                  }
-                  type={selectedUser.isActor ? 'actor' : undefined}
-                  size="md"
-                  src={selectedUser.profileImageUrl || undefined}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="truncate font-semibold text-foreground">
-                      {selectedUser.displayName ||
-                        selectedUser.username ||
-                        'Anonymous'}
-                    </h4>
-                    {selectedUser.isActor ? (
-                      <VerifiedBadge size="sm" />
-                    ) : (
-                      <OnChainBadge
-                        isRegistered={selectedUser.onChainRegistered ?? false}
-                        nftTokenId={selectedUser.nftTokenId ?? null}
-                        size="sm"
-                      />
-                    )}
-                  </div>
-                  {selectedUser.username && (
-                    <p className="truncate text-muted-foreground text-sm">
-                      @{selectedUser.username}
-                    </p>
+            {/* User Header */}
+            <div className="flex items-center gap-3">
+              <Avatar
+                id={selectedUser.id}
+                name={
+                  selectedUser.displayName || selectedUser.username || 'User'
+                }
+                type={selectedUser.isActor ? 'actor' : undefined}
+                size="md"
+                src={selectedUser.profileImageUrl || undefined}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="truncate font-semibold text-foreground">
+                    {selectedUser.displayName ||
+                      selectedUser.username ||
+                      'Anonymous'}
+                  </h4>
+                  {selectedUser.isActor ? (
+                    <VerifiedBadge size="sm" />
+                  ) : (
+                    <OnChainBadge
+                      isRegistered={selectedUser.onChainRegistered ?? false}
+                      nftTokenId={selectedUser.nftTokenId ?? null}
+                      size="sm"
+                    />
                   )}
                 </div>
-                {authenticated && user && selectedUser.id !== user.id && (
-                  <FollowButton
-                    userId={selectedUser.id}
-                    size="sm"
-                    variant="button"
-                    className="w-20"
-                  />
+                {selectedUser.username && (
+                  <p className="truncate text-muted-foreground text-sm">
+                    @{selectedUser.username}
+                  </p>
                 )}
               </div>
+              {authenticated && user && selectedUser.id !== user.id && (
+                <FollowButton
+                  userId={selectedUser.id}
+                  size="sm"
+                  variant="button"
+                  className="w-20"
+                />
+              )}
+            </div>
 
+            {/* Total Points (primary metric) */}
+            {selectedUser.totalPoints !== undefined && (
+              <div className="border-border border-b pb-3">
+                <div className="text-muted-foreground text-xs">
+                  Total Points
+                </div>
+                <div className="font-bold text-foreground text-xl">
+                  {selectedUser.totalPoints.toLocaleString()}
+                </div>
+              </div>
+            )}
 
-              {/* Total Points (primary metric) */}
-              {selectedUser.totalPoints !== undefined && (
-                <div className="border-border border-b pb-3">
-                  <div className="text-muted-foreground text-xs">
-                    Total Points
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* P&L */}
+              <div>
+                <div className="text-muted-foreground text-xs">
+                  Lifetime P&L
+                </div>
+                <div
+                  className={`font-bold ${
+                    selectedUser.lifetimePnL === 0
+                      ? 'text-muted-foreground'
+                      : selectedUser.lifetimePnL > 0
+                        ? 'text-green-500'
+                        : 'text-red-500'
+                  }`}
+                >
+                  {selectedUser.lifetimePnL === 0
+                    ? formatCurrency(0)
+                    : `${selectedUser.lifetimePnL > 0 ? '+' : '-'}${formatCurrency(Math.abs(selectedUser.lifetimePnL))}`}
+                </div>
+              </div>
+
+              {/* Referrals */}
+              <div>
+                <div className="text-muted-foreground text-xs">Referrals</div>
+                <div className="font-bold text-foreground">
+                  {selectedUser.referralCount}
+                </div>
+              </div>
+
+              {/* All Points Breakdown */}
+              {(selectedUser.earnedPoints !== 0 ||
+                selectedUser.invitePoints > 0 ||
+                selectedUser.bonusPoints > 0) && (
+                <div className="col-span-2 border-border border-t pt-3">
+                  <div className="mb-2 text-muted-foreground text-xs">
+                    Points Breakdown
                   </div>
-                  <div className="font-bold text-foreground text-xl">
-                    {selectedUser.totalPoints.toLocaleString()}
+                  <div className="space-y-1 text-sm">
+                    {selectedUser.earnedPoints !== 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Earned</span>
+                        <span
+                          className={`font-semibold ${selectedUser.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}
+                        >
+                          {selectedUser.earnedPoints > 0 ? '+' : ''}
+                          {selectedUser.earnedPoints.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedUser.invitePoints > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Referral</span>
+                        <span className="font-semibold text-foreground">
+                          +{selectedUser.invitePoints.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedUser.bonusPoints > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Bonus</span>
+                        <span className="font-semibold text-foreground">
+                          +{selectedUser.bonusPoints.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* P&L */}
-                <div>
-                  <div className="text-muted-foreground text-xs">
-                    Lifetime P&L
-                  </div>
-                  <div
-                    className={`font-bold ${
-                      selectedUser.lifetimePnL === 0
-                        ? 'text-muted-foreground'
-                        : selectedUser.lifetimePnL > 0
-                          ? 'text-green-500'
-                          : 'text-red-500'
-                    }`}
-                  >
-                    {selectedUser.lifetimePnL === 0
-                      ? formatCurrency(0)
-                      : `${selectedUser.lifetimePnL > 0 ? '+' : '-'}${formatCurrency(Math.abs(selectedUser.lifetimePnL))}`}
-                  </div>
-                </div>
-
-                {/* Referrals */}
-                <div>
-                  <div className="text-muted-foreground text-xs">
-                    Referrals
-                  </div>
-                  <div className="font-bold text-foreground">
-                    {selectedUser.referralCount}
-                  </div>
-                </div>
-
-                {/* All Points Breakdown */}
-                {(selectedUser.earnedPoints !== 0 || selectedUser.invitePoints > 0 || selectedUser.bonusPoints > 0) && (
-                  <div className="col-span-2 border-border border-t pt-3">
-                    <div className="mb-2 text-muted-foreground text-xs">
-                      Points Breakdown
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      {selectedUser.earnedPoints !== 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Earned</span>
-                          <span
-                            className={`font-semibold ${selectedUser.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}
-                          >
-                            {selectedUser.earnedPoints > 0 ? '+' : ''}
-                            {selectedUser.earnedPoints.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                      {selectedUser.invitePoints > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            Referral
-                          </span>
-                          <span className="font-semibold text-foreground">
-                            +{selectedUser.invitePoints.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                      {selectedUser.bonusPoints > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Bonus</span>
-                          <span className="font-semibold text-foreground">
-                            +{selectedUser.bonusPoints.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-2">
-                <Link
-                  href={
-                    selectedUser.isActor
-                      ? getActorProfileUrl(selectedUser.id)
-                      : getProfileUrl(selectedUser.id, selectedUser.username)
-                  }
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  View Profile
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-              </div>
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2">
+              <Link
+                href={
+                  selectedUser.isActor
+                    ? getActorProfileUrl(selectedUser.id)
+                    : getProfileUrl(selectedUser.id, selectedUser.username)
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                View Profile
+                <ExternalLink className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         )}
 

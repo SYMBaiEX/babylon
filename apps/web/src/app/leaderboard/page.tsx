@@ -1,9 +1,6 @@
 'use client';
 
-import {
-  getActorProfileUrl,
-  getProfileUrl,
-} from '@babylon/shared';
+import { getActorProfileUrl, getProfileUrl } from '@babylon/shared';
 import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -315,13 +312,10 @@ export default function LeaderboardPage() {
                       />
                       {authenticated && !isCurrentUser && (
                         <div
-                          className="absolute -bottom-0.5 -right-1"
+                          className="-bottom-0.5 -right-1 absolute"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <FollowButton
-                            userId={player.id}
-                            variant="circle"
-                          />
+                          <FollowButton userId={player.id} variant="circle" />
                         </div>
                       )}
                     </div>
@@ -387,11 +381,8 @@ export default function LeaderboardPage() {
                         src={player.profileImageUrl || undefined}
                       />
                       {authenticated && !isCurrentUser && (
-                        <div className="absolute -bottom-0.5 -right-1">
-                          <FollowButton
-                            userId={player.id}
-                            variant="circle"
-                          />
+                        <div className="-bottom-0.5 -right-1 absolute">
+                          <FollowButton userId={player.id} variant="circle" />
                         </div>
                       )}
                     </div>
@@ -419,7 +410,9 @@ export default function LeaderboardPage() {
                         <span className="font-bold text-foreground">
                           {formattedPoints} pts
                         </span>
-                        <span className="text-muted-foreground">{activePointsLabel}</span>
+                        <span className="text-muted-foreground">
+                          {activePointsLabel}
+                        </span>
                       </div>
                     </div>
                   </div>

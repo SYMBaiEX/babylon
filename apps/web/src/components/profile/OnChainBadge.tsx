@@ -76,9 +76,7 @@ export function OnChainBadge({
               <div className="border-4 border-transparent border-b-border" />
             </div>
             <div className="space-y-1 text-xs">
-              <p className="font-semibold text-green-500">
-                Verified On-Chain
-              </p>
+              <p className="font-semibold text-green-500">Verified On-Chain</p>
               <p className="text-muted-foreground">
                 NFT Token ID: #{nftTokenId}
               </p>
