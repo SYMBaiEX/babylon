@@ -49,9 +49,7 @@ const getImageUrl = (tokenId: number) => `/api/nft/image/${tokenId}`;
 const getThumbnailUrl = (tokenId: number) => `/api/nft/image/${tokenId}`;
 
 /** Fetch metadata from IPFS for a given token ID */
-async function fetchIpfsMetadata(
-  tokenId: number
-): Promise<{
+async function fetchIpfsMetadata(tokenId: number): Promise<{
   name: string;
   description: string;
   attributes: Array<{ trait_type: string; value: string | number }>;
