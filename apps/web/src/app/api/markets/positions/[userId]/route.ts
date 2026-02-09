@@ -377,6 +377,7 @@ export const GET = withErrorHandling(
               unrealizedPnL,
               resolved: market.resolved,
               resolution: market.resolution,
+              status: p.status as string,
               // Agent position metadata
               isAgentPosition: p.isAgentPosition,
               agentId: p.agentId ?? null,

@@ -58,6 +58,8 @@ export interface PredictionPosition {
   unrealizedPnL: number;
   resolved: boolean;
   resolution?: boolean | null;
+  /** Position status: active, closed, resolved, cancelled */
+  status?: string;
   // Agent position metadata (optional)
   /** True if this position belongs to an agent */
   isAgentPosition?: boolean;
