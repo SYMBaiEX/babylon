@@ -1012,18 +1012,24 @@ export function ComingSoon() {
     }
   }, [waitlistData]);
 
+  const isProfileFormValid = useCallback(() => {
+    const username = profileForm.username?.trim();
+    const displayName = profileForm.displayName?.trim();
+    const bio = profileForm.bio?.trim();
+    return Boolean(username && displayName && bio);
+  }, [profileForm.username, profileForm.displayName, profileForm.bio]);
+
   const handleSaveProfile = async () => {
     if (!dbUser?.id) return;
 
-    // Validate and trim values
-    const trimmedUsername = profileForm.username?.trim();
-    const trimmedDisplayName = profileForm.displayName?.trim();
-    const trimmedBio = profileForm.bio?.trim();
-
-    if (!trimmedUsername || !trimmedDisplayName) {
+    if (!isProfileFormValid()) {
       toast.error('Please fill in all required fields.');
       return;
     }
+
+    const trimmedUsername = profileForm.username?.trim();
+    const trimmedDisplayName = profileForm.displayName?.trim();
+    const trimmedBio = profileForm.bio?.trim();
 
     // Check username validation
     if (usernameStatus === 'taken') {
@@ -2554,7 +2560,7 @@ export function ComingSoon() {
                         </div>
                         <div className="space-y-2">
                           <label className="block font-medium text-sm">
-                            Bio
+                            Bio *
                           </label>
                           <textarea
                             value={profileForm.bio}
@@ -2588,12 +2594,9 @@ export function ComingSoon() {
                         </button>
                         <button
                           type="submit"
-                          disabled={(() => {
-                            const username = profileForm.username?.trim() || '';
-                            const displayName =
-                              profileForm.displayName?.trim() || '';
-                            return isSavingProfile || !username || !displayName;
-                          })()}
+                          disabled={
+                            isSavingProfile || !isProfileFormValid()
+                          }
                           className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {isSavingProfile
@@ -4050,7 +4053,7 @@ export function ComingSoon() {
 
                     {/* Bio */}
                     <div className="space-y-2">
-                      <label className="block font-medium text-sm">Bio</label>
+                      <label className="block font-medium text-sm">Bio *</label>
                       <textarea
                         value={profileForm.bio}
                         onChange={(e) =>
@@ -4085,12 +4088,9 @@ export function ComingSoon() {
                     </button>
                     <button
                       type="submit"
-                      disabled={(() => {
-                        const username = profileForm.username?.trim() || '';
-                        const displayName =
-                          profileForm.displayName?.trim() || '';
-                        return isSavingProfile || !username || !displayName;
-                      })()}
+                      disabled={
+                        isSavingProfile || !isProfileFormValid()
+                      }
                       className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isSavingProfile
