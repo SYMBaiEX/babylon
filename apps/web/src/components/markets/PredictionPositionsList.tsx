@@ -219,7 +219,7 @@ export function PredictionPositionsList({
                     {position.agentName || 'Agent'}
                   </span>
                 )}
-                <span className="truncate text-xs font-medium text-foreground">
+                <span className="truncate font-medium text-foreground text-xs">
                   {position.question}
                 </span>
               </div>
@@ -240,7 +240,7 @@ export function PredictionPositionsList({
 
             {/* Row 2: Stats + Sell/Resolved */}
             <div className="mt-1.5 flex items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
                 <span>
                   {position.shares.toFixed(2)}{' '}
                   <span className="font-medium text-foreground">shares</span>
@@ -280,7 +280,7 @@ export function PredictionPositionsList({
                   }}
                   disabled={isSelling || position.shares < 0.01}
                   className={cn(
-                    'shrink-0 cursor-pointer rounded-full bg-muted px-3 py-0.5 font-medium text-xs text-foreground transition-all hover:bg-muted/80 disabled:cursor-not-allowed disabled:opacity-50'
+                    'shrink-0 cursor-pointer rounded-full bg-muted px-3 py-0.5 font-medium text-foreground text-xs transition-all hover:bg-muted/80 disabled:cursor-not-allowed disabled:opacity-50'
                   )}
                 >
                   {isSelling
@@ -290,7 +290,7 @@ export function PredictionPositionsList({
                       : 'Sell'}
                 </button>
               ) : (
-                <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                <span className="shrink-0 font-medium text-muted-foreground text-xs">
                   Resolved:{' '}
                   <span
                     className={

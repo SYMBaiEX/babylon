@@ -245,7 +245,7 @@ export function PerpPositionsList({
 
               {/* Row 2: Price + Stats + Close button */}
               <div className="mt-1.5 flex items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
                   <span className="font-medium text-foreground">
                     {formatPrice(position.entryPrice)}
                     <span className="mx-0.5 text-muted-foreground">&rarr;</span>
@@ -307,7 +307,7 @@ export function PerpPositionsList({
               {isNearLiquidation && (
                 <div className="mt-1.5 flex items-center gap-1.5 rounded bg-red-600/20 px-2 py-1">
                   <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />
-                  <p className="font-medium text-xs text-red-600">
+                  <p className="font-medium text-red-600 text-xs">
                     Near liquidation! {liquidationDistance.toFixed(2)}% away
                   </p>
                 </div>

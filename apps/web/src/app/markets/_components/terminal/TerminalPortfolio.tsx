@@ -217,7 +217,6 @@ export function TerminalPortfolio({
           />
         </div>
       </div>
-
     </div>
   );
 }

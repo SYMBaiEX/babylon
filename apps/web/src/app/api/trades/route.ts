@@ -401,12 +401,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     predictionMarketIds.length > 0
       ? await db.market.findMany({
           where: { id: { in: predictionMarketIds } },
-          select: { id: true, question: true, resolved: true, resolution: true },
+          select: {
+            id: true,
+            question: true,
+            resolved: true,
+            resolution: true,
+          },
         })
       : [];
-  const predictionMarketsMap = new Map(
-    predictionMarkets.map((m) => [m.id, m])
-  );
+  const predictionMarketsMap = new Map(predictionMarkets.map((m) => [m.id, m]));
 
   // Merge and sort by timestamp
   // Filter out balance transactions from NPC actors - they have npcTrades entries instead
@@ -420,7 +423,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const isPrediction = tx.type === 'pred_buy' || tx.type === 'pred_sell';
         const market =
           isPrediction && tx.relatedId
-            ? predictionMarketsMap.get(tx.relatedId) ?? null
+            ? (predictionMarketsMap.get(tx.relatedId) ?? null)
             : null;
         return {
           type: 'balance' as const,
@@ -477,7 +480,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const actor = actorsMap.get(trade.npcActorId);
       const npcMarket =
         trade.marketType === 'prediction' && trade.marketId
-          ? predictionMarketsMap.get(trade.marketId) ?? null
+          ? (predictionMarketsMap.get(trade.marketId) ?? null)
           : null;
       return {
         type: 'npc' as const,

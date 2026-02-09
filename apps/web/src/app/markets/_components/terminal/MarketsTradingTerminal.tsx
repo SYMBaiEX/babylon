@@ -1412,9 +1412,7 @@ export function MarketsTradingTerminal({
             aria-controls="markets-filter-sort"
             className={cn(
               'shrink-0 rounded p-2 transition-colors hover:bg-muted/20',
-              showMarketsMenu ||
-                sortBy !== 'volume' ||
-                sortDesc !== true
+              showMarketsMenu || sortBy !== 'volume' || sortDesc !== true
                 ? 'bg-muted/20 text-primary'
                 : 'text-muted-foreground'
             )}
@@ -1434,7 +1432,9 @@ export function MarketsTradingTerminal({
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/20"
               onClick={() => {
-                handleFilterChange(filter === 'favorites' ? 'all' : 'favorites');
+                handleFilterChange(
+                  filter === 'favorites' ? 'all' : 'favorites'
+                );
               }}
             >
               <div
@@ -1449,9 +1449,13 @@ export function MarketsTradingTerminal({
                   <Check size={10} className="text-primary-foreground" />
                 )}
               </div>
-              <span className={cn(
-                filter === 'favorites' ? 'font-medium text-primary' : 'text-foreground'
-              )}>
+              <span
+                className={cn(
+                  filter === 'favorites'
+                    ? 'font-medium text-primary'
+                    : 'text-foreground'
+                )}
+              >
                 Favorites only
               </span>
             </button>
@@ -1507,15 +1511,18 @@ export function MarketsTradingTerminal({
             { id: 'prediction', label: 'Prediction' },
           ] as const
         ).map((tab) => {
-          const isActive = filter === tab.id || (tab.id === 'all' && filter === 'favorites');
+          const isActive =
+            filter === tab.id || (tab.id === 'all' && filter === 'favorites');
           return (
             <button
               key={tab.id}
               type="button"
               onClick={() => handleFilterChange(tab.id)}
               className={cn(
-                'relative flex-1 py-2.5 text-xs font-semibold transition-colors hover:bg-muted/20',
-                isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                'relative flex-1 py-2.5 font-semibold text-xs transition-colors hover:bg-muted/20',
+                isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground'
               )}
             >
               {tab.label}
@@ -2260,53 +2267,97 @@ export function MarketsTradingTerminal({
             </div>
           ) : (
             <div className="h-full space-y-2 overflow-auto p-2">
-              {selected?.kind === 'prediction' && selectedPredictionPositions.length > 0 && (
-                <div className="rounded border border-primary/20 bg-primary/5 p-2">
-                  <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
-                    Selected Market
+              {selected?.kind === 'prediction' &&
+                selectedPredictionPositions.length > 0 && (
+                  <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                    <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                      Selected Market
+                    </div>
+                    <PredictionPositionsList
+                      positions={selectedPredictionPositions}
+                      density="compact"
+                      onPositionSold={handlePredictionPositionSold}
+                    />
                   </div>
-                  <PredictionPositionsList
-                    positions={selectedPredictionPositions}
-                    density="compact"
-                    onPositionSold={handlePredictionPositionSold}
-                  />
-                </div>
-              )}
-              {selected?.kind === 'perp' && selectedPerpPositions.length > 0 && (
-                <div className="rounded border border-primary/20 bg-primary/5 p-2">
-                  <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
-                    Selected Market
+                )}
+              {selected?.kind === 'perp' &&
+                selectedPerpPositions.length > 0 && (
+                  <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                    <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                      Selected Market
+                    </div>
+                    <PerpPositionsList
+                      positions={selectedPerpPositions}
+                      density="compact"
+                      onPositionClosed={handlePerpPositionClosed}
+                    />
                   </div>
-                  <PerpPositionsList
-                    positions={selectedPerpPositions}
-                    density="compact"
-                    onPositionClosed={handlePerpPositionClosed}
-                  />
-                </div>
-              )}
-              {perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt).length > 0 && (
+                )}
+              {perpPositions.filter(
+                (p) =>
+                  selected?.kind !== 'perp' ||
+                  p.ticker.toUpperCase() !==
+                    selectedPerp?.ticker.toUpperCase() ||
+                  p.closedAt
+              ).length > 0 && (
                 <div className="rounded border border-white/10 bg-background/10 p-2">
                   <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                    Perps ({perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt).length})
+                    Perps (
+                    {
+                      perpPositions.filter(
+                        (p) =>
+                          selected?.kind !== 'perp' ||
+                          p.ticker.toUpperCase() !==
+                            selectedPerp?.ticker.toUpperCase() ||
+                          p.closedAt
+                      ).length
+                    }
+                    )
                   </div>
                   <PerpPositionsList
-                    positions={perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt)}
+                    positions={perpPositions.filter(
+                      (p) =>
+                        selected?.kind !== 'perp' ||
+                        p.ticker.toUpperCase() !==
+                          selectedPerp?.ticker.toUpperCase() ||
+                        p.closedAt
+                    )}
                     density="compact"
                     onPositionClosed={handlePerpPositionClosed}
-                    onPositionClick={(ticker) => handleSelect({ kind: 'perp', id: ticker })}
+                    onPositionClick={(ticker) =>
+                      handleSelect({ kind: 'perp', id: ticker })
+                    }
                   />
                 </div>
               )}
-              {predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId).length > 0 && (
+              {predictionPositions.filter(
+                (p) =>
+                  selected?.kind !== 'prediction' ||
+                  p.marketId.toString() !== selectedPredictionId
+              ).length > 0 && (
                 <div className="rounded border border-white/10 bg-background/10 p-2">
                   <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                    Predictions ({predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId).length})
+                    Predictions (
+                    {
+                      predictionPositions.filter(
+                        (p) =>
+                          selected?.kind !== 'prediction' ||
+                          p.marketId.toString() !== selectedPredictionId
+                      ).length
+                    }
+                    )
                   </div>
                   <PredictionPositionsList
-                    positions={predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId)}
+                    positions={predictionPositions.filter(
+                      (p) =>
+                        selected?.kind !== 'prediction' ||
+                        p.marketId.toString() !== selectedPredictionId
+                    )}
                     density="compact"
                     onPositionSold={handlePredictionPositionSold}
-                    onPositionClick={(marketId) => handleSelect({ kind: 'prediction', id: marketId })}
+                    onPositionClick={(marketId) =>
+                      handleSelect({ kind: 'prediction', id: marketId })
+                    }
                   />
                 </div>
               )}
@@ -2610,59 +2661,86 @@ export function MarketsTradingTerminal({
                     <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
                       Log in to view positions.
                     </div>
-                  ) : perpPositions.length === 0 && predictionPositions.length === 0 ? (
+                  ) : perpPositions.length === 0 &&
+                    predictionPositions.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
                       No open positions
                     </div>
                   ) : (
                     <div className="h-full space-y-2 overflow-auto overscroll-contain p-2">
-                      {selected?.kind === 'prediction' && selectedPredictionPositions.length > 0 && (
-                        <div className="rounded border border-primary/20 bg-primary/5 p-2">
-                          <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
-                            Selected Market
+                      {selected?.kind === 'prediction' &&
+                        selectedPredictionPositions.length > 0 && (
+                          <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                            <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                              Selected Market
+                            </div>
+                            <PredictionPositionsList
+                              positions={selectedPredictionPositions}
+                              density="compact"
+                              onPositionSold={handlePredictionPositionSold}
+                            />
                           </div>
-                          <PredictionPositionsList
-                            positions={selectedPredictionPositions}
-                            density="compact"
-                            onPositionSold={handlePredictionPositionSold}
-                          />
-                        </div>
-                      )}
-                      {selected?.kind === 'perp' && selectedPerpPositions.length > 0 && (
-                        <div className="rounded border border-primary/20 bg-primary/5 p-2">
-                          <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
-                            Selected Market
+                        )}
+                      {selected?.kind === 'perp' &&
+                        selectedPerpPositions.length > 0 && (
+                          <div className="rounded border border-primary/20 bg-primary/5 p-2">
+                            <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
+                              Selected Market
+                            </div>
+                            <PerpPositionsList
+                              positions={selectedPerpPositions}
+                              density="compact"
+                              onPositionClosed={handlePerpPositionClosed}
+                            />
                           </div>
-                          <PerpPositionsList
-                            positions={selectedPerpPositions}
-                            density="compact"
-                            onPositionClosed={handlePerpPositionClosed}
-                          />
-                        </div>
-                      )}
-                      {perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt).length > 0 && (
+                        )}
+                      {perpPositions.filter(
+                        (p) =>
+                          selected?.kind !== 'perp' ||
+                          p.ticker.toUpperCase() !==
+                            selectedPerp?.ticker.toUpperCase() ||
+                          p.closedAt
+                      ).length > 0 && (
                         <div className="rounded border border-white/10 bg-background/10 p-2">
                           <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                             Perps
                           </div>
                           <PerpPositionsList
-                            positions={perpPositions.filter((p) => selected?.kind !== 'perp' || p.ticker.toUpperCase() !== selectedPerp?.ticker.toUpperCase() || p.closedAt)}
+                            positions={perpPositions.filter(
+                              (p) =>
+                                selected?.kind !== 'perp' ||
+                                p.ticker.toUpperCase() !==
+                                  selectedPerp?.ticker.toUpperCase() ||
+                                p.closedAt
+                            )}
                             density="compact"
                             onPositionClosed={handlePerpPositionClosed}
-                            onPositionClick={(ticker) => handleSelect({ kind: 'perp', id: ticker })}
+                            onPositionClick={(ticker) =>
+                              handleSelect({ kind: 'perp', id: ticker })
+                            }
                           />
                         </div>
                       )}
-                      {predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId).length > 0 && (
+                      {predictionPositions.filter(
+                        (p) =>
+                          selected?.kind !== 'prediction' ||
+                          p.marketId.toString() !== selectedPredictionId
+                      ).length > 0 && (
                         <div className="rounded border border-white/10 bg-background/10 p-2">
                           <div className="px-1 pb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                             Predictions
                           </div>
                           <PredictionPositionsList
-                            positions={predictionPositions.filter((p) => selected?.kind !== 'prediction' || p.marketId.toString() !== selectedPredictionId)}
+                            positions={predictionPositions.filter(
+                              (p) =>
+                                selected?.kind !== 'prediction' ||
+                                p.marketId.toString() !== selectedPredictionId
+                            )}
                             density="compact"
                             onPositionSold={handlePredictionPositionSold}
-                            onPositionClick={(marketId) => handleSelect({ kind: 'prediction', id: marketId })}
+                            onPositionClick={(marketId) =>
+                              handleSelect({ kind: 'prediction', id: marketId })
+                            }
                           />
                         </div>
                       )}

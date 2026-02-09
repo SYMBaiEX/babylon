@@ -204,17 +204,27 @@ export function TradeCard({ trade }: TradeCardProps) {
     e.stopPropagation();
 
     if (trade.type === 'balance' && trade.market) {
-      router.push(`/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.market.id)}`);
+      router.push(
+        `/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.market.id)}`
+      );
     } else if (trade.type === 'npc') {
       if (trade.marketType === 'perp' && trade.ticker) {
-        router.push(`/markets?filter=perp&marketKind=perp&marketId=${encodeURIComponent(trade.ticker)}`);
+        router.push(
+          `/markets?filter=perp&marketKind=perp&marketId=${encodeURIComponent(trade.ticker)}`
+        );
       } else if (trade.marketType === 'prediction' && trade.marketId) {
-        router.push(`/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.marketId)}`);
+        router.push(
+          `/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.marketId)}`
+        );
       }
     } else if (trade.type === 'position' && trade.market) {
-      router.push(`/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.market.id)}`);
+      router.push(
+        `/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.market.id)}`
+      );
     } else if (trade.type === 'perp') {
-      router.push(`/markets?filter=perp&marketKind=perp&marketId=${encodeURIComponent(trade.ticker)}`);
+      router.push(
+        `/markets?filter=perp&marketKind=perp&marketId=${encodeURIComponent(trade.ticker)}`
+      );
     }
   };
 
