@@ -68,7 +68,8 @@ export async function registerAgent(): Promise<AgentIdentity> {
 
   // Register on-chain
   console.log('⛓️  Registering on-chain...');
-  const registration = await agent.registerIPFS();
+  const tx = await agent.registerIPFS();
+  const { result: registration } = await tx.waitMined();
 
   console.log('✅ Registration complete!');
   console.log(`   Token ID: ${registration.agentId}`);
