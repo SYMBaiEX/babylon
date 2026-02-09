@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
+import { uploadImage, validateImageFile } from '@/utils/upload-image';
 
 /**
  * Check if billing feature is enabled
@@ -201,20 +202,9 @@ export default function SettingsPage() {
     coverImage.preview || user?.coverImageUrl || null;
 
   const handleImageSelect = (file: File, type: 'profile' | 'cover'): void => {
-    const allowedTypes = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/webp',
-      'image/gif',
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      setErrorMessage('Please select a valid image file');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage('File size must be less than 10MB');
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setErrorMessage(validationError);
       return;
     }
 
@@ -307,16 +297,8 @@ export default function SettingsPage() {
 
     // Upload images first (if any were changed).
     if (profileImage.file) {
-      const formData = new FormData();
-      formData.append('file', profileImage.file);
-      formData.append('type', 'profile');
-      let uploadResponse: Response;
       try {
-        uploadResponse = await fetch('/api/upload/image', {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body: formData,
-        });
+        nextProfileImageUrl = await uploadImage(profileImage.file, 'profile');
       } catch (err) {
         logger.error(
           'Profile image upload request failed',
@@ -327,28 +309,11 @@ export default function SettingsPage() {
         setSaving(false);
         return;
       }
-      const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
-        url?: string;
-      };
-      if (!uploadResponse.ok || !uploadPayload.url) {
-        setErrorMessage('Failed to upload profile image.');
-        setSaving(false);
-        return;
-      }
-      nextProfileImageUrl = uploadPayload.url;
     }
 
     if (coverImage.file) {
-      const formData = new FormData();
-      formData.append('file', coverImage.file);
-      formData.append('type', 'cover');
-      let uploadResponse: Response;
       try {
-        uploadResponse = await fetch('/api/upload/image', {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body: formData,
-        });
+        nextCoverImageUrl = await uploadImage(coverImage.file, 'cover');
       } catch (err) {
         logger.error(
           'Cover image upload request failed',
@@ -359,15 +324,6 @@ export default function SettingsPage() {
         setSaving(false);
         return;
       }
-      const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
-        url?: string;
-      };
-      if (!uploadResponse.ok || !uploadPayload.url) {
-        setErrorMessage('Failed to upload cover image.');
-        setSaving(false);
-        return;
-      }
-      nextCoverImageUrl = uploadPayload.url;
     }
 
     let response: Response;
@@ -551,8 +507,9 @@ export default function SettingsPage() {
                       </button>
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-border">
-                      <div className="relative h-28 bg-muted sm:h-36">
+                    <div className="relative mb-14 sm:mb-16">
+                      {/* Cover Image */}
+                      <div className="group relative h-32 overflow-hidden rounded-lg bg-muted sm:h-40">
                         {currentCoverImageUrl ? (
                           <img
                             src={currentCoverImageUrl}
@@ -562,9 +519,10 @@ export default function SettingsPage() {
                         ) : (
                           <div className="h-full w-full bg-gradient-to-br from-primary/20 to-primary/5" />
                         )}
-                        <label className="absolute right-3 bottom-3 inline-flex cursor-pointer items-center gap-2 rounded-full bg-background/80 px-3 py-2 text-xs backdrop-blur-sm transition-colors hover:bg-background">
-                          <Camera className="h-4 w-4" />
-                          Change cover
+                        <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                          <div className="rounded-full bg-background/90 p-2.5">
+                            <Camera className="h-5 w-5" />
+                          </div>
                           <input
                             type="file"
                             accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
@@ -577,22 +535,23 @@ export default function SettingsPage() {
                           />
                         </label>
                       </div>
-                      <div className="-mt-8 flex items-end justify-between gap-3 px-4 pb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-20 w-20 overflow-hidden rounded-full border-4 border-background bg-background">
-                            <Avatar
-                              id={user?.id || ''}
-                              name={user?.displayName || user?.email || 'User'}
-                              type="user"
-                              size="lg"
-                              src={currentProfileImageUrl || undefined}
-                              imageUrl={currentProfileImageUrl || undefined}
-                              className="h-full w-full"
-                            />
-                          </div>
-                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs transition-colors hover:bg-muted/30">
-                            <Camera className="h-4 w-4" />
-                            Change photo
+
+                      {/* Avatar - overlapping cover */}
+                      <div className="-bottom-12 sm:-bottom-14 absolute left-3 sm:left-4">
+                        <div className="group relative h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-background sm:h-28 sm:w-28">
+                          <Avatar
+                            id={user?.id || ''}
+                            name={user?.displayName || user?.email || 'User'}
+                            type="user"
+                            size="lg"
+                            src={currentProfileImageUrl || undefined}
+                            imageUrl={currentProfileImageUrl || undefined}
+                            className="h-full w-full"
+                          />
+                          <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            <div className="rounded-full bg-background/90 p-2">
+                              <Camera className="h-4 w-4" />
+                            </div>
                             <input
                               type="file"
                               accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
@@ -607,6 +566,10 @@ export default function SettingsPage() {
                         </div>
                       </div>
                     </div>
+
+                    <p className="text-muted-foreground text-xs">
+                      Hover over images to change. Max 5MB, JPG/PNG/GIF/WebP.
+                    </p>
                   </div>
 
                   <div>
