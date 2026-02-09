@@ -155,7 +155,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         stats: { totalNfts, claimedCount, unclaimedCount },
         filters: { traits: [] },
       },
-    } satisfies NftGalleryResponse);
+    } satisfies NftGalleryResponse, 200, {
+      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+    });
   } catch (error) {
     if (
       error instanceof NftIndexerUnavailableError ||
@@ -278,5 +280,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       stats: { totalNfts, claimedCount, unclaimedCount },
       filters: { traits: [] },
     },
-  } satisfies NftGalleryResponse);
+  } satisfies NftGalleryResponse, 200, {
+    'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+  });
 });

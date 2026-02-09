@@ -13,6 +13,8 @@ interface NftCardProps {
 export function NftCard({ nft, priority = false }: NftCardProps) {
   const [imageError, setImageError] = useState(false);
 
+  const isMinted = !!nft.owner;
+
   const ownerName =
     nft.owner?.user?.displayName ??
     nft.owner?.user?.username ??
@@ -27,7 +29,7 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
     >
       {/* Image */}
       <div className="relative aspect-square overflow-hidden bg-muted">
-        {!imageError ? (
+        {isMinted && !imageError ? (
           <Image
             src={nft.thumbnailUrl || nft.imageUrl}
             alt={nft.name}
@@ -37,10 +39,27 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
             priority={priority}
             onError={() => setImageError(true)}
           />
-        ) : (
+        ) : isMinted && imageError ? (
           <div className="flex h-full w-full items-center justify-center bg-muted text-4xl">
             🖼️
           </div>
+        ) : (
+          /* Unminted: placeholder with reveal overlay */
+          <>
+            <Image
+              src="/icon-1024.png"
+              alt={`Babylon #${nft.tokenId}`}
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+              priority={priority}
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <span className="rounded-md bg-black/60 px-3 py-1.5 text-center font-medium text-white text-xs leading-tight">
+                Will Reveal<br />When Minted
+              </span>
+            </div>
+          </>
         )}
 
         {/* Token ID badge */}
@@ -49,7 +68,7 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
         </div>
 
         {/* Claimed indicator */}
-        {nft.owner && (
+        {isMinted && (
           <div className="absolute top-2 right-2 rounded bg-green-500 px-1.5 py-0.5 font-medium text-white text-xs">
             ✓
           </div>
@@ -59,14 +78,14 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
       {/* Info */}
       <div className="p-2.5">
         <h3 className="truncate font-medium text-foreground text-sm">
-          {nft.name}
+          {isMinted ? nft.name : `Babylon #${nft.tokenId}`}
         </h3>
         {ownerName ? (
           <p className="truncate text-muted-foreground text-xs">
             Owned by <span className="text-foreground">@{ownerName}</span>
           </p>
         ) : (
-          <p className="text-muted-foreground text-xs">Available</p>
+          <p className="text-muted-foreground/60 text-xs italic">Unrevealed</p>
         )}
       </div>
     </Link>

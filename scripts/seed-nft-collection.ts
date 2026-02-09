@@ -38,12 +38,33 @@ const NFT_CHAIN_ID = process.env.NFT_CHAIN_ID
   ? parseInt(process.env.NFT_CHAIN_ID, 10)
   : 31337; // Default to local Hardhat
 
-// Placeholder image service (generates colorful images based on seed)
-const getPlaceholderImage = (tokenId: number) =>
-  `https://picsum.photos/seed/babylon-nft-${tokenId}/4096/4096`;
+/** IPFS CID for NFT metadata (contains {tokenId}.json files, required) */
+const IPFS_METADATA_CID = process.env.NFT_IPFS_METADATA_CID;
 
-const getPlaceholderThumbnail = (tokenId: number) =>
-  `https://picsum.photos/seed/babylon-nft-${tokenId}/512/512`;
+/** IPFS gateway for fetching metadata during seeding */
+const IPFS_GATEWAY = 'https://ipfs.io/ipfs';
+
+// Image URLs use the image proxy endpoint (which fetches from IPFS and caches via CDN)
+const getImageUrl = (tokenId: number) => `/api/nft/image/${tokenId}`;
+const getThumbnailUrl = (tokenId: number) => `/api/nft/image/${tokenId}`;
+
+/** Fetch metadata from IPFS for a given token ID */
+async function fetchIpfsMetadata(
+  tokenId: number
+): Promise<{ name: string; description: string } | null> {
+  try {
+    const url = `${IPFS_GATEWAY}/${IPFS_METADATA_CID}/${tokenId}.json`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { name?: string; description?: string };
+    return {
+      name: data.name ?? `Babylon #${tokenId}`,
+      description: data.description ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
 
 // Mythological/fantasy names for NFTs
 const nftNames = [
@@ -197,25 +218,32 @@ async function clearCollection(): Promise<void> {
 
 async function seedCollection(): Promise<void> {
   logger.info(`Seeding ${TOTAL_NFTS} NFTs...`, undefined, 'SeedNFT');
+  logger.info('Fetching metadata from IPFS...', undefined, 'SeedNFT');
 
   const now = new Date();
 
   for (let i = 0; i < TOTAL_NFTS; i++) {
     const tokenId = i + 1;
-    const name = nftNames[i] ?? `Babylon #${tokenId}`;
+
+    // Try to fetch real metadata from IPFS, fall back to local names
+    const ipfsMetadata = await fetchIpfsMetadata(tokenId);
+    const name = ipfsMetadata?.name ?? nftNames[i] ?? `Babylon #${tokenId}`;
+    const description =
+      ipfsMetadata?.description ??
+      `A unique piece from the Babylon Top 100 Collection. Token #${tokenId} of 100.`;
     const storyTemplate = storyTemplates[i % storyTemplates.length]!;
 
     await db.insert(nftCollection).values({
       id: nanoid(),
       tokenId,
       name,
-      description: `A unique piece from the Babylon Top 100 Collection. Token #${tokenId} of 100.`,
-      imageUrl: getPlaceholderImage(tokenId),
-      thumbnailUrl: getPlaceholderThumbnail(tokenId),
-      imageCid: null, // Will be set when actual images are uploaded
+      description,
+      imageUrl: getImageUrl(tokenId),
+      thumbnailUrl: getThumbnailUrl(tokenId),
+      imageCid: null,
       storyTitle: name,
       storyContent: storyTemplate,
-      metadataUri: null, // Will be set when metadata is uploaded to IPFS
+      metadataUri: `ipfs://${IPFS_METADATA_CID}/${tokenId}.json`,
       attributes: [
         { trait_type: 'Collection', value: 'Babylon Top 100' },
         { trait_type: 'Token Number', value: tokenId },
@@ -228,7 +256,11 @@ async function seedCollection(): Promise<void> {
     });
 
     if (tokenId % 10 === 0) {
-      logger.info(`Seeded ${tokenId}/${TOTAL_NFTS} NFTs`, undefined, 'SeedNFT');
+      logger.info(
+        `Seeded ${tokenId}/${TOTAL_NFTS} NFTs${ipfsMetadata ? ' (IPFS metadata)' : ' (fallback names)'}`,
+        undefined,
+        'SeedNFT'
+      );
     }
   }
 
