@@ -135,7 +135,10 @@ export function useAgentForm(): UseAgentFormResult {
       const displayName = initialName.displayName;
       setAgentData((prev) => ({
         system: template.system.replace(/\{\{agentName\}\}/g, displayName),
-        personality: template.bio.replace(/\{\{agentName\}\}/g, displayName),
+        personality: template.personality.replace(
+          /\{\{agentName\}\}/g,
+          displayName
+        ),
         tradingStrategy: template.tradingStrategy.replace(
           /\{\{agentName\}\}/g,
           displayName

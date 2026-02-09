@@ -181,8 +181,20 @@ export interface PnlTagData {
   /** Current available balance (trading points) */
   balance: number;
 
-  /** Cumulative realized P&L across all closed trades */
+  /** Cumulative realized P&L across all closed trades (legacy, may be inaccurate) */
   lifetimePnL: number;
+
+  /** True total P&L from portfolio breakdown (totalAssets - originalAmount) */
+  totalPnL?: number;
+
+  /** Total assets value (wallet + agents + positions) */
+  totalAssets?: number;
+
+  /** Value of open positions (AMM-accurate) */
+  positionsValue?: number;
+
+  /** Available balance (wallet + agents, cash not in positions) */
+  available?: number;
 
   /** Open prediction market positions */
   predictionPositions: Array<{

@@ -9,25 +9,23 @@ import {
 import { ChevronDown, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 import { useAuth } from '@/hooks/useAuth';
 import { useCollapsibleHeight } from '@/hooks/useCollapsibleHeight';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { useUserPositions } from '@/hooks/useUserPositions';
 import {
   usePerpPositions,
   usePredictionPositions,
 } from '@/stores/userPositionsStore';
 
-/** Response from /api/agents/[agentId]/trading-balance */
-interface WalletResponse {
-  success: boolean;
-  agentBalance: {
-    tradingBalance: number;
-    lifetimePnL: number;
-    totalDeposited?: number;
-    totalWithdrawn?: number;
-  };
-  userBalance: number;
+/** Portfolio breakdown snapshot (matches profile page calculation) */
+interface PortfolioSnapshot {
+  totalPnL: number;
+  positions: number;
+  totalAssets: number;
+  available: number;
+  wallet: number;
+  agents: number;
+  totalPoints: number;
 }
 
 /** Response from /api/agents/[agentId] */
@@ -115,7 +113,7 @@ export function AgentPnL(props: AgentPnLProps) {
   return <AgentPnLView agentId={props.agentId} entityName={entityName} />;
 }
 
-/** User P&L view - shows only user's personal positions (excludes agents) */
+/** User P&L view - uses portfolio-breakdown for consistent P&L (matches profile page) */
 function UserPnL({
   userId,
   entityName,
@@ -128,26 +126,62 @@ function UserPnL({
     Set<'predictions' | 'perps'>
   >(new Set(['predictions', 'perps']));
 
-  // Fetch user wallet balance (personal only, excludes agents)
-  const {
-    balance,
-    lifetimePnL,
-    loading: balanceLoading,
-  } = useWalletBalance(userId);
+  // Portfolio breakdown (same calculation as profile page)
+  const [portfolio, setPortfolio] = useState<PortfolioSnapshot | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
 
-  // Fetch user positions (personal only)
+  // Fetch user positions (for list display only)
   const { positions: perpsData, loading: perpsLoading } =
     usePerpPositions(userId);
   const { positions: predictionsData, loading: predictionsLoading } =
     usePredictionPositions(userId);
 
-  const loading = balanceLoading || perpsLoading || predictionsLoading;
+  const loading = portfolioLoading || perpsLoading || predictionsLoading;
 
   // Filter to only user's personal active positions (exclude agent positions and non-active)
   const perps = (perpsData ?? []).filter((p) => !p.isAgentPosition);
   const predictions = (predictionsData ?? []).filter(
     (p) => !p.isAgentPosition && (!p.status || p.status === 'active')
   );
+
+  // Fetch portfolio breakdown (same endpoint as profile page)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPortfolio = async () => {
+      setPortfolioLoading(true);
+      try {
+        const res = await fetch(
+          `/api/users/${encodeURIComponent(userId)}/portfolio-breakdown`
+        );
+        if (res.ok && !cancelled) {
+          const data = (await res.json()) as Record<string, unknown>;
+          setPortfolio({
+            totalPnL: Number(data.totalPnL) || 0,
+            positions: Number(data.positions) || 0,
+            totalAssets: Number(data.totalAssets) || 0,
+            available: Number(data.available) || 0,
+            wallet: Number(data.wallet) || 0,
+            agents: Number(data.agents) || 0,
+            totalPoints: Number(data.totalPoints) || 0,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          logger.error(
+            'Failed to fetch portfolio breakdown',
+            { error: err instanceof Error ? err.message : String(err) },
+            'UserPnL'
+          );
+        }
+      } finally {
+        if (!cancelled) setPortfolioLoading(false);
+      }
+    };
+    void fetchPortfolio();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const toggleSection = useCallback((section: 'predictions' | 'perps') => {
     setExpandedSections((prev) => {
@@ -169,26 +203,8 @@ function UserPnL({
     );
   }
 
-  // Calculate unrealized P&L from user's own positions only
-  let unrealizedPnL = 0;
-  let positionsValue = 0;
-  for (const pos of predictions) {
-    const unrealized = Number(pos.unrealizedPnL);
-    if (Number.isFinite(unrealized)) unrealizedPnL += unrealized;
-    const currentVal = Number(pos.currentValue);
-    if (Number.isFinite(currentVal)) positionsValue += currentVal;
-  }
-  for (const pos of perps) {
-    const unrealized = Number(pos.unrealizedPnL);
-    if (Number.isFinite(unrealized)) unrealizedPnL += unrealized;
-    const size = Number(pos.size);
-    if (Number.isFinite(size)) positionsValue += size;
-  }
-
-  // Total P&L = realized (lifetime) + unrealized (from positions)
-  const totalPnL = lifetimePnL + unrealizedPnL;
+  const totalPnL = portfolio?.totalPnL ?? 0;
   const isProfitable = totalPnL >= 0;
-  const realizedPnL = lifetimePnL;
 
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -215,7 +231,7 @@ function UserPnL({
 
       {/* P&L Summary + Quick Stats */}
       <div className="grid grid-cols-2 gap-3">
-        {/* P&L Summary */}
+        {/* P&L Summary (matches profile page) */}
         <div className="space-y-2 rounded-lg border border-border bg-card/50 p-3">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Total P&L</span>
@@ -230,34 +246,22 @@ function UserPnL({
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Realized</span>
-            <span
-              className={cn(
-                'font-medium',
-                realizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {realizedPnL >= 0 ? '+' : ''}
-              {formatCompactCurrency(realizedPnL)}
+            <span className="text-muted-foreground">Total Assets</span>
+            <span className="font-medium">
+              {formatCompactCurrency(portfolio?.totalAssets ?? 0)}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Unrealized</span>
-            <span
-              className={cn(
-                'font-medium',
-                unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {unrealizedPnL >= 0 ? '+' : ''}
-              {formatCompactCurrency(unrealizedPnL)}
+            <span className="text-muted-foreground">Available</span>
+            <span className="font-medium">
+              {formatCompactCurrency(portfolio?.available ?? 0)}
             </span>
           </div>
           <div className="border-border border-t pt-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">In Positions</span>
               <span className="font-medium">
-                {formatCompactCurrency(positionsValue)}
+                {formatCompactCurrency(portfolio?.positions ?? 0)}
               </span>
             </div>
           </div>
@@ -268,7 +272,7 @@ function UserPnL({
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Balance</div>
             <div className="font-semibold text-sm">
-              {formatCompactCurrency(balance, 0)}
+              {formatCompactCurrency(portfolio?.wallet ?? 0, 0)}
             </div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
@@ -418,7 +422,7 @@ function UserPnL({
   );
 }
 
-/** Agent P&L view - original implementation */
+/** Agent P&L view - uses portfolio-breakdown for consistent P&L (matches profile page) */
 function AgentPnLView({
   agentId,
   entityName,
@@ -432,12 +436,10 @@ function AgentPnLView({
   const [expandedSections, setExpandedSections] = useState<
     Set<'predictions' | 'perps'>
   >(new Set(['predictions', 'perps']));
-  const [balanceInfo, setBalanceInfo] = useState({
-    agentBalance: 0,
-    lifetimePnL: 0,
-    totalDeposited: 0,
-    totalWithdrawn: 0,
-  });
+
+  // Portfolio breakdown (same calculation as profile page)
+  const [portfolio, setPortfolio] = useState<PortfolioSnapshot | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
 
   // Agent stats from API
   const [agentStats, setAgentStats] = useState({
@@ -446,30 +448,58 @@ function AgentPnLView({
     winRate: 0,
   });
 
-  // Use shared hook for P&L calculation
+  // Positions for list display
   const {
-    realizedPnL,
-    unrealizedPnL,
-    totalPnL,
-    pointsInPositions,
-    isProfitable,
+    predictionPositions: allPredictions,
+    perpPositions: perps,
     loading: positionsLoading,
-    predictions: allPredictions,
-    perps,
-  } = useAgentTotalPnL({
-    agentId,
-    availableBalance: balanceInfo.agentBalance,
-    totalDeposited: balanceInfo.totalDeposited,
-    totalWithdrawn: balanceInfo.totalWithdrawn,
-    realizedPnL: balanceInfo.lifetimePnL.toString(),
-  });
+  } = useUserPositions(agentId);
 
   // Filter to only active prediction positions (matches check-pnl action)
   const predictions = allPredictions.filter(
     (p) => !p.status || p.status === 'active'
   );
 
-  // Fetch balance and agent stats
+  // Fetch portfolio breakdown (same endpoint as profile page)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPortfolio = async () => {
+      setPortfolioLoading(true);
+      try {
+        const res = await fetch(
+          `/api/users/${encodeURIComponent(agentId)}/portfolio-breakdown`
+        );
+        if (res.ok && !cancelled) {
+          const data = (await res.json()) as Record<string, unknown>;
+          setPortfolio({
+            totalPnL: Number(data.totalPnL) || 0,
+            positions: Number(data.positions) || 0,
+            totalAssets: Number(data.totalAssets) || 0,
+            available: Number(data.available) || 0,
+            wallet: Number(data.wallet) || 0,
+            agents: Number(data.agents) || 0,
+            totalPoints: Number(data.totalPoints) || 0,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          logger.error(
+            'Failed to fetch portfolio breakdown',
+            { error: err instanceof Error ? err.message : String(err) },
+            'AgentPnLView'
+          );
+        }
+      } finally {
+        if (!cancelled) setPortfolioLoading(false);
+      }
+    };
+    void fetchPortfolio();
+    return () => {
+      cancelled = true;
+    };
+  }, [agentId]);
+
+  // Fetch agent stats (trades, win rate)
   const fetchData = useCallback(async () => {
     const token = await getAccessToken();
     if (!token) {
@@ -480,26 +510,9 @@ function AgentPnLView({
     setLoading(true);
 
     try {
-      const [walletRes, agentRes] = await Promise.all([
-        fetch(`/api/agents/${agentId}/trading-balance`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`/api/agents/${agentId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      if (walletRes.ok) {
-        const walletData = (await walletRes.json()) as WalletResponse;
-        if (walletData.success) {
-          setBalanceInfo({
-            agentBalance: walletData.agentBalance.tradingBalance,
-            lifetimePnL: walletData.agentBalance.lifetimePnL,
-            totalDeposited: walletData.agentBalance.totalDeposited ?? 0,
-            totalWithdrawn: walletData.agentBalance.totalWithdrawn ?? 0,
-          });
-        }
-      }
+      const agentRes = await fetch(`/api/agents/${agentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (agentRes.ok) {
         const agentData = (await agentRes.json()) as AgentResponse;
@@ -513,9 +526,9 @@ function AgentPnLView({
       }
     } catch (err) {
       logger.error(
-        'Failed to fetch P&L data',
+        'Failed to fetch agent stats',
         { error: err instanceof Error ? err.message : String(err) },
-        'AgentPnL'
+        'AgentPnLView'
       );
     } finally {
       setLoading(false);
@@ -538,13 +551,16 @@ function AgentPnLView({
     });
   }, []);
 
-  if (loading) {
+  if (loading || portfolioLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
+
+  const totalPnL = portfolio?.totalPnL ?? 0;
+  const isProfitable = totalPnL >= 0;
 
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -564,15 +580,14 @@ function AgentPnLView({
           ) : (
             <TrendingDown className="h-3 w-3" />
           )}
-          {positionsLoading
-            ? '...'
-            : `${totalPnL >= 0 ? '+' : ''}${formatCompactCurrency(totalPnL)}`}
+          {totalPnL >= 0 ? '+' : ''}
+          {formatCompactCurrency(totalPnL)}
         </div>
       </div>
 
       {/* P&L Summary + Quick Stats - Side by side */}
       <div className="grid grid-cols-2 gap-3">
-        {/* P&L Summary */}
+        {/* P&L Summary (matches profile page) */}
         <div className="space-y-2 rounded-lg border border-border bg-card/50 p-3">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Total P&L</span>
@@ -582,43 +597,27 @@ function AgentPnLView({
                 isProfitable ? 'text-green-600' : 'text-red-600'
               )}
             >
-              {positionsLoading
-                ? '...'
-                : `${totalPnL >= 0 ? '+' : ''}${formatCompactCurrency(totalPnL)}`}
+              {totalPnL >= 0 ? '+' : ''}
+              {formatCompactCurrency(totalPnL)}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Realized</span>
-            <span
-              className={cn(
-                'font-medium',
-                realizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {realizedPnL >= 0 ? '+' : ''}
-              {formatCompactCurrency(realizedPnL)}
+            <span className="text-muted-foreground">Total Assets</span>
+            <span className="font-medium">
+              {formatCompactCurrency(portfolio?.totalAssets ?? 0)}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Unrealized</span>
-            <span
-              className={cn(
-                'font-medium',
-                unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {positionsLoading
-                ? '...'
-                : `${unrealizedPnL >= 0 ? '+' : ''}${formatCompactCurrency(unrealizedPnL)}`}
+            <span className="text-muted-foreground">Available</span>
+            <span className="font-medium">
+              {formatCompactCurrency(portfolio?.available ?? 0)}
             </span>
           </div>
           <div className="border-border border-t pt-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">In Positions</span>
               <span className="font-medium">
-                {positionsLoading
-                  ? '...'
-                  : formatCompactCurrency(pointsInPositions)}
+                {formatCompactCurrency(portfolio?.positions ?? 0)}
               </span>
             </div>
           </div>

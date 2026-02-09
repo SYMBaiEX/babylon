@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
+import { uploadImage, validateImageFile } from '@/utils/upload-image';
 
 const TOTAL_PROFILE_PICTURES = 100;
 const TOTAL_BANNERS = 100;
@@ -113,9 +114,12 @@ export function AgentEditModal({
   });
 
   // Image upload state
-  const [uploadingImage, setUploadingImage] = useState<
-    'profile' | 'cover' | null
-  >(null);
+  const [uploadedProfileFile, setUploadedProfileFile] = useState<File | null>(
+    null
+  );
+  const [uploadedBannerFile, setUploadedBannerFile] = useState<File | null>(
+    null
+  );
   const [profilePictureIndex, setProfilePictureIndex] = useState(() => {
     const match = agent.profileImageUrl?.match(/profile-(\d+)\.jpg/);
     return match?.[1] ? parseInt(match[1], 10) : 1;
@@ -164,6 +168,7 @@ export function AgentEditModal({
   // Cycle profile picture
   const cycleProfilePicture = useCallback((direction: 'next' | 'prev') => {
     setUploadedProfileImage(null);
+    setUploadedProfileFile(null);
     setProfilePictureIndex((prev) => {
       if (direction === 'next') {
         return prev >= TOTAL_PROFILE_PICTURES ? 1 : prev + 1;
@@ -175,6 +180,7 @@ export function AgentEditModal({
   // Cycle banner
   const cycleBanner = useCallback((direction: 'next' | 'prev') => {
     setUploadedBanner(null);
+    setUploadedBannerFile(null);
     setBannerIndex((prev) => {
       if (direction === 'next') {
         return prev >= TOTAL_BANNERS ? 1 : prev + 1;
@@ -183,82 +189,42 @@ export function AgentEditModal({
     });
   }, []);
 
-  // Handle image upload
-  const handleImageUpload = useCallback(
-    async (type: 'profile' | 'cover', file: File) => {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image must be smaller than 5MB');
-        return;
-      }
-
-      if (
-        !['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
-          file.type
-        )
-      ) {
-        toast.error('Please upload a valid image file');
-        return;
-      }
-
-      setUploadingImage(type);
-
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error('Authentication required');
-        setUploadingImage(null);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append(
-        'type',
-        type === 'profile' ? 'profileImage' : 'coverImage'
-      );
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.error || 'Upload failed');
-        setUploadingImage(null);
-        return;
-      }
-
-      const result = await response.json();
-      if (type === 'profile') {
-        setUploadedProfileImage(result.url);
-      } else {
-        setUploadedBanner(result.url);
-      }
-      toast.success(
-        `${type === 'profile' ? 'Profile' : 'Cover'} image uploaded`
-      );
-      setUploadingImage(null);
-    },
-    [getAccessToken]
-  );
-
   const handleProfileImageUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      handleImageUpload('profile', file);
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedProfileFile(file);
+        setUploadedProfileImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     },
-    [handleImageUpload]
+    []
   );
 
   const handleBannerUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      handleImageUpload('cover', file);
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedBannerFile(file);
+        setUploadedBanner(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     },
-    [handleImageUpload]
+    []
   );
 
   // Handle save
@@ -281,6 +247,33 @@ export function AgentEditModal({
     }
 
     try {
+      // Upload pending images using shared utility
+      let finalProfileImageUrl = profileData.profileImageUrl;
+      let finalCoverImageUrl = profileData.coverImageUrl;
+
+      if (uploadedProfileFile) {
+        try {
+          finalProfileImageUrl = await uploadImage(
+            uploadedProfileFile,
+            'profile'
+          );
+        } catch {
+          toast.error('Failed to upload profile image');
+          setSaving(false);
+          return;
+        }
+      }
+
+      if (uploadedBannerFile) {
+        try {
+          finalCoverImageUrl = await uploadImage(uploadedBannerFile, 'cover');
+        } catch {
+          toast.error('Failed to upload cover image');
+          setSaving(false);
+          return;
+        }
+      }
+
       const res = await fetch(`/api/agents/${agent.id}`, {
         method: 'PUT',
         headers: {
@@ -290,8 +283,8 @@ export function AgentEditModal({
         body: JSON.stringify({
           name: profileData.name,
           description: profileData.description,
-          profileImageUrl: profileData.profileImageUrl,
-          coverImageUrl: profileData.coverImageUrl,
+          profileImageUrl: finalProfileImageUrl,
+          coverImageUrl: finalCoverImageUrl,
           system: promptsData.tradingStrategy.trim()
             ? `${promptsData.system}\n\nTrading Strategy: ${promptsData.tradingStrategy}`
             : promptsData.system,
@@ -390,7 +383,6 @@ export function AgentEditModal({
                     accept="image/*"
                     onChange={handleBannerUpload}
                     className="hidden"
-                    disabled={uploadingImage === 'cover'}
                   />
                 </label>
                 <button
@@ -401,11 +393,6 @@ export function AgentEditModal({
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
-              {uploadingImage === 'cover' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <span className="text-sm text-white">Uploading...</span>
-                </div>
-              )}
             </div>
 
             {/* Avatar - overlapping banner */}
@@ -432,7 +419,6 @@ export function AgentEditModal({
                       accept="image/*"
                       onChange={handleProfileImageUpload}
                       className="hidden"
-                      disabled={uploadingImage === 'profile'}
                     />
                   </label>
                   <button
@@ -443,11 +429,6 @@ export function AgentEditModal({
                     <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                   </button>
                 </div>
-                {uploadingImage === 'profile' && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <span className="text-white text-xs">...</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>

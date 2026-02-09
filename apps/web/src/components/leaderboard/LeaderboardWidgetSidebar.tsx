@@ -5,13 +5,12 @@ import {
   getActorProfileUrl,
   getProfileUrl,
 } from '@babylon/shared';
-import { ExternalLink, TrendingUp, Trophy, Users } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { FollowButton } from '@/components/interactions/FollowButton';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
 import { Avatar } from '@/components/shared/Avatar';
-import { RankBadge, RankNumber } from '@/components/shared/RankBadge';
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -48,7 +47,6 @@ interface LeaderboardWidgetSidebarProps {
  */
 export function LeaderboardWidgetSidebar({
   selectedUser,
-  pointsCategory,
 }: LeaderboardWidgetSidebarProps) {
   const { authenticated, user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,32 +135,6 @@ export function LeaderboardWidgetSidebar({
     };
   }, []);
 
-  const getDisplayPoints = (user: SelectedUser) => {
-    switch (pointsCategory) {
-      case 'total':
-        return user.totalPoints ?? 0;
-      case 'all':
-        return user.allPoints;
-      case 'earned':
-        return user.earnedPoints;
-      case 'referral':
-        return user.invitePoints;
-    }
-  };
-
-  const getPointsLabel = () => {
-    switch (pointsCategory) {
-      case 'total':
-        return 'Total Points';
-      case 'all':
-        return 'Reputation';
-      case 'earned':
-        return 'Earned Points';
-      case 'referral':
-        return 'Referral Points';
-    }
-  };
-
   return (
     <div
       ref={containerRef}
@@ -170,193 +142,155 @@ export function LeaderboardWidgetSidebar({
     >
       <div ref={innerRef} className="mr-28 flex flex-col gap-6 px-4 py-6">
         {/* Selected User Widget */}
-        <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
-            <Trophy className="h-5 w-5 text-[#0066FF]" />
-            Selected Player
-          </h3>
-
-          {selectedUser ? (
-            <div className="space-y-4">
-              {/* User Header */}
-              <div className="flex items-center gap-3">
-                <Avatar
-                  id={selectedUser.id}
-                  name={
-                    selectedUser.displayName || selectedUser.username || 'User'
-                  }
-                  type={selectedUser.isActor ? 'actor' : undefined}
-                  size="lg"
-                  src={selectedUser.profileImageUrl || undefined}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="truncate font-semibold text-foreground">
-                      {selectedUser.displayName ||
-                        selectedUser.username ||
-                        'Anonymous'}
-                    </h4>
-                    {selectedUser.isActor ? (
-                      <VerifiedBadge size="sm" />
-                    ) : (
-                      <OnChainBadge
-                        isRegistered={selectedUser.onChainRegistered ?? false}
-                        nftTokenId={selectedUser.nftTokenId ?? null}
-                        size="sm"
-                      />
-                    )}
-                  </div>
-                  {selectedUser.username && (
-                    <p className="truncate text-muted-foreground text-sm">
-                      @{selectedUser.username}
-                    </p>
+        {selectedUser && (
+          <div className="space-y-4">
+            {/* User Header */}
+            <div className="flex items-center gap-3">
+              <Avatar
+                id={selectedUser.id}
+                name={
+                  selectedUser.displayName || selectedUser.username || 'User'
+                }
+                type={selectedUser.isActor ? 'actor' : undefined}
+                size="md"
+                src={selectedUser.profileImageUrl || undefined}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="truncate font-semibold text-foreground">
+                    {selectedUser.displayName ||
+                      selectedUser.username ||
+                      'Anonymous'}
+                  </h4>
+                  {selectedUser.isActor ? (
+                    <VerifiedBadge size="sm" />
+                  ) : (
+                    <OnChainBadge
+                      isRegistered={selectedUser.onChainRegistered ?? false}
+                      nftTokenId={selectedUser.nftTokenId ?? null}
+                      size="sm"
+                    />
                   )}
                 </div>
+                {selectedUser.username && (
+                  <p className="truncate text-muted-foreground text-sm">
+                    @{selectedUser.username}
+                  </p>
+                )}
               </div>
+              {authenticated && user && selectedUser.id !== user.id && (
+                <FollowButton
+                  userId={selectedUser.id}
+                  size="sm"
+                  variant="button"
+                  className="w-20"
+                />
+              )}
+            </div>
 
-              {/* Rank Display */}
-              <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3">
-                <div className="flex items-center gap-3">
-                  <RankNumber rank={selectedUser.rank} size="lg" />
-                  <div>
-                    <div className="font-bold text-foreground text-xl">
-                      {getDisplayPoints(selectedUser).toLocaleString()}
-                    </div>
-                    <div className="text-muted-foreground text-xs">
-                      {getPointsLabel()}
-                    </div>
-                  </div>
+            {/* Total Points (primary metric) */}
+            {selectedUser.totalPoints !== undefined && (
+              <div className="border-border border-b pb-3">
+                <div className="text-muted-foreground text-xs">
+                  Total Points
                 </div>
-                <RankBadge rank={selectedUser.rank} size="lg" showLabel />
+                <div className="font-bold text-foreground text-xl">
+                  {selectedUser.totalPoints.toLocaleString()}
+                </div>
+              </div>
+            )}
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* P&L */}
+              <div>
+                <div className="text-muted-foreground text-xs">
+                  Lifetime P&L
+                </div>
+                <div
+                  className={`font-bold ${
+                    selectedUser.lifetimePnL === 0
+                      ? 'text-muted-foreground'
+                      : selectedUser.lifetimePnL > 0
+                        ? 'text-green-500'
+                        : 'text-red-500'
+                  }`}
+                >
+                  {selectedUser.lifetimePnL === 0
+                    ? formatCurrency(0)
+                    : `${selectedUser.lifetimePnL > 0 ? '+' : '-'}${formatCurrency(Math.abs(selectedUser.lifetimePnL))}`}
+                </div>
               </div>
 
-              {/* Total Points (primary metric) */}
-              {selectedUser.totalPoints !== undefined && (
-                <div className="rounded-lg bg-[#0066FF]/10 p-3">
-                  <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                    <Trophy className="h-3 w-3" />
-                    Total Points
+              {/* Referrals */}
+              <div>
+                <div className="text-muted-foreground text-xs">Referrals</div>
+                <div className="font-bold text-foreground">
+                  {selectedUser.referralCount}
+                </div>
+              </div>
+
+              {/* All Points Breakdown */}
+              {(selectedUser.earnedPoints !== 0 ||
+                selectedUser.invitePoints > 0 ||
+                selectedUser.bonusPoints > 0) && (
+                <div className="col-span-2 border-border border-t pt-3">
+                  <div className="mb-2 text-muted-foreground text-xs">
+                    Points Breakdown
                   </div>
-                  <div className="font-bold text-[#0066FF] text-xl">
-                    {selectedUser.totalPoints.toLocaleString()}
+                  <div className="space-y-1 text-sm">
+                    {selectedUser.earnedPoints !== 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Earned</span>
+                        <span
+                          className={`font-semibold ${selectedUser.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}
+                        >
+                          {selectedUser.earnedPoints > 0 ? '+' : ''}
+                          {selectedUser.earnedPoints.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedUser.invitePoints > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Referral</span>
+                        <span className="font-semibold text-foreground">
+                          +{selectedUser.invitePoints.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedUser.bonusPoints > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Bonus</span>
+                        <span className="font-semibold text-foreground">
+                          +{selectedUser.bonusPoints.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* P&L */}
-                <div className="rounded-lg bg-muted/30 p-3">
-                  <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                    <TrendingUp className="h-3 w-3" />
-                    Lifetime P&L
-                  </div>
-                  <div
-                    className={`font-bold ${
-                      selectedUser.lifetimePnL === 0
-                        ? 'text-muted-foreground'
-                        : selectedUser.lifetimePnL > 0
-                          ? 'text-green-500'
-                          : 'text-red-500'
-                    }`}
-                  >
-                    {selectedUser.lifetimePnL === 0
-                      ? formatCurrency(0)
-                      : `${selectedUser.lifetimePnL > 0 ? '+' : '-'}${formatCurrency(Math.abs(selectedUser.lifetimePnL))}`}
-                  </div>
-                </div>
-
-                {/* Referrals */}
-                <div className="rounded-lg bg-muted/30 p-3">
-                  <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                    <Users className="h-3 w-3" />
-                    Referrals
-                  </div>
-                  <div className="font-bold text-foreground">
-                    {selectedUser.referralCount}
-                  </div>
-                </div>
-
-                {/* All Points Breakdown */}
-                {selectedUser.allPoints > 0 && (
-                  <div className="col-span-2 rounded-lg bg-muted/30 p-3">
-                    <div className="mb-2 text-muted-foreground text-xs">
-                      Points Breakdown
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      {selectedUser.earnedPoints !== 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Earned</span>
-                          <span
-                            className={`font-semibold ${selectedUser.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}
-                          >
-                            {selectedUser.earnedPoints > 0 ? '+' : ''}
-                            {selectedUser.earnedPoints.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                      {selectedUser.invitePoints > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            Referral
-                          </span>
-                          <span className="font-semibold text-primary">
-                            +{selectedUser.invitePoints.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                      {selectedUser.bonusPoints > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Bonus</span>
-                          <span className="font-semibold text-yellow-500">
-                            +{selectedUser.bonusPoints.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-2">
-                <Link
-                  href={
-                    selectedUser.isActor
-                      ? getActorProfileUrl(selectedUser.id)
-                      : getProfileUrl(selectedUser.id, selectedUser.username)
-                  }
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0066FF] px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-[#2952d9]"
-                >
-                  View Profile
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-                {authenticated && user && selectedUser.id !== user.id && (
-                  <FollowButton
-                    userId={selectedUser.id}
-                    size="md"
-                    className="w-full justify-center"
-                  />
-                )}
-              </div>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Trophy className="mb-3 h-12 w-12 text-muted-foreground/50" />
-              <p className="mb-1 font-medium text-muted-foreground">
-                No Player Selected
-              </p>
-              <p className="text-muted-foreground text-sm">
-                Click on a player in the leaderboard to view their stats
-              </p>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2">
+              <Link
+                href={
+                  selectedUser.isActor
+                    ? getActorProfileUrl(selectedUser.id)
+                    : getProfileUrl(selectedUser.id, selectedUser.username)
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                View Profile
+                <ExternalLink className="h-4 w-4" />
+              </Link>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Leaderboard Info */}
-        <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur">
-          <h3 className="mb-3 flex items-center gap-2 font-semibold text-foreground">
-            <TrendingUp className="h-5 w-5 text-purple-500" />
+        <div>
+          <h3 className="mb-3 font-semibold text-foreground">
             How Points Work
           </h3>
           <div className="space-y-2 text-muted-foreground text-sm">

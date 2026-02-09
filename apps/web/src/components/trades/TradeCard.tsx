@@ -4,7 +4,7 @@ import {
   cn,
   formatCompactCurrency,
   getActorProfileUrl,
-  getProfileUrl,
+  getUserProfileUrl,
 } from '@babylon/shared';
 import {
   ArrowDownRight,
@@ -15,7 +15,9 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Avatar } from '@/components/shared/Avatar';
 
 /**
  * Trade type discriminator for trade card display.
@@ -49,6 +51,12 @@ interface BalanceTrade extends BaseTrade {
   transactionType: string;
   description: string | null;
   relatedId: string | null;
+  market: {
+    id: string;
+    question: string;
+    resolved: boolean;
+    resolution: boolean | null;
+  } | null;
 }
 
 /**
@@ -59,6 +67,7 @@ interface NPCTrade extends BaseTrade {
   marketType: string;
   ticker: string | null;
   marketId: string | null;
+  marketQuestion: string | null;
   action: string;
   side: string | null;
   amount: number;
@@ -194,22 +203,48 @@ export function TradeCard({ trade }: TradeCardProps) {
   const handleAssetClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (trade.type === 'npc') {
+    if (trade.type === 'balance' && trade.market) {
+      router.push(
+        `/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.market.id)}`
+      );
+    } else if (trade.type === 'npc') {
       if (trade.marketType === 'perp' && trade.ticker) {
-        router.push(`/markets/perps/${trade.ticker}`);
+        router.push(
+          `/markets?filter=perp&marketKind=perp&marketId=${encodeURIComponent(trade.ticker)}`
+        );
       } else if (trade.marketType === 'prediction' && trade.marketId) {
-        router.push(`/markets/predictions/${trade.marketId}`);
+        router.push(
+          `/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.marketId)}`
+        );
       }
     } else if (trade.type === 'position' && trade.market) {
-      router.push(`/markets/predictions/${trade.market.id}`);
+      router.push(
+        `/markets?filter=prediction&marketKind=prediction&marketId=${encodeURIComponent(trade.market.id)}`
+      );
     } else if (trade.type === 'perp') {
-      router.push(`/markets/perps/${trade.ticker}`);
+      router.push(
+        `/markets?filter=perp&marketKind=perp&marketId=${encodeURIComponent(trade.ticker)}`
+      );
     }
   };
+
+  const profileUrl = trade.user.isActor
+    ? `${getActorProfileUrl(trade.user.id)}?tab=trades`
+    : `${getUserProfileUrl(trade.user.id, trade.user.username)}?tab=trades`;
 
   return (
     <div className="border-border border-b p-4 transition-colors hover:bg-muted/30">
       <div className="flex items-start gap-3">
+        {/* User Avatar */}
+        <Link href={profileUrl} className="shrink-0">
+          <Avatar
+            id={trade.user.id}
+            name={trade.user.displayName || trade.user.username || 'User'}
+            type={trade.user.isActor ? 'actor' : undefined}
+            size="sm"
+            src={trade.user.profileImageUrl || undefined}
+          />
+        </Link>
         {/* Trade Content */}
         <div className="min-w-0 flex-1">
           {/* Trade Details */}
@@ -297,13 +332,19 @@ function BalanceTradeContent({
           {timestamp}
         </span>
       </div>
-      {trade.description && (
+      {trade.market ? (
         <p
-          className="line-clamp-2 cursor-pointer text-foreground text-sm hover:underline"
+          className="line-clamp-2 cursor-pointer font-medium text-foreground text-sm hover:underline"
           onClick={onAssetClick}
         >
-          {trade.description}
+          {trade.market.question}
         </p>
+      ) : (
+        trade.description && (
+          <p className="line-clamp-2 text-muted-foreground text-sm">
+            {trade.description}
+          </p>
+        )
       )}
     </div>
   );
@@ -360,6 +401,14 @@ function NPCTradeContent({
           {timestamp}
         </span>
       </div>
+      {trade.marketQuestion && (
+        <p
+          className="cursor-pointer font-medium text-foreground text-sm hover:underline"
+          onClick={onAssetClick}
+        >
+          {trade.marketQuestion}
+        </p>
+      )}
       <div className="flex items-center gap-3 text-muted-foreground text-sm">
         <span>Amount: {formatCurrency(trade.amount)}</span>
         <span>Price: {formatCurrency(trade.price)}</span>
@@ -516,7 +565,7 @@ function TransferTradeContent({
     if (trade.otherParty) {
       const href = trade.otherParty.isActor
         ? getActorProfileUrl(trade.otherParty.id)
-        : getProfileUrl(trade.otherParty.id, trade.otherParty.username);
+        : getUserProfileUrl(trade.otherParty.id, trade.otherParty.username);
       router.push(href);
     }
   };

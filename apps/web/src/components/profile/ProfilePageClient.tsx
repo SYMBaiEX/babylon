@@ -19,7 +19,7 @@ import {
   Search,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   useCallback,
   useEffect,
@@ -81,9 +81,13 @@ export function ProfilePageClient({
         ? extractUsername(identifier)
         : identifier;
 
+  const searchParams = useSearchParams();
   const { user, authenticated, getAccessToken } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [tab, setTab] = useState<'posts' | 'replies' | 'trades'>('posts');
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState<'posts' | 'replies' | 'trades'>(
+    initialTab === 'trades' || initialTab === 'replies' ? initialTab : 'posts'
+  );
   const { allGames } = useGameStore();
   const [optimisticFollowerCount, setOptimisticFollowerCount] = useState<
     number | null

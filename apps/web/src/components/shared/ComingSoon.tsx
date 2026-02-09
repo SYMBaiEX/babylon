@@ -2416,7 +2416,7 @@ export function ComingSoon() {
                                 <Upload className="h-5 w-5" />
                                 <input
                                   type="file"
-                                  accept="image/*"
+                                  accept="image/jpeg,image/png,image/webp,image/gif"
                                   onChange={handleBannerUpload}
                                   className="hidden"
                                   disabled={isSavingProfile}
@@ -2465,7 +2465,7 @@ export function ComingSoon() {
                                 <Upload className="h-4 w-4" />
                                 <input
                                   type="file"
-                                  accept="image/*"
+                                  accept="image/jpeg,image/png,image/webp,image/gif"
                                   onChange={handleProfileImageUpload}
                                   className="hidden"
                                   disabled={isSavingProfile}
@@ -2594,9 +2594,7 @@ export function ComingSoon() {
                         </button>
                         <button
                           type="submit"
-                          disabled={
-                            isSavingProfile || !isProfileFormValid()
-                          }
+                          disabled={isSavingProfile || !isProfileFormValid()}
                           className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {isSavingProfile
@@ -2711,7 +2709,7 @@ export function ComingSoon() {
                     href={`${appBaseUrl}${canClaimNft ? '/nft' : '/feed'}`}
                     className="flex min-h-[48px] items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 font-semibold text-primary backdrop-blur-sm transition-all duration-200 hover:bg-primary/15"
                   >
-                    <Wallet className="h-4 w-4" />
+                    {canClaimNft && <Wallet className="h-4 w-4" />}
                     {canClaimNft ? 'Claim your NFT' : 'Open the app'}
                   </a>
                 )}
@@ -3903,7 +3901,7 @@ export function ComingSoon() {
                             <Upload className="h-5 w-5" />
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
                               onChange={handleBannerUpload}
                               className="hidden"
                               disabled={isSavingProfile}
@@ -3954,7 +3952,7 @@ export function ComingSoon() {
                             <Upload className="h-4 w-4" />
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
                               onChange={handleProfileImageUpload}
                               className="hidden"
                               disabled={isSavingProfile}
@@ -4088,9 +4086,7 @@ export function ComingSoon() {
                     </button>
                     <button
                       type="submit"
-                      disabled={
-                        isSavingProfile || !isProfileFormValid()
-                      }
+                      disabled={isSavingProfile || !isProfileFormValid()}
                       className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isSavingProfile

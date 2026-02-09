@@ -49,12 +49,14 @@ type PredictionPosition = UserPredictionPosition;
 interface PredictionPositionsListProps {
   positions: PredictionPosition[];
   onPositionSold?: () => void;
+  onPositionClick?: (marketId: string) => void;
   density?: 'default' | 'compact';
 }
 
 export function PredictionPositionsList({
   positions,
   onPositionSold,
+  onPositionClick,
   density = 'default',
 }: PredictionPositionsListProps) {
   const { getAccessToken } = usePrivy();
@@ -171,7 +173,7 @@ export function PredictionPositionsList({
   }
 
   return (
-    <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
+    <div className={cn(compact ? 'space-y-1.5' : 'space-y-2')}>
       {positions.map((position) => {
         const currentValue =
           position.currentValue ?? position.shares * position.currentPrice;
@@ -186,143 +188,120 @@ export function PredictionPositionsList({
         return (
           <div
             key={position.id}
-            className={cn('rounded bg-muted/40', compact ? 'p-3' : 'p-4')}
+            className={cn(
+              'rounded bg-muted/40',
+              compact ? 'p-2' : 'p-2.5',
+              onPositionClick && 'cursor-pointer hover:bg-muted/60'
+            )}
+            onClick={() => onPositionClick?.(position.marketId.toString())}
           >
-            <div
-              className={cn(
-                'flex items-center justify-between',
-                compact ? 'mb-2' : 'mb-3'
-              )}
-            >
-              <div className="flex items-center gap-2">
+            {/* Row 1: Side badge, question (truncated), PnL */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <span
                   className={cn(
-                    'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
+                    'flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 font-bold text-[11px]',
                     position.side === 'YES'
                       ? 'bg-green-600/20 text-green-600'
                       : 'bg-red-600/20 text-red-600'
                   )}
                 >
                   {position.side === 'YES' ? (
-                    <CheckCircle size={12} />
+                    <CheckCircle size={10} />
                   ) : (
-                    <XCircle size={12} />
+                    <XCircle size={10} />
                   )}
                   {position.side}
                 </span>
-                {/* Agent position badge */}
                 {position.isAgentPosition && (
-                  <span className="flex items-center gap-1 rounded bg-purple-600/20 px-2 py-1 font-medium text-purple-500 text-xs">
-                    <Bot size={12} />
+                  <span className="flex shrink-0 items-center gap-0.5 rounded bg-purple-600/20 px-1 py-0.5 font-medium text-[11px] text-purple-500">
+                    <Bot size={10} />
                     {position.agentName || 'Agent'}
                   </span>
                 )}
-              </div>
-
-              <div className="text-right">
-                <div
-                  className={cn(
-                    compact ? 'font-bold text-base' : 'font-bold text-lg',
-                    unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  {unrealizedPnL >= 0 ? '+' : ''}
-                  {formatPrice(unrealizedPnL)}
-                </div>
-                <div
-                  className={cn(
-                    'text-xs',
-                    unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  {unrealizedPnL >= 0 ? '+' : ''}
-                  {pnlPercent.toFixed(2)}%
-                </div>
-              </div>
-            </div>
-
-            <p
-              className={cn(
-                'font-medium text-foreground',
-                compact
-                  ? 'mb-2 text-sm leading-snug md:text-xs'
-                  : 'mb-3 text-sm'
-              )}
-            >
-              {position.question}
-            </p>
-
-            <div
-              className={cn(
-                'grid grid-cols-2 text-xs',
-                compact ? 'mb-2 gap-1.5' : 'mb-3 gap-2'
-              )}
-            >
-              <div>
-                <div className="text-muted-foreground">Shares</div>
-                <div className="font-medium text-foreground">
-                  {position.shares.toFixed(2)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Avg Cost</div>
-                <div className="font-medium text-foreground">
-                  {formatPrice(position.avgPrice)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Current Price</div>
-                <div className="font-medium text-foreground">
-                  {formatPrice(position.currentPrice)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Value</div>
-                <div className="font-medium text-foreground">
-                  {formatPrice(currentValue)}
-                </div>
-              </div>
-            </div>
-
-            {!position.resolved ? (
-              <button
-                onClick={() =>
-                  handleSellClick(
-                    position,
-                    currentValue,
-                    unrealizedPnL,
-                    pnlPercent
-                  )
-                }
-                disabled={isSelling || position.shares < 0.01}
-                className={cn(
-                  'w-full cursor-pointer rounded bg-muted font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
-                  compact ? 'py-1.5 text-sm md:text-xs' : 'py-2 text-sm'
-                )}
-              >
-                {isSelling
-                  ? 'Selling...'
-                  : position.shares < 0.01
-                    ? 'Position Too Small'
-                    : 'Sell Shares'}
-              </button>
-            ) : (
-              <div
-                className={cn(
-                  'py-2 text-center font-medium',
-                  compact ? 'text-sm md:text-xs' : 'text-sm'
-                )}
-              >
-                <span className="text-muted-foreground">Resolved: </span>
-                <span
-                  className={
-                    position.resolution ? 'text-green-600' : 'text-red-600'
-                  }
-                >
-                  {position.resolution ? 'YES' : 'NO'}
+                <span className="truncate font-medium text-foreground text-xs">
+                  {position.question}
                 </span>
               </div>
-            )}
+              <span
+                className={cn(
+                  'shrink-0 font-bold text-xs',
+                  unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
+                )}
+              >
+                {unrealizedPnL >= 0 ? '+' : ''}
+                {formatPrice(unrealizedPnL)}{' '}
+                <span className="font-normal text-[11px]">
+                  ({unrealizedPnL >= 0 ? '+' : ''}
+                  {pnlPercent.toFixed(2)}%)
+                </span>
+              </span>
+            </div>
+
+            {/* Row 2: Stats + Sell/Resolved */}
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
+                <span>
+                  {position.shares.toFixed(2)}{' '}
+                  <span className="font-medium text-foreground">shares</span>
+                </span>
+                <span className="text-muted-foreground/40">&middot;</span>
+                <span>
+                  Avg{' '}
+                  <span className="font-medium text-foreground">
+                    {formatPrice(position.avgPrice)}
+                  </span>
+                </span>
+                <span className="text-muted-foreground/40">&middot;</span>
+                <span>
+                  Now{' '}
+                  <span className="font-medium text-foreground">
+                    {formatPrice(position.currentPrice)}
+                  </span>
+                </span>
+                <span className="text-muted-foreground/40">&middot;</span>
+                <span>
+                  Val{' '}
+                  <span className="font-medium text-foreground">
+                    {formatPrice(currentValue)}
+                  </span>
+                </span>
+              </div>
+              {!position.resolved ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSellClick(
+                      position,
+                      currentValue,
+                      unrealizedPnL,
+                      pnlPercent
+                    );
+                  }}
+                  disabled={isSelling || position.shares < 0.01}
+                  className={cn(
+                    'shrink-0 cursor-pointer rounded-full bg-muted px-3 py-0.5 font-medium text-foreground text-xs transition-all hover:bg-muted/80 disabled:cursor-not-allowed disabled:opacity-50'
+                  )}
+                >
+                  {isSelling
+                    ? 'Selling...'
+                    : position.shares < 0.01
+                      ? 'Too Small'
+                      : 'Sell'}
+                </button>
+              ) : (
+                <span className="shrink-0 font-medium text-muted-foreground text-xs">
+                  Resolved:{' '}
+                  <span
+                    className={
+                      position.resolution ? 'text-green-600' : 'text-red-600'
+                    }
+                  >
+                    {position.resolution ? 'YES' : 'NO'}
+                  </span>
+                </span>
+              )}
+            </div>
           </div>
         );
       })}
