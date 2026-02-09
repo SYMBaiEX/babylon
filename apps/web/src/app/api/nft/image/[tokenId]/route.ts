@@ -31,6 +31,14 @@ const IPFS_GATEWAYS = IPFS_IMAGES_CID
     ]
   : [];
 
+if (!IPFS_IMAGES_CID) {
+  logger.warn(
+    'NFT_IPFS_IMAGES_CID not set — image proxy will return 502 for all requests',
+    undefined,
+    'NFT Image Proxy'
+  );
+}
+
 /**
  * NFT collection size - determines valid tokenId range (1 to COLLECTION_SIZE).
  *

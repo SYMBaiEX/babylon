@@ -154,7 +154,7 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'public_balance_fetch_anonymous',
   }, // 10 fetches per minute for anonymous bucket (shared, stricter)
 
-  // NFT image proxy (GitHub API protection)
+  // NFT image proxy (IPFS gateway protection)
   PUBLIC_NFT_IMAGE: {
     maxRequests: 60,
     windowMs: 60000,

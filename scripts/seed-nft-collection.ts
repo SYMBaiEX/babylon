@@ -256,7 +256,9 @@ async function seedCollection(): Promise<void> {
       imageCid: null,
       storyTitle: name,
       storyContent: storyTemplate,
-      metadataUri: `ipfs://${IPFS_METADATA_CID}/${tokenId}.json`,
+      metadataUri: IPFS_METADATA_CID
+        ? `ipfs://${IPFS_METADATA_CID}/${tokenId}.json`
+        : null,
       attributes: ipfsMetadata?.attributes ?? [
         { trait_type: 'Collection', value: 'Babylon Top 100' },
         { trait_type: 'Token Number', value: tokenId },
