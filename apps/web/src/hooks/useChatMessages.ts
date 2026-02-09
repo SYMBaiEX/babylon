@@ -51,26 +51,44 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
 }
 
 /**
+ * Prefix for optimistic message IDs. Used so SSE/replaceOptimisticMessage can
+ * match and replace placeholders instead of appending duplicates.
+ */
+export enum OptimisticMessageIdPrefix {
+  /** User message not yet confirmed by server */
+  Pending = 'pending-',
+  /** Agent/coordinator response in progress (thinking placeholder) */
+  Thinking = 'thinking-',
+}
+
+/**
  * Time window (ms) for matching optimistic messages to confirmed messages.
  * If a confirmed message arrives within this window of an optimistic message
  * with matching content and sender, they are considered the same message.
  */
 const OPTIMISTIC_MATCH_WINDOW_MS = 30000;
 
-/** Check if a message is a pending optimistic message matching the new message */
+/** Check if a message is an optimistic placeholder matching the incoming confirmed message */
 function isMatchingOptimistic(
   pending: ChatMessage,
   incoming: ChatMessage
 ): boolean {
-  return (
-    pending.id.startsWith('pending-') &&
-    pending.senderId === incoming.senderId &&
-    pending.content === incoming.content &&
+  const inWindow =
     Math.abs(
       new Date(pending.createdAt).getTime() -
         new Date(incoming.createdAt).getTime()
-    ) < OPTIMISTIC_MATCH_WINDOW_MS
-  );
+    ) < OPTIMISTIC_MATCH_WINDOW_MS;
+  if (pending.id.startsWith(OptimisticMessageIdPrefix.Pending)) {
+    return (
+      pending.senderId === incoming.senderId &&
+      pending.content === incoming.content &&
+      inWindow
+    );
+  }
+  if (pending.id.startsWith(OptimisticMessageIdPrefix.Thinking)) {
+    return pending.senderId === incoming.senderId && inWindow;
+  }
+  return false;
 }
 
 /**
@@ -429,10 +447,10 @@ export function useChatMessages(chatId: string | null) {
   const addMessage = useCallback((message: ChatMessage) => {
     // Optimistic/thinking messages should be appended directly without replacement logic
     // Only confirmed messages (from SSE) should go through replacement to match their optimistic
-    if (
-      message.id.startsWith('pending-') ||
-      message.id.startsWith('thinking-')
-    ) {
+    const isOptimistic =
+      message.id.startsWith(OptimisticMessageIdPrefix.Pending) ||
+      message.id.startsWith(OptimisticMessageIdPrefix.Thinking);
+    if (isOptimistic) {
       setMessages((prev) => [...prev, message]);
     } else {
       setMessages((prev) => replaceOptimisticMessage(prev, message));
