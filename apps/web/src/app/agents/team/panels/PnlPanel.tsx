@@ -17,12 +17,21 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
     agentName,
     balance,
     lifetimePnL,
+    totalPnL: rawTotalPnL,
+    totalAssets: rawTotalAssets,
+    positionsValue: rawPositionsValue,
+    available: rawAvailable,
     predictionPositions,
     perpPositions,
     recentTrades,
   } = data;
 
-  const isPositivePnL = lifetimePnL >= 0;
+  // Use portfolio-breakdown values when available, fall back to legacy
+  const totalPnL = rawTotalPnL ?? lifetimePnL;
+  const totalAssets = rawTotalAssets ?? balance;
+  const positionsValue = rawPositionsValue ?? 0;
+  const available = rawAvailable ?? balance;
+  const isPositivePnL = totalPnL >= 0;
 
   // Determine the display name based on type
   const displayName =
@@ -33,33 +42,59 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
   return (
     <div className="space-y-4 p-4">
       {/* Header */}
-      <div>
+      <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">{displayName}</h3>
+        <div
+          className={cn(
+            'flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-xs',
+            isPositivePnL
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+          )}
+        >
+          {isPositivePnL ? (
+            <TrendingUp className="h-3 w-3" />
+          ) : (
+            <TrendingDown className="h-3 w-3" />
+          )}
+          {totalPnL >= 0 ? '+' : ''}
+          {formatCompactCurrency(totalPnL)}
+        </div>
       </div>
 
-      {/* Balance & P&L */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-muted-foreground text-xs">Balance</p>
-          <p className="mt-1 font-bold text-lg">
-            {formatCompactCurrency(balance)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-muted-foreground text-xs">Lifetime P&L</p>
-          <p
+      {/* P&L Summary (matches profile page / bottom bar) */}
+      <div className="space-y-2 rounded-lg border border-border bg-card/50 p-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Total P&L</span>
+          <span
             className={cn(
-              'mt-1 flex items-center gap-1 font-bold text-lg',
-              isPositivePnL ? 'text-green-500' : 'text-red-500'
+              'font-semibold',
+              isPositivePnL ? 'text-green-600' : 'text-red-600'
             )}
           >
-            {isPositivePnL ? (
-              <TrendingUp className="h-4 w-4" />
-            ) : (
-              <TrendingDown className="h-4 w-4" />
-            )}
-            {formatCompactCurrency(Math.abs(lifetimePnL))}
-          </p>
+            {totalPnL >= 0 ? '+' : ''}
+            {formatCompactCurrency(totalPnL)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Total Assets</span>
+          <span className="font-medium">
+            {formatCompactCurrency(totalAssets)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Available</span>
+          <span className="font-medium">
+            {formatCompactCurrency(available)}
+          </span>
+        </div>
+        <div className="border-border border-t pt-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">In Positions</span>
+            <span className="font-medium">
+              {formatCompactCurrency(positionsValue)}
+            </span>
+          </div>
         </div>
       </div>
 

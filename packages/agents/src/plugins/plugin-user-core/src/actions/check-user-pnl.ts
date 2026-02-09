@@ -15,7 +15,7 @@ import {
   positions,
   users,
 } from '@babylon/db';
-import { WalletService } from '@babylon/engine';
+import { calculatePortfolioBreakdown, WalletService } from '@babylon/engine';
 import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
@@ -129,10 +129,19 @@ export const checkUserPnlAction: Action = {
 
     const userName = user.displayName || user.username || 'User';
 
+    // Get portfolio breakdown for accurate P&L (same as profile page)
+    const portfolio = await calculatePortfolioBreakdown(ownerId);
+
     // Get wallet balance (fail-fast - no fallback)
     const walletBalance = await WalletService.getBalance(ownerId);
     const balance = walletBalance.balance;
     const lifetimePnL = walletBalance.lifetimePnL;
+
+    // Use portfolio-based total P&L (accurate), fall back to lifetimePnL
+    const totalPnL = portfolio?.totalPnL ?? lifetimePnL;
+    const totalAssets = portfolio?.totalAssets ?? balance;
+    const positionsValue = portfolio?.positions ?? 0;
+    const available = portfolio?.available ?? balance;
 
     // Get active prediction positions with market details
     const predictionPositions = await db
@@ -191,12 +200,16 @@ export const checkUserPnlAction: Action = {
 
     return {
       success: true,
-      text: `Retrieved ${userName}'s P&L: $${balance.toFixed(2)} balance, ${totalPositions} open positions.`,
+      text: `Retrieved ${userName}'s P&L: ${balance.toFixed(2)} balance, ${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)} total P&L, ${totalPositions} open positions.`,
       data: {
         userName,
         userId: ownerId,
         balance,
         lifetimePnL,
+        totalPnL,
+        totalAssets,
+        positionsValue,
+        available,
         predictionPositions: formattedPredictionPositions,
         perpPositions: formattedPerpPositions,
       },
@@ -204,6 +217,10 @@ export const checkUserPnlAction: Action = {
         userName,
         balance,
         lifetimePnL,
+        totalPnL,
+        totalAssets,
+        positionsValue,
+        available,
         predictionPositions: formattedPredictionPositions.map((p) => ({
           id: p.id,
           question: p.question,
@@ -226,6 +243,10 @@ export const checkUserPnlAction: Action = {
           ownerName: userName,
           balance,
           lifetimePnL,
+          totalPnL,
+          totalAssets,
+          positionsValue,
+          available,
           predictionPositions: formattedPredictionPositions,
           perpPositions: formattedPerpPositions,
         },
