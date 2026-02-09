@@ -71,10 +71,13 @@ export function OnChainBadge({
           </span>
         )}
         {showTooltip && (
-          <div className="-translate-x-1/2 absolute bottom-full left-1/2 z-50 mb-2 whitespace-nowrap rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+          <div className="-translate-x-1/2 absolute top-full left-1/2 z-50 mt-2 whitespace-nowrap rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+            <div className="-translate-x-1/2 -mb-[1px] absolute bottom-full left-1/2">
+              <div className="border-4 border-transparent border-b-border" />
+            </div>
             <div className="space-y-1 text-xs">
               <p className="font-semibold text-green-500">
-                ✓ Verified On-Chain
+                Verified On-Chain
               </p>
               <p className="text-muted-foreground">
                 NFT Token ID: #{nftTokenId}
@@ -82,9 +85,6 @@ export function OnChainBadge({
               <p className="text-muted-foreground">
                 Blockchain identity verified
               </p>
-            </div>
-            <div className="-translate-x-1/2 -mt-[1px] absolute top-full left-1/2">
-              <div className="border-4 border-transparent border-t-border" />
             </div>
           </div>
         )}
@@ -108,18 +108,18 @@ export function OnChainBadge({
         </span>
       )}
       {showTooltip && (
-        <div className="-translate-x-1/2 absolute bottom-full left-1/2 z-50 mb-2 whitespace-nowrap rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+        <div className="-translate-x-1/2 absolute top-full left-1/2 z-50 mt-2 whitespace-nowrap rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+          <div className="-translate-x-1/2 -mb-[1px] absolute bottom-full left-1/2">
+            <div className="border-4 border-transparent border-b-border" />
+          </div>
           <div className="space-y-1 text-xs">
             <p className="font-semibold text-muted-foreground">
-              ⚠ Not Verified On-Chain
+              Not Verified On-Chain
             </p>
             <p className="text-muted-foreground/70">No blockchain identity</p>
             <p className="text-muted-foreground/70">
               Limited reputation features
             </p>
-          </div>
-          <div className="-translate-x-1/2 -mt-[1px] absolute top-full left-1/2">
-            <div className="border-4 border-transparent border-t-border" />
           </div>
         </div>
       )}

@@ -15,7 +15,7 @@ export default function LeaderboardLoading() {
           {/* Sticky header with tab toggle */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
             <div className="flex w-full items-center border-border border-b">
-              {['All Points', 'Earned', 'Referral'].map((label) => (
+              {['Total', 'Reputation', 'Earned', 'Referral'].map((label) => (
                 <div key={label} className="flex-1 py-3.5 text-center">
                   <Skeleton className="mx-auto h-4 w-20" />
                 </div>
@@ -46,7 +46,7 @@ export default function LeaderboardLoading() {
         {/* Sticky header with tab toggle */}
         <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
           <div className="flex w-full items-center border-border border-b">
-            {['All Points', 'Earned', 'Referral'].map((label) => (
+            {['Total', 'Reputation', 'Earned', 'Referral'].map((label) => (
               <div key={label} className="flex-1 py-3.5 text-center">
                 <Skeleton className="mx-auto h-4 w-20" />
               </div>

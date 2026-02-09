@@ -39,7 +39,7 @@ export function LeaderboardToggle({
           activeTab === 'total' ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
-        Total Points
+        Total
         {activeTab === 'total' && (
           <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
         )}
