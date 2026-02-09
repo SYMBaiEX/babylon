@@ -2416,7 +2416,7 @@ export function ComingSoon() {
                                 <Upload className="h-5 w-5" />
                                 <input
                                   type="file"
-                                  accept="image/*"
+                                  accept="image/jpeg,image/png,image/webp,image/gif"
                                   onChange={handleBannerUpload}
                                   className="hidden"
                                   disabled={isSavingProfile}
@@ -2465,7 +2465,7 @@ export function ComingSoon() {
                                 <Upload className="h-4 w-4" />
                                 <input
                                   type="file"
-                                  accept="image/*"
+                                  accept="image/jpeg,image/png,image/webp,image/gif"
                                   onChange={handleProfileImageUpload}
                                   className="hidden"
                                   disabled={isSavingProfile}
@@ -3901,7 +3901,7 @@ export function ComingSoon() {
                             <Upload className="h-5 w-5" />
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
                               onChange={handleBannerUpload}
                               className="hidden"
                               disabled={isSavingProfile}
@@ -3952,7 +3952,7 @@ export function ComingSoon() {
                             <Upload className="h-4 w-4" />
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
                               onChange={handleProfileImageUpload}
                               className="hidden"
                               disabled={isSavingProfile}
