@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
+import { uploadImage, validateImageFile } from '@/utils/upload-image';
 import type { ProfileFormData } from '../hooks/useAgentForm';
 import { useAgentUsernameCheck } from '../hooks/useAgentUsernameCheck';
 
@@ -36,7 +36,6 @@ export function AgentSetupModal({
   onSave,
   hideCloseButton = false,
 }: AgentSetupModalProps) {
-  const { getAccessToken } = useAuth();
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
   const bioInitialized = useRef(false);
 
@@ -63,9 +62,13 @@ export function AgentSetupModal({
   // Username availability check
   const { usernameStatus, usernameSuggestion, isCheckingUsername, retryCheck } =
     useAgentUsernameCheck(localData.username);
-  const [uploadingImage, setUploadingImage] = useState<
-    'profile' | 'cover' | null
-  >(null);
+  const [uploadedProfileFile, setUploadedProfileFile] = useState<File | null>(
+    null
+  );
+  const [uploadedBannerFile, setUploadedBannerFile] = useState<File | null>(
+    null
+  );
+  const [isUploading, setIsUploading] = useState(false);
   const [profilePictureIndex, setProfilePictureIndex] = useState(() => {
     // Extract index from URL if it's a local asset
     const match = profileData.profileImageUrl?.match(/profile-(\d+)\.jpg/);
@@ -107,6 +110,7 @@ export function AgentSetupModal({
   // Cycle profile picture
   const cycleProfilePicture = useCallback((direction: 'next' | 'prev') => {
     setUploadedProfileImage(null);
+    setUploadedProfileFile(null);
     setProfilePictureIndex((prev) => {
       if (direction === 'next') {
         return prev >= TOTAL_PROFILE_PICTURES ? 1 : prev + 1;
@@ -118,6 +122,7 @@ export function AgentSetupModal({
   // Cycle banner
   const cycleBanner = useCallback((direction: 'next' | 'prev') => {
     setUploadedBanner(null);
+    setUploadedBannerFile(null);
     setBannerIndex((prev) => {
       if (direction === 'next') {
         return prev >= TOTAL_BANNERS ? 1 : prev + 1;
@@ -126,84 +131,45 @@ export function AgentSetupModal({
     });
   }, []);
 
-  const handleImageUpload = useCallback(
-    async (type: 'profile' | 'cover', file: File) => {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image must be smaller than 5MB');
-        return;
-      }
-
-      if (
-        !['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
-          file.type
-        )
-      ) {
-        toast.error('Please upload a valid image file');
-        return;
-      }
-
-      setUploadingImage(type);
-
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error('Authentication required');
-        setUploadingImage(null);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append(
-        'type',
-        type === 'profile' ? 'profileImage' : 'coverImage'
-      );
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.error || 'Upload failed');
-        setUploadingImage(null);
-        return;
-      }
-
-      const result = await response.json();
-      if (type === 'profile') {
-        setUploadedProfileImage(result.url);
-      } else {
-        setUploadedBanner(result.url);
-      }
-      toast.success(
-        `${type === 'profile' ? 'Profile' : 'Cover'} image uploaded`
-      );
-      setUploadingImage(null);
-    },
-    [getAccessToken]
-  );
-
   const handleProfileImageUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      handleImageUpload('profile', file);
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedProfileFile(file);
+        setUploadedProfileImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     },
-    [handleImageUpload]
+    []
   );
 
   const handleBannerUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      handleImageUpload('cover', file);
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedBannerFile(file);
+        setUploadedBanner(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     },
-    [handleImageUpload]
+    []
   );
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!localData.username.trim()) {
       toast.error('Username is required');
       return;
@@ -220,13 +186,38 @@ export function AgentSetupModal({
       toast.error('Display name is required');
       return;
     }
-    onSave({
-      ...localData,
-      profileImageUrl: currentProfileImage,
-      coverImageUrl: currentBanner,
-    });
-    // Note: onSave handler in page.tsx closes the modal via setShowProfileModal(false)
-    // Don't call onClose() here as that redirects away
+
+    setIsUploading(true);
+    try {
+      let profileImageUrl = currentProfileImage;
+      let coverImageUrl = currentBanner;
+
+      if (uploadedProfileFile) {
+        try {
+          profileImageUrl = await uploadImage(uploadedProfileFile, 'profile');
+        } catch {
+          toast.error('Failed to upload profile image');
+          return;
+        }
+      }
+
+      if (uploadedBannerFile) {
+        try {
+          coverImageUrl = await uploadImage(uploadedBannerFile, 'cover');
+        } catch {
+          toast.error('Failed to upload cover image');
+          return;
+        }
+      }
+
+      onSave({
+        ...localData,
+        profileImageUrl,
+        coverImageUrl,
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleUseSuggestion = useCallback(() => {
@@ -240,7 +231,8 @@ export function AgentSetupModal({
     !localData.username.trim() ||
     localData.username.length < 3 ||
     usernameStatus !== 'available' ||
-    isCheckingUsername;
+    isCheckingUsername ||
+    isUploading;
 
   if (!isOpen) return null;
 
@@ -290,7 +282,6 @@ export function AgentSetupModal({
                     accept="image/*"
                     onChange={handleBannerUpload}
                     className="hidden"
-                    disabled={uploadingImage === 'cover'}
                   />
                 </label>
                 <button
@@ -301,11 +292,6 @@ export function AgentSetupModal({
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
-              {uploadingImage === 'cover' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <span className="text-sm text-white">Uploading...</span>
-                </div>
-              )}
             </div>
 
             {/* Avatar - overlapping banner */}
@@ -332,7 +318,6 @@ export function AgentSetupModal({
                       accept="image/*"
                       onChange={handleProfileImageUpload}
                       className="hidden"
-                      disabled={uploadingImage === 'profile'}
                     />
                   </label>
                   <button
@@ -343,11 +328,6 @@ export function AgentSetupModal({
                     <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                   </button>
                 </div>
-                {uploadingImage === 'profile' && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <span className="text-white text-xs">...</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -523,7 +503,11 @@ export function AgentSetupModal({
                 'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
-              Continue
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Continue'
+              )}
             </button>
           </div>
         </div>
