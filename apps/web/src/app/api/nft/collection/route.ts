@@ -142,22 +142,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           ? unclaimedCount
           : totalNfts;
 
-    return successResponse({
-      success: true,
-      data: {
-        nfts,
-        pagination: {
-          page,
-          limit,
-          total: filteredTotal,
-          totalPages: Math.ceil(filteredTotal / limit),
+    return successResponse(
+      {
+        success: true,
+        data: {
+          nfts,
+          pagination: {
+            page,
+            limit,
+            total: filteredTotal,
+            totalPages: Math.ceil(filteredTotal / limit),
+          },
+          stats: { totalNfts, claimedCount, unclaimedCount },
+          filters: { traits: [] },
         },
-        stats: { totalNfts, claimedCount, unclaimedCount },
-        filters: { traits: [] },
-      },
-    } satisfies NftGalleryResponse, 200, {
-      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
-    });
+      } satisfies NftGalleryResponse,
+      200,
+      {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+      }
+    );
   } catch (error) {
     if (
       error instanceof NftIndexerUnavailableError ||
@@ -267,20 +271,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         ? unclaimedCount
         : totalNfts;
 
-  return successResponse({
-    success: true,
-    data: {
-      nfts,
-      pagination: {
-        page,
-        limit,
-        total: filteredTotal,
-        totalPages: Math.ceil(filteredTotal / limit),
+  return successResponse(
+    {
+      success: true,
+      data: {
+        nfts,
+        pagination: {
+          page,
+          limit,
+          total: filteredTotal,
+          totalPages: Math.ceil(filteredTotal / limit),
+        },
+        stats: { totalNfts, claimedCount, unclaimedCount },
+        filters: { traits: [] },
       },
-      stats: { totalNfts, claimedCount, unclaimedCount },
-      filters: { traits: [] },
-    },
-  } satisfies NftGalleryResponse, 200, {
-    'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
-  });
+    } satisfies NftGalleryResponse,
+    200,
+    {
+      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+    }
+  );
 });

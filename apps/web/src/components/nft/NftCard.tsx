@@ -56,7 +56,9 @@ export function NftCard({ nft, priority = false }: NftCardProps) {
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
               <span className="rounded-md bg-black/60 px-3 py-1.5 text-center font-medium text-white text-xs leading-tight">
-                Will Reveal<br />When Minted
+                Will Reveal
+                <br />
+                When Minted
               </span>
             </div>
           </>

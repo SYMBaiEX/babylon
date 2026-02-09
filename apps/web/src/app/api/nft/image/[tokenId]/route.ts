@@ -179,8 +179,7 @@ async function fetchFromIpfs(
 
       if (response.ok) {
         const buffer = await response.arrayBuffer();
-        const contentType =
-          response.headers.get('content-type') || 'image/png';
+        const contentType = response.headers.get('content-type') || 'image/png';
         return { buffer, contentType };
       }
 
@@ -190,8 +189,7 @@ async function fetchFromIpfs(
         'NFT Image Proxy'
       );
     } catch (error) {
-      const isTimeout =
-        error instanceof Error && error.name === 'AbortError';
+      const isTimeout = error instanceof Error && error.name === 'AbortError';
       logger.debug(
         `IPFS gateway ${isTimeout ? 'timed out' : 'failed'} for token ${tokenId}`,
         {
@@ -281,10 +279,7 @@ export async function GET(
         { tokenId },
         'GET /api/nft/image/[tokenId]'
       );
-      return NextResponse.json(
-        { error: 'Image not found' },
-        { status: 502 }
-      );
+      return NextResponse.json({ error: 'Image not found' }, { status: 502 });
     }
 
     // Store in cache (with FIFO eviction based on insertion time)

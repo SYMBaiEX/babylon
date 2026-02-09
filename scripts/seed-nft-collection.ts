@@ -56,7 +56,10 @@ async function fetchIpfsMetadata(
     const url = `${IPFS_GATEWAY}/${IPFS_METADATA_CID}/${tokenId}.json`;
     const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) return null;
-    const data = (await response.json()) as { name?: string; description?: string };
+    const data = (await response.json()) as {
+      name?: string;
+      description?: string;
+    };
     return {
       name: data.name ?? `Babylon #${tokenId}`,
       description: data.description ?? '',
