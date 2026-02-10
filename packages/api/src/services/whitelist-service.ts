@@ -11,6 +11,8 @@ import {
   whitelist,
   whitelistConfig,
 } from '@babylon/db';
+import { UserAlphaGroupAssignmentService } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import { PointsService } from './points-service';
 
@@ -164,7 +166,36 @@ export async function addToWhitelist({
 
   // If the returned id matches what we tried to insert, it's a new/replaced row.
   // If it doesn't match, the row was already active and untouched.
-  return { id: result.id, alreadyExists: result.id !== id };
+  const alreadyExists = result.id !== id;
+
+  // Assign default alpha groups when granting new access (async, non-blocking)
+  // This ensures whitelisted users get NPC group chats immediately.
+  // assignDefaultGroups is safe to call even if user already has groups or profile is incomplete.
+  if (!alreadyExists) {
+    UserAlphaGroupAssignmentService.assignDefaultGroups(userId)
+      .then((assignmentResult) => {
+        if (assignmentResult.groupsAssigned > 0) {
+          logger.info(
+            'Assigned default alpha groups to whitelisted user',
+            {
+              userId,
+              groupsAssigned: assignmentResult.groupsAssigned,
+              source,
+            },
+            'addToWhitelist'
+          );
+        }
+      })
+      .catch((error) => {
+        logger.error(
+          'Failed to assign default alpha groups to whitelisted user',
+          { userId, error: String(error) },
+          'addToWhitelist'
+        );
+      });
+  }
+
+  return { id: result.id, alreadyExists };
 }
 
 /**
