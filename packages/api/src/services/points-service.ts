@@ -1504,18 +1504,14 @@ export class PointsService {
       );
     }
 
-    const sortField:
-      | 'allPoints'
-      | 'earnedPoints'
-      | 'invitePoints'
-      | 'totalPoints' =
-      pointsCategory === 'total'
-        ? 'totalPoints'
-        : pointsCategory === 'all'
-          ? 'allPoints'
-          : pointsCategory === 'earned'
-            ? 'earnedPoints'
-            : 'invitePoints';
+    // `pointsCategory === 'total'` returns early above, so at this point the union
+    // is narrowed to 'all' | 'earned' | 'referral'.
+    const sortField: 'allPoints' | 'earnedPoints' | 'invitePoints' =
+      pointsCategory === 'all'
+        ? 'allPoints'
+        : pointsCategory === 'earned'
+          ? 'earnedPoints'
+          : 'invitePoints';
 
     combined.sort((a, b) => {
       const comparison = b[sortField] - a[sortField];
