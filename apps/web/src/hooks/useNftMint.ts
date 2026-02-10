@@ -156,8 +156,12 @@ export function useNftMint(): UseNftMintResult {
       const result = await mintNftAction({ userJwt });
 
       if (result.status === 'error') {
-        console.error('[NFT Mint Error]', result.step, result.error);
-        handleError(`Mint failed at ${result.step}: ${result.error}`);
+        console.error('[NFT Mint Error]', {
+          step: result.step,
+          errorId: result.errorId,
+          message: result.error,
+        });
+        handleError(result.error);
         return;
       }
 
