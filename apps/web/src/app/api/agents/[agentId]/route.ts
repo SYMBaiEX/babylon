@@ -207,6 +207,7 @@ export async function GET(
       name: agent!.displayName,
       description: agent!.bio,
       profileImageUrl: agent!.profileImageUrl,
+      coverImageUrl: agent!.coverImageUrl,
       // Parse trading strategy from system prompt if it was appended
       system: (() => {
         const system = config?.systemPrompt || '';
@@ -300,6 +301,7 @@ export async function PUT(
     name,
     description,
     profileImageUrl,
+    coverImageUrl,
     system,
     bio,
     personality,
@@ -318,6 +320,7 @@ export async function PUT(
   if (name !== undefined) updates.name = name;
   if (description !== undefined) updates.description = description;
   if (profileImageUrl !== undefined) updates.profileImageUrl = profileImageUrl;
+  if (coverImageUrl !== undefined) updates.coverImageUrl = coverImageUrl;
   if (system !== undefined) updates.system = system;
   if (bio !== undefined) {
     if (Array.isArray(bio)) {
@@ -356,6 +359,7 @@ export async function PUT(
       name: agent.displayName,
       description: agent.bio,
       profileImageUrl: agent.profileImageUrl,
+      coverImageUrl: agent.coverImageUrl,
       virtualBalance: Number(agent.virtualBalance ?? 0),
       autonomousTrading: isAutonomousTradingEnabled(updatedConfig),
       autonomousPosting: updatedConfig?.autonomousPosting ?? false,
