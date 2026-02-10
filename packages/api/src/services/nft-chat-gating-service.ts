@@ -9,7 +9,6 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger, ValidationError } from '@babylon/shared';
 import { sql } from 'drizzle-orm';
-import { isUserAdmin } from '../admin-middleware';
 import { AuthorizationError, NotFoundError } from '../errors';
 import {
   hasOnchainNftAccess,
@@ -104,9 +103,6 @@ export async function canAccessNftChatGate(
 ): Promise<boolean> {
   if (!isNftChatGatedChat(chatId)) return true;
 
-  const isAdmin = await isUserAdmin(dbUserId);
-  if (isAdmin) return true;
-
   return hasPremiumChatHolderAccess(dbUserId);
 }
 
@@ -134,8 +130,7 @@ export async function ensureNftChatMembership(userId: string): Promise<{
   const config = getNftChatGatingConfig();
   const chatId = assertChatIdConfigured(config);
 
-  const isAdmin = await isUserAdmin(userId);
-  const allowed = isAdmin ? true : await hasPremiumChatHolderAccess(userId);
+  const allowed = await hasPremiumChatHolderAccess(userId);
 
   if (!allowed) {
     throw new AuthorizationError('NFT chat access required', 'chat', 'join', {
@@ -235,8 +230,6 @@ export async function revokeNftChatMembershipIfNeeded(
   reason: string
 ): Promise<void> {
   if (!isNftChatGatedChat(chatId)) return;
-  const isAdmin = await isUserAdmin(userId);
-  if (isAdmin) return;
 
   const allowed = await hasPremiumChatHolderAccess(userId);
   if (allowed) return;
