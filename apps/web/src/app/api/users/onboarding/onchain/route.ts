@@ -60,6 +60,7 @@ import {
   authenticate,
   BusinessLogicError,
   ConflictError,
+  preferCookieAuth,
   processOnchainRegistration,
   successResponse,
   withErrorHandling,
@@ -80,14 +81,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const headerToken = authHeader?.startsWith('Bearer ')
     ? authHeader.substring(7)
     : undefined;
-  // Prefer the HttpOnly `privy-token` cookie when present. With Privy cookies enabled,
-  // this cookie contains the user's access token (JWT) and is the most reliable source.
-  // Fall back to the Authorization header for external clients/agents.
-  const userJwt = cookieToken ?? headerToken ?? null;
+  // Environment-aware preference: cookies in production, headers in staging/local.
+  const useCookie = preferCookieAuth();
+  const userJwt = useCookie
+    ? (cookieToken ?? headerToken ?? null)
+    : (headerToken ?? cookieToken ?? null);
+  const fallbackToken = useCookie ? headerToken : cookieToken;
   const userJwtFallbacks =
-    cookieToken && headerToken && cookieToken !== headerToken
-      ? [headerToken]
-      : [];
+    fallbackToken && fallbackToken !== userJwt ? [fallbackToken] : [];
 
   const authUser = await authenticate(request);
   const body = (await request.json()) as

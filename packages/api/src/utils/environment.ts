@@ -22,3 +22,21 @@ export function getDeploymentEnvironment(): DeploymentEnvironment {
   if (process.env.NODE_ENV === 'production') return 'production';
   return 'development';
 }
+
+/**
+ * Whether to prefer the `privy-token` HttpOnly cookie over the Authorization header
+ * when resolving auth tokens.
+ *
+ * Policy:
+ * - **Production**: cookies (HttpOnly, auto-refreshed by Privy SDK)
+ * - **Staging / local**: Authorization header (easier for testing, external clients)
+ *
+ * Override with `PRIVY_AUTH_PREFER_COOKIE=true|false` when needed.
+ */
+export function preferCookieAuth(): boolean {
+  const override = process.env.PRIVY_AUTH_PREFER_COOKIE;
+  if (override !== undefined) {
+    return ['true', '1', 'yes', 'on'].includes(override.toLowerCase());
+  }
+  return getDeploymentEnvironment() === 'production';
+}

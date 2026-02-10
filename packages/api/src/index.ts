@@ -294,6 +294,7 @@ export {
   invalidateCachedKey,
   invalidateCachedKeysForUser,
   MODEL_TOKEN_LIMITS,
+  preferCookieAuth,
   truncateToTokenLimit,
   truncateToTokenLimitSync,
   validateUserApiKey,
