@@ -125,9 +125,10 @@ export function useNftMint(): UseNftMintResult {
   );
 
   const startMint = useCallback(async () => {
-    const handleError = (message: string) => {
-      setError(message);
-      toast.error(message);
+    const handleError = (message: string, errorId?: string) => {
+      const uiMessage = errorId ? `${message} (Ref: ${errorId})` : message;
+      setError(uiMessage);
+      toast.error(uiMessage);
       setFlowState('error');
     };
 
@@ -161,7 +162,7 @@ export function useNftMint(): UseNftMintResult {
           errorId: result.errorId,
           message: result.error,
         });
-        handleError(result.error);
+        handleError(result.error, result.errorId);
         return;
       }
 

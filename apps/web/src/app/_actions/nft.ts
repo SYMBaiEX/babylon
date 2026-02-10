@@ -21,9 +21,32 @@ type MintStep =
   | 'send_transaction'
   | 'confirm';
 
+function redactJwtLikeTokens(text: string): string {
+  // Redact JWT-like strings (base64url.base64url.base64url).
+  // This avoids accidentally logging auth tokens if they show up in an error message/stack.
+  const jwtLike =
+    /(?<![A-Za-z0-9_-])([A-Za-z0-9_-]{10,})\.([A-Za-z0-9_-]{10,})\.([A-Za-z0-9_-]{10,})(?![A-Za-z0-9_-])/g;
+  return text.replace(jwtLike, '[REDACTED_JWT]');
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return typeof error === 'string' ? error : 'Unknown error';
+}
+
+function toSafeLogError(error: unknown): {
+  name?: string;
+  message: string;
+  stack?: string;
+} {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: redactJwtLikeTokens(error.message),
+      stack: error.stack ? redactJwtLikeTokens(error.stack) : undefined,
+    };
+  }
+  return { message: redactJwtLikeTokens(errorMessage(error)) };
 }
 
 function toUserSafeMintError(step: MintStep, error: unknown): string {
@@ -110,7 +133,7 @@ export async function mintNftAction(input?: {
     const errorId = crypto.randomUUID();
     logger.warn(
       'NFT mint auth failed',
-      { errorId, step, error: e },
+      { errorId, step, error: toSafeLogError(e) },
       'mintNftAction'
     );
     return {
@@ -130,7 +153,7 @@ export async function mintNftAction(input?: {
     const errorId = crypto.randomUUID();
     logger.warn(
       'NFT mint user context failed',
-      { errorId, step, error: e },
+      { errorId, step, error: toSafeLogError(e) },
       'mintNftAction'
     );
     return {
@@ -150,7 +173,7 @@ export async function mintNftAction(input?: {
     const errorId = crypto.randomUUID();
     logger.error(
       'NFT mint prepare failed',
-      { errorId, step, userId: ctx.dbUserId, error: e },
+      { errorId, step, userId: ctx.dbUserId, error: toSafeLogError(e) },
       'mintNftAction'
     );
     return {
@@ -187,7 +210,7 @@ export async function mintNftAction(input?: {
         userId: ctx.dbUserId,
         privyId: ctx.privyId,
         walletId: ctx.privyWalletId,
-        error: e,
+        error: toSafeLogError(e),
       },
       'mintNftAction'
     );
@@ -217,7 +240,13 @@ export async function mintNftAction(input?: {
       const errorId = crypto.randomUUID();
       logger.error(
         'NFT mint confirm failed',
-        { errorId, step, userId: ctx.dbUserId, txHash: hash, error },
+        {
+          errorId,
+          step,
+          userId: ctx.dbUserId,
+          txHash: hash,
+          error: toSafeLogError(error),
+        },
         'mintNftAction'
       );
       return {
