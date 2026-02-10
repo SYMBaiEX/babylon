@@ -29,7 +29,6 @@ const chatParticipantsTable = {
 };
 
 // Mock functions
-const mockIsUserAdmin = mock();
 const mockHasOnchainNftAccess = mock();
 const mockDbSelect = mock();
 const mockDbInsert = mock();
@@ -51,10 +50,6 @@ mock.module('../services/nft-indexer-service', () => ({
       this.name = 'NftIndexerUnavailableError';
     }
   },
-}));
-
-mock.module('../admin-middleware', () => ({
-  isUserAdmin: mockIsUserAdmin,
 }));
 
 mock.module('@babylon/db', () => ({
@@ -127,7 +122,6 @@ import {
 describe('NFT Chat Gating Service', () => {
   beforeEach(() => {
     // Reset all mocks
-    mockIsUserAdmin.mockReset();
     mockHasOnchainNftAccess.mockReset();
     mockDbSelect.mockReset();
     mockDbInsert.mockReset();
@@ -235,21 +229,10 @@ describe('NFT Chat Gating Service', () => {
     it('should return true for non-gated chats', async () => {
       const result = await canAccessNftChatGate('user-123', 'regular-chat');
       expect(result).toBe(true);
-      expect(mockIsUserAdmin).not.toHaveBeenCalled();
       expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
     });
 
-    it('should return true for admins on gated chat', async () => {
-      mockIsUserAdmin.mockResolvedValue(true);
-
-      const result = await canAccessNftChatGate('admin-user', 'gated-chat');
-      expect(result).toBe(true);
-      expect(mockIsUserAdmin).toHaveBeenCalledWith('admin-user');
-      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
-    });
-
-    it('should check NFT access for non-admin on gated chat', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
+    it('should check NFT access for gated chat', async () => {
       mockHasOnchainNftAccess.mockResolvedValue(true);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -266,7 +249,6 @@ describe('NFT Chat Gating Service', () => {
 
       const result = await canAccessNftChatGate('regular-user', 'gated-chat');
       expect(result).toBe(true);
-      expect(mockIsUserAdmin).toHaveBeenCalledWith('regular-user');
       expect(mockHasOnchainNftAccess).toHaveBeenCalledWith('0xabc', {
         cacheScope: 'premium_chat',
         positiveTtlMs: 10000,
@@ -274,8 +256,7 @@ describe('NFT Chat Gating Service', () => {
       });
     });
 
-    it('should return false for non-admin without NFT access', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
+    it('should return false when user does not hold an NFT', async () => {
       mockHasOnchainNftAccess.mockResolvedValue(false);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -309,7 +290,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should throw for agents on gated chats', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
           if (table === usersTable) {
@@ -330,7 +310,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should not throw when user has access', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -352,7 +331,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should throw AuthorizationError when user lacks access', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(false);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -374,7 +352,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should prefer dbUserId over userId for access check', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -401,7 +378,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should fallback to userId when dbUserId is not available', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -450,7 +426,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should throw AuthorizationError when user lacks NFT access', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(false);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -470,23 +445,11 @@ describe('NFT Chat Gating Service', () => {
       );
     });
 
-    it('should allow admin access without NFT', async () => {
-      mockIsUserAdmin.mockResolvedValue(true);
+    it('should not allow admins without holding an NFT', async () => {
       mockHasOnchainNftAccess.mockResolvedValue(false);
 
-      // Mock db.select for chat lookup
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
-          if (table === chatsTable) {
-            return {
-              where: () => ({
-                limit: () =>
-                  Promise.resolve([
-                    { id: 'gated-chat', isGroup: true, groupId: 'group-123' },
-                  ]),
-              }),
-            };
-          }
           if (table === usersTable) {
             return {
               where: () => ({
@@ -498,26 +461,12 @@ describe('NFT Chat Gating Service', () => {
         },
       }));
 
-      // Mock transaction
-      mockDbTransaction.mockImplementation(async (callback: Function) => {
-        const tx = {
-          insert: () => ({
-            values: () => ({
-              onConflictDoUpdate: () => Promise.resolve(),
-            }),
-          }),
-        };
-        await callback(tx);
-      });
-
-      mockGenerateSnowflakeId.mockResolvedValue('new-id-123');
-
-      const result = await ensureNftChatMembership('admin-user');
-      expect(result).toEqual({ success: true, chatId: 'gated-chat' });
+      await expect(ensureNftChatMembership('admin-user')).rejects.toThrow(
+        'NFT chat access required'
+      );
     });
 
     it('should throw NotFoundError when chat does not exist', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
 
       // Mock db.select returning empty
@@ -547,7 +496,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should throw ValidationError when chat is not a group chat', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
 
       // Mock db.select returning non-group chat
@@ -580,7 +528,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should create membership records for eligible user', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
 
       mockDbSelect.mockImplementation(() => ({
@@ -648,23 +595,9 @@ describe('NFT Chat Gating Service', () => {
         'regular-chat',
         'test reason'
       );
-      expect(mockIsUserAdmin).not.toHaveBeenCalled();
-    });
-
-    it('should not revoke for admins', async () => {
-      mockIsUserAdmin.mockResolvedValue(true);
-
-      await revokeNftChatMembershipIfNeeded(
-        'admin-user',
-        'gated-chat',
-        'test reason'
-      );
-
-      expect(mockDbTransaction).not.toHaveBeenCalled();
     });
 
     it('should not revoke if user still has NFT access', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -689,7 +622,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should revoke membership when user loses NFT access', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(false);
 
       // Mock db.select for chat lookup
@@ -749,7 +681,6 @@ describe('NFT Chat Gating Service', () => {
     });
 
     it('should only update chatParticipants when chat has no groupId', async () => {
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(false);
 
       // Mock db.select returning chat without groupId
@@ -802,7 +733,6 @@ describe('NFT Chat Gating Service', () => {
 
 describe('NFT Chat Gating - Integration Scenarios', () => {
   beforeEach(() => {
-    mockIsUserAdmin.mockReset();
     mockHasOnchainNftAccess.mockReset();
     delete process.env.NFT_CHAT_GATING_ENABLED;
     delete process.env.NFT_CHAT_GATING_CHAT_ID;
@@ -813,7 +743,6 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
       process.env.NFT_CHAT_GATING_ENABLED = 'true';
       process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
 
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(true);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -849,7 +778,6 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
       process.env.NFT_CHAT_GATING_ENABLED = 'true';
       process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
 
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(false);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
@@ -883,7 +811,6 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
       process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
 
       // Even without NFT access, regular chats should be accessible
-      mockIsUserAdmin.mockResolvedValue(false);
       mockHasOnchainNftAccess.mockResolvedValue(false);
 
       // Step 1: Check if chat is gated
@@ -926,30 +853,11 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
     });
   });
 
-  describe('Admin Bypass Scenarios', () => {
-    it('should always allow admins to access gated chats', async () => {
-      process.env.NFT_CHAT_GATING_ENABLED = 'true';
-      process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
-
-      mockIsUserAdmin.mockResolvedValue(true);
-      // NFT access check should not even be called for admins
-      mockHasOnchainNftAccess.mockResolvedValue(false);
-
-      const canAccess = await canAccessNftChatGate(
-        'admin-user',
-        'fd-alpha-chat'
-      );
-      expect(canAccess).toBe(true);
-      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
-    });
-  });
-
   describe('Agent Bypass Scenarios', () => {
     it('should not allow agents to access gated chats', async () => {
       process.env.NFT_CHAT_GATING_ENABLED = 'true';
       process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
 
-      mockIsUserAdmin.mockResolvedValue(false);
       mockDbSelect.mockImplementation(() => ({
         from: (table: unknown) => {
           if (table === usersTable) {
