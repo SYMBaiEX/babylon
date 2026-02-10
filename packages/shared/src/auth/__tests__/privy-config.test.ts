@@ -11,4 +11,8 @@ describe('privyConfig', () => {
     expect(supportedChainIds).toBeDefined();
     expect(supportedChainIds).toContain(1);
   });
+
+  test('uses Ethereum mainnet as defaultChain (chainId=1)', () => {
+    expect(privyConfig.config.defaultChain?.id).toBe(1);
+  });
 });
