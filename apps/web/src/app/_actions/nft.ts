@@ -14,7 +14,12 @@ import type { Address, Hex } from 'viem';
 
 import { requirePrivyTokenBundle } from './utils';
 
-type MintStep = 'auth' | 'user_context' | 'prepare' | 'send_transaction' | 'confirm';
+type MintStep =
+  | 'auth'
+  | 'user_context'
+  | 'prepare'
+  | 'send_transaction'
+  | 'confirm';
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
