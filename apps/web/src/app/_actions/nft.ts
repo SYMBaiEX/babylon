@@ -1,9 +1,6 @@
 'use server';
 
-import {
-  getAuthedUserContextFromPrivyTokenBundle,
-  sendSponsoredEvmTransaction,
-} from '@babylon/api';
+import { getAuthedUserContextFromPrivyTokenBundle } from '@babylon/api';
 import {
   type ConfirmResult,
   confirmMint,
@@ -14,6 +11,10 @@ import type { Address, Hex } from 'viem';
 
 import { requirePrivyTokenBundle } from './utils';
 
+// ============================================================================
+// Types
+// ============================================================================
+
 type MintStep =
   | 'auth'
   | 'user_context'
@@ -21,9 +22,37 @@ type MintStep =
   | 'send_transaction'
   | 'confirm';
 
+/**
+ * Result of the prepare-mint server action.
+ * Returns transaction data that the client submits via its embedded wallet.
+ */
+export type PrepareMintActionResult =
+  | {
+      status: 'prepared';
+      /** Contract address to call */
+      to: Address;
+      /** ABI-encoded mint(…) calldata */
+      data: Hex;
+      /** Numeric chain ID the tx should target */
+      chainId: number;
+      /** Wallet address the NFT will be minted to */
+      mintTo: Address;
+    }
+  | { status: 'error'; error: string; step: MintStep; errorId: string };
+
+/**
+ * Result of the confirm-mint server action.
+ */
+export type ConfirmMintActionResult =
+  | ({ status: 'confirmed'; txHash: Hex } & ConfirmResult)
+  | { status: 'pending'; txHash: Hex; message: string }
+  | { status: 'error'; error: string; step: MintStep; errorId: string };
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
 function redactJwtLikeTokens(text: string): string {
-  // Redact JWT-like strings (base64url.base64url.base64url).
-  // This avoids accidentally logging auth tokens if they show up in an error message/stack.
   const jwtLike =
     /(?<![A-Za-z0-9_-])([A-Za-z0-9_-]{10,})\.([A-Za-z0-9_-]{10,})\.([A-Za-z0-9_-]{10,})(?![A-Za-z0-9_-])/g;
   return text.replace(jwtLike, '[REDACTED_JWT]');
@@ -49,79 +78,35 @@ function toSafeLogError(error: unknown): {
   return { message: redactJwtLikeTokens(errorMessage(error)) };
 }
 
-function toUserSafeMintError(step: MintStep, error: unknown): string {
-  const msg = errorMessage(error).toLowerCase();
-
-  // Wallet + auth errors: keep messaging user-friendly (no internal details).
-  const isAuthy =
-    msg.includes('invalid jwt token provided') ||
-    msg.includes('expired') ||
-    msg.includes('missing privy token') ||
-    msg.includes('authentication required');
-  if (isAuthy || step === 'auth' || step === 'user_context') {
-    return 'Your session has expired. Please sign in again and try minting.';
-  }
-
-  if (msg.includes('embedded wallet not ready')) {
-    return 'Your wallet is still initializing. Please wait a few seconds and try again.';
-  }
-
-  if (step === 'prepare') {
-    return 'Mint is temporarily unavailable. Please try again shortly.';
-  }
-
-  if (step === 'send_transaction') {
-    return 'We could not submit the transaction. Please try again.';
-  }
-
-  if (step === 'confirm') {
-    return 'Transaction submitted, but confirmation is taking longer than expected. Please check again shortly.';
-  }
-
-  return 'Mint failed. Please try again.';
-}
-
-/**
- * Result of the NFT mint action.
- * - `status: 'confirmed'`: Transaction confirmed and NFT data available
- * - `status: 'pending'`: Transaction submitted but not yet confirmed (user can check later)
- * - `status: 'error'`: An error occurred — message is safe to show in UI
- */
-export type MintNftActionResult =
-  | ({ status: 'confirmed'; txHash: Hex } & ConfirmResult)
-  | { status: 'pending'; txHash: Hex; message: string }
-  | { status: 'error'; error: string; step: MintStep; errorId: string };
-
-/**
- * Exponential backoff sleep with jitter for polling.
- * Starts at baseMs and increases up to maxMs with each attempt.
- */
 function backoffSleep(
   attempt: number,
   baseMs = 1000,
   maxMs = 5000
 ): Promise<void> {
-  // Exponential: 1s, 2s, 4s, 5s (capped), 5s, ...
   const exponentialDelay = Math.min(baseMs * 2 ** attempt, maxMs);
-  // Add jitter (±10%) to prevent thundering herd
   const jitter = exponentialDelay * 0.1 * (Math.random() * 2 - 1);
   const finalDelay = Math.round(exponentialDelay + jitter);
   return new Promise((resolve) => setTimeout(resolve, finalDelay));
 }
 
+// ============================================================================
+// Server Actions
+// ============================================================================
+
 /**
- * Mints an NFT for the authenticated user via server-side sponsored transaction.
+ * Step 1: Prepare the mint transaction (server-side).
  *
- * The function submits the transaction and polls for confirmation. If confirmation
- * takes longer than ~60 seconds (network congestion), it returns a 'pending' status
- * with the transaction hash so the user can manually verify on a block explorer.
+ * Authenticates the user, checks eligibility, generates the contract signature,
+ * and returns the encoded transaction data for the client to submit via its
+ * embedded wallet.
  *
- * @returns MintNftActionResult with either 'confirmed' (includes NFT data) or 'pending' status
+ * This avoids the server needing to send transactions on behalf of the user,
+ * which fails for TEE wallets without signers configured in the Privy dashboard.
  */
-export async function mintNftAction(input?: {
+export async function prepareMintAction(input?: {
   userJwt?: string;
-}): Promise<MintNftActionResult> {
-  // Step 1: Auth
+}): Promise<PrepareMintActionResult> {
+  // Auth
   let privyToken: string;
   let fallbackPrivyToken: string | undefined;
   try {
@@ -134,17 +119,12 @@ export async function mintNftAction(input?: {
     logger.warn(
       'NFT mint auth failed',
       { errorId, step, error: toSafeLogError(e) },
-      'mintNftAction'
+      'prepareMintAction'
     );
-    return {
-      status: 'error',
-      error: toUserSafeMintError(step, e),
-      step,
-      errorId,
-    };
+    return { status: 'error', error: errorMessage(e), step, errorId };
   }
 
-  // Step 2: User context
+  // User context
   let ctx: Awaited<ReturnType<typeof getAuthedUserContextFromPrivyTokenBundle>>;
   try {
     ctx = await getAuthedUserContextFromPrivyTokenBundle({
@@ -157,80 +137,88 @@ export async function mintNftAction(input?: {
     logger.warn(
       'NFT mint user context failed',
       { errorId, step, error: toSafeLogError(e) },
-      'mintNftAction'
+      'prepareMintAction'
     );
-    return {
-      status: 'error',
-      error: toUserSafeMintError(step, e),
-      step,
-      errorId,
-    };
+    return { status: 'error', error: errorMessage(e), step, errorId };
   }
 
-  // Step 3: Prepare mint
-  let prepare: Awaited<ReturnType<typeof prepareMint>>;
+  // Prepare mint (eligibility check + signature generation)
   try {
-    prepare = await prepareMint(ctx.dbUserId);
+    const prepare = await prepareMint(ctx.dbUserId);
+    return {
+      status: 'prepared',
+      to: prepare.contractAddress as Address,
+      data: prepare.encodedData,
+      chainId: prepare.chainId,
+      mintTo: prepare.to as Address,
+    };
   } catch (e) {
     const step: MintStep = 'prepare';
     const errorId = crypto.randomUUID();
     logger.error(
       'NFT mint prepare failed',
       { errorId, step, userId: ctx.dbUserId, error: toSafeLogError(e) },
-      'mintNftAction'
+      'prepareMintAction'
     );
-    return {
-      status: 'error',
-      error: toUserSafeMintError(step, e),
-      step,
-      errorId,
-    };
+    return { status: 'error', error: errorMessage(e), step, errorId };
   }
+}
 
-  // Step 4: Send transaction via Privy
-  let hash: Hex;
+/**
+ * Step 2: Confirm the mint after the client has submitted the transaction.
+ *
+ * Polls the chain for the receipt, extracts the minted token ID,
+ * and updates the database with ownership records.
+ */
+export async function confirmMintAction(input: {
+  userJwt?: string;
+  txHash: Hex;
+}): Promise<ConfirmMintActionResult> {
+  // Auth
+  let privyToken: string;
+  let fallbackPrivyToken: string | undefined;
   try {
-    const result = await sendSponsoredEvmTransaction({
-      userJwt: privyToken,
-      userJwtFallbacks: fallbackPrivyToken ? [fallbackPrivyToken] : [],
-      expectedPrivyUserId: ctx.privyId,
-      walletId: ctx.privyWalletId,
-      to: prepare.contractAddress as Address,
-      data: prepare.encodedData,
-      valueWei: 0n,
-      caip2: `eip155:${prepare.chainId}`,
-      chainId: prepare.chainId,
-    });
-    hash = result.hash;
+    const bundle = await requirePrivyTokenBundle(input.userJwt);
+    privyToken = bundle.primary;
+    fallbackPrivyToken = bundle.fallback;
   } catch (e) {
-    const step: MintStep = 'send_transaction';
+    const step: MintStep = 'auth';
     const errorId = crypto.randomUUID();
-    logger.error(
-      'NFT mint send transaction failed',
-      {
-        errorId,
-        step,
-        userId: ctx.dbUserId,
-        privyId: ctx.privyId,
-        walletId: ctx.privyWalletId,
-        error: toSafeLogError(e),
-      },
-      'mintNftAction'
-    );
+    return { status: 'error', error: errorMessage(e), step, errorId };
+  }
+
+  // User context
+  let ctx: Awaited<ReturnType<typeof getAuthedUserContextFromPrivyTokenBundle>>;
+  try {
+    ctx = await getAuthedUserContextFromPrivyTokenBundle({
+      primary: privyToken,
+      fallback: fallbackPrivyToken,
+    });
+  } catch (e) {
+    const step: MintStep = 'user_context';
+    const errorId = crypto.randomUUID();
+    return { status: 'error', error: errorMessage(e), step, errorId };
+  }
+
+  if (!ctx.walletAddress) {
     return {
       status: 'error',
-      error: toUserSafeMintError(step, e),
-      step,
-      errorId,
+      error: 'Wallet address not found for user',
+      step: 'user_context',
+      errorId: crypto.randomUUID(),
     };
   }
 
-  // Step 5: Poll for confirmation
+  // Poll for confirmation
   const maxAttempts = 14;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      const confirmed = await confirmMint(ctx.dbUserId, hash, prepare.to);
-      return { status: 'confirmed', txHash: hash, ...confirmed };
+      const confirmed = await confirmMint(
+        ctx.dbUserId,
+        input.txHash,
+        ctx.walletAddress as Address
+      );
+      return { status: 'confirmed', txHash: input.txHash, ...confirmed };
     } catch (error) {
       if (
         error instanceof ValidationError &&
@@ -247,29 +235,24 @@ export async function mintNftAction(input?: {
           errorId,
           step,
           userId: ctx.dbUserId,
-          txHash: hash,
+          txHash: input.txHash,
           error: toSafeLogError(error),
         },
-        'mintNftAction'
+        'confirmMintAction'
       );
-      return {
-        status: 'error',
-        error: toUserSafeMintError(step, error),
-        step,
-        errorId,
-      };
+      return { status: 'error', error: errorMessage(error), step, errorId };
     }
   }
 
   logger.warn(
     'NFT mint transaction pending after timeout',
-    { txHash: hash, userId: ctx.dbUserId, attempts: maxAttempts },
-    'mintNftAction'
+    { txHash: input.txHash, userId: ctx.dbUserId, attempts: maxAttempts },
+    'confirmMintAction'
   );
 
   return {
     status: 'pending',
-    txHash: hash,
+    txHash: input.txHash,
     message:
       'Transaction submitted but confirmation is taking longer than expected. ' +
       'Your NFT should appear shortly. You can track the transaction on a block explorer.',
