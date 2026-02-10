@@ -38,7 +38,9 @@ mock.module('../privy-node', () => ({
   getPrivyNodeClient: () => ({
     wallets: () => ({
       ethereum: () => ({
-        sendTransaction: mock(() => Promise.resolve({ hash: '0xabc', caip2: 'eip155:1' })),
+        sendTransaction: mock(() =>
+          Promise.resolve({ hash: '0xabc', caip2: 'eip155:1' })
+        ),
       }),
     }),
   }),
@@ -108,7 +110,9 @@ describe('getAuthedUserContextFromPrivyTokenBundle', () => {
   it('retries with fallback token when primary token is rejected as invalid/expired (same user)', async () => {
     mockVerifyAuthToken
       .mockRejectedValueOnce(
-        new Error('400 {"error":"Invalid JWT token provided","code":"invalid_data"}')
+        new Error(
+          '400 {"error":"Invalid JWT token provided","code":"invalid_data"}'
+        )
       )
       .mockResolvedValueOnce({ userId: 'did:privy:user' });
     mockDbLimit.mockResolvedValue([
@@ -121,8 +125,16 @@ describe('getAuthedUserContextFromPrivyTokenBundle', () => {
     ]);
 
     // Ensure tokens are different strings so the bundle path is exercised.
-    const primary = buildJwt({ ...basePayload, sub: 'did:privy:user', sid: 'p' });
-    const fallback = buildJwt({ ...basePayload, sub: 'did:privy:user', sid: 'f' });
+    const primary = buildJwt({
+      ...basePayload,
+      sub: 'did:privy:user',
+      sid: 'p',
+    });
+    const fallback = buildJwt({
+      ...basePayload,
+      sub: 'did:privy:user',
+      sid: 'f',
+    });
 
     const { safeDecodeJwtPayload } = await import('../evm-send-transaction');
     expect(safeDecodeJwtPayload(primary)?.sub).toBe('did:privy:user');
@@ -139,7 +151,9 @@ describe('getAuthedUserContextFromPrivyTokenBundle', () => {
 
   it('does not retry with fallback token when token subjects do not match', async () => {
     mockVerifyAuthToken.mockRejectedValueOnce(
-      new Error('400 {"error":"Invalid JWT token provided","code":"invalid_data"}')
+      new Error(
+        '400 {"error":"Invalid JWT token provided","code":"invalid_data"}'
+      )
     );
 
     const primary = buildJwt({ ...basePayload, sub: 'did:privy:userA' });
