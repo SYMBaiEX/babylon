@@ -430,6 +430,7 @@ export class AgentServiceV2 {
       name: string;
       description: string;
       profileImageUrl: string;
+      coverImageUrl: string;
       system: string;
       bio: string[]; // Bio array for ElizaOS agentMessageExamples
       personality: string;
@@ -460,6 +461,8 @@ export class AgentServiceV2 {
     if (updates.description) userUpdates.bio = updates.description;
     if (updates.profileImageUrl !== undefined)
       userUpdates.profileImageUrl = updates.profileImageUrl;
+    if (updates.coverImageUrl !== undefined)
+      userUpdates.coverImageUrl = updates.coverImageUrl;
 
     if (Object.keys(userUpdates).length > 1) {
       await db.update(users).set(userUpdates).where(eq(users.id, agentUserId));
