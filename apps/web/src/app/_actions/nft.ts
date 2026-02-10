@@ -1,7 +1,7 @@
 'use server';
 
 import {
-  getAuthedUserContextFromPrivyToken,
+  getAuthedUserContextFromPrivyTokenBundle,
   sendSponsoredEvmTransaction,
 } from '@babylon/api';
 import {
@@ -145,9 +145,12 @@ export async function mintNftAction(input?: {
   }
 
   // Step 2: User context
-  let ctx: Awaited<ReturnType<typeof getAuthedUserContextFromPrivyToken>>;
+  let ctx: Awaited<ReturnType<typeof getAuthedUserContextFromPrivyTokenBundle>>;
   try {
-    ctx = await getAuthedUserContextFromPrivyToken(privyToken);
+    ctx = await getAuthedUserContextFromPrivyTokenBundle({
+      primary: privyToken,
+      fallback: fallbackPrivyToken,
+    });
   } catch (e) {
     const step: MintStep = 'user_context';
     const errorId = crypto.randomUUID();

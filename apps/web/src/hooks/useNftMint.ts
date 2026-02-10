@@ -147,15 +147,28 @@ export function useNftMint(): UseNftMintResult {
     setFlowState('preparing');
     setError(null);
 
-    setFlowState('minting');
-
     try {
-      // `getAccessToken()` refreshes Privy's session, but the app can still work without
-      // an explicit token when HttpOnly cookies are enabled (server action reads cookie).
-      const userJwt = await getAccessToken().catch(() => null);
-      const result = userJwt
-        ? await mintNftAction({ userJwt })
-        : await mintNftAction();
+      setFlowState('minting');
+
+      // Per Privy cookie best practices, always refresh the session before
+      // triggering a privileged server-side action.
+      //
+      // This avoids relying on a potentially-missing/stale `privy-token` cookie
+      // on the first request after the user returns to the app.
+      let userJwt: string | null;
+      try {
+        userJwt = await getAccessToken();
+      } catch {
+        userJwt = null;
+      }
+      if (!userJwt) {
+        handleError(
+          'Your session has expired. Please sign in again and try minting.'
+        );
+        return;
+      }
+
+      const result = await mintNftAction({ userJwt });
 
       if (result.status === 'error') {
         console.error('[NFT Mint Error]', {
