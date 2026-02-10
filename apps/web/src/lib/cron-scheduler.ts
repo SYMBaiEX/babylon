@@ -76,6 +76,11 @@ const ADDITIONAL_CRONS: CronSchedule[] = [
     schedule: '0 */6 * * *', // Every 6 hours at minute 0
     description: 'Profile chain sync',
   },
+  {
+    path: '/api/cron/whitelist-topn',
+    schedule: '0 0 * * *', // Daily at 00:00 UTC
+    description: 'Auto-whitelist leaderboard Top N (permanent access)',
+  },
 ];
 
 /**

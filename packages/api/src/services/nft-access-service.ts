@@ -1,28 +1,19 @@
-import { db, eq, nftOwnership, nftSnapshot, users } from '@babylon/db';
+import { db, eq, nftSnapshot, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import {
   hasOnchainNftAccess,
   NftIndexerUnavailableError,
 } from './nft-indexer-service';
-import { checkWhitelistAccess } from './whitelist-service';
+import { isUserWhitelisted } from './whitelist-service';
 
-async function hasDbNftOrClaimAccessFallback(
-  dbUserId: string
-): Promise<boolean> {
-  const [owned] = await db
-    .select({ tokenId: nftOwnership.tokenId })
-    .from(nftOwnership)
-    .where(eq(nftOwnership.userId, dbUserId))
-    .limit(1);
-  if (owned) return true;
+export type NftAccessReason = 'snapshot_2025' | 'whitelist' | 'holder' | 'none';
 
+async function hasSnapshot2025Access(dbUserId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: nftSnapshot.id })
     .from(nftSnapshot)
     .where(eq(nftSnapshot.userId, dbUserId))
     .limit(1);
-
-  // A snapshot row indicates the user is eligible to claim (and includes minted users too).
   return Boolean(row);
 }
 
@@ -38,8 +29,7 @@ async function isWhitelistOverride(
 ): Promise<boolean> {
   if (!dbUserId) return false;
   try {
-    const wl = await checkWhitelistAccess(dbUserId);
-    return wl.allowed;
+    return await isUserWhitelisted(dbUserId);
   } catch (error: unknown) {
     // PostgreSQL "undefined_table" — table doesn't exist yet during rolling deploy.
     const pgCode =
@@ -59,15 +49,19 @@ async function isWhitelistOverride(
 }
 
 /**
- * Returns true if the user currently holds at least one NFT from the configured
- * Top 100 collection.
+ * Returns true if the user has gated access via:
+ * - Snapshot 2025 allowlist (Top 100 end-of-2025): permanent access + can mint.
+ * - Whitelist: permanent access when a user has reached the Top 100 at least once.
+ * - Holder: access while currently holding at least one NFT.
  *
- * Primary source of truth: Envio indexer (secondary transfers supported).
- * Fallback (best-effort): DB ownership/snapshot (keeps local/dev behavior and
- * avoids hard failures if the indexer is temporarily unavailable).
+ * Holder access is indexer-based and fail-closed: if the indexer is unavailable,
+ * holder access is denied (but snapshot/whitelist still apply).
  */
 export async function hasNftAccess(dbUserId: string): Promise<boolean> {
-  // Check whitelist first (fastest path for whitelisted users).
+  // Snapshot 2025 always has access (independent of holding).
+  if (await hasSnapshot2025Access(dbUserId)) return true;
+
+  // Whitelist is permanent access.
   if (await isWhitelistOverride(dbUserId)) return true;
 
   const [dbUser] = await db
@@ -81,59 +75,61 @@ export async function hasNftAccess(dbUserId: string): Promise<boolean> {
     try {
       const onchainAllowed = await hasOnchainNftAccess(walletAddress);
       if (onchainAllowed) return true;
-    } catch (error) {
-      if (!(error instanceof NftIndexerUnavailableError)) throw error;
+    } catch (error: unknown) {
+      // Fail-closed on indexer unavailability/misconfiguration.
+      if (error instanceof NftIndexerUnavailableError) return false;
+      throw error;
     }
   }
 
-  // Degraded/best-effort mode: allow if eligible to claim or present in DB ownership.
-  return hasDbNftOrClaimAccessFallback(dbUserId);
+  return false;
 }
 
 export async function hasNftAccessForAuthUser(user: {
   dbUserId?: string | null;
   walletAddress?: string | null;
 }): Promise<boolean> {
-  if (await isWhitelistOverride(user.dbUserId)) return true;
+  const dbUserId = user.dbUserId ?? null;
+
+  if (dbUserId && (await hasSnapshot2025Access(dbUserId))) return true;
+  if (await isWhitelistOverride(dbUserId)) return true;
 
   const walletAddress = user.walletAddress ?? null;
   if (walletAddress) {
     try {
       const onchainAllowed = await hasOnchainNftAccess(walletAddress);
       if (onchainAllowed) return true;
-    } catch (error) {
-      if (!(error instanceof NftIndexerUnavailableError)) throw error;
+    } catch (error: unknown) {
+      // Fail-closed on indexer unavailability/misconfiguration.
+      if (error instanceof NftIndexerUnavailableError) return false;
+      throw error;
     }
   }
 
-  if (!user.dbUserId) return false;
-  // Allow claimable users (Top 100 snapshot) and minted users even if they don't currently hold.
-  return hasDbNftOrClaimAccessFallback(user.dbUserId);
+  return false;
 }
 
 export async function getNftAccessStatusForAuthUser(user: {
   dbUserId?: string | null;
   walletAddress?: string | null;
-}): Promise<{ allowed: boolean; degraded: boolean }> {
-  if (await isWhitelistOverride(user.dbUserId))
-    return { allowed: true, degraded: false };
+}): Promise<{ allowed: boolean; reason: NftAccessReason }> {
+  const dbUserId = user.dbUserId ?? null;
 
-  const walletAddress = user.walletAddress ?? null;
-  if (walletAddress) {
-    try {
-      const onchainAllowed = await hasOnchainNftAccess(walletAddress);
-      if (onchainAllowed) return { allowed: true, degraded: false };
-    } catch (error) {
-      if (!(error instanceof NftIndexerUnavailableError)) throw error;
-    }
-
-    // Indexer is available but the user doesn't currently hold. Still allow if claimable.
-    if (!user.dbUserId) return { allowed: false, degraded: false };
-    const allowed = await hasDbNftOrClaimAccessFallback(user.dbUserId);
-    return { allowed, degraded: false };
+  if (dbUserId && (await hasSnapshot2025Access(dbUserId))) {
+    return { allowed: true, reason: 'snapshot_2025' };
   }
 
-  if (!user.dbUserId) return { allowed: false, degraded: true };
-  const allowed = await hasDbNftOrClaimAccessFallback(user.dbUserId);
-  return { allowed, degraded: true };
+  if (await isWhitelistOverride(dbUserId)) {
+    return { allowed: true, reason: 'whitelist' };
+  }
+
+  const walletAddress = user.walletAddress ?? null;
+  if (!walletAddress) {
+    return { allowed: false, reason: 'none' };
+  }
+
+  // For the access gate endpoint, we want to surface indexer unavailability so
+  // the caller can fail-closed without caching a negative decision.
+  const onchainAllowed = await hasOnchainNftAccess(walletAddress);
+  return { allowed: onchainAllowed, reason: 'holder' };
 }

@@ -19,12 +19,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const config = await getWhitelistConfig();
 
   return successResponse({
-    config: config ?? {
-      leaderboardRankThreshold: null,
-      leaderboardCategory: 'all',
-      updatedAt: null,
-      updatedBy: null,
-    },
+    config: config
+      ? {
+          ...config,
+          leaderboardRankThreshold: config.leaderboardRankThreshold ?? 100,
+        }
+      : {
+          leaderboardRankThreshold: 100,
+          leaderboardCategory: 'all',
+          updatedAt: null,
+          updatedBy: null,
+        },
   });
 });
 
@@ -38,15 +43,13 @@ export const PUT = withErrorHandling(async (request: NextRequest) => {
   };
 
   if (
-    leaderboardRankThreshold !== null &&
-    (typeof leaderboardRankThreshold !== 'number' ||
-      leaderboardRankThreshold < 0 ||
-      !Number.isInteger(leaderboardRankThreshold))
+    typeof leaderboardRankThreshold !== 'number' ||
+    leaderboardRankThreshold < 1 ||
+    !Number.isInteger(leaderboardRankThreshold)
   ) {
     return NextResponse.json(
       {
-        error:
-          'leaderboardRankThreshold must be a non-negative integer or null',
+        error: 'leaderboardRankThreshold must be a positive integer',
       },
       { status: 400 }
     );

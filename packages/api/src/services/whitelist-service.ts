@@ -3,6 +3,7 @@ import {
   db,
   desc,
   eq,
+  inArray,
   isNull,
   nftSnapshot,
   sql,
@@ -11,6 +12,7 @@ import {
   whitelistConfig,
 } from '@babylon/db';
 import { nanoid } from 'nanoid';
+import { PointsService } from './points-service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -327,75 +329,106 @@ export async function updateWhitelistConfig({
 }
 
 // ---------------------------------------------------------------------------
-// Import First 100
+// Auto-Whitelist From Leaderboard
 // ---------------------------------------------------------------------------
 
 /**
- * Import users from the NftSnapshot table as 'snapshot_first_100' whitelist entries.
- * Runs inside a transaction for atomicity — either all entries are imported or none.
- * Skips users who are already whitelisted (active).
+ * Resolve the cron auto-whitelist Top N from the WhitelistConfig table.
+ *
+ * We reuse `leaderboardRankThreshold` as the Top N knob for the daily cron.
+ * If unset/null/invalid, default to 100.
  */
-export async function importFirst100FromSnapshot(grantedBy?: string) {
-  const snapshotEntries = await db
-    .select({
-      userId: nftSnapshot.userId,
-      rank: nftSnapshot.rank,
-    })
-    .from(nftSnapshot)
-    .orderBy(nftSnapshot.rank);
+async function getAutoWhitelistTopN(): Promise<number> {
+  const config = await getWhitelistConfig();
+  const raw = config?.leaderboardRankThreshold ?? null;
+  if (raw === null) return 100;
+  if (!Number.isFinite(raw) || raw < 1) return 100;
+  return Math.min(raw, 10_000);
+}
 
-  if (snapshotEntries.length === 0) {
-    return { imported: 0, skipped: 0, total: 0 };
+/**
+ * Auto-add the current Top N (category: all) to the whitelist with source
+ * 'leaderboard'. This implements "reach top N at any time => keep access".
+ *
+ * Important: this must never re-activate revoked users. A revoked row is a
+ * permanent deny for auto-whitelist; only an admin manual add can reinstate.
+ */
+export async function autoWhitelistCurrentTopN(): Promise<{
+  topN: number;
+  totalInTopN: number;
+  inserted: number;
+  skippedExisting: number;
+  skippedRevoked: number;
+}> {
+  const topN = await getAutoWhitelistTopN();
+
+  const { users: topUsers } = await PointsService.getLeaderboard(1, topN, 0, 'all');
+  const userIds = topUsers.map((u) => u.id);
+
+  if (userIds.length === 0) {
+    return {
+      topN,
+      totalInTopN: 0,
+      inserted: 0,
+      skippedExisting: 0,
+      skippedRevoked: 0,
+    };
   }
 
-  const result = await db.transaction(async (tx) => {
-    let imported = 0;
-    let skipped = 0;
+  // No need to whitelist users who already have permanent snapshot access (Top 100 end-of-2025).
+  // This keeps the whitelist focused on "reached top N at any time" users.
+  const snapshotRows = await db
+    .select({ userId: nftSnapshot.userId })
+    .from(nftSnapshot)
+    .where(inArray(nftSnapshot.userId, userIds));
+  const snapshotSet = new Set(snapshotRows.map((r) => r.userId));
 
-    for (const entry of snapshotEntries) {
-      const id = nanoid();
-      const now = new Date();
-      const nowISO = now.toISOString();
+  const existing = await db
+    .select({ userId: whitelist.userId, revokedAt: whitelist.revokedAt })
+    .from(whitelist)
+    .where(inArray(whitelist.userId, userIds));
 
-      const [row] = await tx
-        .insert(whitelist)
-        .values({
-          id,
-          userId: entry.userId,
-          source: 'snapshot_first_100' as WhitelistSource,
-          reason: `Imported from NFT snapshot (rank #${entry.rank})`,
-          grantedBy: grantedBy ?? null,
-          grantedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: whitelist.userId,
-          // Only overwrite revoked entries; leave active entries untouched.
-          set: {
-            id: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${id} ELSE ${whitelist.id} END`,
-            source: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN 'snapshot_first_100' ELSE ${whitelist.source} END`,
-            reason: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${'Imported from NFT snapshot (rank #' + entry.rank + ')'} ELSE ${whitelist.reason} END`,
-            grantedBy: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${grantedBy ?? null} ELSE ${whitelist.grantedBy} END`,
-            grantedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN ${nowISO}::timestamp ELSE ${whitelist.grantedAt} END`,
-            revokedAt: sql`CASE WHEN ${whitelist.revokedAt} IS NOT NULL THEN NULL ELSE ${whitelist.revokedAt} END`,
-          },
-        })
-        .returning({ id: whitelist.id });
+  const existingMap = new Map(existing.map((e) => [e.userId, e.revokedAt]));
+  const toInsert = userIds.filter(
+    (id) => !snapshotSet.has(id) && !existingMap.has(id)
+  );
 
-      if (!row) throw new Error('Whitelist upsert returned no rows');
+  const skippedExisting = existing.length;
+  const skippedRevoked = existing.filter((e) => e.revokedAt !== null).length;
 
-      if (row.id === id) {
-        imported++;
-      } else {
-        skipped++;
-      }
-    }
+  if (toInsert.length === 0) {
+    return {
+      topN,
+      totalInTopN: userIds.length,
+      inserted: 0,
+      skippedExisting,
+      skippedRevoked,
+    };
+  }
 
-    return { imported, skipped };
-  });
+  const now = new Date();
+  const rows = toInsert.map((userId) => ({
+    id: nanoid(),
+    userId,
+    source: 'leaderboard' as WhitelistSource,
+    reason: `Auto-whitelisted by leaderboard (Top ${topN})`,
+    grantedBy: null,
+    grantedAt: now,
+  }));
+
+  // Insert only missing users; revoked users still "exist" (unique userId),
+  // so they are never re-added by this function.
+  const insertedRows = await db
+    .insert(whitelist)
+    .values(rows)
+    .onConflictDoNothing({ target: whitelist.userId })
+    .returning({ userId: whitelist.userId });
 
   return {
-    imported: result.imported,
-    skipped: result.skipped,
-    total: snapshotEntries.length,
+    topN,
+    totalInTopN: userIds.length,
+    inserted: insertedRows.length,
+    skippedExisting,
+    skippedRevoked,
   };
 }

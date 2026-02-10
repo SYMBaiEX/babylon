@@ -53,7 +53,6 @@ import {
   Shield,
   ShieldCheck,
   Sparkles,
-  Star,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -74,7 +73,6 @@ import { GroupsTab } from '@/components/admin/GroupsTab';
 import { GrowthMetricsTab } from '@/components/admin/GrowthMetricsTab';
 import { HumanReviewTab } from '@/components/admin/HumanReviewTab';
 import { MarketOversightTab } from '@/components/admin/MarketOversightTab';
-import { NftWhitelistTab } from '@/components/admin/NftWhitelistTab';
 import { NotificationsTab } from '@/components/admin/NotificationsTab';
 import { RegistryTab } from '@/components/admin/RegistryTab';
 import { ReportsTab } from '@/components/admin/ReportsTab';
@@ -116,7 +114,6 @@ type Tab =
   | 'escrow'
   | 'audit-logs'
   | 'alpha-groups'
-  | 'nft-whitelist'
   | 'whitelist';
 
 /**
@@ -259,7 +256,6 @@ export default function AdminDashboard() {
         { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
         { id: 'alpha-groups' as const, label: 'Alpha Groups', icon: Crown },
         { id: 'notifications' as const, label: 'Notifications', icon: Bell },
-        { id: 'nft-whitelist' as const, label: 'NFT Whitelist', icon: Star },
         { id: 'whitelist' as const, label: 'Access Whitelist', icon: Shield },
       ],
     },
@@ -415,7 +411,6 @@ export default function AdminDashboard() {
         {activeTab === 'escrow' && <EscrowManagementTab />}
         {activeTab === 'audit-logs' && <AuditLogsTab />}
         {activeTab === 'alpha-groups' && <AlphaGroupsTab />}
-        {activeTab === 'nft-whitelist' && <NftWhitelistTab />}
         {activeTab === 'whitelist' && <WhitelistTab />}
       </div>
     </PageContainer>
