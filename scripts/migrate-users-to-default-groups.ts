@@ -19,7 +19,19 @@
  *   --user=<id>    Only process a specific user (for testing)
  */
 
-import { and, count, db, eq, groupMembers, groups, users } from '@babylon/db';
+import {
+  and,
+  count,
+  db,
+  eq,
+  groupMembers,
+  groups,
+  inArray,
+  isNull,
+  nftSnapshot,
+  users,
+  whitelist,
+} from '@babylon/db';
 import { UserAlphaGroupAssignmentService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 
@@ -128,11 +140,62 @@ async function main() {
   } else {
     // Batch mode - get all eligible users
     // This query gets users with fewer than 3 NPC group memberships
+    // Get user IDs that have actual platform access:
+    // 1. Users in NftSnapshot (top of leaderboard, eligible to mint)
+    // 2. Users in Whitelist (manually granted access)
+    // 3. Admin users
+    const [snapshotUsers, whitelistedUsers, adminUsers] = await Promise.all([
+      db.select({ userId: nftSnapshot.userId }).from(nftSnapshot),
+      db
+        .select({ userId: whitelist.userId })
+        .from(whitelist)
+        .where(isNull(whitelist.revokedAt)),
+      db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.isAdmin, true),
+            eq(users.isActor, false),
+            eq(users.isAgent, false)
+          )
+        ),
+    ]);
+
+    const accessUserIds = new Set([
+      ...snapshotUsers.map((u) => u.userId),
+      ...whitelistedUsers.map((u) => u.userId),
+      ...adminUsers.map((u) => u.id),
+    ]);
+
+    logger.info(
+      'Access-granted users found',
+      {
+        nftSnapshot: snapshotUsers.length,
+        whitelisted: whitelistedUsers.length,
+        admins: adminUsers.length,
+        uniqueTotal: accessUserIds.size,
+      },
+      'migrate-default-groups'
+    );
+
+    if (accessUserIds.size === 0) {
+      logger.error(
+        'No access-granted users found. Aborting.',
+        {},
+        'migrate-default-groups'
+      );
+      process.exit(1);
+    }
+
+    // Only process users who have platform access
+    const accessUserIdArray = [...accessUserIds];
     usersToProcess = await db
       .select({ id: users.id, username: users.username })
       .from(users)
       .where(
         and(
+          inArray(users.id, accessUserIdArray),
           eq(users.isActor, false),
           eq(users.isAgent, false),
           eq(users.isBanned, false),

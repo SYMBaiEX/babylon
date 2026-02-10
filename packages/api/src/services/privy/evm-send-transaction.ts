@@ -213,6 +213,7 @@ export async function sendSponsoredEvmTransaction({
     throw new Error('Invalid Privy user JWT: no usable token candidates');
   }
   const jwtHeader = safeDecodeJwtHeader(first.token);
+  const nowSeconds = Math.floor(Date.now() / 1000);
   logger.debug(
     'Privy JWT diagnostics',
     {
@@ -221,15 +222,18 @@ export async function sendSponsoredEvmTransaction({
       kid: jwtHeader?.kid,
       iss: first.payload.iss,
       aud: first.payload.aud,
+      sid: first.payload.sid,
       iat: first.payload.iat,
       exp: first.payload.exp,
-      isExpired: first.payload.exp
-        ? first.payload.exp < Date.now() / 1000
-        : 'no-exp',
+      tokenAgeSec: nowSeconds - first.payload.iat,
+      timeToExpirySec: first.payload.exp - nowSeconds,
+      isExpired: first.payload.exp ? first.payload.exp < nowSeconds : 'no-exp',
       configuredAppId: appId,
       candidatesCount: candidates.length,
       jwtLength: first.token.length,
       expectedPrivyUserId: expectedPrivyUserId ? 'provided' : 'not-provided',
+      caip2,
+      chainId,
     },
     'sendSponsoredEvmTransaction'
   );
@@ -318,15 +322,39 @@ export async function sendSponsoredEvmTransaction({
         throw error;
       }
       if (i < candidates.length - 1) {
-        logger.debug(
+        logger.warn(
           'Privy wallet rejected JWT, trying fallback token',
-          { candidateIndex: i, candidatesCount: candidates.length },
+          {
+            candidateIndex: i,
+            candidatesCount: candidates.length,
+            caip2,
+            chainId,
+            walletId,
+            sid: candidate.payload.sid,
+            tokenAgeSec: Math.floor(Date.now() / 1000 - candidate.payload.iat),
+          },
           'sendSponsoredEvmTransaction'
         );
       }
       // Continue to next candidate (if any).
     }
   }
+
+  // All candidates exhausted — log a final summary with chain context so
+  // chain-specific configuration issues (e.g. missing gas sponsorship) are
+  // immediately visible in logs.
+  logger.error(
+    'All JWT candidates rejected by Privy wallet endpoint',
+    {
+      caip2,
+      chainId,
+      walletId,
+      to,
+      candidatesCount: candidates.length,
+      errorMessage: lastError instanceof Error ? lastError.message : 'unknown',
+    },
+    'sendSponsoredEvmTransaction'
+  );
 
   throw lastError instanceof Error
     ? lastError

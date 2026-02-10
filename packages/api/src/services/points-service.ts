@@ -5,6 +5,7 @@
  * Tracks all point transactions and ensures no duplicate awards. Handles different
  * point types (reputation, invite, bonus) and provides leaderboard functionality.
  */
+
 import {
   actorState,
   and,
@@ -1360,7 +1361,7 @@ export class PointsService {
     let usersResult;
     let totalCountForTotal: number | null = null;
     if (pointsCategory === 'total') {
-      // Use DB-level ordering and pagination for 'total' mode
+      // DB-level ordering and pagination for scalable leaderboard queries.
       const [countResult] = await db
         .select({ count: count() })
         .from(users)
@@ -1374,6 +1375,36 @@ export class PointsService {
         .orderBy(desc(users.totalPoints))
         .limit(pageSize)
         .offset(skip);
+
+      const usersWithRank = usersResult.map((user, index) => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        profileImageUrl: user.profileImageUrl,
+        allPoints: user.reputationPoints,
+        invitePoints: user.invitePoints,
+        earnedPoints: user.earnedPoints,
+        bonusPoints: user.bonusPoints,
+        totalPoints: Number(user.totalPoints ?? 0),
+        referralCount: user.referralCount,
+        balance: Number(user.virtualBalance ?? 0),
+        lifetimePnL: Number(user.lifetimePnL ?? 0),
+        createdAt: user.createdAt,
+        isActor: false,
+        tier: null as string | null,
+        onChainRegistered: user.onChainRegistered,
+        nftTokenId: user.nftTokenId,
+        rank: skip + index + 1,
+      }));
+
+      return {
+        users: usersWithRank,
+        totalCount: totalCountForTotal,
+        page,
+        pageSize,
+        totalPages: Math.ceil((totalCountForTotal ?? 0) / pageSize),
+        pointsCategory,
+      };
     } else if (pointsCategory === 'all') {
       usersResult = await db
         .select(userSelectFields)
@@ -1473,51 +1504,40 @@ export class PointsService {
       );
     }
 
-    const sortField:
-      | 'allPoints'
-      | 'earnedPoints'
-      | 'invitePoints'
-      | 'totalPoints' =
-      pointsCategory === 'total'
-        ? 'totalPoints'
-        : pointsCategory === 'all'
-          ? 'allPoints'
-          : pointsCategory === 'earned'
-            ? 'earnedPoints'
-            : 'invitePoints';
+    // `pointsCategory === 'total'` returns early above, so at this point the union
+    // is narrowed to 'all' | 'earned' | 'referral'.
+    const sortField: 'allPoints' | 'earnedPoints' | 'invitePoints' =
+      pointsCategory === 'all'
+        ? 'allPoints'
+        : pointsCategory === 'earned'
+          ? 'earnedPoints'
+          : 'invitePoints';
 
-    // For 'total' mode, DB already handled ordering and pagination
-    if (pointsCategory !== 'total') {
-      combined.sort((a, b) => {
-        const comparison = b[sortField] - a[sortField];
-        if (comparison !== 0) {
-          return comparison;
+    combined.sort((a, b) => {
+      const comparison = b[sortField] - a[sortField];
+      if (comparison !== 0) {
+        return comparison;
+      }
+
+      if (pointsCategory === 'referral') {
+        const referralComparison = b.referralCount - a.referralCount;
+        if (referralComparison !== 0) {
+          return referralComparison;
         }
+      }
 
-        if (pointsCategory === 'referral') {
-          const referralComparison = b.referralCount - a.referralCount;
-          if (referralComparison !== 0) {
-            return referralComparison;
-          }
+      if (pointsCategory === 'earned') {
+        const pnlComparison = b.lifetimePnL - a.lifetimePnL;
+        if (pnlComparison !== 0) {
+          return pnlComparison;
         }
+      }
 
-        if (pointsCategory === 'earned') {
-          const pnlComparison = b.lifetimePnL - a.lifetimePnL;
-          if (pnlComparison !== 0) {
-            return pnlComparison;
-          }
-        }
+      return b.allPoints - a.allPoints;
+    });
 
-        return b.allPoints - a.allPoints;
-      });
-    }
-
-    const totalCount =
-      pointsCategory === 'total' ? (totalCountForTotal ?? 0) : combined.length;
-    const paginatedResults =
-      pointsCategory === 'total'
-        ? combined
-        : combined.slice(skip, skip + pageSize);
+    const totalCount = combined.length;
+    const paginatedResults = combined.slice(skip, skip + pageSize);
 
     const resultsWithRank = paginatedResults.map((entry, index) => ({
       ...entry,

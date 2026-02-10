@@ -226,6 +226,7 @@ export * from './services';
 export {
   type AuthedPrivyUserContext,
   getAuthedUserContextFromPrivyToken,
+  getAuthedUserContextFromPrivyTokenBundle,
 } from './services/privy/authed-user';
 export { sendSponsoredEvmTransaction } from './services/privy/evm-send-transaction';
 // Privy (embedded wallet server-side helpers)

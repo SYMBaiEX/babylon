@@ -58,31 +58,33 @@ export function useNftMint(): UseNftMintResult {
       setError(null);
 
       try {
-        const token = await getAccessToken();
+        // In production we may rely on Privy's HttpOnly cookie auth. In that setup,
+        // `getAccessToken()` can be unavailable/undefined in the browser, but the
+        // cookie still authenticates same-origin requests.
+        const token = await getAccessToken().catch(() => null);
 
         // Check if aborted before continuing
         if (signal?.aborted) return;
 
-        if (!token) {
-          setEligibility(notAuthenticated);
-          setFlowState('idle');
-          setIsCheckingEligibility(false);
-          return;
-        }
-
         const response = await fetch('/api/nft/eligibility', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          credentials: 'include',
           signal, // Pass abort signal to fetch
         });
 
         // Check if aborted before updating state
         if (signal?.aborted) return;
 
+        if (response.status === 401) {
+          setEligibility(notAuthenticated);
+          setFlowState('idle');
+          return;
+        }
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           setError(errorData.error ?? 'Failed to check eligibility');
           setFlowState('error');
-          setIsCheckingEligibility(false);
           return;
         }
 
@@ -145,12 +147,24 @@ export function useNftMint(): UseNftMintResult {
     setFlowState('preparing');
     setError(null);
 
-    setFlowState('minting');
-
     try {
-      const userJwt = await getAccessToken().catch(() => null);
+      setFlowState('minting');
+
+      // Per Privy cookie best practices, always refresh the session before
+      // triggering a privileged server-side action.
+      //
+      // This avoids relying on a potentially-missing/stale `privy-token` cookie
+      // on the first request after the user returns to the app.
+      let userJwt: string | null;
+      try {
+        userJwt = await getAccessToken();
+      } catch {
+        userJwt = null;
+      }
       if (!userJwt) {
-        handleError('Authentication failed');
+        handleError(
+          'Your session has expired. Please sign in again and try minting.'
+        );
         return;
       }
 
