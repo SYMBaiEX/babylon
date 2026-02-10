@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 // Mock tables
 const chatsTable = { id: 'id', isGroup: 'isGroup', groupId: 'groupId' };
+const usersTable = { id: 'id', walletAddress: 'walletAddress' };
 const groupMembersTable = {
   id: 'id',
   groupId: 'groupId',
@@ -29,7 +30,7 @@ const chatParticipantsTable = {
 
 // Mock functions
 const mockIsUserAdmin = mock();
-const mockHasNftAccess = mock();
+const mockHasOnchainNftAccess = mock();
 const mockDbSelect = mock();
 const mockDbInsert = mock();
 const mockDbUpdate = mock();
@@ -42,8 +43,14 @@ const mockLogger = {
 };
 
 // Mock dependencies - use paths relative to the module being tested
-mock.module('../services/nft-access-service', () => ({
-  hasNftAccess: mockHasNftAccess,
+mock.module('../services/nft-indexer-service', () => ({
+  hasOnchainNftAccess: mockHasOnchainNftAccess,
+  NftIndexerUnavailableError: class NftIndexerUnavailableError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'NftIndexerUnavailableError';
+    }
+  },
 }));
 
 mock.module('../admin-middleware', () => ({
@@ -60,6 +67,7 @@ mock.module('@babylon/db', () => ({
   eq: (field: unknown, value: unknown) => ({ type: 'eq', field, value }),
   and: (...conditions: unknown[]) => ({ type: 'and', conditions }),
   chats: chatsTable,
+  users: usersTable,
   groupMembers: groupMembersTable,
   chatParticipants: chatParticipantsTable,
 }));
@@ -120,7 +128,7 @@ describe('NFT Chat Gating Service', () => {
   beforeEach(() => {
     // Reset all mocks
     mockIsUserAdmin.mockReset();
-    mockHasNftAccess.mockReset();
+    mockHasOnchainNftAccess.mockReset();
     mockDbSelect.mockReset();
     mockDbInsert.mockReset();
     mockDbUpdate.mockReset();
@@ -228,7 +236,7 @@ describe('NFT Chat Gating Service', () => {
       const result = await canAccessNftChatGate('user-123', 'regular-chat');
       expect(result).toBe(true);
       expect(mockIsUserAdmin).not.toHaveBeenCalled();
-      expect(mockHasNftAccess).not.toHaveBeenCalled();
+      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
     });
 
     it('should return true for admins on gated chat', async () => {
@@ -237,22 +245,50 @@ describe('NFT Chat Gating Service', () => {
       const result = await canAccessNftChatGate('admin-user', 'gated-chat');
       expect(result).toBe(true);
       expect(mockIsUserAdmin).toHaveBeenCalledWith('admin-user');
-      expect(mockHasNftAccess).not.toHaveBeenCalled();
+      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
     });
 
     it('should check NFT access for non-admin on gated chat', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       const result = await canAccessNftChatGate('regular-user', 'gated-chat');
       expect(result).toBe(true);
       expect(mockIsUserAdmin).toHaveBeenCalledWith('regular-user');
-      expect(mockHasNftAccess).toHaveBeenCalledWith('regular-user');
+      expect(mockHasOnchainNftAccess).toHaveBeenCalledWith('0xabc', {
+        cacheScope: 'premium_chat',
+        positiveTtlMs: 10000,
+        negativeTtlMs: 10000,
+      });
     });
 
     it('should return false for non-admin without NFT access', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       const result = await canAccessNftChatGate('regular-user', 'gated-chat');
       expect(result).toBe(false);
@@ -282,7 +318,19 @@ describe('NFT Chat Gating Service', () => {
 
     it('should not throw when user has access', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       const user = { userId: 'user-123', dbUserId: 'db-user-123' };
       await expect(
@@ -292,7 +340,19 @@ describe('NFT Chat Gating Service', () => {
 
     it('should throw AuthorizationError when user lacks access', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       const user = { userId: 'user-123' };
       await expect(requireNftChatAccess(user, 'gated-chat')).rejects.toThrow(
@@ -302,23 +362,55 @@ describe('NFT Chat Gating Service', () => {
 
     it('should prefer dbUserId over userId for access check', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       const user = { userId: 'privy-id', dbUserId: 'db-user-123' };
       await requireNftChatAccess(user, 'gated-chat');
 
       // Should call with dbUserId, not userId
-      expect(mockHasNftAccess).toHaveBeenCalledWith('db-user-123');
+      expect(mockHasOnchainNftAccess).toHaveBeenCalledWith('0xabc', {
+        cacheScope: 'premium_chat',
+        positiveTtlMs: 10000,
+        negativeTtlMs: 10000,
+      });
     });
 
     it('should fallback to userId when dbUserId is not available', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       const user = { userId: 'user-123' };
       await requireNftChatAccess(user, 'gated-chat');
 
-      expect(mockHasNftAccess).toHaveBeenCalledWith('user-123');
+      expect(mockHasOnchainNftAccess).toHaveBeenCalledWith('0xabc', {
+        cacheScope: 'premium_chat',
+        positiveTtlMs: 10000,
+        negativeTtlMs: 10000,
+      });
     });
   });
 
@@ -346,7 +438,19 @@ describe('NFT Chat Gating Service', () => {
 
     it('should throw AuthorizationError when user lacks NFT access', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       await expect(ensureNftChatMembership('user-123')).rejects.toThrow(
         'NFT chat access required'
@@ -355,18 +459,30 @@ describe('NFT Chat Gating Service', () => {
 
     it('should allow admin access without NFT', async () => {
       mockIsUserAdmin.mockResolvedValue(true);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
 
       // Mock db.select for chat lookup
       mockDbSelect.mockImplementation(() => ({
-        from: () => ({
-          where: () => ({
-            limit: () =>
-              Promise.resolve([
-                { id: 'gated-chat', isGroup: true, groupId: 'group-123' },
-              ]),
-          }),
-        }),
+        from: (table: unknown) => {
+          if (table === chatsTable) {
+            return {
+              where: () => ({
+                limit: () =>
+                  Promise.resolve([
+                    { id: 'gated-chat', isGroup: true, groupId: 'group-123' },
+                  ]),
+              }),
+            };
+          }
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
       }));
 
       // Mock transaction
@@ -389,15 +505,27 @@ describe('NFT Chat Gating Service', () => {
 
     it('should throw NotFoundError when chat does not exist', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
 
       // Mock db.select returning empty
       mockDbSelect.mockImplementation(() => ({
-        from: () => ({
-          where: () => ({
-            limit: () => Promise.resolve([]),
-          }),
-        }),
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          if (table === chatsTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
       }));
 
       await expect(ensureNftChatMembership('user-123')).rejects.toThrow(
@@ -407,18 +535,30 @@ describe('NFT Chat Gating Service', () => {
 
     it('should throw ValidationError when chat is not a group chat', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
 
       // Mock db.select returning non-group chat
       mockDbSelect.mockImplementation(() => ({
-        from: () => ({
-          where: () => ({
-            limit: () =>
-              Promise.resolve([
-                { id: 'gated-chat', isGroup: false, groupId: null },
-              ]),
-          }),
-        }),
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          if (table === chatsTable) {
+            return {
+              where: () => ({
+                limit: () =>
+                  Promise.resolve([
+                    { id: 'gated-chat', isGroup: false, groupId: null },
+                  ]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
       }));
 
       await expect(ensureNftChatMembership('user-123')).rejects.toThrow(
@@ -428,17 +568,29 @@ describe('NFT Chat Gating Service', () => {
 
     it('should create membership records for eligible user', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
 
       mockDbSelect.mockImplementation(() => ({
-        from: () => ({
-          where: () => ({
-            limit: () =>
-              Promise.resolve([
-                { id: 'gated-chat', isGroup: true, groupId: 'group-123' },
-              ]),
-          }),
-        }),
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          if (table === chatsTable) {
+            return {
+              where: () => ({
+                limit: () =>
+                  Promise.resolve([
+                    { id: 'gated-chat', isGroup: true, groupId: 'group-123' },
+                  ]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
       }));
 
       let insertCalls = 0;
@@ -500,7 +652,19 @@ describe('NFT Chat Gating Service', () => {
 
     it('should not revoke if user still has NFT access', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       await revokeNftChatMembershipIfNeeded(
         'user-123',
@@ -513,15 +677,27 @@ describe('NFT Chat Gating Service', () => {
 
     it('should revoke membership when user loses NFT access', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
 
       // Mock db.select for chat lookup
       mockDbSelect.mockImplementation(() => ({
-        from: () => ({
-          where: () => ({
-            limit: () => Promise.resolve([{ groupId: 'group-123' }]),
-          }),
-        }),
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          if (table === chatsTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ groupId: 'group-123' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
       }));
 
       let updateCalls = 0;
@@ -561,15 +737,27 @@ describe('NFT Chat Gating Service', () => {
 
     it('should only update chatParticipants when chat has no groupId', async () => {
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
 
       // Mock db.select returning chat without groupId
       mockDbSelect.mockImplementation(() => ({
-        from: () => ({
-          where: () => ({
-            limit: () => Promise.resolve([{ groupId: null }]),
-          }),
-        }),
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          if (table === chatsTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ groupId: null }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
       }));
 
       let updateCalls = 0;
@@ -602,7 +790,7 @@ describe('NFT Chat Gating Service', () => {
 describe('NFT Chat Gating - Integration Scenarios', () => {
   beforeEach(() => {
     mockIsUserAdmin.mockReset();
-    mockHasNftAccess.mockReset();
+    mockHasOnchainNftAccess.mockReset();
     delete process.env.NFT_CHAT_GATING_ENABLED;
     delete process.env.NFT_CHAT_GATING_CHAT_ID;
   });
@@ -613,7 +801,19 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
       process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
 
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(true);
+      mockHasOnchainNftAccess.mockResolvedValue(true);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       // Step 1: Check if chat is gated
       const isGated = isNftChatGatedChat('fd-alpha-chat');
@@ -637,7 +837,19 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
       process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
 
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([{ walletAddress: '0xabc' }]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
 
       // Step 1: Check if chat is gated
       const isGated = isNftChatGatedChat('fd-alpha-chat');
@@ -659,7 +871,7 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
 
       // Even without NFT access, regular chats should be accessible
       mockIsUserAdmin.mockResolvedValue(false);
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
 
       // Step 1: Check if chat is gated
       const isGated = isNftChatGatedChat('regular-chat');
@@ -668,7 +880,7 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
       // Step 2: Check access (should return true without checking NFT)
       const canAccess = await canAccessNftChatGate('user-123', 'regular-chat');
       expect(canAccess).toBe(true);
-      expect(mockHasNftAccess).not.toHaveBeenCalled();
+      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
 
       // Step 3: Require access (should not throw)
       await expect(
@@ -687,7 +899,7 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
 
       const canAccess = await canAccessNftChatGate('user-123', 'fd-alpha-chat');
       expect(canAccess).toBe(true);
-      expect(mockHasNftAccess).not.toHaveBeenCalled();
+      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
     });
 
     it('should handle missing chat ID gracefully', async () => {
@@ -708,14 +920,14 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
 
       mockIsUserAdmin.mockResolvedValue(true);
       // NFT access check should not even be called for admins
-      mockHasNftAccess.mockResolvedValue(false);
+      mockHasOnchainNftAccess.mockResolvedValue(false);
 
       const canAccess = await canAccessNftChatGate(
         'admin-user',
         'fd-alpha-chat'
       );
       expect(canAccess).toBe(true);
-      expect(mockHasNftAccess).not.toHaveBeenCalled();
+      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
     });
   });
 
@@ -733,7 +945,7 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
 
       // Should not have checked admin status or NFT access
       expect(mockIsUserAdmin).not.toHaveBeenCalled();
-      expect(mockHasNftAccess).not.toHaveBeenCalled();
+      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
     });
   });
 });

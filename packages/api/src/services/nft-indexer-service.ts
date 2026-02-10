@@ -75,6 +75,24 @@ const DEFAULT_POSITIVE_TTL_MS = 10_000;
 const DEFAULT_NEGATIVE_TTL_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 2_500;
 const MAX_CACHE_ENTRIES = 10_000;
+const MAX_TTL_MS = 5 * 60_000;
+
+export type HasOnchainNftAccessOptions = {
+  /**
+   * Cache scope to prevent one call site from affecting another.
+   * Example: "premium_chat" vs "default".
+   */
+  cacheScope?: string;
+  /**
+   * Overrides the internal in-memory cache TTLs. Values are clamped.
+   */
+  positiveTtlMs?: number;
+  negativeTtlMs?: number;
+  /**
+   * When true, bypasses the in-memory cache entirely.
+   */
+  bypassCache?: boolean;
+};
 
 /**
  * Evicts expired entries and enforces size cap on the cache.
@@ -96,11 +114,19 @@ function evictExpiredCacheEntries(nowMs: number): void {
   }
 }
 
-function getCacheTtls(): { positiveTtlMs: number; negativeTtlMs: number } {
-  // Keep this intentionally simple: TTLs are internal defaults for now.
+function normalizeTtlMs(value: number | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.min(Math.floor(value), MAX_TTL_MS);
+}
+
+function getCacheTtls(opts?: HasOnchainNftAccessOptions): {
+  positiveTtlMs: number;
+  negativeTtlMs: number;
+} {
   return {
-    positiveTtlMs: DEFAULT_POSITIVE_TTL_MS,
-    negativeTtlMs: DEFAULT_NEGATIVE_TTL_MS,
+    positiveTtlMs: normalizeTtlMs(opts?.positiveTtlMs, DEFAULT_POSITIVE_TTL_MS),
+    negativeTtlMs: normalizeTtlMs(opts?.negativeTtlMs, DEFAULT_NEGATIVE_TTL_MS),
   };
 }
 
@@ -194,7 +220,8 @@ export async function getNftHolderBalanceFromIndexer(
 }
 
 export async function hasOnchainNftAccess(
-  walletAddress: string
+  walletAddress: string,
+  opts?: HasOnchainNftAccessOptions
 ): Promise<boolean> {
   let collectionId: string;
   try {
@@ -209,7 +236,13 @@ export async function hasOnchainNftAccess(
     throw error;
   }
   const address = normalizeHexAddress(walletAddress);
-  const cacheKey = `${collectionId}:${address}`;
+  const cacheScope = opts?.cacheScope?.trim() || 'default';
+  const cacheKey = `${cacheScope}:${collectionId}:${address}`;
+
+  if (opts?.bypassCache === true) {
+    const balance = await getNftHolderBalanceFromIndexer(address);
+    return balance > 0n;
+  }
 
   const nowMs = Date.now();
   const cached = accessCache.get(cacheKey);
@@ -224,7 +257,7 @@ export async function hasOnchainNftAccess(
   const balance = await getNftHolderBalanceFromIndexer(address);
   const allowed = balance > 0n;
 
-  const { positiveTtlMs, negativeTtlMs } = getCacheTtls();
+  const { positiveTtlMs, negativeTtlMs } = getCacheTtls(opts);
   const ttlMs = allowed ? positiveTtlMs : negativeTtlMs;
   accessCache.set(cacheKey, { allowed, expiresAtMs: nowMs + ttlMs });
 
