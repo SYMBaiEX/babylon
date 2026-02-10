@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/stores/authStore';
 import { DailyLoginModal } from './DailyLoginModal';
 import {
   type ClaimResult,
@@ -17,7 +18,8 @@ const STAT_ITEMS = [
 ] as const;
 
 export function DailyStreakCard() {
-  const { authenticated, getAccessToken } = useAuth();
+  const { authenticated, getAccessToken, user } = useAuth();
+  const { setUser } = useAuthStore();
   const [data, setData] = useState<StreakData | null>(null);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
@@ -135,6 +137,23 @@ export function DailyStreakCard() {
       if (result.success) {
         setModal(result);
         await fetchData();
+
+        // Fetch latest portfolio breakdown (same as profile page) to update totalPoints & virtualBalance
+        if (user?.id) {
+          const breakdownRes = await fetch(
+            `/api/users/${encodeURIComponent(user.id)}/portfolio-breakdown`
+          );
+          if (breakdownRes.ok) {
+            const breakdown = await breakdownRes.json();
+            if (user) {
+              setUser({
+                ...user,
+                totalPoints: breakdown.totalPoints,
+                virtualBalance: breakdown.wallet,
+              });
+            }
+          }
+        }
       } else if (result.error) {
         toast.error(result.error);
       }

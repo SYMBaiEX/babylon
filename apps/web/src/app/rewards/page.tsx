@@ -98,6 +98,9 @@ export default function RewardsPage() {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [showLinkSocialModal, setShowLinkSocialModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [livePortfolio, setLivePortfolio] = useState<{
+    totalPoints: number;
+  } | null>(null);
 
   // Handle OAuth callback from Twitter/Discord linking
   useEffect(() => {
@@ -169,13 +172,37 @@ export default function RewardsPage() {
     setLoading(false);
   }, [user?.id, authenticated, getAccessToken]);
 
+  // Fetch live totalPoints from portfolio-breakdown (same as profile page — computed on the fly, not from DB cache)
+  const fetchPortfolio = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/portfolio-breakdown`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setLivePortfolio({ totalPoints: data.totalPoints });
+      }
+    } catch {
+      // Silently fail — will fall back to referralData.user.totalPoints
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     if (ready && authenticated && user?.id) {
       fetchReferralData();
+      fetchPortfolio();
     } else if (ready && !authenticated) {
       setLoading(false);
     }
-  }, [user?.id, ready, authenticated, fetchReferralData]);
+  }, [user?.id, ready, authenticated, fetchReferralData, fetchPortfolio]);
+
+  // Re-fetch portfolio when authStore totalPoints changes (e.g. after daily claim)
+  useEffect(() => {
+    if (ready && authenticated && user?.id && user?.totalPoints !== undefined) {
+      fetchPortfolio();
+    }
+  }, [user?.totalPoints, ready, authenticated, user?.id, fetchPortfolio]);
 
   const handleCopyUrl = async () => {
     if (!referralData?.user.referralCode) return;
@@ -341,7 +368,9 @@ export default function RewardsPage() {
                   </h2>
                 </div>
                 <div className="font-bold text-3xl text-primary">
-                  {referralData.user.totalPoints.toLocaleString()}
+                  {(
+                    livePortfolio?.totalPoints ?? referralData.user.totalPoints
+                  ).toLocaleString()}
                 </div>
               </div>
 
@@ -658,7 +687,9 @@ export default function RewardsPage() {
                   </h2>
                 </div>
                 <div className="font-bold text-2xl text-primary">
-                  {referralData.user.totalPoints.toLocaleString()}
+                  {(
+                    livePortfolio?.totalPoints ?? referralData.user.totalPoints
+                  ).toLocaleString()}
                 </div>
               </div>
 

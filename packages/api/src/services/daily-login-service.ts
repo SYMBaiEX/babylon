@@ -20,6 +20,7 @@
  */
 
 import { balanceTransactions, db, eq, sql, users } from '@babylon/db';
+import { TotalPointsService } from '@babylon/engine';
 import {
   DAILY_LOGIN,
   generateSnowflakeId,
@@ -381,6 +382,16 @@ export class DailyLoginService {
       });
 
       if (result.success) {
+        // Mark user dirty so totalPoints DB column gets recomputed by the cron job
+        // (virtualBalance changed but totalPoints = wallet + positions needs recalculation)
+        TotalPointsService.markDirty(userId).catch((e) =>
+          logger.warn(
+            'Failed to mark user dirty after daily login',
+            { userId, error: e instanceof Error ? e.message : String(e) },
+            'DailyLoginService'
+          )
+        );
+
         logger.info(
           'Daily login claimed',
           {

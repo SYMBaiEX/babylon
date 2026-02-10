@@ -11,19 +11,12 @@ import {
   Settings,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useGameGuide } from '@/components/providers/GameGuideProvider';
 import { Avatar } from '@/components/shared/Avatar';
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
-import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
-
-/**
- * Global fetch tracking to prevent duplicate calls across all UserMenu instances.
- */
-let userMenuFetchInFlight = false;
-let userMenuIntervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
  * User menu component displaying user profile and account actions.
@@ -42,162 +35,39 @@ let userMenuIntervalId: ReturnType<typeof setInterval> | null = null;
  */
 export function UserMenu() {
   const { logout, refresh } = useAuth();
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const { openGuide } = useGameGuide();
   const router = useRouter();
-  const [tradingBalance, setTradingBalance] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
-  const lastFetchedUserIdRef = useRef<string | null>(null);
-  const lastFetchTimeRef = useRef<number>(0);
 
-  useEffect(() => {
-    let isMounted = true;
-    let currentFetchController: AbortController | null = null;
+  // Fetch portfolio breakdown (same as profile page — computed on the fly, not from stale DB)
+  const [livePortfolio, setLivePortfolio] = useState<{
+    totalPoints: number;
+    wallet: number;
+  } | null>(null);
 
-    const fetchData = async (forceRefresh = false) => {
-      if (!user?.id || !isMounted) {
-        if (!isMounted) return;
-        setTradingBalance(null);
-        lastFetchedUserIdRef.current = null;
-        return;
+  const fetchPortfolio = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/portfolio-breakdown`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setLivePortfolio({
+          totalPoints: data.totalPoints ?? 0,
+          wallet: data.wallet ?? 0,
+        });
       }
-
-      // Skip if we fetched recently (within 5 seconds) unless force refresh
-      const now = Date.now();
-      if (
-        !forceRefresh &&
-        now - lastFetchTimeRef.current < 5000 &&
-        lastFetchedUserIdRef.current === user.id
-      ) {
-        return;
-      }
-
-      // Prevent duplicate fetches globally
-      if (userMenuFetchInFlight) return;
-      userMenuFetchInFlight = true;
-
-      const token = getAuthToken();
-      if (!token) {
-        userMenuFetchInFlight = false;
-        return;
-      }
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      };
-
-      // Create a new controller for this specific fetch call
-      currentFetchController = new AbortController();
-      const fetchController = currentFetchController;
-
-      // Fetch both trading balance and user profile (for latest reputation points)
-      const [balanceResponse, profileResponse] = await Promise.all([
-        fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
-          headers,
-          signal: fetchController.signal,
-        }),
-        fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
-          headers,
-          signal: fetchController.signal,
-        }),
-      ]).catch((error) => {
-        // Ignore abort errors
-        if (error instanceof Error && error.name === 'AbortError') {
-          return [null, null];
-        }
-        // Silently handle network errors - component will show previous state or null
-        if (isMounted) {
-          console.warn('Failed to fetch user menu data:', error);
-        }
-        return [null, null];
-      });
-
-      if (
-        !isMounted ||
-        fetchController.signal.aborted ||
-        !balanceResponse ||
-        !profileResponse
-      ) {
-        if (isMounted) {
-          userMenuFetchInFlight = false;
-        }
-        currentFetchController = null;
-        return;
-      }
-
-      // Update trading balance
-      if (balanceResponse.ok) {
-        const balanceData = await balanceResponse.json();
-        if (isMounted && !fetchController.signal.aborted) {
-          setTradingBalance(Number(balanceData.balance || 0));
-        }
-      }
-
-      // Update points from profile
-      if (profileResponse.ok) {
-        const profileData = await profileResponse.json();
-        if (isMounted && !fetchController.signal.aborted && profileData.user) {
-          const newTotalPoints = profileData.user.totalPoints;
-          const newReputationPoints = profileData.user.reputationPoints;
-          const updates: Partial<typeof user> = {};
-          if (
-            newTotalPoints !== undefined &&
-            newTotalPoints !== user.totalPoints
-          ) {
-            updates.totalPoints = newTotalPoints;
-          }
-          if (
-            newReputationPoints !== undefined &&
-            newReputationPoints !== user.reputationPoints
-          ) {
-            updates.reputationPoints = newReputationPoints;
-          }
-          if (Object.keys(updates).length > 0) {
-            setUser({ ...user, ...updates });
-          }
-        }
-      }
-
-      if (isMounted && !fetchController.signal.aborted) {
-        lastFetchedUserIdRef.current = user.id;
-        lastFetchTimeRef.current = now;
-      }
-
-      if (isMounted) {
-        userMenuFetchInFlight = false;
-      }
-      currentFetchController = null;
-    };
-
-    // Clear any existing interval
-    if (userMenuIntervalId) {
-      clearInterval(userMenuIntervalId);
-      userMenuIntervalId = null;
+    } catch {
+      // Silently fail — will show fallback values
     }
+  }, [user?.id]);
 
-    // Fetch immediately when user changes or reputation points change
-    const shouldRefresh = lastFetchedUserIdRef.current !== user?.id;
-    fetchData(shouldRefresh);
-
-    // Set up interval for refresh
-    userMenuIntervalId = setInterval(() => {
-      if (isMounted) {
-        fetchData(true);
-      }
-    }, 30000);
-
-    return () => {
-      isMounted = false;
-      if (currentFetchController) {
-        currentFetchController.abort();
-      }
-      if (userMenuIntervalId) {
-        clearInterval(userMenuIntervalId);
-        userMenuIntervalId = null;
-      }
-    };
-  }, [user?.id, user?.reputationPoints, setUser, user]);
+  // Fetch on mount
+  useEffect(() => {
+    fetchPortfolio();
+  }, [fetchPortfolio]);
 
   // Listen for rewards-updated events to refresh auth state
   // This ensures the sidebar updates when rewards are claimed elsewhere
@@ -232,6 +102,7 @@ export function UserMenu() {
   const trigger = (
     <div
       data-testid="user-menu"
+      onClick={fetchPortfolio}
       className="group flex w-full cursor-pointer items-center gap-3 px-4 py-3 transition-colors duration-200 hover:bg-sidebar-accent"
     >
       <Avatar
@@ -254,9 +125,9 @@ export function UserMenu() {
     </div>
   );
 
-  // Use total points from authStore (synced from profile API)
-  const totalPointsValue = user?.totalPoints ?? 0;
-  const tradingBalanceValue = tradingBalance ?? 0;
+  // Use live portfolio data (computed on the fly, same as profile page)
+  const totalPointsValue = livePortfolio?.totalPoints ?? user?.totalPoints ?? 0;
+  const tradingBalanceValue = livePortfolio?.wallet ?? 0;
 
   return (
     <Dropdown
