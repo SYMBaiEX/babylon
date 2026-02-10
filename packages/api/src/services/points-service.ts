@@ -5,6 +5,8 @@
  * Tracks all point transactions and ensures no duplicate awards. Handles different
  * point types (reputation, invite, bonus) and provides leaderboard functionality.
  */
+
+import { PredictionPricing } from '@babylon/core/markets/prediction';
 import {
   actorState,
   and,
@@ -16,9 +18,9 @@ import {
   eq,
   gt,
   gte,
-  markets,
   isNull,
   type JsonValue,
+  markets,
   ne,
   perpPositions,
   pointsTransactions,
@@ -27,7 +29,6 @@ import {
   sql,
   users,
 } from '@babylon/db';
-import { PredictionPricing } from '@babylon/core/markets/prediction';
 import { FEE_CONFIG, StaticDataRegistry } from '@babylon/engine';
 import {
   generateSnowflakeId,
@@ -1540,7 +1541,10 @@ export class PointsService {
         const wallet = toNumber(user.virtualBalance);
         const perpsValue = perpsValueByUserId.get(user.id) ?? 0;
         const predictionsValue = predictionsValueByUserId.get(user.id) ?? 0;
-        totalPointsByUserId.set(user.id, wallet + perpsValue + predictionsValue);
+        totalPointsByUserId.set(
+          user.id,
+          wallet + perpsValue + predictionsValue
+        );
       }
     }
 
