@@ -1,6 +1,6 @@
 import type { PrivyClientConfig } from '@privy-io/react-auth';
 
-import { mainnet } from '../constants/chains';
+import { CHAIN } from '../constants/chains';
 
 type SolanaConnectors = ReturnType<
   typeof import('@privy-io/react-auth/solana')['toSolanaWalletConnectors']
@@ -82,8 +82,8 @@ export const privyConfig: { appId: string; config: BabylonPrivyConfig } = {
     loginMethodsAndOrder,
     embeddedWallets,
     // Babylon is deployed on a single chain; keep Privy chain config aligned.
-    defaultChain: mainnet,
-    supportedChains: [mainnet],
+    defaultChain: CHAIN,
+    supportedChains: [CHAIN],
     externalWallets,
   },
 };
