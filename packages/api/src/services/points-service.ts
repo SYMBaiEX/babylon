@@ -6,7 +6,6 @@
  * point types (reputation, invite, bonus) and provides leaderboard functionality.
  */
 
-import { PredictionPricing } from '@babylon/core/markets/prediction';
 import {
   actorState,
   and,
@@ -20,16 +19,13 @@ import {
   gte,
   isNull,
   type JsonValue,
-  markets,
   ne,
-  perpPositions,
   pointsTransactions,
-  positions,
   referrals,
   sql,
   users,
 } from '@babylon/db';
-import { FEE_CONFIG, StaticDataRegistry } from '@babylon/engine';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
   generateSnowflakeId,
   logger,
@@ -50,71 +46,6 @@ const UNQUALIFIED_REFERRAL_LIMIT = 10;
  * @description Categories for filtering leaderboard results.
  */
 type LeaderboardCategory = 'all' | 'earned' | 'referral' | 'total';
-
-function toNumber(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
-  return fallback;
-}
-
-function clampFeeRate(rate: number): number {
-  return rate > 0 && rate < 1 ? rate : 0;
-}
-
-function calculatePerpPositionValue(position: {
-  size: unknown;
-  leverage: unknown;
-  unrealizedPnL: unknown;
-}): number {
-  const size = toNumber(position.size);
-  const leverage = toNumber(position.leverage);
-  const unrealizedPnL = toNumber(position.unrealizedPnL);
-
-  const effectiveLeverage =
-    Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
-  const margin = Math.abs(size / effectiveLeverage);
-  return margin + unrealizedPnL;
-}
-
-function calculatePredictionPositionValue(position: {
-  shares: unknown;
-  avgPrice: unknown;
-  side: boolean | null;
-  marketYesShares: unknown;
-  marketNoShares: unknown;
-}): number {
-  const shares = toNumber(position.shares);
-  const avgPrice = toNumber(position.avgPrice);
-
-  const yesShares = toNumber(position.marketYesShares);
-  const noShares = toNumber(position.marketNoShares);
-
-  const feeRate = clampFeeRate(FEE_CONFIG.TRADING_FEE_RATE);
-  const costBasisNet = shares * avgPrice;
-  const costBasis = feeRate > 0 ? costBasisNet / (1 - feeRate) : costBasisNet;
-
-  if (shares <= 0 || yesShares <= 0 || noShares <= 0) {
-    return costBasis;
-  }
-
-  const sideKey = position.side ? 'yes' : 'no';
-  try {
-    const sellPreview = PredictionPricing.calculateSellWithFees(
-      yesShares,
-      noShares,
-      sideKey,
-      shares,
-      feeRate
-    );
-    return sellPreview.netProceeds ?? sellPreview.totalCost;
-  } catch {
-    // Fall back to cost basis when sell preview fails (e.g. invalid market state)
-    return costBasis;
-  }
-}
 
 /**
  * Result of awarding points to a user
@@ -1428,11 +1359,52 @@ export class PointsService {
     // Build users query based on category
     // All modes exclude actors (isActor=false) AND agents (isAgent=false)
     let usersResult;
+    let totalCountForTotal: number | null = null;
     if (pointsCategory === 'total') {
+      // DB-level ordering and pagination for scalable leaderboard queries.
+      const [countResult] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)));
+      totalCountForTotal = countResult?.count ?? 0;
+
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(and(eq(users.isActor, false), eq(users.isAgent, false)));
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)))
+        .orderBy(desc(users.totalPoints))
+        .limit(pageSize)
+        .offset(skip);
+
+      const usersWithRank = usersResult.map((user, index) => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        profileImageUrl: user.profileImageUrl,
+        allPoints: user.reputationPoints,
+        invitePoints: user.invitePoints,
+        earnedPoints: user.earnedPoints,
+        bonusPoints: user.bonusPoints,
+        totalPoints: Number(user.totalPoints ?? 0),
+        referralCount: user.referralCount,
+        balance: Number(user.virtualBalance ?? 0),
+        lifetimePnL: Number(user.lifetimePnL ?? 0),
+        createdAt: user.createdAt,
+        isActor: false,
+        tier: null as string | null,
+        onChainRegistered: user.onChainRegistered,
+        nftTokenId: user.nftTokenId,
+        rank: skip + index + 1,
+      }));
+
+      return {
+        users: usersWithRank,
+        totalCount: totalCountForTotal,
+        page,
+        pageSize,
+        totalPages: Math.ceil((totalCountForTotal ?? 0) / pageSize),
+        pointsCategory,
+      };
     } else if (pointsCategory === 'all') {
       usersResult = await db
         .select(userSelectFields)
@@ -1468,86 +1440,6 @@ export class PointsService {
         );
     }
 
-    const totalPointsByUserId = new Map<string, number>();
-    if (pointsCategory === 'total') {
-      const [perpRows, predictionRows] = await Promise.all([
-        db
-          .select({
-            userId: perpPositions.userId,
-            size: perpPositions.size,
-            leverage: perpPositions.leverage,
-            unrealizedPnL: perpPositions.unrealizedPnL,
-          })
-          .from(perpPositions)
-          .innerJoin(users, eq(perpPositions.userId, users.id))
-          .where(
-            and(
-              isNull(perpPositions.closedAt),
-              eq(users.isActor, false),
-              eq(users.isAgent, false)
-            )
-          ),
-        db
-          .select({
-            userId: positions.userId,
-            shares: positions.shares,
-            avgPrice: positions.avgPrice,
-            side: positions.side,
-            marketYesShares: markets.yesShares,
-            marketNoShares: markets.noShares,
-          })
-          .from(positions)
-          .innerJoin(markets, eq(positions.marketId, markets.id))
-          .innerJoin(users, eq(positions.userId, users.id))
-          .where(
-            and(
-              eq(markets.resolved, false),
-              gt(positions.shares, '0'),
-              eq(users.isActor, false),
-              eq(users.isAgent, false)
-            )
-          ),
-      ]);
-
-      const perpsValueByUserId = new Map<string, number>();
-      for (const row of perpRows) {
-        const prev = perpsValueByUserId.get(row.userId) ?? 0;
-        perpsValueByUserId.set(
-          row.userId,
-          prev +
-            calculatePerpPositionValue({
-              size: row.size,
-              leverage: row.leverage,
-              unrealizedPnL: row.unrealizedPnL,
-            })
-        );
-      }
-
-      const predictionsValueByUserId = new Map<string, number>();
-      for (const row of predictionRows) {
-        const prev = predictionsValueByUserId.get(row.userId) ?? 0;
-        // Use the same liquidation-value approximation as portfolio-breakdown/total-points.
-        const value = calculatePredictionPositionValue({
-          shares: row.shares,
-          avgPrice: row.avgPrice,
-          side: row.side,
-          marketYesShares: row.marketYesShares,
-          marketNoShares: row.marketNoShares,
-        });
-        predictionsValueByUserId.set(row.userId, prev + value);
-      }
-
-      for (const user of usersResult) {
-        const wallet = toNumber(user.virtualBalance);
-        const perpsValue = perpsValueByUserId.get(user.id) ?? 0;
-        const predictionsValue = predictionsValueByUserId.get(user.id) ?? 0;
-        totalPointsByUserId.set(
-          user.id,
-          wallet + perpsValue + predictionsValue
-        );
-      }
-    }
-
     const combined = [
       ...usersResult.map((user) => ({
         id: user.id,
@@ -1558,10 +1450,7 @@ export class PointsService {
         invitePoints: user.invitePoints,
         earnedPoints: user.earnedPoints,
         bonusPoints: user.bonusPoints,
-        totalPoints:
-          pointsCategory === 'total'
-            ? (totalPointsByUserId.get(user.id) ?? 0)
-            : Number(user.totalPoints ?? 0),
+        totalPoints: Number(user.totalPoints ?? 0),
         referralCount: user.referralCount,
         balance: Number(user.virtualBalance ?? 0),
         lifetimePnL: Number(user.lifetimePnL ?? 0),

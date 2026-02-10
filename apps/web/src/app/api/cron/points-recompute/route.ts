@@ -45,6 +45,10 @@ export async function POST(request: NextRequest) {
   logger.info('Points recompute started', { isMidnight }, 'PointsRecompute');
 
   try {
+    // Self-heal: mark users with totalPoints=0 as dirty so recompute can backfill.
+    const markedZeroTotalPoints =
+      await TotalPointsService.markZeroTotalPointsDirty();
+
     // Incremental: only recompute users marked dirty
     const recomputeResult = await TotalPointsService.recomputeDirtyUsers();
 
@@ -58,6 +62,7 @@ export async function POST(request: NextRequest) {
 
     const result = {
       success: true,
+      markedZeroTotalPoints,
       recomputed: recomputeResult,
       snapshot: snapshotResult,
       isMidnight,
