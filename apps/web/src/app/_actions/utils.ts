@@ -27,25 +27,9 @@ function isNonEmptyString(value: unknown): value is string {
  * "400 Invalid JWT token provided" even though basic `verifyAuthToken` passes.
  *
  * @param explicitToken - Fresh token from `getAccessToken()` (preferred)
- * @returns The Privy JWT token
+ * @returns The Privy JWT token bundle
  * @throws Error with descriptive message if no token is found
  */
-export async function requirePrivyToken(
-  explicitToken?: string
-): Promise<string> {
-  // Prefer the explicit token — it comes from getAccessToken() and is always fresh.
-  // The privy-token cookie may be stale or out-of-sync with the latest refresh.
-  if (explicitToken) return explicitToken;
-
-  const cookieStore = await cookies();
-  const cookieToken = cookieStore.get('privy-token')?.value;
-  if (cookieToken) return cookieToken;
-
-  throw new Error(
-    'Authentication required: no Privy token found. Please sign in and try again.'
-  );
-}
-
 /**
  * Retrieves both the explicit Privy token (if provided) and the HttpOnly cookie token.
  *

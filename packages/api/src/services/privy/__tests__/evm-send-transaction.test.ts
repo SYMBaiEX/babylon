@@ -363,4 +363,33 @@ describe('sendSponsoredEvmTransaction – JWT pre-flight checks', () => {
     expect(result.hash).toBe('0xdef');
     expect(mockSendTransaction).toHaveBeenCalledTimes(2);
   });
+
+  it('does not use fallback tokens whose subject does not match expectedPrivyUserId', async () => {
+    const primary = buildJwt(VALID_PAYLOAD);
+    const fallbackWrongUser = buildJwt({
+      ...VALID_PAYLOAD,
+      sub: 'did:privy:someone-else',
+    });
+
+    mockSendTransaction.mockImplementationOnce(() =>
+      Promise.reject(
+        new Error(
+          '400 {"error":"Invalid JWT token provided","code":"invalid_data"}'
+        )
+      )
+    );
+
+    await expect(
+      sendSponsoredEvmTransaction({
+        userJwt: primary,
+        userJwtFallbacks: [fallbackWrongUser],
+        expectedPrivyUserId: VALID_PAYLOAD.sub,
+        walletId: 'wallet-1',
+        to: validAddress,
+      })
+    ).rejects.toThrow('Invalid JWT token provided');
+
+    // Only the primary token should be attempted; fallback is filtered out by pre-flight validation.
+    expect(mockSendTransaction).toHaveBeenCalledTimes(1);
+  });
 });

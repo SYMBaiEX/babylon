@@ -273,7 +273,10 @@ export async function sendSponsoredEvmTransaction({
   );
 
   let lastError: unknown;
-  for (const { token } of candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (!candidate) continue;
+    const { token } = candidate;
     const authorizationContext: AuthorizationContext = {
       user_jwts: [token],
     };
@@ -313,6 +316,13 @@ export async function sendSponsoredEvmTransaction({
       // Only retry on the specific auth failure we expect for token rotation/revocation.
       if (!isInvalidPrivyWalletJwtError(error)) {
         throw error;
+      }
+      if (i < candidates.length - 1) {
+        logger.debug(
+          'Privy wallet rejected JWT, trying fallback token',
+          { candidateIndex: i, candidatesCount: candidates.length },
+          'sendSponsoredEvmTransaction'
+        );
       }
       // Continue to next candidate (if any).
     }
