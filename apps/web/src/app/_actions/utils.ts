@@ -1,6 +1,5 @@
 'use server';
 
-import { preferCookieAuth } from '@babylon/api';
 import { cookies } from 'next/headers';
 
 type PrivyTokenBundle = {
@@ -18,18 +17,28 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 /**
- * Retrieves the Privy authentication token bundle.
+ * Retrieves the Privy authentication token, preferring an explicit (fresh) token
+ * over the HttpOnly cookie.
  *
- * Token preference is environment-aware:
- * - **Production**: prefers the `privy-token` HttpOnly cookie (auto-managed by Privy SDK)
- * - **Staging / local**: prefers the explicit token from `getAccessToken()` (easier for testing)
+ * The explicit token comes from `getAccessToken()` on the client which always
+ * returns a freshly-refreshed JWT. The `privy-token` cookie is managed by
+ * Privy's React SDK and may be stale or out-of-sync with the latest refresh,
+ * which causes Privy's wallet authentication endpoint to reject it with
+ * "400 Invalid JWT token provided" even though basic `verifyAuthToken` passes.
  *
- * The non-preferred source is kept as a fallback so wallet operations can retry
- * once with the other token if the primary is rejected.
- *
- * @param explicitToken - Fresh token from `getAccessToken()` on the client
+ * @param explicitToken - Fresh token from `getAccessToken()` (preferred)
  * @returns The Privy JWT token bundle
  * @throws Error with descriptive message if no token is found
+ */
+/**
+ * Retrieves both the explicit Privy token (if provided) and the HttpOnly cookie token.
+ *
+ * Why:
+ * - The explicit token is generally fresher (comes from `getAccessToken()`).
+ * - In rare cases, Privy can rotate/revoke tokens such that a previously-valid token still
+ *   passes basic verification but is rejected by wallet endpoints with
+ *   "Invalid JWT token provided".
+ * - Having a fallback lets server actions retry once with the other token source.
  */
 export async function requirePrivyTokenBundle(
   explicitToken?: string
@@ -40,12 +49,8 @@ export async function requirePrivyTokenBundle(
   const explicit = isNonEmptyString(explicitToken) ? explicitToken : undefined;
   const cookie = isNonEmptyString(cookieToken) ? cookieToken : undefined;
 
-  // When both sources are present and differ, pick the environment-preferred
-  // source as primary and keep the other as fallback for retry.
   if (explicit && cookie && explicit !== cookie) {
-    return preferCookieAuth()
-      ? { primary: cookie, fallback: explicit }
-      : { primary: explicit, fallback: cookie };
+    return { primary: explicit, fallback: cookie };
   }
   if (explicit) return { primary: explicit };
   if (cookie) return { primary: cookie };

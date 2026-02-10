@@ -15,16 +15,6 @@ const MINTING_STATES = new Set<MintFlowState>([
   'confirming',
 ]);
 
-/** Heuristic: does the user-safe error message indicate a retryable auth/session issue? */
-function isRetryableAuthError(errorMessage: string): boolean {
-  const lower = errorMessage.toLowerCase();
-  return (
-    lower.includes('session has expired') ||
-    lower.includes('sign in again') ||
-    lower.includes('could not submit the transaction')
-  );
-}
-
 interface UseNftMintResult {
   eligibility: EligibilityResponse | null;
   isCheckingEligibility: boolean;
@@ -178,24 +168,7 @@ export function useNftMint(): UseNftMintResult {
         return;
       }
 
-      let result = await mintNftAction({ userJwt });
-
-      // Auto-retry once with a freshly-refreshed token on auth/session errors.
-      // This handles cases where the token was valid locally but rejected by
-      // Privy's wallet endpoint (e.g. chain config changes, session rotation).
-      if (
-        result.status === 'error' &&
-        result.step === 'send_transaction' &&
-        isRetryableAuthError(result.error)
-      ) {
-        console.warn('[NFT Mint] Auth error, retrying with fresh token', {
-          errorId: result.errorId,
-        });
-        const freshJwt = await getAccessToken().catch(() => null);
-        if (freshJwt && freshJwt !== userJwt) {
-          result = await mintNftAction({ userJwt: freshJwt });
-        }
-      }
+      const result = await mintNftAction({ userJwt });
 
       if (result.status === 'error') {
         console.error('[NFT Mint Error]', {

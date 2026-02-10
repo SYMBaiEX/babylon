@@ -21,7 +21,6 @@ import {
   isAuthenticationError,
 } from './errors';
 import { hasNftAccessForAuthUser } from './services/nft-access-service';
-import { preferCookieAuth } from './utils/environment';
 
 // Re-export types from shared for backwards compatibility
 export type { AuthenticatedUser } from '@babylon/shared';
@@ -52,11 +51,14 @@ export function getPrivyClient(): PrivyClient {
  * Authenticate request and return user info
  *
  * @description Authenticates an API request by checking for authentication tokens.
- * Token preference is environment-aware:
- * - **Production**: privy-token cookie (HttpOnly, auto-refreshed by Privy SDK)
- * - **Staging / local**: Authorization Bearer header (easier for testing / external clients)
+ * With HTTP-only cookies enabled, the privy-token cookie is preferred over the
+ * Authorization header because the cookie is automatically managed and refreshed
+ * by Privy. Falls back to Authorization header for backwards compatibility with
+ * agents or external clients that may still use header-based auth.
  *
- * The non-preferred source is used as a fallback.
+ * Token Priority:
+ * 1. privy-token cookie (preferred - auto-refreshed by Privy)
+ * 2. Authorization Bearer header (fallback for agents/external clients)
  *
  * @param {NextRequest} request - Next.js request object
  * @returns {Promise<AuthenticatedUser>} Authenticated user information
@@ -77,16 +79,13 @@ export async function authenticate(
   const authHeader = request.headers.get('authorization');
   let token: string | undefined;
 
+  // With HTTP-only cookies enabled, prefer the cookie over the Authorization header.
   const cookieToken = request.cookies.get('privy-token')?.value;
-  const headerToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : undefined;
 
-  // Environment-aware preference: cookies in production, headers in staging/local.
-  if (preferCookieAuth()) {
-    token = cookieToken ?? headerToken;
-  } else {
-    token = headerToken ?? cookieToken;
+  if (cookieToken) {
+    token = cookieToken;
+  } else if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
   }
 
   if (!token) {
@@ -157,12 +156,19 @@ export async function authenticate(
   // Try Privy authentication
   const privy = getPrivyClient();
 
-  // Build a list of tokens to try. The primary token is tried first; if both
-  // sources exist and differ the non-preferred source is kept as a fallback so
-  // we can recover from stale cookies / rotated sessions.
-  const fallbackToken = preferCookieAuth() ? headerToken : cookieToken;
+  // Get the Authorization header token as a potential fallback
+  const authHeaderToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
+
+  // If we're using the cookie token and there's also an auth header token,
+  // we should try the cookie first but fall back to the header if it fails.
+  // This handles the case where the cookie is from a different Privy app
+  // (e.g., stale cookies from a different environment on localhost).
   const tokensToTry =
-    fallbackToken && fallbackToken !== token ? [token, fallbackToken] : [token];
+    cookieToken && authHeaderToken && cookieToken !== authHeaderToken
+      ? [token, authHeaderToken]
+      : [token];
 
   let lastError: Error | undefined;
 
@@ -271,16 +277,13 @@ export async function optionalAuth(
   const authHeader = request.headers.get('authorization');
   let token: string | undefined;
 
+  // Prefer cookie over header
   const cookieToken = request.cookies.get('privy-token')?.value;
-  const headerToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : undefined;
 
-  // Environment-aware preference: cookies in production, headers in staging/local.
-  if (preferCookieAuth()) {
-    token = cookieToken ?? headerToken;
-  } else {
-    token = headerToken ?? cookieToken;
+  if (cookieToken) {
+    token = cookieToken;
+  } else if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
   }
 
   if (!token) {
@@ -299,11 +302,19 @@ export async function optionalAuth(
   // Try Privy authentication - return null on failure (optional auth)
   const privy = getPrivyClient();
 
-  // Build fallback list: if both sources exist and differ, try the non-preferred
-  // source as a fallback (e.g. stale cookies from a different environment).
-  const fallbackToken = preferCookieAuth() ? headerToken : cookieToken;
+  // Get the Authorization header token as a potential fallback
+  const authHeaderToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
+
+  // If we're using the cookie token and there's also an auth header token,
+  // we should try the cookie first but fall back to the header if it fails.
+  // This handles the case where the cookie is from a different Privy app
+  // (e.g., stale cookies from a different environment on localhost).
   const tokensToTry =
-    fallbackToken && fallbackToken !== token ? [token, fallbackToken] : [token];
+    cookieToken && authHeaderToken && cookieToken !== authHeaderToken
+      ? [token, authHeaderToken]
+      : [token];
 
   for (const tokenToVerify of tokensToTry) {
     try {

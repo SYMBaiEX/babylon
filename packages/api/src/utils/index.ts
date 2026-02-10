@@ -27,7 +27,6 @@ export {
 export {
   type DeploymentEnvironment,
   getDeploymentEnvironment,
-  preferCookieAuth,
 } from './environment';
 export {
   getClientIp,
