@@ -167,9 +167,14 @@ export interface NftAccessResponse {
   data: {
     hasAccess: boolean;
     /**
-     * True when the indexer was unavailable and we fell back to DB-based access.
+     * Why access is granted/denied.
+     *
+     * - snapshot_2025: permanent access (Top 100 end-of-2025) + can mint
+     * - whitelist: permanent access (reached Top 100 at least once, admin-managed)
+     * - holder: access based on current onchain holding (can be lost after transfer)
+     * - none: no wallet and not in snapshot/whitelist
      */
-    degraded: boolean;
+    reason: 'snapshot_2025' | 'whitelist' | 'holder' | 'none';
   };
 }
 

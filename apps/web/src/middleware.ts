@@ -231,9 +231,10 @@ function buildWaitlistRedirectUrl(request: NextRequest): string {
   return qs ? `${origin}/?${qs}` : `${origin}/`;
 }
 
-function isNftAccessResponse(
-  value: unknown
-): value is { success: true; data: { hasAccess: boolean } } {
+function isNftAccessResponse(value: unknown): value is {
+  success: true;
+  data: { hasAccess: boolean; reason?: string };
+} {
   if (typeof value !== 'object' || value === null) return false;
   if (
     !('success' in value) ||
@@ -364,23 +365,26 @@ export function middleware(request: NextRequest) {
 
     const json = (await res.json()) as unknown;
     if (!isNftAccessResponse(json) || json.data.hasAccess !== true) {
+      const holderDecision =
+        isNftAccessResponse(json) && json.data.reason === 'holder';
       const redirect = NextResponse.redirect(buildWaitlistRedirectUrl(request));
       redirect.cookies.set('ba_access', '0', {
         httpOnly: true,
         secure,
         sameSite: 'lax',
-        maxAge,
+        maxAge: holderDecision ? Math.min(maxAge, 10) : maxAge,
         path: '/',
       });
       return redirect;
     }
 
+    const holderDecision = json.data.reason === 'holder';
     const next = NextResponse.next();
     next.cookies.set('ba_access', '1', {
       httpOnly: true,
       secure,
       sameSite: 'lax',
-      maxAge,
+      maxAge: holderDecision ? Math.min(maxAge, 10) : maxAge,
       path: '/',
     });
     return next;
