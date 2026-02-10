@@ -208,6 +208,10 @@ export async function sendSponsoredEvmTransaction({
   // Debug: Log JWT header + claims to diagnose auth issues (no sensitive identifiers).
   // Only log for the first candidate we will try.
   const first = candidates[0];
+  // Satisfy `noUncheckedIndexedAccess`: even with length checks, TS keeps index access as possibly-undefined.
+  if (!first) {
+    throw new Error('Invalid Privy user JWT: no usable token candidates');
+  }
   const jwtHeader = safeDecodeJwtHeader(first.token);
   logger.debug(
     'Privy JWT diagnostics',
