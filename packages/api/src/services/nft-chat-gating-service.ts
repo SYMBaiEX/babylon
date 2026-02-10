@@ -115,7 +115,6 @@ export async function requireNftChatAccess(
   chatId: string
 ): Promise<void> {
   if (!isNftChatGatedChat(chatId)) return;
-  if (user.isAgent) return;
 
   // Prefer dbUserId for NFT access check (hasNftAccess expects database user ID).
   // Falls back to userId for backwards compatibility (userId === dbUserId when user exists in DB).

@@ -308,12 +308,25 @@ describe('NFT Chat Gating Service', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('should not throw for agents', async () => {
+    it('should throw for agents on gated chats', async () => {
+      mockIsUserAdmin.mockResolvedValue(false);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
+
       const user = { userId: 'agent-123', isAgent: true };
-      await expect(
-        requireNftChatAccess(user, 'gated-chat')
-      ).resolves.toBeUndefined();
-      expect(mockIsUserAdmin).not.toHaveBeenCalled();
+      await expect(requireNftChatAccess(user, 'gated-chat')).rejects.toThrow(
+        'NFT chat access required'
+      );
     });
 
     it('should not throw when user has access', async () => {
@@ -932,20 +945,28 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
   });
 
   describe('Agent Bypass Scenarios', () => {
-    it('should always allow agents to access gated chats', async () => {
+    it('should not allow agents to access gated chats', async () => {
       process.env.NFT_CHAT_GATING_ENABLED = 'true';
       process.env.NFT_CHAT_GATING_CHAT_ID = 'fd-alpha-chat';
 
-      // Agent should bypass all checks
+      mockIsUserAdmin.mockResolvedValue(false);
+      mockDbSelect.mockImplementation(() => ({
+        from: (table: unknown) => {
+          if (table === usersTable) {
+            return {
+              where: () => ({
+                limit: () => Promise.resolve([]),
+              }),
+            };
+          }
+          throw new Error('Unexpected select table');
+        },
+      }));
+
       const user = { userId: 'agent-123', isAgent: true };
-
-      await expect(
-        requireNftChatAccess(user, 'fd-alpha-chat')
-      ).resolves.toBeUndefined();
-
-      // Should not have checked admin status or NFT access
-      expect(mockIsUserAdmin).not.toHaveBeenCalled();
-      expect(mockHasOnchainNftAccess).not.toHaveBeenCalled();
+      await expect(requireNftChatAccess(user, 'fd-alpha-chat')).rejects.toThrow(
+        'NFT chat access required'
+      );
     });
   });
 });
