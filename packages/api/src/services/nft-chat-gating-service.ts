@@ -5,12 +5,16 @@ import {
   db,
   eq,
   groupMembers,
+  users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger, ValidationError } from '@babylon/shared';
 import { sql } from 'drizzle-orm';
 import { isUserAdmin } from '../admin-middleware';
 import { AuthorizationError, NotFoundError } from '../errors';
-import { hasNftAccess } from './nft-access-service';
+import {
+  hasOnchainNftAccess,
+  NftIndexerUnavailableError,
+} from './nft-indexer-service';
 
 export interface NftChatGatingConfig {
   enabled: boolean;
@@ -69,6 +73,31 @@ export function isNftChatGatedChat(chatId: string): boolean {
   return enabled && gatedChatId !== null && chatId === gatedChatId;
 }
 
+async function hasPremiumChatHolderAccess(dbUserId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ walletAddress: users.walletAddress })
+    .from(users)
+    .where(eq(users.id, dbUserId))
+    .limit(1);
+
+  const walletAddress = row?.walletAddress ?? null;
+  if (!walletAddress) return false;
+
+  try {
+    // Premium chat is holders-only. We keep negative TTL short to avoid
+    // delaying access after a user acquires an NFT.
+    return await hasOnchainNftAccess(walletAddress, {
+      cacheScope: 'premium_chat',
+      positiveTtlMs: 10_000,
+      negativeTtlMs: 10_000,
+    });
+  } catch (error: unknown) {
+    // Fail closed if the indexer is unavailable/misconfigured.
+    if (error instanceof NftIndexerUnavailableError) return false;
+    throw error;
+  }
+}
+
 export async function canAccessNftChatGate(
   dbUserId: string,
   chatId: string
@@ -78,7 +107,7 @@ export async function canAccessNftChatGate(
   const isAdmin = await isUserAdmin(dbUserId);
   if (isAdmin) return true;
 
-  return hasNftAccess(dbUserId);
+  return hasPremiumChatHolderAccess(dbUserId);
 }
 
 export async function requireNftChatAccess(
@@ -86,7 +115,6 @@ export async function requireNftChatAccess(
   chatId: string
 ): Promise<void> {
   if (!isNftChatGatedChat(chatId)) return;
-  if (user.isAgent) return;
 
   // Prefer dbUserId for NFT access check (hasNftAccess expects database user ID).
   // Falls back to userId for backwards compatibility (userId === dbUserId when user exists in DB).
@@ -107,7 +135,7 @@ export async function ensureNftChatMembership(userId: string): Promise<{
   const chatId = assertChatIdConfigured(config);
 
   const isAdmin = await isUserAdmin(userId);
-  const allowed = isAdmin ? true : await hasNftAccess(userId);
+  const allowed = isAdmin ? true : await hasPremiumChatHolderAccess(userId);
 
   if (!allowed) {
     throw new AuthorizationError('NFT chat access required', 'chat', 'join', {
@@ -210,7 +238,7 @@ export async function revokeNftChatMembershipIfNeeded(
   const isAdmin = await isUserAdmin(userId);
   if (isAdmin) return;
 
-  const allowed = await hasNftAccess(userId);
+  const allowed = await hasPremiumChatHolderAccess(userId);
   if (allowed) return;
 
   const [chat] = await db
