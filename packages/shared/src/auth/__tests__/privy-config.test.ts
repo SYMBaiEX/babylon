@@ -5,7 +5,7 @@ import { privyConfig } from '../privy-config';
 describe('privyConfig', () => {
   test('includes Ethereum mainnet in supportedChains (chainId=1)', () => {
     const supportedChainIds = privyConfig.config.supportedChains?.map(
-      (chain) => chain.id,
+      (chain) => chain.id
     );
 
     expect(supportedChainIds).toBeDefined();
