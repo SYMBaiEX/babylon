@@ -231,9 +231,7 @@ function buildWaitlistRedirectUrl(request: NextRequest): string {
   return qs ? `${origin}/?${qs}` : `${origin}/`;
 }
 
-function isNftAccessResponse(
-  value: unknown
-): value is {
+function isNftAccessResponse(value: unknown): value is {
   success: true;
   data: { hasAccess: boolean; reason?: string };
 } {

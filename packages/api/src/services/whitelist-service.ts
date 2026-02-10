@@ -362,7 +362,12 @@ export async function autoWhitelistCurrentTopN(): Promise<{
 }> {
   const topN = await getAutoWhitelistTopN();
 
-  const { users: topUsers } = await PointsService.getLeaderboard(1, topN, 0, 'all');
+  const { users: topUsers } = await PointsService.getLeaderboard(
+    1,
+    topN,
+    0,
+    'all'
+  );
   const userIds = topUsers.map((u) => u.id);
 
   if (userIds.length === 0) {

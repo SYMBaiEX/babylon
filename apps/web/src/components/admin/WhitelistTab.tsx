@@ -138,7 +138,11 @@ export function WhitelistTab() {
       const data = await res.json();
       const cfg = data.config ?? null;
       setConfig(cfg);
-      setRankThreshold(cfg?.leaderboardRankThreshold != null ? String(cfg.leaderboardRankThreshold) : '100');
+      setRankThreshold(
+        cfg?.leaderboardRankThreshold != null
+          ? String(cfg.leaderboardRankThreshold)
+          : '100'
+      );
     } catch (err) {
       console.error(err);
     }
@@ -244,7 +248,9 @@ export function WhitelistTab() {
         return;
       }
 
-      toast.success(`Daily cron will whitelist Top ${threshold} users on the next run`);
+      toast.success(
+        `Daily cron will whitelist Top ${threshold} users on the next run`
+      );
       setConfig(data.config ?? null);
     } catch {
       toast.error('Failed to save config');
