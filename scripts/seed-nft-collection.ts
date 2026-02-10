@@ -34,8 +34,10 @@ const TOTAL_NFTS = 100;
 const NFT_CONTRACT_ADDRESS =
   process.env.NFT_CONTRACT_ADDRESS ??
   '0x0000000000000000000000000000000000000000';
-const NFT_CHAIN_ID = process.env.NFT_CHAIN_ID
-  ? parseInt(process.env.NFT_CHAIN_ID, 10)
+const configuredChainIdRaw =
+  process.env.NEXT_PUBLIC_CHAIN_ID || process.env.CHAIN_ID || process.env.NFT_CHAIN_ID;
+const NFT_CHAIN_ID = configuredChainIdRaw
+  ? parseInt(configuredChainIdRaw, 10)
   : 31337; // Default to local Hardhat
 
 /** IPFS CID for NFT metadata (contains {tokenId}.json files, required) */
