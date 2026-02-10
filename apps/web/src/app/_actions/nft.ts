@@ -12,7 +12,7 @@ import {
 import { logger, ValidationError } from '@babylon/shared';
 import type { Address, Hex } from 'viem';
 
-import { requirePrivyToken } from './utils';
+import { requirePrivyTokenBundle } from './utils';
 
 /**
  * Result of the NFT mint action.
@@ -56,8 +56,11 @@ export async function mintNftAction(input?: {
 }): Promise<MintNftActionResult> {
   // Step 1: Auth
   let privyToken: string;
+  let fallbackPrivyToken: string | undefined;
   try {
-    privyToken = await requirePrivyToken(input?.userJwt);
+    const bundle = await requirePrivyTokenBundle(input?.userJwt);
+    privyToken = bundle.primary;
+    fallbackPrivyToken = bundle.fallback;
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Auth failed';
     return { status: 'error', error: msg, step: 'auth' };
@@ -86,6 +89,8 @@ export async function mintNftAction(input?: {
   try {
     const result = await sendSponsoredEvmTransaction({
       userJwt: privyToken,
+      userJwtFallbacks: fallbackPrivyToken ? [fallbackPrivyToken] : [],
+      expectedPrivyUserId: ctx.privyId,
       walletId: ctx.privyWalletId,
       to: prepare.contractAddress as Address,
       data: prepare.encodedData,
