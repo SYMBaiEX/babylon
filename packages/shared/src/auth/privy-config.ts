@@ -81,8 +81,8 @@ export const privyConfig: { appId: string; config: BabylonPrivyConfig } = {
     appearance,
     loginMethodsAndOrder,
     embeddedWallets,
-    // Babylon is deployed on a single chain; keep Privy chain config aligned.
     defaultChain: CHAIN,
+    // Babylon is deployed on a single chain; keep Privy chain config aligned.
     supportedChains: [CHAIN],
     externalWallets,
   },

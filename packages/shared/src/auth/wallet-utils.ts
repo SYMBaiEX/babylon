@@ -28,10 +28,10 @@ export function isEmbeddedPrivyWallet(
   wallet?: ConnectedWallet | null
 ): boolean {
   if (!wallet) return false;
-  return (
-    wallet.walletClientType === 'privy' ||
-    wallet.walletClientType === 'privy-v2'
-  );
+  const t = wallet.walletClientType ?? null;
+  // Privy has used multiple embedded wallet client identifiers over time.
+  // Accept any "privy*" marker (e.g. "privy", "privy-v2") to be forward-compatible.
+  return typeof t === 'string' && (t === 'privy' || t.startsWith('privy'));
 }
 
 /**

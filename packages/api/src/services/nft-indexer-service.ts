@@ -1,5 +1,6 @@
 import { db, eq, inArray, nftOwnership, users } from '@babylon/db';
 import { ValidationError } from '@babylon/shared';
+import { getNftChainId } from './nft/nft-chain';
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -28,25 +29,9 @@ function getNftIndexerGraphqlUrl(): string | null {
 }
 
 export function getNftCollectionIdFromEnv(): string {
-  const chainIdRaw = process.env.NFT_CHAIN_ID?.trim();
   const contractAddressRaw = process.env.NFT_CONTRACT_ADDRESS?.trim();
 
-  if (!chainIdRaw) {
-    throw new ValidationError(
-      'NFT_CHAIN_ID not configured',
-      ['NFT_CHAIN_ID'],
-      [{ field: 'NFT_CHAIN_ID', message: 'Must be set' }]
-    );
-  }
-
-  const chainId = Number.parseInt(chainIdRaw, 10);
-  if (!Number.isFinite(chainId) || chainId <= 0) {
-    throw new ValidationError(
-      'NFT_CHAIN_ID is invalid',
-      ['NFT_CHAIN_ID'],
-      [{ field: 'NFT_CHAIN_ID', message: 'Must be a positive integer' }]
-    );
-  }
+  const chainId = getNftChainId();
 
   if (!contractAddressRaw) {
     throw new ValidationError(

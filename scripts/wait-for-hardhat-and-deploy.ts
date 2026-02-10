@@ -210,6 +210,7 @@ async function deployNftContract(): Promise<void> {
     updateEnvFile(envPath, {
       NFT_CONTRACT_ADDRESS: nftContractAddress,
       NFT_CHAIN_ID: '31337',
+      NEXT_PUBLIC_CHAIN_ID: '31337',
       NFT_SIGNER_PRIVATE_KEY: HARDHAT_ACCOUNT_0_PRIVATE_KEY,
       NFT_SIGNER_ADDRESS: HARDHAT_ACCOUNT_0,
       NFT_BASE_URI: 'http://localhost:3000/api/nft/metadata/',
@@ -218,6 +219,7 @@ async function deployNftContract(): Promise<void> {
     // Set environment variables for current process
     process.env.NFT_CONTRACT_ADDRESS = nftContractAddress;
     process.env.NFT_CHAIN_ID = '31337';
+    process.env.NEXT_PUBLIC_CHAIN_ID = '31337';
     process.env.NFT_SIGNER_PRIVATE_KEY = HARDHAT_ACCOUNT_0_PRIVATE_KEY;
     process.env.NFT_SIGNER_ADDRESS = HARDHAT_ACCOUNT_0;
     process.env.NFT_BASE_URI = 'http://localhost:3000/api/nft/metadata/';
@@ -268,6 +270,7 @@ async function seedNftData(contractAddress: string): Promise<void> {
       ...process.env,
       NFT_CONTRACT_ADDRESS: contractAddress,
       NFT_CHAIN_ID: '31337',
+      NEXT_PUBLIC_CHAIN_ID: '31337',
     };
 
     // Run the NFT collection seeder

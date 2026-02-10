@@ -248,6 +248,12 @@ export async function sendSponsoredEvmTransaction({
 
   const privy = getPrivyNodeClient();
 
+  // Optional: If you configure Privy controls that require an authorization signature
+  // from an app authorization key (P-256), provide the private key via env var.
+  // This is a base64-encoded PKCS8 P-256 private key with no PEM headers.
+  const authorizationPrivateKey =
+    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY?.trim();
+
   // VALUE FIELD HANDLING:
   // We omit the value field entirely for zero-value transactions rather than sending "0x0".
   // This follows the common pattern where contract calls that don't transfer ETH simply
@@ -283,6 +289,9 @@ export async function sendSponsoredEvmTransaction({
     const { token } = candidate;
     const authorizationContext: AuthorizationContext = {
       user_jwts: [token],
+      ...(authorizationPrivateKey
+        ? { authorization_private_keys: [authorizationPrivateKey] }
+        : {}),
     };
 
     try {

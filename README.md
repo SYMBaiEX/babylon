@@ -200,7 +200,8 @@ forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFTLocal \
 
 # 3. Set the deployed address in .env
 NFT_CONTRACT_ADDRESS=<deployed_address>
-NFT_CHAIN_ID=31337
+NEXT_PUBLIC_CHAIN_ID=31337
+NFT_CHAIN_ID=31337 # (legacy, optional) must match NEXT_PUBLIC_CHAIN_ID/CHAIN_ID
 NFT_SIGNER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 # 4. Seed NFT collection and snapshots
@@ -213,7 +214,8 @@ bun run scripts/seed-nft-snapshot-local.ts
 ```bash
 # NFT Contract Configuration
 NFT_CONTRACT_ADDRESS=0x...          # Set after deployment
-NFT_CHAIN_ID=1                      # 1 = Mainnet, 11155111 = Sepolia, 31337 = Local
+NEXT_PUBLIC_CHAIN_ID=1              # 1 = Mainnet, 11155111 = Sepolia, 31337 = Local
+NFT_CHAIN_ID=1                      # (legacy, optional) must match NEXT_PUBLIC_CHAIN_ID/CHAIN_ID
 NFT_SIGNER_PRIVATE_KEY=0x...        # Backend signer private key (NEVER COMMIT)
 NFT_SIGNER_ADDRESS=0x...            # Public address of signer
 NFT_BASE_URI=https://babylon.market/api/nft/metadata/
@@ -236,7 +238,8 @@ forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFT \
 
 # Update environment
 NFT_CONTRACT_ADDRESS=<deployed_address>
-NFT_CHAIN_ID=11155111
+NEXT_PUBLIC_CHAIN_ID=11155111
+NFT_CHAIN_ID=11155111 # (legacy, optional) must match NEXT_PUBLIC_CHAIN_ID/CHAIN_ID
 ```
 
 ### Ethereum Mainnet
@@ -251,7 +254,8 @@ forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFT \
 
 # Update environment
 NFT_CONTRACT_ADDRESS=<deployed_address>
-NFT_CHAIN_ID=1
+NEXT_PUBLIC_CHAIN_ID=1
+NFT_CHAIN_ID=1 # (legacy, optional) must match NEXT_PUBLIC_CHAIN_ID/CHAIN_ID
 ```
 
 ### Post-Deployment Setup
