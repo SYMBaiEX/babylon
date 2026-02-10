@@ -343,7 +343,11 @@ describe('sendSponsoredEvmTransaction – JWT pre-flight checks', () => {
 
     mockSendTransaction
       .mockImplementationOnce(() =>
-        Promise.reject(new Error('400 {"error":"Invalid JWT token provided","code":"invalid_data"}'))
+        Promise.reject(
+          new Error(
+            '400 {"error":"Invalid JWT token provided","code":"invalid_data"}'
+          )
+        )
       )
       .mockImplementationOnce(() =>
         Promise.resolve({ hash: '0xdef', caip2: 'eip155:1' })
