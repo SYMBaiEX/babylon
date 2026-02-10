@@ -67,9 +67,11 @@ export function WidgetSidebar({
       // Check if sidebar fits in viewport
       const fitsInViewport = sidebarHeight <= viewportHeight;
 
-      // Check if NFT promo banner is visible (not dismissed)
-      const bannerDismissed = localStorage.getItem('nft-banner-dismissed');
-      const bannerOffset = bannerDismissed ? 0 : 40;
+      // Calculate banner offset dynamically from the container's viewport position.
+      // When the NFT promo banner (in document flow) is visible, the container
+      // starts below it; as the user scrolls past the banner it reaches 0.
+      const containerTop = container.getBoundingClientRect().top;
+      const bannerOffset = Math.max(0, containerTop);
 
       if (fitsInViewport) {
         // Sidebar fits - simple sticky to top (below banner)
