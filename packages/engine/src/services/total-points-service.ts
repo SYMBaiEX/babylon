@@ -15,7 +15,7 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { and, eq, gt, isNotNull, isNull, lte } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
 // ---------------------------------------------------------------------------
@@ -99,9 +99,13 @@ export const TotalPointsService = {
    */
   async recomputeTotalPoints(userId: string): Promise<number> {
     const userResult = await db
-      .select({ virtualBalance: users.virtualBalance })
+      .select({
+        id: users.id,
+        privyId: users.privyId,
+        virtualBalance: users.virtualBalance,
+      })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(or(eq(users.id, userId), eq(users.privyId, userId)))
       .limit(1);
 
     const user = userResult[0];
@@ -115,6 +119,10 @@ export const TotalPointsService = {
     }
 
     const wallet = toNumber(user.virtualBalance);
+    const canonicalUserId = user.id;
+    const positionUserIds = Array.from(
+      new Set([canonicalUserId, user.privyId].filter(Boolean))
+    ) as string[];
 
     const [perpRows, predictionRows] = await Promise.all([
       db
@@ -125,7 +133,10 @@ export const TotalPointsService = {
         })
         .from(perpPositions)
         .where(
-          and(eq(perpPositions.userId, userId), isNull(perpPositions.closedAt))
+          and(
+            inArray(perpPositions.userId, positionUserIds),
+            isNull(perpPositions.closedAt)
+          )
         ),
       db
         .select({
@@ -137,7 +148,13 @@ export const TotalPointsService = {
         })
         .from(positions)
         .innerJoin(markets, eq(positions.marketId, markets.id))
-        .where(and(eq(positions.userId, userId), eq(markets.resolved, false))),
+        .where(
+          and(
+            inArray(positions.userId, positionUserIds),
+            eq(markets.resolved, false),
+            gt(positions.shares, '0')
+          )
+        ),
     ]);
 
     const perpsValue = perpRows.reduce(
@@ -163,7 +180,7 @@ export const TotalPointsService = {
     await db
       .update(users)
       .set({ totalPoints: totalPoints.toFixed(2) })
-      .where(eq(users.id, userId));
+      .where(eq(users.id, canonicalUserId));
 
     return totalPoints;
   },
@@ -176,7 +193,38 @@ export const TotalPointsService = {
     await db
       .update(users)
       .set({ totalPointsDirtyAt: new Date() })
-      .where(eq(users.id, userId));
+      .where(or(eq(users.id, userId), eq(users.privyId, userId)));
+  },
+
+  /**
+   * Backfill helper: mark users with totalPoints=0 as dirty, so the cron can
+   * recompute them incrementally. This is bounded and safe to run repeatedly.
+   */
+  async markZeroTotalPointsDirty(batchSize = 1000): Promise<number> {
+    const safeBatchSize = Math.min(Math.max(1, batchSize), 10_000);
+    const candidates = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.isAgent, false),
+          eq(users.isActor, false),
+          eq(users.totalPoints, '0'),
+          isNull(users.totalPointsDirtyAt)
+        )
+      )
+      .orderBy(users.id)
+      .limit(safeBatchSize);
+
+    if (candidates.length === 0) return 0;
+
+    const ids = candidates.map((c) => c.id);
+    await db
+      .update(users)
+      .set({ totalPointsDirtyAt: new Date() })
+      .where(inArray(users.id, ids));
+
+    return candidates.length;
   },
 
   /**

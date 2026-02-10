@@ -127,6 +127,10 @@ export async function ensureUserForAuth(
     id: user.dbUserId ?? user.userId,
     privyId,
     isActor: options.isActor ?? false,
+    // New users start with the default virtual balance (see db schema).
+    // Keep totalPoints consistent so leaderboard doesn't show 0 until the cron recompute runs.
+    totalPoints: '1000',
+    totalPointsDirtyAt: new Date(),
     updatedAt: new Date(),
   };
 
