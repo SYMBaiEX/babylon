@@ -13,10 +13,10 @@ import {
   Clock,
   TrendingDown,
   TrendingUp,
-  User as UserIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
 
@@ -524,24 +524,13 @@ const TradeCard = memo(function TradeCard({
       <div className={cn('flex items-start', compact ? 'gap-2' : 'gap-3')}>
         {/* User Avatar */}
         <Link href={user ? profileUrl : '#'} className="flex-shrink-0">
-          {user?.profileImageUrl ? (
-            <img
-              src={user.profileImageUrl}
-              alt={user.displayName || user.username || 'User'}
-              className={cn(compact ? 'h-8 w-8' : 'h-10 w-10', 'rounded-full')}
-            />
-          ) : (
-            <div
-              className={cn(
-                'flex items-center justify-center rounded-full bg-primary/20',
-                compact ? 'h-8 w-8' : 'h-10 w-10'
-              )}
-            >
-              <UserIcon
-                className={cn(compact ? 'h-4 w-4' : 'h-5 w-5', 'text-primary')}
-              />
-            </div>
-          )}
+          <Avatar
+            id={user?.id}
+            name={user?.displayName || user?.username || 'Unknown'}
+            type={user ? (user.isActor ? 'actor' : 'user') : 'user'}
+            size={compact ? 'sm' : 'md'}
+            src={user?.profileImageUrl || undefined}
+          />
         </Link>
 
         {/* Trade Details */}
