@@ -124,6 +124,13 @@ async function createSnapshotEntry(
 }
 
 async function createTestNftCollection(): Promise<void> {
+  const envChainId =
+    process.env.NEXT_PUBLIC_CHAIN_ID ||
+    process.env.CHAIN_ID ||
+    process.env.NFT_CHAIN_ID ||
+    '31337';
+  const chainId = parseInt(envChainId, 10);
+
   // Create 100 test NFTs
   for (let tokenId = 1; tokenId <= 100; tokenId++) {
     const id = nanoid();
@@ -137,7 +144,7 @@ async function createTestNftCollection(): Promise<void> {
       contractAddress:
         process.env.NFT_CONTRACT_ADDRESS ??
         '0x0000000000000000000000000000000000000000',
-      chainId: parseInt(process.env.NFT_CHAIN_ID ?? '31337', 10),
+      chainId,
       updatedAt: new Date(),
     });
     testCollectionIds.push(id);

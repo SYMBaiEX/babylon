@@ -41,6 +41,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { getPrivyClient } from '../auth-middleware';
+import { getNftChainId } from './nft/nft-chain';
 import {
   type PrivyUserWalletsLite,
   pickEmbeddedEvmWallet,
@@ -177,9 +178,7 @@ function getPublicClient(chainId: number) {
 
 function getConfig() {
   const contractAddress = process.env.NFT_CONTRACT_ADDRESS as Hex | undefined;
-  const chainId = process.env.NFT_CHAIN_ID
-    ? parseInt(process.env.NFT_CHAIN_ID, 10)
-    : undefined;
+  const chainId = getNftChainId();
   const signerPrivateKey = process.env.NFT_SIGNER_PRIVATE_KEY as
     | Hex
     | undefined;
@@ -202,11 +201,17 @@ function validateConfig(): {
     );
   }
 
-  if (!chainId || Number.isNaN(chainId)) {
+  if (!Number.isFinite(chainId) || chainId <= 0) {
     throw new ValidationError(
       'NFT chain not configured',
       ['chainId'],
-      [{ field: 'chainId', message: 'NFT_CHAIN_ID not set' }]
+      [
+        {
+          field: 'chainId',
+          message:
+            'Chain ID not configured. Set NEXT_PUBLIC_CHAIN_ID (or CHAIN_ID) to the chain where the NFT contract is deployed.',
+        },
+      ]
     );
   }
 
