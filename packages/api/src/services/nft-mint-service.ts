@@ -41,11 +41,11 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { getPrivyClient } from '../auth-middleware';
+import { getNftChainId } from './nft/nft-chain';
 import {
   type PrivyUserWalletsLite,
   pickEmbeddedEvmWallet,
 } from './privy/user-wallets';
-import { getNftChainId } from './nft/nft-chain';
 
 // ============================================================================
 // Types

@@ -43,4 +43,3 @@ export function getNftChainId(): number {
 
   return CHAIN_ID;
 }
-
