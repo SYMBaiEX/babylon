@@ -336,4 +336,27 @@ describe('sendSponsoredEvmTransaction – JWT pre-flight checks', () => {
 
     expect(mockSendTransaction).toHaveBeenCalled();
   });
+
+  it('retries with a fallback token when Privy rejects the primary JWT at the wallet endpoint', async () => {
+    const primary = buildJwt(VALID_PAYLOAD);
+    const fallback = buildJwt({ ...VALID_PAYLOAD, sid: 'fallback-session' });
+
+    mockSendTransaction
+      .mockImplementationOnce(() =>
+        Promise.reject(new Error('400 {"error":"Invalid JWT token provided","code":"invalid_data"}'))
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve({ hash: '0xdef', caip2: 'eip155:1' })
+      );
+
+    const result = await sendSponsoredEvmTransaction({
+      userJwt: primary,
+      userJwtFallbacks: [fallback],
+      walletId: 'wallet-1',
+      to: validAddress,
+    });
+
+    expect(result.hash).toBe('0xdef');
+    expect(mockSendTransaction).toHaveBeenCalledTimes(2);
+  });
 });
