@@ -58,31 +58,33 @@ export function useNftMint(): UseNftMintResult {
       setError(null);
 
       try {
-        const token = await getAccessToken();
+        // In production we may rely on Privy's HttpOnly cookie auth. In that setup,
+        // `getAccessToken()` can be unavailable/undefined in the browser, but the
+        // cookie still authenticates same-origin requests.
+        const token = await getAccessToken().catch(() => null);
 
         // Check if aborted before continuing
         if (signal?.aborted) return;
 
-        if (!token) {
-          setEligibility(notAuthenticated);
-          setFlowState('idle');
-          setIsCheckingEligibility(false);
-          return;
-        }
-
         const response = await fetch('/api/nft/eligibility', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          credentials: 'include',
           signal, // Pass abort signal to fetch
         });
 
         // Check if aborted before updating state
         if (signal?.aborted) return;
 
+        if (response.status === 401) {
+          setEligibility(notAuthenticated);
+          setFlowState('idle');
+          return;
+        }
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           setError(errorData.error ?? 'Failed to check eligibility');
           setFlowState('error');
-          setIsCheckingEligibility(false);
           return;
         }
 
@@ -148,13 +150,12 @@ export function useNftMint(): UseNftMintResult {
     setFlowState('minting');
 
     try {
+      // `getAccessToken()` refreshes Privy's session, but the app can still work without
+      // an explicit token when HttpOnly cookies are enabled (server action reads cookie).
       const userJwt = await getAccessToken().catch(() => null);
-      if (!userJwt) {
-        handleError('Authentication failed');
-        return;
-      }
-
-      const result = await mintNftAction({ userJwt });
+      const result = userJwt
+        ? await mintNftAction({ userJwt })
+        : await mintNftAction();
 
       if (result.status === 'error') {
         console.error('[NFT Mint Error]', {
