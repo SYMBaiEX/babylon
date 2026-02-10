@@ -1,6 +1,6 @@
 import type { PrivyClientConfig } from '@privy-io/react-auth';
 
-import { baseSepolia, CHAIN, sepolia } from '../constants/chains';
+import { baseSepolia, CHAIN, mainnet, sepolia } from '../constants/chains';
 
 type SolanaConnectors = ReturnType<
   typeof import('@privy-io/react-auth/solana')['toSolanaWalletConnectors']
@@ -83,9 +83,9 @@ export const privyConfig: { appId: string; config: BabylonPrivyConfig } = {
     embeddedWallets,
     defaultChain: CHAIN,
     // Multi-chain: keep app default chain, but allow chain-specific actions
-    // (ex: NFT minting on Ethereum Sepolia while app defaults to Base Sepolia).
+    // (ex: NFT minting on Ethereum mainnet while app defaults to Base Sepolia).
     supportedChains: (() => {
-      const chains = [CHAIN, baseSepolia, sepolia];
+      const chains = [CHAIN, baseSepolia, sepolia, mainnet];
       const uniqueById = new Map<number, (typeof chains)[number]>();
       for (const chain of chains) {
         uniqueById.set(chain.id, chain);
