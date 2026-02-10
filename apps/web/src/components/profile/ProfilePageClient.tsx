@@ -865,7 +865,7 @@ export function ProfilePageClient({
               <div className="relative h-[200px] bg-muted">
                 {(() => {
                   const bannerUrl =
-                    actorInfo.isUser &&
+                    (actorInfo.isUser || actorInfo.isAgent) &&
                     actorInfo.type === 'user' &&
                     'coverImageUrl' in actorInfo
                       ? (actorInfo.coverImageUrl as string)
