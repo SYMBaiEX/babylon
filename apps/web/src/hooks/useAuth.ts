@@ -115,16 +115,23 @@ export function useAuth(): UseAuthReturn {
   // Prioritize embedded Privy wallets for gas sponsorship
   // Embedded wallets enable gasless transactions via Privy's paymaster
   // External wallets can be used, but users must pay their own gas
+  const isPrivyEmbeddedWallet = useCallback((w: ConnectedWallet) => {
+    const t = w.walletClientType ?? null;
+    // Privy has shipped multiple embedded wallet client markers over time.
+    // Treat any "privy*" marker as embedded to keep behavior robust to SDK changes.
+    return typeof t === 'string' && (t === 'privy' || t.startsWith('privy'));
+  }, []);
+
   const wallet = useMemo(() => {
     if (wallets.length === 0) return undefined;
 
     // First, try to find the Privy embedded wallet for gas sponsorship
-    const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+    const embeddedWallet = wallets.find(isPrivyEmbeddedWallet);
     if (embeddedWallet) return embeddedWallet;
 
     // If no embedded wallet, fall back to external wallet (user pays gas)
     return wallets[0];
-  }, [wallets]);
+  }, [wallets, isPrivyEmbeddedWallet]);
 
   const embeddedWalletAddress = wallet?.address ?? undefined;
   const embeddedWalletReady = Boolean(embeddedWalletAddress);

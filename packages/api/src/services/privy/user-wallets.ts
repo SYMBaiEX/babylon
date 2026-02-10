@@ -22,10 +22,17 @@ function isEthereumWallet(wallet: PrivyWalletLite): boolean {
   return true;
 }
 
+function isPrivyEmbeddedClientMarker(value: string | null): boolean {
+  if (!value) return false;
+  // Privy has used multiple embedded wallet client identifiers over time.
+  // Accept any "privy*" marker (e.g. "privy", "privy-v2") to be forward-compatible.
+  return value === 'privy' || value.startsWith('privy');
+}
+
 function isPrivyEmbeddedWallet(wallet: PrivyWalletLite): boolean {
   const client = wallet.walletClientType ?? wallet.wallet_client ?? null;
   return (
-    client === 'privy' ||
+    isPrivyEmbeddedClientMarker(client) ||
     // Some payload variants omit wallet_client(_type) for embedded wallets; in practice
     // these appear as the top-level `user.wallet`. For linked accounts, we require
     // an explicit 'privy' client marker to avoid selecting external wallets.
@@ -57,8 +64,8 @@ export function pickEmbeddedEvmWallet(
     if (source === 'linked') {
       // For linked accounts, only accept explicit 'privy' client markers.
       if (
-        wallet.walletClientType !== 'privy' &&
-        wallet.wallet_client !== 'privy'
+        !isPrivyEmbeddedClientMarker(wallet.walletClientType ?? null) &&
+        !isPrivyEmbeddedClientMarker(wallet.wallet_client ?? null)
       ) {
         continue;
       }
