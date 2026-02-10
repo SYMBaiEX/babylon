@@ -332,7 +332,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const canAccessNftGatedChat =
     !nftChatGatingConfig.enabled ||
     !gatedChatId ||
-    user.isAgent === true ||
     (await canAccessNftChatGate(user.dbUserId ?? user.userId, gatedChatId));
 
   logger.info(

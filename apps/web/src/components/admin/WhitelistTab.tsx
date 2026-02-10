@@ -3,7 +3,6 @@
 import { cn } from '@babylon/shared';
 import {
   CheckCircle,
-  Download,
   Loader2,
   Plus,
   Search,
@@ -53,7 +52,7 @@ interface WhitelistStats {
 }
 
 interface WhitelistConfig {
-  leaderboardRankThreshold: number | null;
+  leaderboardRankThreshold: number;
   leaderboardCategory: string;
   updatedAt: string | null;
   updatedBy: string | null;
@@ -84,9 +83,6 @@ export function WhitelistTab() {
   // Leaderboard config
   const [rankThreshold, setRankThreshold] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-
-  // Import
-  const [isImporting, setIsImporting] = useState(false);
 
   // Remove
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
@@ -145,7 +141,7 @@ export function WhitelistTab() {
       setRankThreshold(
         cfg?.leaderboardRankThreshold != null
           ? String(cfg.leaderboardRankThreshold)
-          : ''
+          : '100'
       );
     } catch (err) {
       console.error(err);
@@ -232,10 +228,10 @@ export function WhitelistTab() {
     try {
       const threshold = rankThreshold.trim()
         ? Number.parseInt(rankThreshold.trim(), 10)
-        : null;
+        : 100;
 
-      if (threshold !== null && (Number.isNaN(threshold) || threshold < 0)) {
-        toast.error('Rank threshold must be a non-negative number or empty');
+      if (Number.isNaN(threshold) || threshold < 1) {
+        toast.error('Top N must be a positive integer');
         return;
       }
 
@@ -253,47 +249,13 @@ export function WhitelistTab() {
       }
 
       toast.success(
-        threshold !== null
-          ? `Leaderboard whitelist enabled for top ${threshold} users`
-          : 'Leaderboard whitelist disabled'
+        `Daily cron will whitelist Top ${threshold} users on the next run`
       );
       setConfig(data.config ?? null);
     } catch {
       toast.error('Failed to save config');
     } finally {
       setIsSavingConfig(false);
-    }
-  }
-
-  async function handleImportFirst100() {
-    if (
-      !window.confirm(
-        'Import all users from the NFT snapshot as whitelisted? This is a bulk operation and cannot be easily undone.'
-      )
-    )
-      return;
-
-    setIsImporting(true);
-    try {
-      const res = await fetch('/api/admin/whitelist/import-first-100', {
-        method: 'POST',
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error ?? 'Failed to import');
-        return;
-      }
-
-      toast.success(
-        `Imported ${data.imported ?? 0} users, ${data.skipped ?? 0} skipped`
-      );
-      await fetchEntries();
-    } catch {
-      toast.error('Failed to import first 100');
-    } finally {
-      setIsImporting(false);
     }
   }
 
@@ -370,7 +332,7 @@ export function WhitelistTab() {
             <p className="mt-1 font-bold text-2xl">
               {config?.leaderboardRankThreshold != null
                 ? `Top ${config.leaderboardRankThreshold}`
-                : 'Disabled'}
+                : 'Top 100'}
             </p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
@@ -387,19 +349,19 @@ export function WhitelistTab() {
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center gap-2 font-medium text-sm">
           <Settings className="h-4 w-4 text-muted-foreground" />
-          Leaderboard Whitelist Configuration
+          Daily Auto-Whitelist Configuration
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label className="mb-1 block text-muted-foreground text-xs">
-              Rank Threshold (users ranked 1 to N are whitelisted)
+              Top N (users ranked 1 to N are permanently whitelisted)
             </label>
             <input
               type="number"
-              min="0"
+              min="1"
               value={rankThreshold}
               onChange={(e) => setRankThreshold(e.target.value)}
-              placeholder="e.g. 500 (leave empty to disable)"
+              placeholder="e.g. 100"
               className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -420,13 +382,13 @@ export function WhitelistTab() {
           </button>
         </div>
         <p className="mt-2 text-muted-foreground text-xs">
-          When set, any user ranked within this threshold on the leaderboard
-          automatically bypasses gating. This is dynamic and updates as rankings
-          change.
+          This value is used by the daily cron job (00:00 UTC). Changes take
+          effect on the next cron run. Users revoked by an admin will never be
+          re-added by the cron.
         </p>
       </div>
 
-      {/* Import + Add User Actions */}
+      {/* Add User Actions */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         {/* Add User Form */}
         <div className="flex flex-col gap-2">
@@ -468,23 +430,6 @@ export function WhitelistTab() {
             </button>
           </div>
         </div>
-
-        {/* Import Button */}
-        <button
-          onClick={handleImportFirst100}
-          disabled={isImporting}
-          className={cn(
-            'flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 font-medium text-sm transition-colors',
-            'hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-          )}
-        >
-          {isImporting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          Import First 100 from Snapshot
-        </button>
       </div>
 
       {/* Filter Tabs + Search */}
