@@ -84,6 +84,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // this cookie contains the user's access token (JWT) and is the most reliable source.
   // Fall back to the Authorization header for external clients/agents.
   const userJwt = cookieToken ?? headerToken ?? null;
+  const userJwtFallbacks =
+    cookieToken && headerToken && cookieToken !== headerToken
+      ? [headerToken]
+      : [];
 
   const authUser = await authenticate(request);
   const body = (await request.json()) as
@@ -158,6 +162,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const onchainResult = await processOnchainRegistration({
     user: authUser,
     userJwt,
+    userJwtFallbacks,
     walletAddress,
     username: dbUser.username,
     displayName: dbUser.displayName,

@@ -272,7 +272,7 @@ function UserPnL({
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Balance</div>
             <div className="font-semibold text-sm">
-              {formatCompactCurrency(portfolio?.wallet ?? 0, 0)}
+              {formatCompactCurrency(portfolio?.wallet ?? 0)}
             </div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">

@@ -125,9 +125,10 @@ export function useNftMint(): UseNftMintResult {
   );
 
   const startMint = useCallback(async () => {
-    const handleError = (message: string) => {
-      setError(message);
-      toast.error(message);
+    const handleError = (message: string, errorId?: string) => {
+      const uiMessage = errorId ? `${message} (Ref: ${errorId})` : message;
+      setError(uiMessage);
+      toast.error(uiMessage);
       setFlowState('error');
     };
 
@@ -154,6 +155,16 @@ export function useNftMint(): UseNftMintResult {
       }
 
       const result = await mintNftAction({ userJwt });
+
+      if (result.status === 'error') {
+        console.error('[NFT Mint Error]', {
+          step: result.step,
+          errorId: result.errorId,
+          message: result.error,
+        });
+        handleError(result.error, result.errorId);
+        return;
+      }
 
       if (result.status === 'pending') {
         // Transaction submitted but not yet confirmed

@@ -21,7 +21,7 @@ import {
 } from 'viem';
 import type { AgentProfileMetadata } from '@/hooks/useUpdateAgentProfileTx';
 
-import { requirePrivyToken } from './utils';
+import { requirePrivyTokenBundle } from './utils';
 
 function marketIdToBytes32(marketId: string): `0x${string}` {
   const bigintValue = BigInt(marketId);
@@ -62,7 +62,8 @@ export async function buySharesOnchainAction(input: {
   numShares: number;
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken(input.userJwt);
+  const bundle = await requirePrivyTokenBundle(input.userJwt);
+  const privyToken = bundle.primary;
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   const marketIdBytes32 = marketIdToBytes32(input.marketId);
@@ -77,6 +78,8 @@ export async function buySharesOnchainAction(input: {
 
   const { hash } = await sendSponsoredEvmTransaction({
     userJwt: privyToken,
+    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
+    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: DIAMOND_ADDRESS as Address,
     data,
@@ -94,7 +97,8 @@ export async function sellSharesOnchainAction(input: {
   numShares: number;
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken(input.userJwt);
+  const bundle = await requirePrivyTokenBundle(input.userJwt);
+  const privyToken = bundle.primary;
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   const marketIdBytes32 = marketIdToBytes32(input.marketId);
@@ -109,6 +113,8 @@ export async function sellSharesOnchainAction(input: {
 
   const { hash } = await sendSponsoredEvmTransaction({
     userJwt: privyToken,
+    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
+    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: DIAMOND_ADDRESS as Address,
     data,
@@ -125,7 +131,8 @@ export async function sendSponsoredEthTransferAction(input: {
   amountWei: string;
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken(input.userJwt);
+  const bundle = await requirePrivyTokenBundle(input.userJwt);
+  const privyToken = bundle.primary;
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   if (!isAddress(input.to)) {
@@ -135,6 +142,8 @@ export async function sendSponsoredEthTransferAction(input: {
 
   const { hash } = await sendSponsoredEvmTransaction({
     userJwt: privyToken,
+    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
+    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: input.to.toLowerCase() as Address,
     valueWei,
@@ -150,7 +159,8 @@ export async function updateAgentProfileOnchainAction(input: {
   endpoint?: string;
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken(input.userJwt);
+  const bundle = await requirePrivyTokenBundle(input.userJwt);
+  const privyToken = bundle.primary;
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   const registryAddress = getIdentityRegistryAddress();
@@ -178,6 +188,8 @@ export async function updateAgentProfileOnchainAction(input: {
 
   const { hash } = await sendSponsoredEvmTransaction({
     userJwt: privyToken,
+    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
+    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: registryAddress,
     data,
