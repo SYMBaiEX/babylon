@@ -145,9 +145,7 @@ async function main() {
     // 2. Users in Whitelist (manually granted access)
     // 3. Admin users
     const [snapshotUsers, whitelistedUsers, adminUsers] = await Promise.all([
-      db
-        .select({ userId: nftSnapshot.userId })
-        .from(nftSnapshot),
+      db.select({ userId: nftSnapshot.userId }).from(nftSnapshot),
       db
         .select({ userId: whitelist.userId })
         .from(whitelist)
