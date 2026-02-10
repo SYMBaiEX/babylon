@@ -1,8 +1,6 @@
-import { useSendTransaction, useWallets } from '@privy-io/react-auth';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import type { Hex } from 'viem';
-import { confirmMintAction, prepareMintAction } from '@/app/_actions/nft';
+import { mintNftAction } from '@/app/_actions/nft';
 import { useAuth } from '@/hooks/useAuth';
 import type {
   EligibilityApiResponse,
@@ -31,8 +29,6 @@ interface UseNftMintResult {
 
 export function useNftMint(): UseNftMintResult {
   const { authenticated, getAccessToken } = useAuth();
-  const { wallets } = useWallets();
-  const { sendTransaction } = useSendTransaction();
 
   const [eligibility, setEligibility] = useState<EligibilityResponse | null>(
     null
@@ -62,6 +58,9 @@ export function useNftMint(): UseNftMintResult {
       setError(null);
 
       try {
+        // In production we may rely on Privy's HttpOnly cookie auth. In that setup,
+        // `getAccessToken()` can be unavailable/undefined in the browser, but the
+        // cookie still authenticates same-origin requests.
         const token = await getAccessToken().catch(() => null);
 
         // Check if aborted before continuing
@@ -70,7 +69,7 @@ export function useNftMint(): UseNftMintResult {
         const response = await fetch('/api/nft/eligibility', {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           credentials: 'include',
-          signal,
+          signal, // Pass abort signal to fetch
         });
 
         // Check if aborted before updating state
@@ -98,6 +97,8 @@ export function useNftMint(): UseNftMintResult {
         setEligibility(data);
 
         if (data.status === 'already_minted' && data.mintedNft) {
+          // Note: eligibility endpoint only provides thumbnailUrl, not full resolution.
+          // The thumbnailUrl is used as imageUrl here for display purposes.
           setMintedNft({
             tokenId: data.mintedNft.tokenId,
             name: data.mintedNft.name,
@@ -143,18 +144,17 @@ export function useNftMint(): UseNftMintResult {
       return;
     }
 
-    // Find embedded wallet for sending the transaction
-    const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
-    if (!embeddedWallet) {
-      handleError('Embedded wallet not found. Please try logging in again.');
-      return;
-    }
-
     setFlowState('preparing');
     setError(null);
 
     try {
-      // Step 1: Get access token
+      setFlowState('minting');
+
+      // Per Privy cookie best practices, always refresh the session before
+      // triggering a privileged server-side action.
+      //
+      // This avoids relying on a potentially-missing/stale `privy-token` cookie
+      // on the first request after the user returns to the app.
       let userJwt: string | null;
       try {
         userJwt = await getAccessToken();
@@ -168,69 +168,7 @@ export function useNftMint(): UseNftMintResult {
         return;
       }
 
-      // Step 2: Server prepares the transaction (auth, eligibility, signature)
-      const prepareResult = await prepareMintAction({ userJwt });
-
-      if (prepareResult.status === 'error') {
-        console.error('[NFT Mint Error]', {
-          step: prepareResult.step,
-          errorId: prepareResult.errorId,
-          message: prepareResult.error,
-        });
-        handleError(
-          `Mint failed at ${prepareResult.step}: ${prepareResult.error}`,
-          prepareResult.errorId
-        );
-        return;
-      }
-
-      // Step 3: Send transaction client-side via Privy's embedded wallet
-      setFlowState('minting');
-
-      // Switch to the correct chain if needed
-      const currentChainId = parseInt(
-        embeddedWallet.chainId.split(':')[1] ?? '0',
-        10
-      );
-      if (currentChainId !== prepareResult.chainId) {
-        try {
-          await embeddedWallet.switchChain(prepareResult.chainId);
-        } catch {
-          // switchChain may throw if already on correct chain or not supported
-          console.warn('[NFT Mint] Chain switch failed, proceeding anyway');
-        }
-      }
-
-      let txHash: Hex;
-      try {
-        const receipt = await sendTransaction(
-          {
-            to: prepareResult.to,
-            data: prepareResult.data,
-            chainId: prepareResult.chainId,
-          },
-          {
-            address: embeddedWallet.address,
-            sponsor: true,
-          }
-        );
-        txHash = receipt.hash as Hex;
-      } catch (sendErr) {
-        const msg =
-          sendErr instanceof Error ? sendErr.message : 'Transaction rejected';
-        console.error('[NFT Mint] Send transaction error:', msg);
-        handleError(`Transaction failed: ${msg}`);
-        return;
-      }
-
-      // Step 4: Confirm the mint on the server (polls chain + updates DB)
-      setFlowState('confirming');
-
-      const confirmJwt = await getAccessToken().catch(() => null);
-      const result = await confirmMintAction({
-        userJwt: confirmJwt ?? undefined,
-        txHash,
-      });
+      const result = await mintNftAction({ userJwt });
 
       if (result.status === 'error') {
         console.error('[NFT Mint Error]', {
@@ -238,20 +176,19 @@ export function useNftMint(): UseNftMintResult {
           errorId: result.errorId,
           message: result.error,
         });
-        handleError(
-          `Mint failed at ${result.step}: ${result.error}`,
-          result.errorId
-        );
+        handleError(result.error, result.errorId);
         return;
       }
 
       if (result.status === 'pending') {
+        // Transaction submitted but not yet confirmed
+        // Show a different toast and let user know they can check later
         toast.info(result.message, { duration: 10000 });
-        setFlowState('eligible');
+        setFlowState('eligible'); // Reset to eligible state so they can try again later
         return;
       }
 
-      // Transaction confirmed
+      // Transaction confirmed - update state with minted NFT
       setMintedNft(result.nft);
       setFlowState('revealing');
       setEligibility((prev) =>
@@ -275,7 +212,7 @@ export function useNftMint(): UseNftMintResult {
       const message = err instanceof Error ? err.message : 'Transaction failed';
       handleError(message);
     }
-  }, [authenticated, eligibility, getAccessToken, wallets, sendTransaction]);
+  }, [authenticated, eligibility, getAccessToken]);
 
   const resetFlow = useCallback(() => {
     setFlowState(

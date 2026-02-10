@@ -276,6 +276,17 @@ export async function sendSponsoredEvmTransaction({
     'sendSponsoredEvmTransaction'
   );
 
+  // If a P256 authorization private key is configured, include it in the
+  // authorization context so the server can sign wallet requests on behalf of
+  // users.  This is required for server-side TEE wallet operations (e.g. NFT
+  // minting) where the server sends transactions for the user.
+  //
+  // The key must be a base64-encoded PKCS8-formatted P256 private key (no PEM
+  // headers).  Register the corresponding public key in the Privy Dashboard
+  // under Embedded Wallets → Authorization Keys.
+  const authorizationPrivateKey =
+    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY?.trim();
+
   let lastError: unknown;
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
@@ -283,6 +294,9 @@ export async function sendSponsoredEvmTransaction({
     const { token } = candidate;
     const authorizationContext: AuthorizationContext = {
       user_jwts: [token],
+      ...(authorizationPrivateKey
+        ? { authorization_private_keys: [authorizationPrivateKey] }
+        : {}),
     };
 
     try {
