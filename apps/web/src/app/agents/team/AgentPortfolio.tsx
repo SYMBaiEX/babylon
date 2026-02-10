@@ -89,7 +89,7 @@ function UserWallet({
   userId: string;
   entityName: string;
 }) {
-  const { balance, lifetimePnL, loading, refresh } = useWalletBalance(userId);
+  const { balance, loading, refresh } = useWalletBalance(userId);
   const [buyPointsOpen, setBuyPointsOpen] = useState(false);
 
   const handleBuyPointsSuccess = useCallback(() => {
@@ -109,27 +109,13 @@ function UserWallet({
     <div className="flex flex-col gap-3 p-4">
       {/* Balance Card */}
       <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/5 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-[#0066FF] text-xs">
-              <Wallet className="h-3.5 w-3.5" />
-              Your Balance
-            </div>
-            <div className="mt-1 font-bold text-2xl">
-              {formatCompactCurrency(balance)}
-            </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-[#0066FF] text-xs">
+            <Wallet className="h-3.5 w-3.5" />
+            Your Balance
           </div>
-          <div className="text-right">
-            <div className="text-muted-foreground text-xs">Lifetime P&L</div>
-            <div
-              className={cn(
-                'mt-1 font-semibold text-lg',
-                lifetimePnL >= 0 ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {lifetimePnL >= 0 ? '+' : ''}
-              {formatCompactCurrency(lifetimePnL)}
-            </div>
+          <div className="mt-1 font-bold text-2xl">
+            {formatCompactCurrency(balance)}
           </div>
         </div>
         <div className="mt-2 text-muted-foreground text-xs">{entityName}</div>
