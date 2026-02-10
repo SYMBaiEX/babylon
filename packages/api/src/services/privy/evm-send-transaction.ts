@@ -248,6 +248,12 @@ export async function sendSponsoredEvmTransaction({
 
   const privy = getPrivyNodeClient();
 
+  // Optional: If you configure Privy controls that require an authorization signature
+  // from an app authorization key (P-256), provide the private key via env var.
+  // This is a base64-encoded PKCS8 P-256 private key with no PEM headers.
+  const authorizationPrivateKey =
+    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY?.trim();
+
   // VALUE FIELD HANDLING:
   // We omit the value field entirely for zero-value transactions rather than sending "0x0".
   // This follows the common pattern where contract calls that don't transfer ETH simply
@@ -275,17 +281,6 @@ export async function sendSponsoredEvmTransaction({
     },
     'sendSponsoredEvmTransaction'
   );
-
-  // If a P256 authorization private key is configured, include it in the
-  // authorization context so the server can sign wallet requests on behalf of
-  // users.  This is required for server-side TEE wallet operations (e.g. NFT
-  // minting) where the server sends transactions for the user.
-  //
-  // The key must be a base64-encoded PKCS8-formatted P256 private key (no PEM
-  // headers).  Register the corresponding public key in the Privy Dashboard
-  // under Embedded Wallets → Authorization Keys.
-  const authorizationPrivateKey =
-    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY?.trim();
 
   let lastError: unknown;
   for (let i = 0; i < candidates.length; i += 1) {
