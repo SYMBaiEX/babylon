@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useMarketTracking } from '@/hooks/usePostHog';
 import {
   invalidateUserPositions,
   usePredictionPositions,
@@ -75,6 +76,7 @@ export function PredictionTradingModal({
 }: PredictionTradingModalProps) {
   const { user, authenticated } = useAuth();
   const { getAccessToken } = usePrivy();
+  const { trackMarketView, trackTrade } = useMarketTracking();
   const [side, setSide] = useState<'yes' | 'no'>(
     defaultSide.toLowerCase() as 'yes' | 'no'
   );
@@ -103,6 +105,7 @@ export function PredictionTradingModal({
   useEffect(() => {
     if (isOpen) {
       setSide(defaultSide.toLowerCase() as 'yes' | 'no');
+      trackMarketView(String(question.id), 'prediction');
       // If market is closed and user has position, auto-select sell mode
       if (isMarketClosed && hasPosition) {
         setMode('sell');
@@ -111,7 +114,15 @@ export function PredictionTradingModal({
         setMode('buy');
       }
     }
-  }, [isOpen, defaultSide, isMarketClosed, hasPosition, userPosition?.shares]);
+  }, [
+    isOpen,
+    defaultSide,
+    isMarketClosed,
+    hasPosition,
+    userPosition?.shares,
+    question.id,
+    trackMarketView,
+  ]);
 
   const [amount, setAmount] = useState('10');
   const [loading, setLoading] = useState(false);
@@ -240,6 +251,7 @@ export function PredictionTradingModal({
       toast.success(`Bought ${side.toUpperCase()} shares!`, {
         description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice ?? 0).toFixed(3)} each`,
       });
+      trackTrade('buy', String(question.id), amountNum, true);
 
       // Invalidate cache and refresh balance
       invalidateWalletBalance();
@@ -260,6 +272,7 @@ export function PredictionTradingModal({
         { marketId: question.id, side, amount: amountNum, error: err },
         'PredictionTradingModal'
       );
+      trackTrade('buy', String(question.id), amountNum, false);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -325,6 +338,7 @@ export function PredictionTradingModal({
             ? `Profit: +${BABYLON_POINTS_SYMBOL}${pnl.toFixed(2)}`
             : `Loss: ${BABYLON_POINTS_SYMBOL}${pnl.toFixed(2)}`,
       });
+      trackTrade('sell', String(question.id), sharesToSell, true);
 
       // Invalidate caches and refresh
       invalidateWalletBalance();
@@ -353,6 +367,7 @@ export function PredictionTradingModal({
         { marketId: question.id, shares: sharesToSell, error: err },
         'PredictionTradingModal'
       );
+      trackTrade('sell', String(question.id), sharesToSell, false);
       toast.error(message);
     } finally {
       setLoading(false);

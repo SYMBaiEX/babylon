@@ -297,7 +297,7 @@ function validateMainnet(errors: string[], warnings: string[]): void {
       errors.push('Privy credentials required for production');
     }
 
-    if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+    if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID) {
       warnings.push('PostHog analytics not configured');
     }
   }

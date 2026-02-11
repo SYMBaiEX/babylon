@@ -26,6 +26,7 @@ import { BabylonIcon } from '@/components/shared/icons/BabylonIcon';
 import { BabylonFullLogo } from '@/components/shared/icons/BabylonLogo';
 import { HouseIcon } from '@/components/shared/icons/HouseIcon';
 import { useAuth } from '@/hooks/useAuth';
+import { usePostHog } from '@/hooks/usePostHog';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { getAuthToken } from '@/lib/auth';
 
@@ -47,6 +48,7 @@ function SidebarContent() {
   const mdMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { ready, authenticated, user, logout, login } = useAuth();
+  const { trackNavigation } = usePostHog();
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
   // Hide sidebar when WAITLIST_MODE is enabled on home page
@@ -343,6 +345,7 @@ function SidebarContent() {
                 prefetch={true}
                 className={sharedClassName}
                 title={item.name}
+                onClick={() => trackNavigation(item.href, 'sidebar')}
               >
                 {navContent}
               </Link>

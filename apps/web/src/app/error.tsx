@@ -12,6 +12,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect } from 'react';
+import { posthog } from '@/lib/posthog';
 
 export default function Error({
   error,
@@ -29,6 +30,17 @@ export default function Error({
       }
       Sentry.captureException(error);
     });
+
+    // Track error in PostHog
+    if (posthog) {
+      posthog.capture('$exception', {
+        $exception_type: error.name || 'Error',
+        $exception_message: error.message,
+        $exception_stack: error.stack,
+        errorBoundary: 'route',
+        digest: error.digest,
+      });
+    }
   }, [error]);
 
   return (

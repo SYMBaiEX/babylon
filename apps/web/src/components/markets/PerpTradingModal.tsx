@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
+import { useMarketTracking } from '@/hooks/usePostHog';
 import { invalidatePerpMarketsCache } from '@/stores/perpMarketsStore';
 import {
   invalidateWalletBalance,
@@ -64,6 +65,7 @@ export function PerpTradingModal({
   defaultSide = 'long',
 }: PerpTradingModalProps) {
   const { user, authenticated, login, getAccessToken } = useAuth();
+  const { trackMarketView, trackTrade } = useMarketTracking();
   const [side, setSide] = useState<TradeSide>(defaultSide);
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
@@ -86,8 +88,9 @@ export function PerpTradingModal({
     // Only reset when transitioning from closed to open
     if (!prevIsOpen && isOpen) {
       setSide(defaultSide);
+      trackMarketView(market.ticker, 'perp');
     }
-  }, [isOpen, defaultSide]);
+  }, [isOpen, defaultSide, market.ticker, trackMarketView]);
 
   // Body scroll lock using counter-based approach for multi-modal safety
   useBodyScrollLock(isOpen);
@@ -170,6 +173,7 @@ export function PerpTradingModal({
       toast.success('Position opened!', {
         description: `Opened ${leverage}x ${side} on ${market.ticker} at ${BABYLON_POINTS_SYMBOL}${result.position.entryPrice.toFixed(2)}`,
       });
+      trackTrade('open', market.ticker, sizeNum, true);
 
       // Invalidate caches to ensure fresh data on next fetch
       invalidatePerpMarketsCache();
@@ -185,6 +189,7 @@ export function PerpTradingModal({
         { ticker: market.ticker, side, size: sizeNum, leverage, error: err },
         'PerpTradingModal'
       );
+      trackTrade('open', market.ticker, sizeNum, false);
       toast.error(message);
     } finally {
       setLoading(false);

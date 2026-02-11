@@ -16,6 +16,7 @@ import {
   OnboardingModal,
 } from '@/components/onboarding/OnboardingModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useSignupTracking } from '@/hooks/usePostHog';
 import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
 import { apiFetch } from '@/utils/api-fetch';
 
@@ -83,6 +84,8 @@ export function OnboardingProvider({
 
   const { setUser, setNeedsOnboarding, setNeedsOnchain } = useAuthStore();
   const { identityToken } = useIdentityToken();
+  const { trackSignupStarted, trackSignupCompleted, trackOnboardingStep } =
+    useSignupTracking();
 
   const [stage, setStage] = useState<OnboardingStage>('PROFILE');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -203,6 +206,7 @@ export function OnboardingProvider({
     async (payload: OnboardingProfilePayload) => {
       setIsSubmitting(true);
       setError(null);
+      trackSignupStarted();
 
       const referralCode = getReferralCode();
 
@@ -270,6 +274,12 @@ export function OnboardingProvider({
         setSubmittedProfile(payload);
         setOnchainReferralCode(referralCode ?? null);
         setPendingOnchainSubmission({ ...payload });
+        trackOnboardingStep('profile', true);
+        trackSignupCompleted(data.user?.id ?? '', {
+          hasReferrer: Boolean(referralCode),
+          hasFarcaster: data.user?.hasFarcaster ?? false,
+          hasTwitter: data.user?.hasTwitter ?? false,
+        });
         setStage('ONCHAIN');
         setIsSubmitting(false);
       } catch (err) {
@@ -278,7 +288,16 @@ export function OnboardingProvider({
         throw err;
       }
     },
-    [user, setUser, setNeedsOnboarding, setNeedsOnchain, identityToken]
+    [
+      user,
+      setUser,
+      setNeedsOnboarding,
+      setNeedsOnchain,
+      identityToken,
+      trackSignupStarted,
+      trackSignupCompleted,
+      trackOnboardingStep,
+    ]
   );
 
   useEffect(() => {
