@@ -4,8 +4,7 @@ import {
   redactJwtLikeTokens,
 } from '../error-diagnostics';
 
-const JWT_LIKE =
-  'aaaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc';
+const JWT_LIKE = 'aaaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc';
 
 describe('redactJwtLikeTokens', () => {
   it('redacts JWT-like tokens in text', () => {
