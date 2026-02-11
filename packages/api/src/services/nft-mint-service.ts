@@ -272,14 +272,17 @@ async function resolveUserEmbeddedWalletAddress(
       [
         {
           field: 'privyWalletId',
-          message: 'Embedded wallet ID not available. Please re-login and try again.',
+          message:
+            'Embedded wallet ID not available. Please re-login and try again.',
         },
       ]
     );
   }
 
   const privyClient = getPrivyClient();
-  const privyUser = (await privyClient.getUser(privyId)) as PrivyUserWalletsLite;
+  const privyUser = (await privyClient.getUser(
+    privyId
+  )) as PrivyUserWalletsLite;
   const wallets = listEmbeddedEvmWallets(privyUser);
   const matched = wallets.find((wallet) => wallet.walletId === privyWalletId);
   if (!matched?.address || !isAddress(matched.address)) {
