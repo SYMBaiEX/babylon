@@ -77,9 +77,6 @@ export async function buySharesOnchainAction(input: {
   });
 
   const { hash } = await sendSponsoredEvmTransaction({
-    userJwt: privyToken,
-    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
-    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: DIAMOND_ADDRESS as Address,
     data,
@@ -112,9 +109,6 @@ export async function sellSharesOnchainAction(input: {
   });
 
   const { hash } = await sendSponsoredEvmTransaction({
-    userJwt: privyToken,
-    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
-    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: DIAMOND_ADDRESS as Address,
     data,
@@ -141,9 +135,6 @@ export async function sendSponsoredEthTransferAction(input: {
   const valueWei = BigInt(input.amountWei);
 
   const { hash } = await sendSponsoredEvmTransaction({
-    userJwt: privyToken,
-    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
-    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: input.to.toLowerCase() as Address,
     valueWei,
@@ -187,9 +178,6 @@ export async function updateAgentProfileOnchainAction(input: {
   });
 
   const { hash } = await sendSponsoredEvmTransaction({
-    userJwt: privyToken,
-    userJwtFallbacks: bundle.fallback ? [bundle.fallback] : [],
-    expectedPrivyUserId: ctx.privyId,
     walletId: ctx.privyWalletId,
     to: registryAddress,
     data,
