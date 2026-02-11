@@ -45,7 +45,6 @@ import { getNftChainId } from './nft/nft-chain';
 import {
   listEmbeddedEvmWallets,
   type PrivyUserWalletsLite,
-  pickEmbeddedEvmWallet,
 } from './privy/user-wallets';
 
 // ============================================================================
@@ -237,13 +236,11 @@ function validateConfig(): {
 async function getDbUserForMint(dbUserId: string): Promise<{
   privyId: string;
   privyWalletId: string | null;
-  walletAddress: string | null;
 }> {
   const [user] = await db
     .select({
       privyId: users.privyId,
       privyWalletId: users.privyWalletId,
-      walletAddress: users.walletAddress,
     })
     .from(users)
     .where(eq(users.id, dbUserId))
@@ -260,84 +257,49 @@ async function getDbUserForMint(dbUserId: string): Promise<{
   return {
     privyId: user.privyId,
     privyWalletId: user.privyWalletId,
-    walletAddress: user.walletAddress,
   };
-}
-
-function pickPrivyEmbeddedWalletAddress(
-  privyUser: PrivyUserWalletsLite
-): string {
-  const embedded = pickEmbeddedEvmWallet(privyUser);
-  if (embedded) return embedded.address.toLowerCase();
-
-  throw new ValidationError(
-    'Embedded wallet not ready',
-    ['walletAddress'],
-    [
-      {
-        field: 'walletAddress',
-        message:
-          'Embedded wallet address not available. Please re-login and try again.',
-      },
-    ]
-  );
 }
 
 async function resolveUserEmbeddedWalletAddress(
   userId: string
 ): Promise<Address> {
-  const { privyId, privyWalletId, walletAddress } =
-    await getDbUserForMint(userId);
+  const { privyId, privyWalletId } = await getDbUserForMint(userId);
+
+  if (!privyWalletId) {
+    throw new ValidationError(
+      'Embedded wallet not ready',
+      ['privyWalletId'],
+      [
+        {
+          field: 'privyWalletId',
+          message:
+            'Embedded wallet ID not available. Please re-login and try again.',
+        },
+      ]
+    );
+  }
 
   const privyClient = getPrivyClient();
-  try {
-    const privyUser = (await privyClient.getUser(
-      privyId
-    )) as PrivyUserWalletsLite;
-    // Prefer the DB-selected wallet ID (used for server-side tx signing).
-    // This prevents minting to an outdated primary wallet when multiple embedded wallets exist.
-    if (privyWalletId) {
-      const matched = listEmbeddedEvmWallets(privyUser).find(
-        (wallet) => wallet.walletId === privyWalletId
-      );
-      if (matched?.address && isAddress(matched.address)) {
-        return matched.address.toLowerCase() as Address;
-      }
-    }
-
-    const address = pickPrivyEmbeddedWalletAddress(privyUser);
-    if (!isAddress(address)) {
-      throw new ValidationError(
-        'Invalid embedded wallet address',
-        ['walletAddress'],
-        [{ field: 'walletAddress', message: 'Invalid Ethereum address' }]
-      );
-    }
-    return address.toLowerCase() as Address;
-  } catch (error) {
-    if (
-      process.env.NODE_ENV !== 'test' &&
-      process.env.NODE_ENV !== 'development'
-    ) {
-      throw error;
-    }
+  const privyUser = (await privyClient.getUser(
+    privyId
+  )) as PrivyUserWalletsLite;
+  const wallets = listEmbeddedEvmWallets(privyUser);
+  const matched = wallets.find((wallet) => wallet.walletId === privyWalletId);
+  if (!matched?.address || !isAddress(matched.address)) {
+    throw new ValidationError(
+      'Embedded wallet mismatch',
+      ['privyWalletId'],
+      [
+        {
+          field: 'privyWalletId',
+          message:
+            'Configured embedded wallet is not available. Please refresh session and retry.',
+        },
+      ]
+    );
   }
 
-  if (walletAddress && isAddress(walletAddress)) {
-    return walletAddress.toLowerCase() as Address;
-  }
-
-  throw new ValidationError(
-    'Embedded wallet not ready',
-    ['walletAddress'],
-    [
-      {
-        field: 'walletAddress',
-        message:
-          'Embedded wallet address not available. Please re-login and try again.',
-      },
-    ]
-  );
+  return matched.address.toLowerCase() as Address;
 }
 
 /**
