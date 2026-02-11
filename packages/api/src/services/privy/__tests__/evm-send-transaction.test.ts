@@ -200,7 +200,11 @@ describe('sendSponsoredEvmTransaction – JWT pre-flight checks', () => {
 
   beforeEach(() => {
     mockSendTransaction.mockClear();
-    delete process.env.PRIVY_APP_ID;
+    process.env.PRIVY_APP_ID = 'test-app-id';
+    process.env.PRIVY_APP_SECRET = 'test-secret';
+    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY = 'test-authorization-key';
+    process.env.PRIVY_OFFLINE_SIGNER_ID = 'test-offline-signer-id';
+    process.env.PRIVY_OFFLINE_POLICY_ID = 'test-offline-policy-id';
     delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
     delete process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS;
   });
@@ -324,17 +328,21 @@ describe('sendSponsoredEvmTransaction – JWT pre-flight checks', () => {
     expect(mockSendTransaction).toHaveBeenCalled();
   });
 
-  it('skips audience check when PRIVY_APP_ID is not configured', async () => {
-    // Neither env var set → should skip audience validation
+  it('fails fast when offline configuration is incomplete', async () => {
+    delete process.env.PRIVY_APP_ID;
+    delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
     const token = buildJwt({ ...VALID_PAYLOAD, aud: 'any-audience' });
 
-    await sendSponsoredEvmTransaction({
-      userJwt: token,
-      walletId: 'wallet-1',
-      to: validAddress,
-    });
-
-    expect(mockSendTransaction).toHaveBeenCalled();
+    await expect(
+      sendSponsoredEvmTransaction({
+        userJwt: token,
+        walletId: 'wallet-1',
+        to: validAddress,
+      })
+    ).rejects.toThrow(
+      'Privy offline configuration is incomplete: missing PRIVY_APP_ID (or NEXT_PUBLIC_PRIVY_APP_ID)'
+    );
   });
 
   it('retries with a fallback token when Privy rejects the primary JWT at the wallet endpoint', async () => {

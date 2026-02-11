@@ -3,6 +3,7 @@ import type { AuthorizationContext } from '@privy-io/node';
 import { decodeJwt, decodeProtectedHeader } from 'jose';
 import type { Address, Hex } from 'viem';
 import { z } from 'zod';
+import { getPrivyOfflineConfig } from './offline-config';
 import { getPrivyNodeClient } from './privy-node';
 
 export type SendSponsoredEvmTransactionInput = {
@@ -130,8 +131,8 @@ export async function sendSponsoredEvmTransaction({
     throw new Error('Missing Privy user JWT');
   }
 
-  const appId =
-    process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const offlineConfig = getPrivyOfflineConfig();
+  const appId = offlineConfig.appId;
 
   // Pre-flight validate candidates (decode-only) so we can skip obviously-invalid tokens
   // without paying for a wallet API call.
@@ -238,21 +239,8 @@ export async function sendSponsoredEvmTransaction({
     'sendSponsoredEvmTransaction'
   );
 
-  if (!appId) {
-    logger.warn(
-      'PRIVY_APP_ID is not configured — skipping JWT audience validation. Set PRIVY_APP_ID or NEXT_PUBLIC_PRIVY_APP_ID to enable.',
-      {},
-      'sendSponsoredEvmTransaction'
-    );
-  }
-
   const privy = getPrivyNodeClient();
-
-  // Optional: If you configure Privy controls that require an authorization signature
-  // from an app authorization key (P-256), provide the private key via env var.
-  // This is a base64-encoded PKCS8 P-256 private key with no PEM headers.
-  const authorizationPrivateKey =
-    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY?.trim();
+  const authorizationPrivateKey = offlineConfig.authorizationPrivateKey;
 
   // VALUE FIELD HANDLING:
   // We omit the value field entirely for zero-value transactions rather than sending "0x0".
@@ -289,9 +277,7 @@ export async function sendSponsoredEvmTransaction({
     const { token } = candidate;
     const authorizationContext: AuthorizationContext = {
       user_jwts: [token],
-      ...(authorizationPrivateKey
-        ? { authorization_private_keys: [authorizationPrivateKey] }
-        : {}),
+      authorization_private_keys: [authorizationPrivateKey],
     };
 
     try {
