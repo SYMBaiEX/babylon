@@ -96,6 +96,9 @@ export const users = pgTable(
     // Privy embedded wallet id (used for server-side wallet actions).
     // This is not the Privy user id (did:privy:...), it's the wallet resource id.
     privyWalletId: text('privyWalletId'),
+    // Offline delegated wallet readiness (signer + policy attached in Privy).
+    offlineWalletReady: boolean('offlineWalletReady').notNull().default(false),
+    offlineWalletReadyAt: timestamp('offlineWalletReadyAt', { mode: 'date' }),
     walletAddress: text('walletAddress').unique(),
     username: text('username').unique(),
     displayName: text('displayName'),

@@ -1,7 +1,10 @@
 'use server';
 
 import {
+  extractPrivyApiDiagnostics,
   getAuthedUserContextFromPrivyTokenBundle,
+  type PrivyApiDiagnostics,
+  redactJwtLikeTokens,
   sendSponsoredEvmTransaction,
 } from '@babylon/api';
 import {
@@ -21,17 +24,24 @@ type MintStep =
   | 'send_transaction'
   | 'confirm';
 
-function redactJwtLikeTokens(text: string): string {
-  // Redact JWT-like strings (base64url.base64url.base64url).
-  // This avoids accidentally logging auth tokens if they show up in an error message/stack.
-  const jwtLike =
-    /(?<![A-Za-z0-9_-])([A-Za-z0-9_-]{10,})\.([A-Za-z0-9_-]{10,})\.([A-Za-z0-9_-]{10,})(?![A-Za-z0-9_-])/g;
-  return text.replace(jwtLike, '[REDACTED_JWT]');
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return typeof error === 'string' ? error : 'Unknown error';
+}
+
+function exposeOnchainErrorDetails(): boolean {
+  const raw = process.env.EXPOSE_ONCHAIN_ERROR_DETAILS;
+  if (!raw) return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
+}
+
+function toDebugDetails(error: unknown): PrivyApiDiagnostics | undefined {
+  if (!exposeOnchainErrorDetails()) return undefined;
+
+  const debug = extractPrivyApiDiagnostics(error, {
+    redactJwtLike: true,
+  });
+  return Object.keys(debug).length > 0 ? debug : undefined;
 }
 
 function toSafeLogError(error: unknown): {
@@ -90,7 +100,13 @@ function toUserSafeMintError(step: MintStep, error: unknown): string {
 export type MintNftActionResult =
   | ({ status: 'confirmed'; txHash: Hex } & ConfirmResult)
   | { status: 'pending'; txHash: Hex; message: string }
-  | { status: 'error'; error: string; step: MintStep; errorId: string };
+  | {
+      status: 'error';
+      error: string;
+      step: MintStep;
+      errorId: string;
+      debug?: PrivyApiDiagnostics;
+    };
 
 /**
  * Exponential backoff sleep with jitter for polling.
@@ -141,6 +157,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -164,6 +181,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -184,6 +202,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -191,9 +210,6 @@ export async function mintNftAction(input?: {
   let hash: Hex;
   try {
     const result = await sendSponsoredEvmTransaction({
-      userJwt: privyToken,
-      userJwtFallbacks: fallbackPrivyToken ? [fallbackPrivyToken] : [],
-      expectedPrivyUserId: ctx.privyId,
       walletId: ctx.privyWalletId,
       to: prepare.contractAddress as Address,
       data: prepare.encodedData,
@@ -222,6 +238,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -257,6 +274,7 @@ export async function mintNftAction(input?: {
         error: toUserSafeMintError(step, error),
         step,
         errorId,
+        debug: toDebugDetails(error),
       };
     }
   }

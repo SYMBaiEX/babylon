@@ -145,6 +145,7 @@ import {
   authenticate,
   ConflictError,
   cachedDb,
+  ensureOfflineWalletReady,
   getPrivyClient,
   InternalServerError,
   type PrivyUserWalletsLite,
@@ -165,23 +166,12 @@ type PrivyUserWithWallets = PrivyUser &
   PrivyUserWithEmails &
   PrivyUserWalletsLite;
 
-async function resolveEmbeddedWallet(privyId: string): Promise<{
-  privyWalletId: string | null;
-  embeddedWalletAddress: string | null;
-}> {
-  const privyClient = getPrivyClient();
-  const user = (await privyClient.getUser(privyId)) as PrivyUserWithWallets;
-  const embedded = pickEmbeddedEvmWallet(user);
-  return {
-    privyWalletId: embedded?.walletId ?? null,
-    embeddedWalletAddress: embedded?.address?.toLowerCase() ?? null,
-  };
-}
-
 const userSelectFields = {
   id: users.id,
   privyId: users.privyId,
   privyWalletId: users.privyWalletId,
+  offlineWalletReady: users.offlineWalletReady,
+  offlineWalletReadyAt: users.offlineWalletReadyAt,
   username: users.username,
   displayName: users.displayName,
   bio: users.bio,
@@ -225,6 +215,8 @@ type UserSelectResult = {
   id: string;
   privyId: string | null;
   privyWalletId: string | null;
+  offlineWalletReady: boolean;
+  offlineWalletReadyAt: Date | null;
   username: string | null;
   displayName: string | null;
   bio: string | null;
@@ -271,6 +263,9 @@ function buildUserResponse(
   return {
     id: dbUser.id,
     privyId: dbUser.privyId,
+    privyWalletId: dbUser.privyWalletId,
+    offlineWalletReady: dbUser.offlineWalletReady,
+    offlineWalletReadyAt: dbUser.offlineWalletReadyAt?.toISOString() ?? null,
     username: dbUser.username,
     displayName: dbUser.displayName,
     bio: dbUser.bio,
@@ -818,44 +813,48 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   //
   // =====================================================================================
   const dbWalletLower = dbUser.walletAddress?.toLowerCase() ?? null;
-  const shouldBackfillWallet = !dbWalletLower || !dbUser.privyWalletId;
   const shouldResyncWallet =
     !!clientEmbeddedWalletAddress &&
     clientEmbeddedWalletAddress !== dbWalletLower;
+  const shouldEnsureOfflineWallet =
+    !dbWalletLower ||
+    !dbUser.privyWalletId ||
+    !dbUser.offlineWalletReady ||
+    shouldResyncWallet;
 
-  if (shouldBackfillWallet || shouldResyncWallet) {
-    const { privyWalletId, embeddedWalletAddress } =
-      await resolveEmbeddedWallet(privyId);
+  if (shouldEnsureOfflineWallet) {
+    const offlineWallet = await ensureOfflineWalletReady({ privyId });
+    const resolvedAddress = offlineWallet.walletAddress.toLowerCase();
 
-    const resolvedAddress = embeddedWalletAddress?.toLowerCase() ?? null;
-
-    if (shouldResyncWallet && resolvedAddress) {
-      if (resolvedAddress !== clientEmbeddedWalletAddress) {
-        logger.warn(
-          'Client embedded wallet address mismatch; using Privy embedded wallet address',
-          {
-            userId: dbUser.id,
-            dbWalletAddress: dbUser.walletAddress,
-            clientEmbeddedWalletAddress,
-            privyEmbeddedWalletAddress: resolvedAddress,
-          },
-          'GET /api/users/me'
-        );
-      }
+    if (
+      shouldResyncWallet &&
+      resolvedAddress &&
+      resolvedAddress !== clientEmbeddedWalletAddress
+    ) {
+      logger.warn(
+        'Client embedded wallet address mismatch; using Privy embedded wallet address',
+        {
+          userId: dbUser.id,
+          dbWalletAddress: dbUser.walletAddress,
+          clientEmbeddedWalletAddress,
+          privyEmbeddedWalletAddress: resolvedAddress,
+        },
+        'GET /api/users/me'
+      );
     }
 
-    if (privyWalletId || resolvedAddress) {
-      const [updated] = await db
-        .update(users)
-        .set({
-          privyWalletId: privyWalletId ?? dbUser.privyWalletId,
-          walletAddress: resolvedAddress ?? dbUser.walletAddress,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, dbUser.id))
-        .returning(userSelectFields);
-      if (updated) dbUser = updated;
-    }
+    const [updated] = await db
+      .update(users)
+      .set({
+        privyWalletId: offlineWallet.privyWalletId,
+        walletAddress: resolvedAddress,
+        offlineWalletReady: true,
+        offlineWalletReadyAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, dbUser.id))
+      .returning(userSelectFields);
+    if (updated) dbUser = updated;
   }
 
   // Auto-promote existing users to admin if they have a verified admin domain email

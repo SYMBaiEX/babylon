@@ -69,7 +69,9 @@
     "ruler:init": "ruler init",
     "ruler:apply": "ruler apply",
     "ruler:apply:dry": "ruler apply --dry-run --verbose",
-    "ruler:revert": "ruler revert"
+    "ruler:revert": "ruler revert",
+    "audit:offline-wallet-readiness": "bun run scripts/audit-offline-wallet-readiness.ts",
+    "privy:setup:offline-controls": "bun run scripts/setup-privy-offline-controls.ts"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.5",

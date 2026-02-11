@@ -163,7 +163,7 @@ describe('PrivyJwtPayloadSchema', () => {
 });
 
 // ---------------------------------------------------------------------------
-// sendSponsoredEvmTransaction – JWT pre-flight validation
+// sendSponsoredEvmTransaction – offline delegated path
 // ---------------------------------------------------------------------------
 
 // Mock the Privy client and shared modules so we can unit-test the function
@@ -195,201 +195,90 @@ mock.module('../privy-node', () => ({
 // Dynamic import after mocks are set up
 const { sendSponsoredEvmTransaction } = await import('../evm-send-transaction');
 
-describe('sendSponsoredEvmTransaction – JWT pre-flight checks', () => {
+describe('sendSponsoredEvmTransaction – offline delegated path', () => {
   const validAddress = '0x0000000000000000000000000000000000000001' as const;
 
   beforeEach(() => {
     mockSendTransaction.mockClear();
+    process.env.PRIVY_APP_ID = 'test-app-id';
+    process.env.PRIVY_APP_SECRET = 'test-secret';
+    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY = 'test-authorization-key';
+    process.env.PRIVY_OFFLINE_SIGNER_ID = 'test-offline-signer-id';
+    process.env.PRIVY_OFFLINE_POLICY_ID = 'test-offline-policy-id';
+    delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  });
+
+  it('submits transaction with authorization private key context only', async () => {
+    await sendSponsoredEvmTransaction({
+      walletId: 'wallet-1',
+      to: validAddress,
+      valueWei: 0n,
+    });
+
+    expect(mockSendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSendTransaction).toHaveBeenCalledWith('wallet-1', {
+      caip2: 'eip155:1',
+      sponsor: true,
+      authorization_context: {
+        authorization_private_keys: ['test-authorization-key'],
+      },
+      params: {
+        transaction: {
+          to: validAddress,
+          chain_id: 1,
+        },
+      },
+    });
+  });
+
+  it('fails fast when offline configuration is incomplete', async () => {
     delete process.env.PRIVY_APP_ID;
     delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-    delete process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS;
-  });
-
-  it('rejects a malformed JWT', async () => {
-    await expect(
-      sendSponsoredEvmTransaction({
-        userJwt: 'not-a-jwt',
-        walletId: 'wallet-1',
-        to: validAddress,
-      })
-    ).rejects.toThrow('Invalid Privy user JWT');
-  });
-
-  it('rejects a JWT missing required claims', async () => {
-    const { sub: _, ...incomplete } = VALID_PAYLOAD;
-    const token = buildJwt(incomplete);
 
     await expect(
       sendSponsoredEvmTransaction({
-        userJwt: token,
         walletId: 'wallet-1',
         to: validAddress,
       })
-    ).rejects.toThrow('Invalid Privy user JWT');
+    ).rejects.toThrow(
+      'Privy offline configuration is incomplete: missing PRIVY_APP_ID (or NEXT_PUBLIC_PRIVY_APP_ID)'
+    );
   });
 
-  it('rejects an expired JWT', async () => {
-    const expiredPayload = { ...VALID_PAYLOAD, exp: NOW_SECONDS - 100 };
-    const token = buildJwt(expiredPayload);
-
-    await expect(
-      sendSponsoredEvmTransaction({
-        userJwt: token,
-        walletId: 'wallet-1',
-        to: validAddress,
-      })
-    ).rejects.toThrow('expired or about to expire');
-  });
-
-  it('rejects a JWT that will expire within the buffer window', async () => {
-    // Token expires in 10 seconds, but default buffer is 30 seconds
-    const soonPayload = { ...VALID_PAYLOAD, exp: NOW_SECONDS + 10 };
-    const token = buildJwt(soonPayload);
-
-    await expect(
-      sendSponsoredEvmTransaction({
-        userJwt: token,
-        walletId: 'wallet-1',
-        to: validAddress,
-      })
-    ).rejects.toThrow('expired or about to expire');
-  });
-
-  it('respects PRIVY_JWT_EXPIRY_BUFFER_SECONDS env var', async () => {
-    // Set a very small buffer so a token expiring in 10s is accepted
-    process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS = '5';
-    const soonPayload = { ...VALID_PAYLOAD, exp: NOW_SECONDS + 10 };
-    const token = buildJwt(soonPayload);
-
+  it('passes idempotency key when provided', async () => {
     await sendSponsoredEvmTransaction({
-      userJwt: token,
       walletId: 'wallet-1',
       to: validAddress,
+      idempotencyKey: 'idem-123',
     });
 
-    expect(mockSendTransaction).toHaveBeenCalled();
-  });
-
-  it('falls back to default buffer when env var is invalid', async () => {
-    process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS = 'not-a-number';
-    const soonPayload = { ...VALID_PAYLOAD, exp: NOW_SECONDS + 10 };
-    const token = buildJwt(soonPayload);
-
-    // Default buffer is 30s, token expires in 10s → should be rejected
-    await expect(
-      sendSponsoredEvmTransaction({
-        userJwt: token,
-        walletId: 'wallet-1',
-        to: validAddress,
-      })
-    ).rejects.toThrow('expired or about to expire');
-  });
-
-  it('rejects when audience does not match configured app ID', async () => {
-    process.env.PRIVY_APP_ID = 'real-app-id';
-    const token = buildJwt({ ...VALID_PAYLOAD, aud: 'wrong-app-id' });
-
-    await expect(
-      sendSponsoredEvmTransaction({
-        userJwt: token,
-        walletId: 'wallet-1',
-        to: validAddress,
-      })
-    ).rejects.toThrow('audience mismatch');
-  });
-
-  it('accepts when audience matches configured app ID', async () => {
-    process.env.PRIVY_APP_ID = 'test-app-id';
-    const token = buildJwt(VALID_PAYLOAD);
-
-    await sendSponsoredEvmTransaction({
-      userJwt: token,
-      walletId: 'wallet-1',
-      to: validAddress,
+    expect(mockSendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSendTransaction).toHaveBeenCalledWith('wallet-1', {
+      caip2: 'eip155:1',
+      sponsor: true,
+      authorization_context: {
+        authorization_private_keys: ['test-authorization-key'],
+      },
+      idempotency_key: 'idem-123',
+      params: {
+        transaction: {
+          to: validAddress,
+          chain_id: 1,
+        },
+      },
     });
-
-    expect(mockSendTransaction).toHaveBeenCalled();
   });
 
-  it('accepts array audience containing the configured app ID', async () => {
-    process.env.PRIVY_APP_ID = 'test-app-id';
-    const token = buildJwt({ ...VALID_PAYLOAD, aud: ['other', 'test-app-id'] });
-
-    await sendSponsoredEvmTransaction({
-      userJwt: token,
-      walletId: 'wallet-1',
-      to: validAddress,
-    });
-
-    expect(mockSendTransaction).toHaveBeenCalled();
-  });
-
-  it('skips audience check when PRIVY_APP_ID is not configured', async () => {
-    // Neither env var set → should skip audience validation
-    const token = buildJwt({ ...VALID_PAYLOAD, aud: 'any-audience' });
-
-    await sendSponsoredEvmTransaction({
-      userJwt: token,
-      walletId: 'wallet-1',
-      to: validAddress,
-    });
-
-    expect(mockSendTransaction).toHaveBeenCalled();
-  });
-
-  it('retries with a fallback token when Privy rejects the primary JWT at the wallet endpoint', async () => {
-    const primary = buildJwt(VALID_PAYLOAD);
-    const fallback = buildJwt({ ...VALID_PAYLOAD, sid: 'fallback-session' });
-
-    mockSendTransaction
-      .mockImplementationOnce(() =>
-        Promise.reject(
-          new Error(
-            '400 {"error":"Invalid JWT token provided","code":"invalid_data"}'
-          )
-        )
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve({ hash: '0xdef', caip2: 'eip155:1' })
-      );
-
-    const result = await sendSponsoredEvmTransaction({
-      userJwt: primary,
-      userJwtFallbacks: [fallback],
-      walletId: 'wallet-1',
-      to: validAddress,
-    });
-
-    expect(result.hash).toBe('0xdef');
-    expect(mockSendTransaction).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not use fallback tokens whose subject does not match expectedPrivyUserId', async () => {
-    const primary = buildJwt(VALID_PAYLOAD);
-    const fallbackWrongUser = buildJwt({
-      ...VALID_PAYLOAD,
-      sub: 'did:privy:someone-else',
-    });
-
+  it('propagates wallet endpoint errors', async () => {
     mockSendTransaction.mockImplementationOnce(() =>
-      Promise.reject(
-        new Error(
-          '400 {"error":"Invalid JWT token provided","code":"invalid_data"}'
-        )
-      )
+      Promise.reject(new Error('upstream failed'))
     );
 
     await expect(
       sendSponsoredEvmTransaction({
-        userJwt: primary,
-        userJwtFallbacks: [fallbackWrongUser],
-        expectedPrivyUserId: VALID_PAYLOAD.sub,
         walletId: 'wallet-1',
         to: validAddress,
       })
-    ).rejects.toThrow('Invalid JWT token provided');
-
-    // Only the primary token should be attempted; fallback is filtered out by pre-flight validation.
-    expect(mockSendTransaction).toHaveBeenCalledTimes(1);
+    ).rejects.toThrow('upstream failed');
   });
 });

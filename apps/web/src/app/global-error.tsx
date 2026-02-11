@@ -14,6 +14,7 @@ import type { SeverityLevel } from '@sentry/nextjs';
 import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect } from 'react';
+import { posthog } from '@/lib/posthog';
 
 export default function GlobalError({
   error,
@@ -37,6 +38,18 @@ export default function GlobalError({
       });
       Sentry.captureException(error);
     });
+
+    // Track error in PostHog
+    if (posthog) {
+      posthog.capture('$exception', {
+        $exception_type: error.name || 'Error',
+        $exception_message: error.message,
+        $exception_stack: error.stack,
+        errorBoundary: 'global',
+        digest: error.digest,
+        severity: 'fatal',
+      });
+    }
   }, [error]);
 
   return (

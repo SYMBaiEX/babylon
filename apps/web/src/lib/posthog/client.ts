@@ -3,6 +3,10 @@
 /**
  * PostHog Client Configuration
  * Client-side analytics and event tracking
+ *
+ * All events are automatically tagged with an `environment` super property
+ * (production, staging, or development) so staging and production can be
+ * filtered independently within a single PostHog project.
  */
 
 import posthog from 'posthog-js';
@@ -12,19 +16,41 @@ export type PostHogClient = typeof posthog;
 let initialized = false;
 
 /**
+ * Detect the client-side deployment environment.
+ *
+ * Uses NEXT_PUBLIC_VERCEL_ENV (injected by Vercel at build time) to distinguish
+ * production, staging (preview), and development.
+ */
+function getClientEnvironment(): 'production' | 'staging' | 'development' {
+  const vercelEnv = process.env.NEXT_PUBLIC_VERCEL_ENV;
+  if (vercelEnv === 'production') return 'production';
+  if (vercelEnv === 'preview') return 'staging';
+  if (process.env.NODE_ENV === 'production') return 'production';
+  return 'development';
+}
+
+/**
  * Initialize PostHog client for browser
+ *
+ * Uses NEXT_PUBLIC_POSTHOG_PROJECT_ID as the project API key.
+ * Environment is detected automatically and registered as a super property
+ * so every event can be filtered by staging vs production.
  */
 export function initPostHog(): PostHogClient | null {
   if (typeof window === 'undefined') return null;
 
-  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID;
   const apiHost =
     process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 
   if (!apiKey) {
-    console.warn('PostHog: API key not found. Analytics will be disabled.');
+    console.warn(
+      'PostHog: NEXT_PUBLIC_POSTHOG_PROJECT_ID not found. Analytics will be disabled.'
+    );
     return null;
   }
+
+  const environment = getClientEnvironment();
 
   // Initialize PostHog only once
   if (!initialized) {
@@ -51,9 +77,19 @@ export function initPostHog(): PostHogClient | null {
       },
 
       // Performance
-      loaded: () => {
+      loaded: (ph) => {
+        // Register environment as a super property so it's attached to every event
+        ph.register({
+          environment,
+          app_version: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'dev',
+          deployment_url:
+            process.env.NEXT_PUBLIC_VERCEL_URL || 'localhost:3000',
+        });
+
         if (process.env.NODE_ENV === 'development') {
-          console.log('PostHog initialized successfully');
+          console.log(
+            `PostHog initialized [env=${environment}, project=${apiKey.slice(0, 12)}...]`
+          );
         }
       },
 

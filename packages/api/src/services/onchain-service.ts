@@ -108,16 +108,6 @@ export const DEPLOYER_PRIVATE_KEY: `0x${string}` =
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser;
-  /**
-   * Privy user auth token (JWT) for server-side user wallet actions.
-   * Required when Babylon needs to submit a transaction from the user's embedded wallet.
-   */
-  userJwt?: string | null;
-  /**
-   * Optional fallback JWTs (e.g. cookie token vs Authorization header token).
-   * Used only if Privy rejects the primary token at the wallet endpoint.
-   */
-  userJwtFallbacks?: string[];
   walletAddress?: string | null;
   username?: string | null;
   displayName?: string | null;
@@ -126,7 +116,6 @@ export interface OnchainRegistrationInput {
   coverImageUrl?: string | null;
   endpoint?: string | null;
   referralCode?: string | null;
-  txHash?: string | null;
 }
 
 export interface OnchainRegistrationResult {
@@ -140,8 +129,6 @@ export interface OnchainRegistrationResult {
 
 export async function processOnchainRegistration({
   user,
-  userJwt,
-  userJwtFallbacks,
   walletAddress,
   username,
   displayName,
@@ -150,7 +137,6 @@ export async function processOnchainRegistration({
   coverImageUrl,
   endpoint,
   referralCode,
-  txHash,
 }: OnchainRegistrationInput): Promise<OnchainRegistrationResult> {
   if (!user.isAgent && !walletAddress) {
     throw new BusinessLogicError(
@@ -174,23 +160,6 @@ export async function processOnchainRegistration({
         },
       ]
     );
-  }
-
-  let submittedTxHash: `0x${string}` | undefined;
-  if (txHash) {
-    if (typeof txHash !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
-      throw new ValidationError(
-        'Invalid transaction hash format',
-        ['txHash'],
-        [
-          {
-            field: 'txHash',
-            message: 'Must be a 0x-prefixed 64 character hash',
-          },
-        ]
-      );
-    }
-    submittedTxHash = txHash as `0x${string}`;
   }
 
   let referrerId: string | null = null;
@@ -538,31 +507,12 @@ export async function processOnchainRegistration({
     'OnboardingOnchain'
   );
 
-  let registrationTxHash: `0x${string}` | undefined = submittedTxHash;
+  let registrationTxHash: `0x${string}` | undefined;
   let receipt: Awaited<
     ReturnType<typeof publicClient.waitForTransactionReceipt>
   > | null = null;
 
-  if (submittedTxHash) {
-    logger.info(
-      'Validating submitted registration transaction',
-      { txHash: submittedTxHash },
-      'OnboardingOnchain'
-    );
-
-    receipt = await publicClient.waitForTransactionReceipt({
-      hash: submittedTxHash,
-      confirmations: 1,
-    });
-
-    if (receipt.status !== 'success') {
-      throw new BusinessLogicError(
-        'Submitted blockchain registration transaction failed',
-        'REGISTRATION_TX_FAILED',
-        { txHash: submittedTxHash, receipt: receipt.status }
-      );
-    }
-  } else if (user.isAgent || isLocalNetwork) {
+  if (user.isAgent || isLocalNetwork) {
     if (!deployerWalletClient) {
       throw new InternalServerError('Server wallet not configured', {
         missing: 'DEPLOYER_PRIVATE_KEY',
@@ -605,14 +555,6 @@ export async function processOnchainRegistration({
     }
   } else {
     // Non-agent: submit from the user's embedded wallet via Privy (server-side user wallet flow).
-    if (!userJwt) {
-      throw new InternalServerError(
-        'Missing Privy user token for transaction',
-        {
-          missing: 'userJwt',
-        }
-      );
-    }
     if (!dbUser.privyWalletId) {
       throw new InternalServerError('User embedded wallet id missing', {
         missing: 'users.privyWalletId',
@@ -626,9 +568,6 @@ export async function processOnchainRegistration({
     });
 
     const { hash } = await sendSponsoredEvmTransaction({
-      userJwt,
-      userJwtFallbacks,
-      expectedPrivyUserId: user.privyId,
       walletId: dbUser.privyWalletId,
       to: IDENTITY_REGISTRY,
       data,
@@ -672,7 +611,7 @@ export async function processOnchainRegistration({
   logger.info(
     'Transaction receipt logs',
     {
-      txHash: registrationTxHash ?? submittedTxHash,
+      txHash: registrationTxHash,
       totalLogs: finalizedReceipt.logs.length,
       logAddresses: finalizedReceipt.logs.map((l: Log) => l.address),
       identityRegistryAddress: IDENTITY_REGISTRY,
@@ -716,7 +655,7 @@ export async function processOnchainRegistration({
     throw new InternalServerError(
       'AgentRegistered event not found in receipt',
       {
-        txHash: registrationTxHash ?? submittedTxHash,
+        txHash: registrationTxHash,
         totalLogs: finalizedReceipt.logs.length,
         contractLogs: contractLogs.length,
         allLogAddresses: finalizedReceipt.logs.map((l: Log) =>
@@ -770,7 +709,7 @@ export async function processOnchainRegistration({
     .set({
       onChainRegistered: true,
       nftTokenId: tokenId,
-      registrationTxHash: registrationTxHash ?? submittedTxHash ?? null,
+      registrationTxHash: registrationTxHash ?? null,
       // Store registration blockchain metadata
       registrationBlockNumber: BigInt(finalizedReceipt.blockNumber),
       registrationGasUsed: BigInt(finalizedReceipt.gasUsed),
@@ -1061,7 +1000,7 @@ export async function processOnchainRegistration({
   return {
     message: `Successfully registered ${user.isAgent ? 'agent' : 'user'} on-chain`,
     tokenId,
-    txHash: registrationTxHash ?? submittedTxHash,
+    txHash: registrationTxHash,
     alreadyRegistered: false,
     pointsAwarded: 1000,
     userId: dbUser.id,

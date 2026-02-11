@@ -1,7 +1,14 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Settings, Square } from 'lucide-react';
+import { ExternalLink, MoreVertical, Settings, Square } from 'lucide-react';
+import Link from 'next/link';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Avatar } from '@/components/shared/Avatar';
 
 /** Agent info for member list */
@@ -65,7 +72,7 @@ export function MemberList({
                   key={agent.id}
                   className={cn(
                     'group flex min-w-0 items-center gap-2 rounded-lg p-2 transition-colors',
-                    'hover:bg-muted/50',
+                    'hover:bg-muted/50 has-[[data-state=open]]:bg-muted/50',
                     isProcessing && 'opacity-70'
                   )}
                 >
@@ -106,7 +113,7 @@ export function MemberList({
                     </div>
                   </button>
 
-                  {/* Stop button when processing, otherwise show settings button */}
+                  {/* Stop button when processing, otherwise show menu button */}
                   {isProcessing ? (
                     <button
                       type="button"
@@ -120,21 +127,44 @@ export function MemberList({
                       <Square className="relative h-3 w-3 fill-primary text-primary" />
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      className={cn(
-                        'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
-                        'text-muted-foreground hover:bg-muted hover:text-foreground',
-                        'opacity-0 focus:opacity-100 group-hover:opacity-100'
-                      )}
-                      onClick={() => {
-                        onViewSettings?.(agent.id);
-                        onClose?.();
-                      }}
-                      aria-label={`Settings for ${agentName}`}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </button>
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
+                            'text-muted-foreground hover:bg-muted hover:text-foreground',
+                            'opacity-0 focus:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100'
+                          )}
+                          aria-label={`More options for ${agentName}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {agent.username && (
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/profile/${agent.username}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              <span>View Profile</span>
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            onViewSettings?.(agent.id);
+                            onClose?.();
+                          }}
+                        >
+                          <Settings className="mr-2 h-4 w-4" />
+                          <span>Settings</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               );

@@ -5,6 +5,7 @@ import { cn } from '@babylon/shared';
 import { Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useSocialTracking } from '@/hooks/usePostHog';
 import { useInteractionStore } from '@/stores/interactionStore';
 
 /**
@@ -52,6 +53,7 @@ export function CommentInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { authenticated, login } = useAuth();
+  const { trackPostComment } = useSocialTracking();
   const { addComment } = useInteractionStore();
 
   useEffect(() => {
@@ -100,6 +102,7 @@ export function CommentInput({
     if (comment) {
       // Clear optimistic state on success
       setOptimisticComment(null);
+      trackPostComment(postId, trimmedContent.length);
 
       // Call onSubmit callback if provided (await if it returns a promise)
       if (onSubmit) {

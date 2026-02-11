@@ -23,12 +23,6 @@
  *           schema:
  *             type: object
  *             properties:
- *               walletAddress:
- *                 type: string
- *                 nullable: true
- *               txHash:
- *                 type: string
- *                 nullable: true
  *               referralCode:
  *                 type: string
  *                 nullable: true
@@ -48,7 +42,6 @@
  *   method: 'POST',
  *   headers: { 'Authorization': `Bearer ${token}` },
  *   body: JSON.stringify({
- *     walletAddress: '0x...',
  *     referralCode: 'REF123'
  *   })
  * });
@@ -60,6 +53,7 @@ import {
   authenticate,
   BusinessLogicError,
   ConflictError,
+  ensureOfflineWalletReady,
   processOnchainRegistration,
   successResponse,
   withErrorHandling,
@@ -69,46 +63,16 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 interface OnchainRequestBody {
-  walletAddress?: string | null;
-  txHash?: string | null;
   referralCode?: string | null;
 }
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const cookieToken = request.cookies.get('privy-token')?.value;
-  const authHeader = request.headers.get('authorization');
-  const headerToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : undefined;
-  // Prefer the HttpOnly `privy-token` cookie when present. With Privy cookies enabled,
-  // this cookie contains the user's access token (JWT) and is the most reliable source.
-  // Fall back to the Authorization header for external clients/agents.
-  const userJwt = cookieToken ?? headerToken ?? null;
-  const userJwtFallbacks =
-    cookieToken && headerToken && cookieToken !== headerToken
-      ? [headerToken]
-      : [];
-
   const authUser = await authenticate(request);
+  const privyId = authUser.privyId ?? authUser.userId;
   const body = (await request.json()) as
     | OnchainRequestBody
     | Record<string, JsonValue>;
 
-  if (!userJwt) {
-    throw new BusinessLogicError(
-      'Authentication required. Missing Privy access token.',
-      'AUTH_REQUIRED'
-    );
-  }
-
-  const txHash =
-    typeof (body as OnchainRequestBody).txHash === 'string'
-      ? (body as OnchainRequestBody).txHash?.trim() || null
-      : null;
-  const walletOverride =
-    typeof (body as OnchainRequestBody).walletAddress === 'string'
-      ? (body as OnchainRequestBody).walletAddress?.trim() || null
-      : null;
   const referralCode =
     typeof (body as OnchainRequestBody).referralCode === 'string'
       ? (body as OnchainRequestBody).referralCode?.trim() || null
@@ -125,6 +89,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       bio: users.bio,
       profileImageUrl: users.profileImageUrl,
       coverImageUrl: users.coverImageUrl,
+      privyWalletId: users.privyWalletId,
+      offlineWalletReady: users.offlineWalletReady,
       walletAddress: users.walletAddress,
       onChainRegistered: users.onChainRegistered,
       nftTokenId: users.nftTokenId,
@@ -148,21 +114,30 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  const walletAddress =
-    walletOverride?.toLowerCase() ??
-    dbUser.walletAddress ??
-    authUser.walletAddress;
-  if (!walletAddress) {
-    throw new BusinessLogicError(
-      'Wallet address is required for on-chain registration.',
-      'WALLET_REQUIRED'
-    );
+  const offlineWallet = await ensureOfflineWalletReady({
+    privyId: dbUser.privyId ?? privyId,
+  });
+  const walletAddress = offlineWallet.walletAddress.toLowerCase();
+
+  if (
+    dbUser.privyWalletId !== offlineWallet.privyWalletId ||
+    dbUser.walletAddress?.toLowerCase() !== walletAddress ||
+    !dbUser.offlineWalletReady
+  ) {
+    await db
+      .update(users)
+      .set({
+        privyWalletId: offlineWallet.privyWalletId,
+        walletAddress,
+        offlineWalletReady: true,
+        offlineWalletReadyAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, canonicalUserId));
   }
 
   const onchainResult = await processOnchainRegistration({
     user: authUser,
-    userJwt,
-    userJwtFallbacks,
     walletAddress,
     username: dbUser.username,
     displayName: dbUser.displayName,
@@ -170,7 +145,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     profileImageUrl: dbUser.profileImageUrl ?? undefined,
     coverImageUrl: dbUser.coverImageUrl ?? undefined,
     referralCode,
-    txHash,
   });
 
   const [refreshedUser] = await db
