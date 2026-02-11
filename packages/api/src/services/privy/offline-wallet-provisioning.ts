@@ -59,8 +59,7 @@ async function resolveCandidateWalletsAfterCreateWithRetry(
   privyServer: ReturnType<typeof getPrivyClient>
 ): Promise<Array<{ walletId: string; address: `0x${string}` }>> {
   const { maxAttempts, delayMs } = getRetryConfig();
-  let fallbackWallets: Array<{ walletId: string; address: `0x${string}` }> =
-    [];
+  let fallbackWallets: Array<{ walletId: string; address: `0x${string}` }> = [];
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const refreshedPrivyUser = (await privyServer.getUser(
