@@ -116,6 +116,56 @@ describe('ensureOfflineWalletReady', () => {
     expect(mockCreateWallets).toHaveBeenCalledTimes(1);
   });
 
+  it('retries wallet discovery after create when Privy user read is eventually consistent', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+
+    try {
+      mockGetUser
+        .mockResolvedValueOnce({
+          id: 'did:privy:user-2b',
+          wallet: null,
+          linkedAccounts: [],
+        })
+        .mockResolvedValueOnce({
+          id: 'did:privy:user-2b',
+          wallet: null,
+          linkedAccounts: [],
+        })
+        .mockResolvedValueOnce({
+          id: 'did:privy:user-2b',
+          wallet: null,
+          linkedAccounts: [
+            {
+              ...EMBEDDED_WALLET,
+              id: 'wallet-2b',
+              address: EMBEDDED_WALLET.address,
+              type: 'wallet',
+            },
+          ],
+        });
+
+      mockWalletGet.mockResolvedValue({
+        additional_signers: [
+          {
+            signer_id: 'offline-signer-id',
+            override_policy_ids: ['offline-policy-id'],
+          },
+        ],
+      });
+
+      const result = await ensureOfflineWalletReady({
+        privyId: 'did:privy:user-2b',
+      });
+
+      expect(result.createdWallet).toBe(true);
+      expect(result.privyWalletId).toBe('wallet-2b');
+      expect(mockGetUser).toHaveBeenCalledTimes(3);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
   it('rotates wallet when existing embedded wallet is not offline-ready', async () => {
     mockGetUser
       .mockResolvedValueOnce({
