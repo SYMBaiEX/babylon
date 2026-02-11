@@ -45,6 +45,44 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getRetryConfig(): { maxAttempts: number; delayMs: number } {
+  const isTest = process.env.NODE_ENV === 'test';
+  return {
+    maxAttempts: isTest ? 1 : 8,
+    delayMs: isTest ? 0 : 250,
+  };
+}
+
+async function resolveCandidateWalletsAfterCreateWithRetry(
+  privyId: string,
+  initialWalletIds: Set<string>,
+  privyServer: ReturnType<typeof getPrivyClient>
+): Promise<Array<{ walletId: string; address: `0x${string}` }>> {
+  const { maxAttempts, delayMs } = getRetryConfig();
+  let fallbackWallets: Array<{ walletId: string; address: `0x${string}` }> = [];
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const refreshedPrivyUser = (await privyServer.getUser(
+      privyId
+    )) as PrivyUserWithWallets;
+    const refreshedWallets = listEmbeddedEvmWallets(refreshedPrivyUser);
+    fallbackWallets = refreshedWallets;
+
+    const newWalletCandidates = refreshedWallets.filter(
+      (wallet) => !initialWalletIds.has(wallet.walletId)
+    );
+    if (newWalletCandidates.length > 0) {
+      return newWalletCandidates;
+    }
+
+    if (attempt < maxAttempts - 1 && delayMs > 0) {
+      await sleep(delayMs);
+    }
+  }
+
+  return fallbackWallets;
+}
+
 async function findReadyWalletWithRetry(
   walletIds: string[],
   privyNode: ReturnType<typeof getPrivyNodeClient>,
@@ -53,9 +91,7 @@ async function findReadyWalletWithRetry(
 ): Promise<string | null> {
   if (walletIds.length === 0) return null;
 
-  const isTest = process.env.NODE_ENV === 'test';
-  const maxAttempts = isTest ? 1 : 8;
-  const delayMs = isTest ? 0 : 250;
+  const { maxAttempts, delayMs } = getRetryConfig();
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     for (const walletId of walletIds) {
@@ -141,17 +177,18 @@ export async function ensureOfflineWalletReady({
       ],
     });
 
-    const refreshedPrivyUser = (await privyServer.getUser(
-      privyId
-    )) as PrivyUserWithWallets;
-    const refreshedWallets = listEmbeddedEvmWallets(refreshedPrivyUser);
     const initialWalletIds = new Set(initialWallets.map((w) => w.walletId));
-    const newWalletCandidates = refreshedWallets.filter(
-      (wallet) => !initialWalletIds.has(wallet.walletId)
+    const candidateWallets = await resolveCandidateWalletsAfterCreateWithRetry(
+      privyId,
+      initialWalletIds,
+      privyServer
     );
 
-    const candidateWallets =
-      newWalletCandidates.length > 0 ? newWalletCandidates : refreshedWallets;
+    if (candidateWallets.length === 0) {
+      throw new Error(
+        'Failed to resolve offline-ready embedded wallet after provisioning step'
+      );
+    }
 
     const readyWalletId = await findReadyWalletWithRetry(
       candidateWallets.map((wallet) => wallet.walletId),
@@ -159,11 +196,15 @@ export async function ensureOfflineWalletReady({
       offlineConfig.offlineSignerId,
       offlineConfig.offlinePolicyId
     );
-    if (readyWalletId) {
-      embedded =
-        candidateWallets.find((wallet) => wallet.walletId === readyWalletId) ??
-        null;
+    if (!readyWalletId) {
+      throw new Error(
+        'Offline wallet provisioning failed: signer/policy not attached on newly created wallet'
+      );
     }
+
+    embedded =
+      candidateWallets.find((wallet) => wallet.walletId === readyWalletId) ??
+      null;
   }
 
   if (!embedded) {
