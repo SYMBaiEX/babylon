@@ -3,7 +3,6 @@
 import { cn } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
-  Bot,
   Crown,
   Loader2,
   LogOut,
@@ -11,7 +10,6 @@ import {
   Settings,
   Shield,
   Trash2,
-  User,
   UserMinus,
   UserPlus,
   X,
@@ -57,23 +55,19 @@ interface SearchResult {
   displayName: string | null;
   username: string | null;
   profileImageUrl: string | null;
-  type: 'user' | 'agent' | 'npc';
+  type: 'user' | 'agent';
 }
-
-type SearchTab = 'users' | 'npcs';
 
 /**
  * Group management modal component for managing group members and settings.
  *
  * Provides comprehensive group management interface including member list,
- * adding/removing members with tabbed search (users including user-created
- * agents, and NPCs), promoting/demoting admins, and deleting groups.
+ * adding/removing members via user search (including user-created agents),
+ * promoting/demoting admins, and deleting groups.
  *
  * Features:
  * - Member list display with type badges
- * - Tabbed search for adding members (Users / NPCs)
- * - Users tab includes human users and user-created agents
- * - NPCs tab includes only system NPCs
+ * - User search for adding members (includes human users and user-created agents)
  * - Remove member functionality
  * - Promote/demote admin functionality
  * - Delete group functionality
@@ -107,7 +101,6 @@ export function GroupManagementModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState<SearchTab>('users');
 
   // Confirm dialogs
   const [confirmAction, setConfirmAction] = useState<{
@@ -124,7 +117,6 @@ export function GroupManagementModal({
       setShowAddMember(false);
       setSearchQuery('');
       setSearchResults([]);
-      setActiveTab('users');
       return;
     }
 
@@ -152,7 +144,7 @@ export function GroupManagementModal({
     loadGroupDetails();
   }, [isOpen, groupId, getAccessToken]);
 
-  // Search for users or NPCs based on active tab
+  // Search for users (including user-created agents)
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSearchResults([]);
@@ -164,68 +156,37 @@ export function GroupManagementModal({
       try {
         const token = await getAccessToken();
 
-        // Use different endpoint based on active tab
-        // Users tab includes human users + user-created agents
-        // NPCs tab only includes NPCs
-        const endpoint =
-          activeTab === 'users'
-            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}&includeAgents=true`
-            : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
-
-        const response = await fetch(endpoint, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch(
+          `/api/users/search?q=${encodeURIComponent(searchQuery)}&includeAgents=true`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         if (response.ok) {
           const data = await response.json();
           const existingMemberIds =
             groupDetails?.members.map((m) => m.id) || [];
 
-          const results: SearchResult[] =
-            activeTab === 'users'
-              ? (data.users || [])
-                  .filter(
-                    (u: { id: string }) => !existingMemberIds.includes(u.id)
-                  )
-                  .map(
-                    (u: {
-                      id: string;
-                      displayName: string | null;
-                      username: string | null;
-                      profileImageUrl: string | null;
-                      isAgent?: boolean;
-                    }) => ({
-                      id: u.id,
-                      displayName: u.displayName,
-                      username: u.username,
-                      profileImageUrl: u.profileImageUrl,
-                      // Distinguish between human users and user-created agents
-                      type: u.isAgent ? ('agent' as const) : ('user' as const),
-                    })
-                  )
-              : // Filter to only include NPCs (not user-created agents)
-                (data.agents || [])
-                  .filter(
-                    (a: { id: string; type: 'agent' | 'npc' }) =>
-                      !existingMemberIds.includes(a.id) && a.type === 'npc'
-                  )
-                  .map(
-                    (a: {
-                      id: string;
-                      displayName: string | null;
-                      username: string | null;
-                      profileImageUrl: string | null;
-                      type: 'agent' | 'npc';
-                    }) => ({
-                      id: a.id,
-                      displayName: a.displayName,
-                      username: a.username,
-                      profileImageUrl: a.profileImageUrl,
-                      type: a.type,
-                    })
-                  );
+          const results: SearchResult[] = (data.users || [])
+            .filter((u: { id: string }) => !existingMemberIds.includes(u.id))
+            .map(
+              (u: {
+                id: string;
+                displayName: string | null;
+                username: string | null;
+                profileImageUrl: string | null;
+                isAgent?: boolean;
+              }) => ({
+                id: u.id,
+                displayName: u.displayName,
+                username: u.username,
+                profileImageUrl: u.profileImageUrl,
+                type: u.isAgent ? ('agent' as const) : ('user' as const),
+              })
+            );
           setSearchResults(results);
         } else {
           setSearchResults([]);
@@ -240,14 +201,7 @@ export function GroupManagementModal({
 
     const debounce = setTimeout(searchMembers, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery, activeTab, getAccessToken, groupDetails]);
-
-  // Clear search when switching tabs
-  const handleTabChange = (tab: SearchTab) => {
-    setActiveTab(tab);
-    setSearchQuery('');
-    setSearchResults([]);
-  };
+  }, [searchQuery, getAccessToken, groupDetails]);
 
   const handleAddMember = async (userId: string) => {
     if (!groupId) return;
@@ -619,44 +573,12 @@ export function GroupManagementModal({
                   {/* Add Member Section */}
                   {showAddMember && groupDetails.isAdmin && !isNpcGroup && (
                     <div className="space-y-3 rounded-lg border border-border bg-sidebar p-3">
-                      {/* Search Tabs */}
-                      <div className="flex rounded-lg border border-border bg-background p-1">
-                        <button
-                          onClick={() => handleTabChange('users')}
-                          className={cn(
-                            'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
-                            activeTab === 'users'
-                              ? 'bg-sidebar font-medium text-foreground shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          <User className="h-3.5 w-3.5" />
-                          Users
-                        </button>
-                        <button
-                          onClick={() => handleTabChange('npcs')}
-                          className={cn(
-                            'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
-                            activeTab === 'npcs'
-                              ? 'bg-sidebar font-medium text-foreground shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          <Bot className="h-3.5 w-3.5" />
-                          NPCs
-                        </button>
-                      </div>
-
                       {/* Search Input */}
                       <div className="relative">
                         <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
                         <input
                           type="text"
-                          placeholder={
-                            activeTab === 'users'
-                              ? 'Search users...'
-                              : 'Search NPCs...'
-                          }
+                          placeholder="Search users..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="w-full rounded-lg border border-border bg-background py-2.5 pr-10 pl-9 transition-colors focus:border-primary focus:outline-none"
@@ -682,7 +604,7 @@ export function GroupManagementModal({
                                 name={
                                   result.username || result.displayName || '?'
                                 }
-                                type={result.type === 'npc' ? 'actor' : 'user'}
+                                type="user"
                                 size="sm"
                               />
                               <div className="min-w-0 flex-1">
@@ -709,7 +631,7 @@ export function GroupManagementModal({
                         searchResults.length === 0 &&
                         !searching && (
                           <div className="py-2 text-center text-muted-foreground text-sm">
-                            No {activeTab === 'users' ? 'users' : 'NPCs'} found
+                            No users found
                           </div>
                         )}
                     </div>
