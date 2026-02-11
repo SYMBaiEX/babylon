@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { usePostHog } from '@/hooks/usePostHog';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { getAuthToken } from '@/lib/auth';
 
@@ -21,6 +22,7 @@ import { getAuthToken } from '@/lib/auth';
 function BottomNavContent() {
   const pathname = usePathname();
   const { authenticated, user } = useAuth();
+  const { trackNavigation } = usePostHog();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
@@ -126,6 +128,7 @@ function BottomNavContent() {
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={() => trackNavigation(item.href, 'bottom_nav')}
                 className={cn(
                   'flex h-12 w-12 items-center justify-center rounded-lg transition-colors duration-200',
                   'hover:bg-sidebar-accent/50',

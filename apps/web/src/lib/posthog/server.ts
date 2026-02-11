@@ -3,6 +3,10 @@ import 'server-only';
 /**
  * PostHog Server Client
  * Server-side analytics and event tracking for API routes
+ *
+ * All events are automatically tagged with an `environment` property
+ * (production, staging, or development) so staging and production can be
+ * filtered independently within a single PostHog project.
  */
 
 import { PostHog } from 'posthog-node';
@@ -19,10 +23,32 @@ type StringRecord<T> = Record<string, T>;
 let posthogClient: PostHog | null = null;
 
 /**
+ * Detect the server-side deployment environment.
+ *
+ * Mirrors the logic in packages/api/src/utils/environment.ts so the posthog
+ * library stays self-contained without a cross-package dependency.
+ */
+function getServerEnvironment(): 'production' | 'staging' | 'development' {
+  if (process.env.VERCEL_ENV === 'production') return 'production';
+  if (process.env.VERCEL_ENV === 'preview') return 'staging';
+  if (process.env.NODE_ENV === 'production') return 'production';
+  return 'development';
+}
+
+/** Common properties attached to every server-side event */
+function getEnvironmentProperties(): Record<string, string> {
+  return {
+    environment: getServerEnvironment(),
+    deployment_url: process.env.VERCEL_URL || 'localhost:3000',
+    app_version: process.env.VERCEL_GIT_COMMIT_SHA || 'dev',
+  };
+}
+
+/**
  * Get the PostHog server client
  */
 export function getPostHogServerClient(): PostHog | null {
-  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID;
   const apiHost =
     process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 
@@ -60,7 +86,7 @@ export async function trackServerEvent(
     properties: {
       ...properties,
       $lib: 'posthog-node',
-      environment: process.env.NODE_ENV || 'development',
+      ...getEnvironmentProperties(),
       timestamp: new Date().toISOString(),
     },
   });
@@ -78,7 +104,10 @@ export async function identifyServerUser(
 
   client.identify({
     distinctId,
-    properties,
+    properties: {
+      ...properties,
+      ...getEnvironmentProperties(),
+    },
   });
 }
 
@@ -110,7 +139,7 @@ export async function trackServerError(
       method,
       ...(statusCode !== undefined && { statusCode }),
       ...otherContext,
-      environment: process.env.NODE_ENV || 'development',
+      ...getEnvironmentProperties(),
       timestamp: new Date().toISOString(),
     },
   });

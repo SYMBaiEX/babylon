@@ -33,6 +33,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Track page views
+  // Environment super properties are already registered during init (see client.ts),
+  // so they are automatically attached to every capture call including pageviews.
   useEffect(() => {
     if (pathname) {
       let url = window.origin + pathname;
