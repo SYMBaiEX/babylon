@@ -23,12 +23,6 @@
  *           schema:
  *             type: object
  *             properties:
- *               walletAddress:
- *                 type: string
- *                 nullable: true
- *               txHash:
- *                 type: string
- *                 nullable: true
  *               referralCode:
  *                 type: string
  *                 nullable: true
@@ -48,7 +42,6 @@
  *   method: 'POST',
  *   headers: { 'Authorization': `Bearer ${token}` },
  *   body: JSON.stringify({
- *     walletAddress: '0x...',
  *     referralCode: 'REF123'
  *   })
  * });
@@ -70,7 +63,6 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 interface OnchainRequestBody {
-  txHash?: string | null;
   referralCode?: string | null;
 }
 
@@ -97,10 +89,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  const txHash =
-    typeof (body as OnchainRequestBody).txHash === 'string'
-      ? (body as OnchainRequestBody).txHash?.trim() || null
-      : null;
   const referralCode =
     typeof (body as OnchainRequestBody).referralCode === 'string'
       ? (body as OnchainRequestBody).referralCode?.trim() || null
@@ -174,7 +162,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     profileImageUrl: dbUser.profileImageUrl ?? undefined,
     coverImageUrl: dbUser.coverImageUrl ?? undefined,
     referralCode,
-    txHash,
   });
 
   const [refreshedUser] = await db
