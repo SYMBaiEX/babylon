@@ -286,13 +286,14 @@ function pickPrivyEmbeddedWalletAddress(
 async function resolveUserEmbeddedWalletAddress(
   userId: string
 ): Promise<Address> {
-  const { privyId, privyWalletId, walletAddress } = await getDbUserForMint(
-    userId
-  );
+  const { privyId, privyWalletId, walletAddress } =
+    await getDbUserForMint(userId);
 
   const privyClient = getPrivyClient();
   try {
-    const privyUser = (await privyClient.getUser(privyId)) as PrivyUserWalletsLite;
+    const privyUser = (await privyClient.getUser(
+      privyId
+    )) as PrivyUserWalletsLite;
     // Prefer the DB-selected wallet ID (used for server-side tx signing).
     // This prevents minting to an outdated primary wallet when multiple embedded wallets exist.
     if (privyWalletId) {
