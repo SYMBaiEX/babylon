@@ -3,13 +3,13 @@
 import { cn } from '@babylon/shared';
 import { ExternalLink, MoreVertical, Settings, Square } from 'lucide-react';
 import Link from 'next/link';
+import { Avatar } from '@/components/shared/Avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar } from '@/components/shared/Avatar';
 
 /** Agent info for member list */
 interface TeamChatAgent {
