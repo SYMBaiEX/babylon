@@ -89,15 +89,15 @@
 import type { JsonValue } from '@babylon/api';
 import {
   authenticate,
+  BusinessLogicError,
   ConflictError,
+  ensureOfflineWalletReady,
   getHashedClientIp,
   getOrCreateReferralCode,
   getPrivyClient,
   InternalServerError,
   notifyNewAccount,
   PointsService,
-  type PrivyUserWalletsLite,
-  pickEmbeddedEvmWallet,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -142,9 +142,7 @@ interface SignupRequestBody {
   privacyPolicyAccepted?: boolean;
 }
 
-type PrivyUserWithWallets = PrivyUser &
-  PrivyUserWithEmails &
-  PrivyUserWalletsLite;
+type PrivyIdentityUser = PrivyUser & PrivyUserWithEmails;
 
 const SignupSchema = OnboardingProfileSchema.extend({
   identityToken: z
@@ -157,6 +155,20 @@ const SignupSchema = OnboardingProfileSchema.extend({
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
+  const cookieToken = request.cookies.get('privy-token')?.value;
+  const authHeader = request.headers.get('authorization');
+  const headerToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
+  const userJwt = cookieToken ?? headerToken ?? null;
+
+  if (!userJwt) {
+    throw new BusinessLogicError(
+      'Authentication required. Missing Privy access token.',
+      'AUTH_REQUIRED'
+    );
+  }
+
   const body = (await request.json()) as
     | SignupRequestBody
     | Record<string, JsonValue>;
@@ -192,7 +204,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const privyClient = getPrivyClient();
     const identityUser = (await privyClient.getUserFromIdToken(
       identityToken
-    )) as PrivyUserWithWallets;
+    )) as PrivyIdentityUser;
 
     identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
     identityTwitterUsername = identityUser.twitter?.username ?? undefined;
@@ -211,13 +223,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const importedTwitter = parsedProfile.importedFrom === 'twitter';
   const importedFarcaster = parsedProfile.importedFrom === 'farcaster';
 
-  const privyClient = getPrivyClient();
-  const privyUser = (await privyClient.getUser(
-    privyId
-  )) as PrivyUserWithWallets;
-  const embedded = pickEmbeddedEvmWallet(privyUser);
-  privyWalletId = embedded?.walletId ?? null;
-  walletAddress = embedded?.address?.toLowerCase() ?? walletAddress ?? null;
+  const offlineWallet = await ensureOfflineWalletReady({ privyId, userJwt });
+  privyWalletId = offlineWallet.privyWalletId;
+  walletAddress = offlineWallet.walletAddress;
 
   // Wrap transaction with retry logic for connection errors
   const result = await withRetry(
@@ -311,6 +319,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           coverImageUrl: parsedProfile.coverImageUrl ?? null,
           privyWalletId,
           walletAddress,
+          offlineWalletReady: offlineWallet.offlineWalletReady,
+          offlineWalletReadyAt: new Date(),
           profileComplete: true,
           profileSetupCompletedAt: new Date(), // Track when profile was completed
           hasUsername: true,

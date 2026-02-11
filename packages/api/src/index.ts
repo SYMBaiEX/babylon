@@ -229,6 +229,7 @@ export {
   getAuthedUserContextFromPrivyTokenBundle,
 } from './services/privy/authed-user';
 export { sendSponsoredEvmTransaction } from './services/privy/evm-send-transaction';
+export { ensureOfflineWalletReady } from './services/privy/offline-wallet-provisioning';
 // Privy (embedded wallet server-side helpers)
 export {
   type PrivyUserWalletsLite,

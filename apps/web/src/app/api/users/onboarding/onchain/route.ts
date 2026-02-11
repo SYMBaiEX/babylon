@@ -60,6 +60,7 @@ import {
   authenticate,
   BusinessLogicError,
   ConflictError,
+  ensureOfflineWalletReady,
   processOnchainRegistration,
   successResponse,
   withErrorHandling,
@@ -69,7 +70,6 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 interface OnchainRequestBody {
-  walletAddress?: string | null;
   txHash?: string | null;
   referralCode?: string | null;
 }
@@ -105,10 +105,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     typeof (body as OnchainRequestBody).txHash === 'string'
       ? (body as OnchainRequestBody).txHash?.trim() || null
       : null;
-  const walletOverride =
-    typeof (body as OnchainRequestBody).walletAddress === 'string'
-      ? (body as OnchainRequestBody).walletAddress?.trim() || null
-      : null;
   const referralCode =
     typeof (body as OnchainRequestBody).referralCode === 'string'
       ? (body as OnchainRequestBody).referralCode?.trim() || null
@@ -125,6 +121,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       bio: users.bio,
       profileImageUrl: users.profileImageUrl,
       coverImageUrl: users.coverImageUrl,
+      privyWalletId: users.privyWalletId,
+      offlineWalletReady: users.offlineWalletReady,
       walletAddress: users.walletAddress,
       onChainRegistered: users.onChainRegistered,
       nftTokenId: users.nftTokenId,
@@ -148,15 +146,27 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  const walletAddress =
-    walletOverride?.toLowerCase() ??
-    dbUser.walletAddress ??
-    authUser.walletAddress;
-  if (!walletAddress) {
-    throw new BusinessLogicError(
-      'Wallet address is required for on-chain registration.',
-      'WALLET_REQUIRED'
-    );
+  const offlineWallet = await ensureOfflineWalletReady({
+    privyId: dbUser.privyId ?? authUser.privyId ?? authUser.userId,
+    userJwt,
+  });
+  const walletAddress = offlineWallet.walletAddress.toLowerCase();
+
+  if (
+    dbUser.privyWalletId !== offlineWallet.privyWalletId ||
+    dbUser.walletAddress?.toLowerCase() !== walletAddress ||
+    !dbUser.offlineWalletReady
+  ) {
+    await db
+      .update(users)
+      .set({
+        privyWalletId: offlineWallet.privyWalletId,
+        walletAddress,
+        offlineWalletReady: true,
+        offlineWalletReadyAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, canonicalUserId));
   }
 
   const onchainResult = await processOnchainRegistration({
