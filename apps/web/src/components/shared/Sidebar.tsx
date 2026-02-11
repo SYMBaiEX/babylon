@@ -43,6 +43,7 @@ function SidebarContent() {
   const [showMdMenu, setShowMdMenu] = useState(false);
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const asideRef = useRef<HTMLElement>(null);
   const mdMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { ready, authenticated, user, logout, login } = useAuth();
@@ -111,6 +112,27 @@ function SidebarContent() {
     const interval = setInterval(fetchUnreadCount, 60000); // 60 seconds = 1 minute
     return () => clearInterval(interval);
   }, [authenticated, user]);
+
+  // Adjust sidebar height to account for elements above it (e.g. NFT banner)
+  // so the user profile bar at the bottom is always visible
+  useEffect(() => {
+    let rafId: number;
+    const updateHeight = () => {
+      rafId = requestAnimationFrame(() => {
+        if (!asideRef.current) return;
+        const top = Math.max(0, asideRef.current.getBoundingClientRect().top);
+        asideRef.current.style.height = `calc(100vh - ${top}px)`;
+      });
+    };
+    updateHeight();
+    window.addEventListener('scroll', updateHeight, { passive: true });
+    window.addEventListener('resize', updateHeight, { passive: true });
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', updateHeight);
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, []);
 
   const copyReferralCode = async () => {
     if (!user?.referralCode) return;
@@ -197,6 +219,7 @@ function SidebarContent() {
     <>
       {/* Responsive sidebar: icons only on tablet (md), icons + names on desktop (lg+) */}
       <aside
+        ref={asideRef}
         className={cn(
           'sticky top-0 isolate z-40 hidden h-screen md:flex md:flex-col',
           'bg-sidebar',
