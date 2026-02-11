@@ -108,16 +108,6 @@ export const DEPLOYER_PRIVATE_KEY: `0x${string}` =
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser;
-  /**
-   * Privy user auth token (JWT) for server-side user wallet actions.
-   * Required when Babylon needs to submit a transaction from the user's embedded wallet.
-   */
-  userJwt?: string | null;
-  /**
-   * Optional fallback JWTs (e.g. cookie token vs Authorization header token).
-   * Used only if Privy rejects the primary token at the wallet endpoint.
-   */
-  userJwtFallbacks?: string[];
   walletAddress?: string | null;
   username?: string | null;
   displayName?: string | null;
@@ -140,8 +130,6 @@ export interface OnchainRegistrationResult {
 
 export async function processOnchainRegistration({
   user,
-  userJwt,
-  userJwtFallbacks,
   walletAddress,
   username,
   displayName,
@@ -605,14 +593,6 @@ export async function processOnchainRegistration({
     }
   } else {
     // Non-agent: submit from the user's embedded wallet via Privy (server-side user wallet flow).
-    if (!userJwt) {
-      throw new InternalServerError(
-        'Missing Privy user token for transaction',
-        {
-          missing: 'userJwt',
-        }
-      );
-    }
     if (!dbUser.privyWalletId) {
       throw new InternalServerError('User embedded wallet id missing', {
         missing: 'users.privyWalletId',
@@ -626,9 +606,6 @@ export async function processOnchainRegistration({
     });
 
     const { hash } = await sendSponsoredEvmTransaction({
-      userJwt,
-      userJwtFallbacks,
-      expectedPrivyUserId: user.privyId,
       walletId: dbUser.privyWalletId,
       to: IDENTITY_REGISTRY,
       data,

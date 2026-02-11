@@ -7,23 +7,13 @@ import { getPrivyOfflineConfig } from './offline-config';
 import { getPrivyNodeClient } from './privy-node';
 
 export type SendSponsoredEvmTransactionInput = {
-  userJwt: string;
-  /**
-   * Optional fallback tokens (e.g. cookie token vs freshly-refreshed token).
-   * These are tried only if the primary token is rejected by Privy's wallet endpoint.
-   */
-  userJwtFallbacks?: string[];
-  /**
-   * Optional safety check: require that the JWT subject matches the expected Privy user id.
-   * Use this when the caller already verified auth and knows the `privyId`.
-   */
-  expectedPrivyUserId?: string;
   walletId: string;
   to: Address;
   data?: Hex;
   valueWei?: bigint;
   caip2?: string;
   chainId?: number;
+  idempotencyKey?: string;
 };
 
 /**
@@ -76,34 +66,12 @@ export function safeDecodeJwtPayload(token: string): PrivyJwtPayload | null {
   }
 }
 
-function isInvalidPrivyWalletJwtError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  // Privy wallet endpoints currently surface this message for invalid/revoked JWTs.
-  // Keep the match strict to avoid retrying on unrelated failures.
-  return error.message.toLowerCase().includes('invalid jwt token provided');
-}
-
-function dedupeNonEmptyStrings(values: Array<string | undefined>): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const v of values) {
-    if (typeof v !== 'string') continue;
-    const trimmed = v.trim();
-    if (trimmed.length === 0) continue;
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    out.push(trimmed);
-  }
-  return out;
-}
-
 /**
  * Sends a sponsored EVM transaction on behalf of a user via Privy's server-side wallet flow.
  *
  * Gas is covered by Privy's native sponsorship (`sponsor: true`), but any ETH value
  * transfers still require the user's wallet to hold sufficient funds.
  *
- * @param userJwt - The user's Privy access token (JWT) for authorization
  * @param walletId - The Privy wallet resource ID (stored in users.privyWalletId)
  * @param to - The destination contract/address
  * @param data - Optional encoded function call data
@@ -113,131 +81,16 @@ function dedupeNonEmptyStrings(values: Array<string | undefined>): string[] {
  * @returns Transaction hash and CAIP-2 identifier
  */
 export async function sendSponsoredEvmTransaction({
-  userJwt,
-  userJwtFallbacks,
-  expectedPrivyUserId,
   walletId,
   to,
   data,
   valueWei,
   caip2 = `eip155:${CHAIN.id}`,
   chainId = CHAIN.id,
+  idempotencyKey,
 }: SendSponsoredEvmTransactionInput): Promise<{ hash: Hex; caip2: string }> {
-  const jwtCandidates = dedupeNonEmptyStrings([
-    userJwt,
-    ...(userJwtFallbacks ?? []),
-  ]);
-  if (jwtCandidates.length === 0) {
-    throw new Error('Missing Privy user JWT');
-  }
-
   const offlineConfig = getPrivyOfflineConfig();
   const appId = offlineConfig.appId;
-
-  // Pre-flight validate candidates (decode-only) so we can skip obviously-invalid tokens
-  // without paying for a wallet API call.
-  const parsedBuffer = Number(process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS);
-  const expiryBuffer =
-    Number.isFinite(parsedBuffer) && parsedBuffer > 0 ? parsedBuffer : 30;
-
-  const invalidJwtError = new Error(
-    'Invalid Privy user JWT: token must be a valid JWT with the expected Privy claims (aud, sub, iss, iat, exp)'
-  );
-
-  const candidates: Array<{ token: string; payload: PrivyJwtPayload }> = [];
-  let firstValidationError: Error | undefined;
-  let lastValidationError: Error | undefined;
-  for (const token of jwtCandidates) {
-    const payload = safeDecodeJwtPayload(token);
-    if (!payload) {
-      // Preserve the previous error message semantics for single-token calls.
-      lastValidationError = invalidJwtError;
-      if (!firstValidationError) firstValidationError = invalidJwtError;
-      continue;
-    }
-
-    if (expectedPrivyUserId && payload.sub !== expectedPrivyUserId) {
-      const err = new Error(
-        'Privy token subject mismatch: token does not match the authenticated user'
-      );
-      lastValidationError = err;
-      if (!firstValidationError) firstValidationError = err;
-      continue;
-    }
-
-    if (!payload.exp) {
-      const err = new Error(
-        'Privy JWT is missing an expiration claim (exp). Cannot authorize wallet operations without a verifiable token lifetime.'
-      );
-      lastValidationError = err;
-      if (!firstValidationError) firstValidationError = err;
-      continue;
-    }
-
-    if (payload.exp < Date.now() / 1000 + expiryBuffer) {
-      const err = new Error(
-        `Privy JWT is expired or about to expire (exp: ${new Date(payload.exp * 1000).toISOString()}). Please refresh your session.`
-      );
-      lastValidationError = err;
-      if (!firstValidationError) firstValidationError = err;
-      continue;
-    }
-
-    if (appId) {
-      const tokenAud = payload.aud;
-      const audMatches =
-        tokenAud === appId ||
-        (Array.isArray(tokenAud) && tokenAud.includes(appId));
-      if (!audMatches) {
-        const err = new Error(
-          `Privy token audience mismatch: token audience "${tokenAud}" does not match app ID "${appId}"`
-        );
-        lastValidationError = err;
-        if (!firstValidationError) firstValidationError = err;
-        continue;
-      }
-    }
-
-    candidates.push({ token, payload });
-  }
-
-  if (candidates.length === 0) {
-    // Preserve clear, single-cause error semantics for callers/tests.
-    throw firstValidationError ?? lastValidationError ?? invalidJwtError;
-  }
-
-  // Debug: Log JWT header + claims to diagnose auth issues (no sensitive identifiers).
-  // Only log for the first candidate we will try.
-  const first = candidates[0];
-  // Satisfy `noUncheckedIndexedAccess`: even with length checks, TS keeps index access as possibly-undefined.
-  if (!first) {
-    throw new Error('Invalid Privy user JWT: no usable token candidates');
-  }
-  const jwtHeader = safeDecodeJwtHeader(first.token);
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  logger.debug(
-    'Privy JWT diagnostics',
-    {
-      alg: jwtHeader?.alg,
-      typ: jwtHeader?.typ,
-      kid: jwtHeader?.kid,
-      iss: first.payload.iss,
-      aud: first.payload.aud,
-      sid: first.payload.sid,
-      iat: first.payload.iat,
-      exp: first.payload.exp,
-      tokenAgeSec: nowSeconds - first.payload.iat,
-      timeToExpirySec: first.payload.exp - nowSeconds,
-      isExpired: first.payload.exp ? first.payload.exp < nowSeconds : 'no-exp',
-      configuredAppId: appId,
-      candidatesCount: candidates.length,
-      jwtLength: first.token.length,
-      expectedPrivyUserId: expectedPrivyUserId ? 'provided' : 'not-provided',
-      caip2,
-      chainId,
-    },
-    'sendSponsoredEvmTransaction'
-  );
 
   const privy = getPrivyNodeClient();
   const authorizationPrivateKey = offlineConfig.authorizationPrivateKey;
@@ -260,98 +113,68 @@ export async function sendSponsoredEvmTransaction({
   logger.debug(
     'Submitting sponsored transaction via Privy',
     {
+      appId,
       walletId,
       to,
       chainId,
       hasData: !!data,
       hasValue: !!valueHex,
       valueWei: valueWei?.toString(),
+      hasIdempotencyKey: Boolean(idempotencyKey),
     },
     'sendSponsoredEvmTransaction'
   );
 
-  let lastError: unknown;
-  for (let i = 0; i < candidates.length; i += 1) {
-    const candidate = candidates[i];
-    if (!candidate) continue;
-    const { token } = candidate;
-    const authorizationContext: AuthorizationContext = {
-      user_jwts: [token],
-      authorization_private_keys: [authorizationPrivateKey],
-    };
+  const authorizationContext: AuthorizationContext = {
+    authorization_private_keys: [authorizationPrivateKey],
+  };
 
-    try {
-      const response = await privy
-        .wallets()
-        .ethereum()
-        .sendTransaction(walletId, {
-          caip2,
-          sponsor: true,
-          authorization_context: authorizationContext,
-          params: {
-            transaction: {
-              to,
-              chain_id: chainId,
-              ...(valueHex ? { value: valueHex } : {}),
-              ...(data ? { data } : {}),
-            },
+  try {
+    const response = await privy
+      .wallets()
+      .ethereum()
+      .sendTransaction(walletId, {
+        caip2,
+        sponsor: true,
+        authorization_context: authorizationContext,
+        ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+        params: {
+          transaction: {
+            to,
+            chain_id: chainId,
+            ...(valueHex ? { value: valueHex } : {}),
+            ...(data ? { data } : {}),
           },
-        });
-
-      logger.info(
-        'Sponsored transaction submitted successfully',
-        {
-          txHash: response.hash,
-          caip2: response.caip2,
-          walletId,
-          to,
         },
-        'sendSponsoredEvmTransaction'
-      );
+      });
 
-      return { hash: response.hash as Hex, caip2: response.caip2 };
-    } catch (error) {
-      lastError = error;
-      // Only retry on the specific auth failure we expect for token rotation/revocation.
-      if (!isInvalidPrivyWalletJwtError(error)) {
-        throw error;
-      }
-      if (i < candidates.length - 1) {
-        logger.warn(
-          'Privy wallet rejected JWT, trying fallback token',
-          {
-            candidateIndex: i,
-            candidatesCount: candidates.length,
-            caip2,
-            chainId,
-            walletId,
-            sid: candidate.payload.sid,
-            tokenAgeSec: Math.floor(Date.now() / 1000 - candidate.payload.iat),
-          },
-          'sendSponsoredEvmTransaction'
-        );
-      }
-      // Continue to next candidate (if any).
-    }
+    logger.info(
+      'Sponsored transaction submitted successfully',
+      {
+        txHash: response.hash,
+        caip2: response.caip2,
+        walletId,
+        to,
+      },
+      'sendSponsoredEvmTransaction'
+    );
+
+    return { hash: response.hash as Hex, caip2: response.caip2 };
+  } catch (error) {
+    logger.error(
+      'Failed to submit offline sponsored transaction',
+      {
+        caip2,
+        chainId,
+        walletId,
+        to,
+        errorMessage: error instanceof Error ? error.message : 'unknown',
+      },
+      'sendSponsoredEvmTransaction'
+    );
+
+    throw error instanceof Error
+      ? error
+      : new Error('Failed to submit sponsored transaction via Privy');
   }
-
-  // All candidates exhausted — log a final summary with chain context so
-  // chain-specific configuration issues (e.g. missing gas sponsorship) are
-  // immediately visible in logs.
-  logger.error(
-    'All JWT candidates rejected by Privy wallet endpoint',
-    {
-      caip2,
-      chainId,
-      walletId,
-      to,
-      candidatesCount: candidates.length,
-      errorMessage: lastError instanceof Error ? lastError.message : 'unknown',
-    },
-    'sendSponsoredEvmTransaction'
-  );
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('Failed to submit sponsored transaction via Privy');
 }

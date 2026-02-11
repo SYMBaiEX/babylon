@@ -191,9 +191,6 @@ export async function mintNftAction(input?: {
   let hash: Hex;
   try {
     const result = await sendSponsoredEvmTransaction({
-      userJwt: privyToken,
-      userJwtFallbacks: fallbackPrivyToken ? [fallbackPrivyToken] : [],
-      expectedPrivyUserId: ctx.privyId,
       walletId: ctx.privyWalletId,
       to: prepare.contractAddress as Address,
       data: prepare.encodedData,
