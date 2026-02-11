@@ -3,6 +3,7 @@ import type { AuthorizationContext } from '@privy-io/node';
 import { decodeJwt, decodeProtectedHeader } from 'jose';
 import type { Address, Hex } from 'viem';
 import { z } from 'zod';
+import { extractPrivyApiDiagnostics } from './error-diagnostics';
 import { getPrivyOfflineConfig } from './offline-config';
 import { getPrivyNodeClient } from './privy-node';
 
@@ -15,79 +16,6 @@ export type SendSponsoredEvmTransactionInput = {
   chainId?: number;
   idempotencyKey?: string;
 };
-
-type PrivyApiDiagnostics = {
-  errorName?: string;
-  errorMessage?: string;
-  status?: number;
-  providerCode?: string;
-  providerRequestId?: string;
-  providerMessage?: string;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function pickHeaderValue(
-  headers: unknown,
-  headerName: string
-): string | undefined {
-  if (!headers) return undefined;
-
-  if (typeof Headers !== 'undefined' && headers instanceof Headers) {
-    return headers.get(headerName) ?? undefined;
-  }
-
-  if (isRecord(headers)) {
-    const direct = headers[headerName];
-    if (typeof direct === 'string' && direct.length > 0) return direct;
-    const lower = headers[headerName.toLowerCase()];
-    if (typeof lower === 'string' && lower.length > 0) return lower;
-  }
-
-  return undefined;
-}
-
-function extractPrivyApiDiagnostics(error: unknown): PrivyApiDiagnostics {
-  const diagnostics: PrivyApiDiagnostics = {};
-
-  if (error instanceof Error) {
-    diagnostics.errorName = error.name;
-    diagnostics.errorMessage = error.message;
-  } else if (typeof error === 'string') {
-    diagnostics.errorMessage = error;
-  }
-
-  if (!isRecord(error)) return diagnostics;
-
-  const status = error.status;
-  if (typeof status === 'number' && Number.isFinite(status)) {
-    diagnostics.status = status;
-  }
-
-  const providerRequestId =
-    pickHeaderValue(error.headers, 'x-request-id') ??
-    pickHeaderValue(error.headers, 'x-privy-request-id');
-  if (providerRequestId) {
-    diagnostics.providerRequestId = providerRequestId;
-  }
-
-  const providerError = error.error;
-  if (isRecord(providerError)) {
-    const providerCode = providerError.code;
-    if (typeof providerCode === 'string' && providerCode.length > 0) {
-      diagnostics.providerCode = providerCode;
-    }
-
-    const providerMessage = providerError.message;
-    if (typeof providerMessage === 'string' && providerMessage.length > 0) {
-      diagnostics.providerMessage = providerMessage;
-    }
-  }
-
-  return diagnostics;
-}
 
 /**
  * Runtime schema for a Privy JWT payload.

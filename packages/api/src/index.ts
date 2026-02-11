@@ -230,6 +230,11 @@ export {
 } from './services/privy/authed-user';
 export { sendSponsoredEvmTransaction } from './services/privy/evm-send-transaction';
 export { ensureOfflineWalletReady } from './services/privy/offline-wallet-provisioning';
+export {
+  extractPrivyApiDiagnostics,
+  redactJwtLikeTokens,
+  type PrivyApiDiagnostics,
+} from './services/privy/error-diagnostics';
 // Privy (embedded wallet server-side helpers)
 export {
   type PrivyUserWalletsLite,
