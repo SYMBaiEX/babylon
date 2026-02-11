@@ -87,7 +87,8 @@ export async function ensureOfflineWalletReady({
     privyId
   )) as PrivyUserWithWallets;
   const initialWallets = listEmbeddedEvmWallets(initialPrivyUser);
-  let embedded = initialWallets[0] ?? null;
+  let embedded: (typeof initialWallets)[number] | null =
+    initialWallets[0] ?? null;
 
   for (const candidate of initialWallets) {
     const wallet = await privyNode.wallets().get(candidate.walletId);
