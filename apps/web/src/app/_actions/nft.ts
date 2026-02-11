@@ -21,6 +21,15 @@ type MintStep =
   | 'send_transaction'
   | 'confirm';
 
+type MintDebugDetails = {
+  errorName?: string;
+  errorMessage?: string;
+  status?: number;
+  providerCode?: string;
+  providerRequestId?: string;
+  providerMessage?: string;
+};
+
 function redactJwtLikeTokens(text: string): string {
   // Redact JWT-like strings (base64url.base64url.base64url).
   // This avoids accidentally logging auth tokens if they show up in an error message/stack.
@@ -32,6 +41,78 @@ function redactJwtLikeTokens(text: string): string {
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return typeof error === 'string' ? error : 'Unknown error';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function exposeOnchainErrorDetails(): boolean {
+  const raw = process.env.EXPOSE_ONCHAIN_ERROR_DETAILS;
+  if (!raw) return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
+}
+
+function pickHeaderValue(
+  headers: unknown,
+  headerName: string
+): string | undefined {
+  if (!headers) return undefined;
+
+  if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+    return headers.get(headerName) ?? undefined;
+  }
+
+  if (isRecord(headers)) {
+    const direct = headers[headerName];
+    if (typeof direct === 'string' && direct.length > 0) return direct;
+    const lower = headers[headerName.toLowerCase()];
+    if (typeof lower === 'string' && lower.length > 0) return lower;
+  }
+
+  return undefined;
+}
+
+function toDebugDetails(error: unknown): MintDebugDetails | undefined {
+  if (!exposeOnchainErrorDetails()) return undefined;
+
+  const debug: MintDebugDetails = {};
+
+  if (error instanceof Error) {
+    debug.errorName = error.name;
+    debug.errorMessage = redactJwtLikeTokens(error.message);
+  } else if (typeof error === 'string') {
+    debug.errorMessage = redactJwtLikeTokens(error);
+  }
+
+  if (isRecord(error)) {
+    const status = error.status;
+    if (typeof status === 'number' && Number.isFinite(status)) {
+      debug.status = status;
+    }
+
+    const providerRequestId =
+      pickHeaderValue(error.headers, 'x-request-id') ??
+      pickHeaderValue(error.headers, 'x-privy-request-id');
+    if (providerRequestId) {
+      debug.providerRequestId = providerRequestId;
+    }
+
+    const providerError = error.error;
+    if (isRecord(providerError)) {
+      const providerCode = providerError.code;
+      if (typeof providerCode === 'string' && providerCode.length > 0) {
+        debug.providerCode = providerCode;
+      }
+
+      const providerMessage = providerError.message;
+      if (typeof providerMessage === 'string' && providerMessage.length > 0) {
+        debug.providerMessage = redactJwtLikeTokens(providerMessage);
+      }
+    }
+  }
+
+  return Object.keys(debug).length > 0 ? debug : undefined;
 }
 
 function toSafeLogError(error: unknown): {
@@ -90,7 +171,13 @@ function toUserSafeMintError(step: MintStep, error: unknown): string {
 export type MintNftActionResult =
   | ({ status: 'confirmed'; txHash: Hex } & ConfirmResult)
   | { status: 'pending'; txHash: Hex; message: string }
-  | { status: 'error'; error: string; step: MintStep; errorId: string };
+  | {
+      status: 'error';
+      error: string;
+      step: MintStep;
+      errorId: string;
+      debug?: MintDebugDetails;
+    };
 
 /**
  * Exponential backoff sleep with jitter for polling.
@@ -141,6 +228,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -164,6 +252,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -184,6 +273,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -219,6 +309,7 @@ export async function mintNftAction(input?: {
       error: toUserSafeMintError(step, e),
       step,
       errorId,
+      debug: toDebugDetails(e),
     };
   }
 
@@ -254,6 +345,7 @@ export async function mintNftAction(input?: {
         error: toUserSafeMintError(step, error),
         step,
         errorId,
+        debug: toDebugDetails(error),
       };
     }
   }

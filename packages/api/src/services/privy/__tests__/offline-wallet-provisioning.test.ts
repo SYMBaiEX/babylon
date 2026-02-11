@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 const mockGetUser = mock();
 const mockCreateWallets = mock();
 const mockWalletGet = mock();
-const mockWalletUpdate = mock();
 
 mock.module('@babylon/shared', () => ({
   logger: {
@@ -25,7 +24,6 @@ mock.module('../privy-node', () => ({
   getPrivyNodeClient: () => ({
     wallets: () => ({
       get: mockWalletGet,
-      update: mockWalletUpdate,
     }),
   }),
 }));
@@ -46,7 +44,6 @@ describe('ensureOfflineWalletReady', () => {
     mockGetUser.mockReset();
     mockCreateWallets.mockReset();
     mockWalletGet.mockReset();
-    mockWalletUpdate.mockReset();
 
     process.env.PRIVY_APP_ID = 'test-app-id';
     process.env.PRIVY_APP_SECRET = 'test-secret';
@@ -72,7 +69,6 @@ describe('ensureOfflineWalletReady', () => {
 
     const result = await ensureOfflineWalletReady({
       privyId: 'did:privy:user-1',
-      userJwt: 'jwt-token',
     });
 
     expect(result.offlineWalletReady).toBe(true);
@@ -80,7 +76,6 @@ describe('ensureOfflineWalletReady', () => {
     expect(result.updatedSigner).toBe(false);
     expect(result.privyWalletId).toBe('wallet-1');
     expect(mockCreateWallets).not.toHaveBeenCalled();
-    expect(mockWalletUpdate).not.toHaveBeenCalled();
   });
 
   it('creates wallet when embedded wallet is missing', async () => {
@@ -92,8 +87,15 @@ describe('ensureOfflineWalletReady', () => {
       })
       .mockResolvedValueOnce({
         id: 'did:privy:user-2',
-        wallet: EMBEDDED_WALLET,
-        linkedAccounts: [],
+        wallet: null,
+        linkedAccounts: [
+          {
+            ...EMBEDDED_WALLET,
+            id: 'wallet-2',
+            address: EMBEDDED_WALLET.address,
+            type: 'wallet',
+          },
+        ],
       });
     mockWalletGet.mockResolvedValue({
       additional_signers: [
@@ -106,63 +108,81 @@ describe('ensureOfflineWalletReady', () => {
 
     const result = await ensureOfflineWalletReady({
       privyId: 'did:privy:user-2',
-      userJwt: 'jwt-token',
     });
 
     expect(result.createdWallet).toBe(true);
     expect(result.updatedSigner).toBe(false);
+    expect(result.privyWalletId).toBe('wallet-2');
     expect(mockCreateWallets).toHaveBeenCalledTimes(1);
   });
 
-  it('updates wallet signers when signer policy is missing', async () => {
-    mockGetUser.mockResolvedValue({
-      id: 'did:privy:user-3',
-      wallet: EMBEDDED_WALLET,
-      linkedAccounts: [],
-    });
-    mockWalletGet
+  it('rotates wallet when existing embedded wallet is not offline-ready', async () => {
+    mockGetUser
       .mockResolvedValueOnce({
-        additional_signers: [],
+        id: 'did:privy:user-3',
+        wallet: { ...EMBEDDED_WALLET, id: 'wallet-old' },
+        linkedAccounts: [],
       })
       .mockResolvedValueOnce({
-        additional_signers: [
+        id: 'did:privy:user-3',
+        wallet: { ...EMBEDDED_WALLET, id: 'wallet-old' },
+        linkedAccounts: [
           {
-            signer_id: 'offline-signer-id',
-            override_policy_ids: ['offline-policy-id'],
+            ...EMBEDDED_WALLET,
+            id: 'wallet-new',
+            address: '0x0000000000000000000000000000000000000002',
+            type: 'wallet',
           },
         ],
       });
+    mockWalletGet.mockImplementation(async (walletId: string) => {
+      if (walletId === 'wallet-old') return { additional_signers: [] };
+      if (walletId === 'wallet-new') {
+        return {
+          additional_signers: [
+            {
+              signer_id: 'offline-signer-id',
+              override_policy_ids: ['offline-policy-id'],
+            },
+          ],
+        };
+      }
+      return { additional_signers: [] };
+    });
 
     const result = await ensureOfflineWalletReady({
       privyId: 'did:privy:user-3',
-      userJwt: 'jwt-token',
     });
 
-    expect(result.createdWallet).toBe(false);
-    expect(result.updatedSigner).toBe(true);
-    expect(mockWalletUpdate).toHaveBeenCalledTimes(1);
-    expect(mockWalletUpdate).toHaveBeenCalledWith('wallet-1', {
-      additional_signers: [
-        {
-          signer_id: 'offline-signer-id',
-          override_policy_ids: ['offline-policy-id'],
-        },
-      ],
-      authorization_context: {
-        user_jwts: ['jwt-token'],
-        authorization_private_keys: ['test-authorization-key'],
-      },
-    });
+    expect(result.createdWallet).toBe(true);
+    expect(result.updatedSigner).toBe(false);
+    expect(result.privyWalletId).toBe('wallet-new');
+    expect(result.walletAddress).toBe(
+      '0x0000000000000000000000000000000000000002'
+    );
+    expect(mockCreateWallets).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects when user JWT is missing', async () => {
+  it('fails when no offline-ready wallet can be resolved after creation', async () => {
+    mockGetUser
+      .mockResolvedValueOnce({
+        id: 'did:privy:user-4',
+        wallet: { ...EMBEDDED_WALLET, id: 'wallet-old' },
+        linkedAccounts: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'did:privy:user-4',
+        wallet: { ...EMBEDDED_WALLET, id: 'wallet-old' },
+        linkedAccounts: [],
+      });
+    mockWalletGet.mockResolvedValue({ additional_signers: [] });
+
     await expect(
       ensureOfflineWalletReady({
         privyId: 'did:privy:user-4',
-        userJwt: '',
       })
     ).rejects.toThrow(
-      'Cannot provision offline wallet readiness without an authenticated Privy JWT'
+      'Offline wallet provisioning failed: signer/policy not attached on newly created wallet'
     );
   });
 });

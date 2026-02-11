@@ -1,7 +1,7 @@
 'use server';
 
 import {
-  getAuthedUserContextFromPrivyToken,
+  getAuthedUserContextFromPrivyTokenBundle,
   sendSponsoredEvmTransaction,
 } from '@babylon/api';
 import { getContractAddresses } from '@babylon/contracts';
@@ -63,8 +63,7 @@ export async function buySharesOnchainAction(input: {
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
   const bundle = await requirePrivyTokenBundle(input.userJwt);
-  const privyToken = bundle.primary;
-  const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
+  const ctx = await getAuthedUserContextFromPrivyTokenBundle(bundle);
 
   const marketIdBytes32 = marketIdToBytes32(input.marketId);
   const outcomeIndex = input.outcome === 'YES' ? 1 : 0;
@@ -95,8 +94,7 @@ export async function sellSharesOnchainAction(input: {
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
   const bundle = await requirePrivyTokenBundle(input.userJwt);
-  const privyToken = bundle.primary;
-  const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
+  const ctx = await getAuthedUserContextFromPrivyTokenBundle(bundle);
 
   const marketIdBytes32 = marketIdToBytes32(input.marketId);
   const outcomeIndex = input.outcome === 'YES' ? 1 : 0;
@@ -126,8 +124,7 @@ export async function sendSponsoredEthTransferAction(input: {
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
   const bundle = await requirePrivyTokenBundle(input.userJwt);
-  const privyToken = bundle.primary;
-  const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
+  const ctx = await getAuthedUserContextFromPrivyTokenBundle(bundle);
 
   if (!isAddress(input.to)) {
     throw new Error('Invalid recipient address');
@@ -151,8 +148,7 @@ export async function updateAgentProfileOnchainAction(input: {
   userJwt?: string;
 }): Promise<{ txHash: Hex }> {
   const bundle = await requirePrivyTokenBundle(input.userJwt);
-  const privyToken = bundle.primary;
-  const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
+  const ctx = await getAuthedUserContextFromPrivyTokenBundle(bundle);
 
   const registryAddress = getIdentityRegistryAddress();
   if (!registryAddress) {
