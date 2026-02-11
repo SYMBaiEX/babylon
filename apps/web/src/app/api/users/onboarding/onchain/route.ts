@@ -67,27 +67,11 @@ interface OnchainRequestBody {
 }
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const cookieToken = request.cookies.get('privy-token')?.value;
-  const authHeader = request.headers.get('authorization');
-  const headerToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : undefined;
-  // Prefer the HttpOnly `privy-token` cookie when present. With Privy cookies enabled,
-  // this cookie contains the user's access token (JWT) and is the most reliable source.
-  // Fall back to the Authorization header for external clients/agents.
-  const userJwt = cookieToken ?? headerToken ?? null;
-
   const authUser = await authenticate(request);
+  const privyId = authUser.privyId ?? authUser.userId;
   const body = (await request.json()) as
     | OnchainRequestBody
     | Record<string, JsonValue>;
-
-  if (!userJwt) {
-    throw new BusinessLogicError(
-      'Authentication required. Missing Privy access token.',
-      'AUTH_REQUIRED'
-    );
-  }
 
   const referralCode =
     typeof (body as OnchainRequestBody).referralCode === 'string'
@@ -131,8 +115,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const offlineWallet = await ensureOfflineWalletReady({
-    privyId: dbUser.privyId ?? authUser.privyId ?? authUser.userId,
-    userJwt,
+    privyId: dbUser.privyId ?? privyId,
   });
   const walletAddress = offlineWallet.walletAddress.toLowerCase();
 

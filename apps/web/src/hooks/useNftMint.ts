@@ -175,6 +175,7 @@ export function useNftMint(): UseNftMintResult {
           step: result.step,
           errorId: result.errorId,
           message: result.error,
+          debug: result.debug,
         });
         handleError(result.error, result.errorId);
         return;

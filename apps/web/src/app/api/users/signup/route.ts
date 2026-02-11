@@ -89,7 +89,6 @@
 import type { JsonValue } from '@babylon/api';
 import {
   authenticate,
-  BusinessLogicError,
   ConflictError,
   ensureOfflineWalletReady,
   getHashedClientIp,
@@ -155,19 +154,7 @@ const SignupSchema = OnboardingProfileSchema.extend({
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
-  const cookieToken = request.cookies.get('privy-token')?.value;
-  const authHeader = request.headers.get('authorization');
-  const headerToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : undefined;
-  const userJwt = cookieToken ?? headerToken ?? null;
-
-  if (!userJwt) {
-    throw new BusinessLogicError(
-      'Authentication required. Missing Privy access token.',
-      'AUTH_REQUIRED'
-    );
-  }
+  const privyId = authUser.privyId ?? authUser.userId;
 
   const body = (await request.json()) as
     | SignupRequestBody
@@ -184,7 +171,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const referralCode = rawReferralCode?.trim() || null;
 
   const canonicalUserId = authUser.dbUserId ?? authUser.userId;
-  const privyId = authUser.privyId ?? authUser.userId;
   // Embedded-wallet-only: persist the embedded wallet (EOA) as the user's onchain identity.
   let walletAddress = authUser.walletAddress?.toLowerCase() ?? null;
   let privyWalletId: string | null = null;
@@ -223,7 +209,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const importedTwitter = parsedProfile.importedFrom === 'twitter';
   const importedFarcaster = parsedProfile.importedFrom === 'farcaster';
 
-  const offlineWallet = await ensureOfflineWalletReady({ privyId, userJwt });
+  const offlineWallet = await ensureOfflineWalletReady({
+    privyId,
+  });
   privyWalletId = offlineWallet.privyWalletId;
   walletAddress = offlineWallet.walletAddress;
 

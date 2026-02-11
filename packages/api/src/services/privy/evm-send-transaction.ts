@@ -3,6 +3,7 @@ import type { AuthorizationContext } from '@privy-io/node';
 import { decodeJwt, decodeProtectedHeader } from 'jose';
 import type { Address, Hex } from 'viem';
 import { z } from 'zod';
+import { extractPrivyApiDiagnostics } from './error-diagnostics';
 import { getPrivyOfflineConfig } from './offline-config';
 import { getPrivyNodeClient } from './privy-node';
 
@@ -161,6 +162,8 @@ export async function sendSponsoredEvmTransaction({
 
     return { hash: response.hash as Hex, caip2: response.caip2 };
   } catch (error) {
+    const diagnostics = extractPrivyApiDiagnostics(error);
+
     logger.error(
       'Failed to submit offline sponsored transaction',
       {
@@ -168,7 +171,7 @@ export async function sendSponsoredEvmTransaction({
         chainId,
         walletId,
         to,
-        errorMessage: error instanceof Error ? error.message : 'unknown',
+        ...diagnostics,
       },
       'sendSponsoredEvmTransaction'
     );

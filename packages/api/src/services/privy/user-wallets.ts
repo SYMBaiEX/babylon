@@ -43,6 +43,13 @@ function isPrivyEmbeddedWallet(wallet: PrivyWalletLite): boolean {
 export function pickEmbeddedEvmWallet(
   user: PrivyUserWalletsLite
 ): { walletId: string; address: Address } | null {
+  const wallets = listEmbeddedEvmWallets(user);
+  return wallets.length > 0 ? wallets[0]! : null;
+}
+
+export function listEmbeddedEvmWallets(
+  user: PrivyUserWalletsLite
+): Array<{ walletId: string; address: Address }> {
   const candidates: Array<{
     wallet: PrivyWalletLite;
     source: 'primary' | 'linked';
@@ -56,6 +63,9 @@ export function pickEmbeddedEvmWallet(
     if (acc?.type === 'wallet')
       candidates.push({ wallet: acc, source: 'linked' });
   }
+
+  const wallets: Array<{ walletId: string; address: Address }> = [];
+  const seen = new Set<string>();
 
   for (const { wallet, source } of candidates) {
     if (!wallet?.id || typeof wallet.id !== 'string') continue;
@@ -71,11 +81,13 @@ export function pickEmbeddedEvmWallet(
       }
     }
     if (!isPrivyEmbeddedWallet(wallet)) continue;
-    return {
+    if (seen.has(wallet.id)) continue;
+    seen.add(wallet.id);
+    wallets.push({
       walletId: wallet.id,
       address: wallet.address.toLowerCase() as Address,
-    };
+    });
   }
 
-  return null;
+  return wallets;
 }

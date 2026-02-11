@@ -143,7 +143,6 @@
 
 import {
   authenticate,
-  BusinessLogicError,
   ConflictError,
   cachedDb,
   ensureOfflineWalletReady,
@@ -381,12 +380,6 @@ async function updateReferrerForIncompleteUser(
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
-  const cookieToken = request.cookies.get('privy-token')?.value;
-  const authHeader = request.headers.get('authorization');
-  const headerToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : undefined;
-  const userJwt = cookieToken ?? headerToken ?? null;
   const privyId = authUser.privyId ?? authUser.userId;
   const canonicalUserId = authUser.dbUserId ?? authUser.userId;
   const clientEmbeddedWalletAddressRaw = request.headers.get(
@@ -830,14 +823,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     shouldResyncWallet;
 
   if (shouldEnsureOfflineWallet) {
-    if (!userJwt) {
-      throw new BusinessLogicError(
-        'Authentication required. Missing Privy access token for offline wallet provisioning.',
-        'AUTH_REQUIRED'
-      );
-    }
-
-    const offlineWallet = await ensureOfflineWalletReady({ privyId, userJwt });
+    const offlineWallet = await ensureOfflineWalletReady({ privyId });
     const resolvedAddress = offlineWallet.walletAddress.toLowerCase();
 
     if (
