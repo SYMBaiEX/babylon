@@ -144,6 +144,24 @@ export default function NftGalleryPage() {
     }
   };
 
+  const mintStepState = {
+    preparing: flowState === 'preparing',
+    minting: flowState === 'minting',
+    confirming: flowState === 'confirming',
+  };
+
+  const mintStepIndex = mintStepState.confirming
+    ? 2
+    : mintStepState.minting
+      ? 1
+      : 0;
+
+  const mintStatusMessage = mintStepState.preparing
+    ? 'Preparing your claim...'
+    : mintStepState.minting
+      ? 'Submitting transaction to Ethereum...'
+      : 'Waiting for network confirmation...';
+
   return (
     <PageContainer noPadding className="flex h-full flex-col">
       {/* Header */}
@@ -395,6 +413,60 @@ export default function NftGalleryPage() {
         nft={mintedNft}
         onClose={resetFlow}
       />
+
+      {/* Mint Loading Overlay */}
+      {isMinting && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <div className="mb-5 flex justify-center">
+              <div className="relative h-16 w-16">
+                <div className="absolute inset-0 animate-ping rounded-full bg-[#0066FF]/25" />
+                <div className="absolute inset-0 animate-spin rounded-full border-2 border-[#0066FF]/20 border-t-[#0066FF]" />
+                <div className="absolute inset-2 rounded-full bg-[#0066FF]/10" />
+              </div>
+            </div>
+
+            <h3 className="mb-2 text-center font-bold text-foreground text-lg">
+              Mint in progress
+            </h3>
+            <p className="mb-5 text-center text-muted-foreground text-sm">
+              {mintStatusMessage}
+            </p>
+
+            <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+              {['Prepare', 'Submit', 'Confirm'].map((label, index) => {
+                const isActive = index === mintStepIndex;
+                const isComplete = index < mintStepIndex;
+
+                return (
+                  <div key={label} className="space-y-1">
+                    <div
+                      className={`h-1.5 rounded-full transition-colors ${
+                        isComplete || isActive
+                          ? 'bg-[#0066FF]'
+                          : 'bg-muted-foreground/20'
+                      }`}
+                    />
+                    <p
+                      className={`font-medium text-xs ${
+                        isComplete || isActive
+                          ? 'text-foreground'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {label}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-center text-muted-foreground/80 text-xs">
+              This can take around 15-30 seconds on Ethereum mainnet.
+            </p>
+          </div>
+        </div>
+      )}
     </PageContainer>
   );
 }
