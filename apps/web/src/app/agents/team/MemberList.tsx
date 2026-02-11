@@ -1,7 +1,8 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Settings, Square } from 'lucide-react';
+import { AtSign, Settings, Square } from 'lucide-react';
+import Link from 'next/link';
 import { Avatar } from '@/components/shared/Avatar';
 
 /** Agent info for member list */
@@ -69,42 +70,64 @@ export function MemberList({
                     isProcessing && 'opacity-70'
                   )}
                 >
-                  {/* Agent info - clickable to tag in input */}
-                  <button
-                    type="button"
-                    onClick={() => onTagAgent?.(agent)}
-                    disabled={isProcessing}
-                    className={cn(
-                      'flex min-w-0 flex-1 items-center gap-3 text-left',
-                      isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'
-                    )}
-                    aria-label={`Tag ${agentName}`}
-                  >
-                    <div className="relative">
-                      <Avatar
-                        src={agent.profileImageUrl ?? undefined}
-                        name={agentName}
-                        size="sm"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className="truncate font-medium text-foreground text-sm">
-                          {agentName}
-                        </p>
-                        {agent.modelTier === 'pro' && (
-                          <span className="shrink-0 rounded bg-primary/20 px-1.5 py-0.5 font-medium text-[10px] text-primary">
-                            PRO
-                          </span>
-                        )}
+                  {/* Agent info - clickable to navigate to profile */}
+                  {agent.username ? (
+                    <Link
+                      href={`/profile/${agent.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        'flex min-w-0 flex-1 items-center gap-3 text-left',
+                        isProcessing ? 'pointer-events-none' : 'cursor-pointer'
+                      )}
+                      aria-label={`View ${agentName}'s profile`}
+                    >
+                      <div className="relative">
+                        <Avatar
+                          src={agent.profileImageUrl ?? undefined}
+                          name={agentName}
+                          size="sm"
+                        />
                       </div>
-                      {agent.username && (
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate font-medium text-foreground text-sm">
+                            {agentName}
+                          </p>
+                          {agent.modelTier === 'pro' && (
+                            <span className="shrink-0 rounded bg-primary/20 px-1.5 py-0.5 font-medium text-[10px] text-primary">
+                              PRO
+                            </span>
+                          )}
+                        </div>
                         <p className="truncate text-muted-foreground text-xs">
                           @{agent.username}
                         </p>
-                      )}
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                      <div className="relative">
+                        <Avatar
+                          src={agent.profileImageUrl ?? undefined}
+                          name={agentName}
+                          size="sm"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate font-medium text-foreground text-sm">
+                            {agentName}
+                          </p>
+                          {agent.modelTier === 'pro' && (
+                            <span className="shrink-0 rounded bg-primary/20 px-1.5 py-0.5 font-medium text-[10px] text-primary">
+                              PRO
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </button>
+                  )}
 
                   {/* Stop button when processing, otherwise show settings button */}
                   {isProcessing ? (
@@ -120,21 +143,38 @@ export function MemberList({
                       <Square className="relative h-3 w-3 fill-primary text-primary" />
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      className={cn(
-                        'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
-                        'text-muted-foreground hover:bg-muted hover:text-foreground',
-                        'opacity-0 focus:opacity-100 group-hover:opacity-100'
-                      )}
-                      onClick={() => {
-                        onViewSettings?.(agent.id);
-                        onClose?.();
-                      }}
-                      aria-label={`Settings for ${agentName}`}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
+                          'text-muted-foreground hover:bg-muted hover:text-foreground',
+                          'opacity-0 focus:opacity-100 group-hover:opacity-100'
+                        )}
+                        onClick={() => {
+                          onTagAgent?.(agent);
+                          onClose?.();
+                        }}
+                        aria-label={`Tag ${agentName}`}
+                      >
+                        <AtSign className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
+                          'text-muted-foreground hover:bg-muted hover:text-foreground',
+                          'opacity-0 focus:opacity-100 group-hover:opacity-100'
+                        )}
+                        onClick={() => {
+                          onViewSettings?.(agent.id);
+                          onClose?.();
+                        }}
+                        aria-label={`Settings for ${agentName}`}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </button>
+                    </>
                   )}
                 </div>
               );
