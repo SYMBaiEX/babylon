@@ -26,7 +26,7 @@ import {
   type PerpServiceDeps,
   type PriceImpactPort,
 } from '@babylon/core/markets/perps';
-import type { WalletPort } from '@babylon/core/markets/shared/common';
+import type { WalletPort } from '@babylon/core/markets/perps';
 import {
   and,
   db,

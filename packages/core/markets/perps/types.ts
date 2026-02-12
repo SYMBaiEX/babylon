@@ -7,6 +7,8 @@ import type {
   WalletPort,
 } from '../shared/common';
 
+export type { WalletPort } from '../shared/common';
+
 export type PerpSide = 'long' | 'short';
 
 export interface PerpMarketRecord {
