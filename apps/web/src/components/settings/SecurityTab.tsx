@@ -211,9 +211,7 @@ export function SecurityTab() {
                       {isEmbeddedWallet(wallet.walletClientType) &&
                         exportWallet && (
                           <button
-                            onClick={() =>
-                              exportWallet({ address: wallet.address })
-                            }
+                            onClick={exportWallet}
                             className="flex items-center gap-1 rounded border border-border bg-background px-3 py-1.5 font-medium text-xs hover:bg-accent"
                             title="Export wallet private key"
                           >
