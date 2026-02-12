@@ -43,6 +43,7 @@ import {
   users,
 } from '@babylon/db';
 import {
+  createPerpPriceImpactPort,
   FEE_CONFIG,
   FeeService,
   type GeneratedTag,
@@ -52,7 +53,6 @@ import {
   StaticDataRegistry,
   storeTagsForPost,
   WalletService,
-  createPerpPriceImpactPort,
 } from '@babylon/engine';
 import { isPureRepost } from '@babylon/shared';
 import { agentPnLService } from '../services/AgentPnLService';

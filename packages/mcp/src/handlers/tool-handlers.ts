@@ -60,12 +60,12 @@ import {
   users,
 } from '@babylon/db';
 import {
+  createPerpPriceImpactPort,
   FEE_CONFIG,
   FeeService,
   invalidateAfterPredictionTrade,
   StaticDataRegistry,
   WalletService,
-  createPerpPriceImpactPort,
 } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
 import {

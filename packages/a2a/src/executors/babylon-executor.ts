@@ -26,7 +26,7 @@ import {
 } from '@babylon/core/markets/prediction';
 import { db, getRawDrizzle } from '@babylon/db';
 import { perpMarketSnapshots } from '@babylon/db/schema';
-import { WalletService, createPerpPriceImpactPort } from '@babylon/engine';
+import { createPerpPriceImpactPort, WalletService } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
 import {
   ContentValidator,

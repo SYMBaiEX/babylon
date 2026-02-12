@@ -1,4 +1,7 @@
-import { PerpDbAdapter, type PriceImpactPort } from '@babylon/core/markets/perps';
+import {
+  PerpDbAdapter,
+  type PriceImpactPort,
+} from '@babylon/core/markets/perps';
 import {
   and,
   db,
@@ -64,7 +67,9 @@ export async function applyPerpUserTradePriceImpact(
       return undefined;
     }
 
-    const initialPrice = Number(state.basePrice ?? snapshot.currentPrice ?? 100);
+    const initialPrice = Number(
+      state.basePrice ?? snapshot.currentPrice ?? 100
+    );
     const currentPrice = Number(
       snapshot.currentPrice ?? state.currentPrice ?? initialPrice
     );

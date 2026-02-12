@@ -57,7 +57,6 @@ import type {
 } from '../types/market-decisions';
 import { formatError } from '../utils/error-utils';
 import { FeeService } from './fee-service';
-import { createPerpPriceImpactPort } from './perp-price-impact-port';
 import {
   type AggregatedImpact,
   aggregateTradeImpacts,
@@ -65,6 +64,7 @@ import {
 } from './market-impact-service';
 import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
+import { createPerpPriceImpactPort } from './perp-price-impact-port';
 import { broadcastToChannel } from './realtime-broadcaster';
 import { StaticDataRegistry } from './static-data-registry';
 import { TotalPointsService } from './total-points-service';

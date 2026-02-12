@@ -64,8 +64,8 @@ export * from './market-metrics-service'; // BAB-5: Metrics-based question gener
 export * from './market-mover-agent';
 export * from './market-timeframes'; // Multi-timeframe market system
 export * from './onchain-market-service';
-export * from './price-update-service';
 export * from './perp-price-impact-port';
+export * from './price-update-service';
 export * from './signal-extraction-service';
 export * from './sub-market-service'; // Sub-market spawning
 export * from './timeframe-arc-planner'; // Compressed arc planning for timeframe markets
