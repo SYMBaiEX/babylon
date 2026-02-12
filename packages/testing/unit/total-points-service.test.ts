@@ -275,8 +275,9 @@ describe('calculatePredictionPositionValueSimple', () => {
 // ---------------------------------------------------------------------------
 
 describe('Total Points Calculation Logic', () => {
-  it('should sum wallet + perp positions + prediction positions', () => {
+  it('should sum wallet + perp positions + prediction positions + reputation', () => {
     const wallet = 1000;
+    const reputation = 5000;
     const perpPositions = [
       { size: 500, leverage: 5, unrealizedPnL: 20 }, // 100 + 20 = 120
       { size: 1000, leverage: 10, unrealizedPnL: -10 }, // 100 - 10 = 90
@@ -295,24 +296,36 @@ describe('Total Points Calculation Logic', () => {
       0
     );
 
-    const totalPoints = wallet + perpsValue + predictionsValue;
+    const totalPoints = wallet + perpsValue + predictionsValue + reputation;
 
     expect(perpsValue).toBe(210); // 120 + 90
     expect(predictionsValue).toBe(110); // 50 + 60
-    expect(totalPoints).toBe(1320); // 1000 + 210 + 110
+    expect(totalPoints).toBe(6320); // 1000 + 210 + 110 + 5000
   });
 
-  it('should handle user with only wallet balance', () => {
+  it('should handle user with only wallet balance and reputation', () => {
     const wallet = 5000;
+    const reputation = 1000;
     const perpsValue = 0;
     const predictionsValue = 0;
 
-    const totalPoints = wallet + perpsValue + predictionsValue;
-    expect(totalPoints).toBe(5000);
+    const totalPoints = wallet + perpsValue + predictionsValue + reputation;
+    expect(totalPoints).toBe(6000);
+  });
+
+  it('should handle user with high reputation but low wallet', () => {
+    const wallet = 1000; // default starting balance
+    const reputation = 60000; // heavy referral grinder
+    const perpsValue = 0;
+    const predictionsValue = 0;
+
+    const totalPoints = wallet + perpsValue + predictionsValue + reputation;
+    expect(totalPoints).toBe(61000);
   });
 
   it('should handle user with only positions (no wallet)', () => {
     const wallet = 0;
+    const reputation = 1000;
     const perpPositions = [{ size: 1000, leverage: 10, unrealizedPnL: 100 }];
 
     const perpsValue = perpPositions.reduce(
@@ -320,12 +333,13 @@ describe('Total Points Calculation Logic', () => {
       0
     );
 
-    const totalPoints = wallet + perpsValue;
-    expect(totalPoints).toBe(200); // 100 margin + 100 PnL
+    const totalPoints = wallet + perpsValue + reputation;
+    expect(totalPoints).toBe(1200); // 0 + 200 + 1000
   });
 
   it('should handle negative unrealized PnL reducing total', () => {
     const wallet = 500;
+    const reputation = 2000;
     const perpPositions = [
       { size: 1000, leverage: 10, unrealizedPnL: -80 }, // 100 - 80 = 20
     ];
@@ -335,12 +349,13 @@ describe('Total Points Calculation Logic', () => {
       0
     );
 
-    const totalPoints = wallet + perpsValue;
-    expect(totalPoints).toBe(520); // 500 + 20
+    const totalPoints = wallet + perpsValue + reputation;
+    expect(totalPoints).toBe(2520); // 500 + 20 + 2000
   });
 
   it('should handle large portfolio correctly', () => {
     const wallet = 100000;
+    const reputation = 18000;
     const perpPositions = Array(10).fill({
       size: 10000,
       leverage: 10,
@@ -355,7 +370,35 @@ describe('Total Points Calculation Logic', () => {
     // Each position: margin = 1000, value = 1000 + 500 = 1500
     // 10 positions = 15000
     expect(perpsValue).toBe(15000);
-    expect(wallet + perpsValue).toBe(115000);
+    expect(wallet + perpsValue + reputation).toBe(133000);
+  });
+
+  it('should rank referral grinders above default-balance users', () => {
+    // User A: heavy referral grinder, never traded
+    const userA = { wallet: 1000, positions: 0, reputation: 60000 };
+    // User B: onboarded but never traded
+    const userB = { wallet: 2000, positions: 0, reputation: 1500 };
+
+    const totalA = userA.wallet + userA.positions + userA.reputation;
+    const totalB = userB.wallet + userB.positions + userB.reputation;
+
+    expect(totalA).toBe(61000);
+    expect(totalB).toBe(3500);
+    expect(totalA).toBeGreaterThan(totalB);
+  });
+
+  it('should rank active traders above referral grinders when PnL is high', () => {
+    // User A: big trader
+    const userA = { wallet: 163000, positions: 0, reputation: 18000 };
+    // User B: referral grinder
+    const userB = { wallet: 1000, positions: 0, reputation: 60000 };
+
+    const totalA = userA.wallet + userA.positions + userA.reputation;
+    const totalB = userB.wallet + userB.positions + userB.reputation;
+
+    expect(totalA).toBe(181000);
+    expect(totalB).toBe(61000);
+    expect(totalA).toBeGreaterThan(totalB);
   });
 });
 

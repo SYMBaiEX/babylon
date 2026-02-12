@@ -14,6 +14,7 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { TotalPointsService } from './total-points-service';
 
 /**
  * Earned Points Service Class
@@ -370,6 +371,15 @@ export class EarnedPointsService {
         totalReputationPoints: newReputationPoints,
       },
       'EarnedPointsService'
+    );
+
+    // Reputation changed → mark totalPoints dirty for cron recompute
+    TotalPointsService.markDirty(userId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty after bonus points',
+        { userId, error: e instanceof Error ? e.message : String(e) },
+        'EarnedPointsService'
+      )
     );
 
     return newBonusPoints;
