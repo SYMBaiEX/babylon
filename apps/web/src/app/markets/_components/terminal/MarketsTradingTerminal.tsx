@@ -1905,9 +1905,9 @@ export function MarketsTradingTerminal({
   );
 
   const rightPanel = (
-    <div className="flex h-full min-h-0 flex-col overflow-auto bg-background">
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {selected?.kind === 'prediction' ? (
-        <div className="flex min-h-0 flex-col">
+        <div className="flex h-full min-h-0 flex-col">
           <div className="border-border border-b px-3 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
@@ -1957,7 +1957,7 @@ export function MarketsTradingTerminal({
             </div>
           </div>
 
-          <div className="p-4">
+          <div className="min-h-0 flex-1 overflow-auto px-4 pt-4">
             <div className="flex items-center justify-between">
               <div className="font-medium text-sm">Place Order</div>
               <div className="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
@@ -2162,6 +2162,9 @@ export function MarketsTradingTerminal({
               </div>
             )}
 
+          </div>
+
+          <div className="shrink-0 p-4 pt-0">
             <button
               type="button"
               onClick={handlePredictionSubmit}
@@ -2177,7 +2180,7 @@ export function MarketsTradingTerminal({
                     !predictionSellCalculation))
               }
               className={cn(
-                'mt-5 w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                'w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
                 predictionTradeMode === 'buy' && predictionSide === 'yes'
                   ? 'bg-green-600 hover:bg-green-700'
                   : 'bg-red-600 hover:bg-red-700'

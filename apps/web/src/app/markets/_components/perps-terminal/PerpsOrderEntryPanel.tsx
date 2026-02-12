@@ -331,7 +331,7 @@ export function PerpsOrderEntryPanel({
       </div>
 
       {/* Order form */}
-      <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4">
         <div className="flex items-center justify-between">
           <div className="font-medium text-sm">Place Order</div>
           <div className="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
@@ -472,6 +472,10 @@ export function PerpsOrderEntryPanel({
           </div>
         )}
 
+      </div>
+
+      {/* Sticky order button */}
+      <div className="shrink-0 p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
         <button
           type="button"
           onClick={handleSubmit}
@@ -483,7 +487,7 @@ export function PerpsOrderEntryPanel({
                 sizeNum < (market?.minOrderSize ?? 0)))
           }
           className={cn(
-            'mt-5 w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+            'w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
             side === 'long'
               ? 'bg-green-600 hover:bg-green-700'
               : 'bg-red-600 hover:bg-red-700'
