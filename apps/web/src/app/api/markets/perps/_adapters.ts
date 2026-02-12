@@ -13,6 +13,7 @@ import {
   PerpDbAdapter,
   PerpMarketService,
   type PerpServiceDeps,
+  type PriceImpactPort,
 } from '@babylon/core/markets/perps';
 import type {
   BroadcastPort,
@@ -114,6 +115,30 @@ export const perpFeeConfig: FeeConfig = {
 };
 
 /**
+ * Creates a PriceImpactPort adapter that applies price impact
+ * and returns the resulting market price.
+ *
+ * Used by PerpMarketService to prevent self-impact exploits (BF-75):
+ * the service calls this after opening/adding/flipping positions
+ * to adjust entry prices to post-impact values.
+ */
+export function createPriceImpactAdapter(): PriceImpactPort {
+  return {
+    async applyAndGetPrice(ticker: string): Promise<number | undefined> {
+      await applyUserTradePriceImpact(ticker);
+
+      // Read updated price from the DB after impact was applied
+      const perpDb = new PerpDbAdapter();
+      const markets = await perpDb.listMarkets();
+      const market = markets.find(
+        (m) => m.ticker.toUpperCase() === ticker.toUpperCase()
+      );
+      return market?.currentPrice;
+    },
+  };
+}
+
+/**
  * Options for creating PerpMarketService.
  */
 export interface CreatePerpServiceOptions {
@@ -121,6 +146,8 @@ export interface CreatePerpServiceOptions {
   withFeeProcessor?: boolean;
   /** Include broadcast adapter for SSE updates. Default: false */
   withBroadcast?: boolean;
+  /** Include price impact adapter to prevent self-impact exploits. Default: false */
+  withPriceImpact?: boolean;
 }
 
 /**
@@ -130,6 +157,7 @@ export interface CreatePerpServiceOptions {
  * - Reduce code duplication across API routes
  * - Ensure consistent configuration
  * - Enable optional SSE broadcast for real-time updates
+ * - Prevent self-impact exploits via price impact adjustment
  *
  * @example
  * ```ts
@@ -140,6 +168,7 @@ export interface CreatePerpServiceOptions {
  * const service = createPerpMarketService({
  *   withFeeProcessor: true,
  *   withBroadcast: true,
+ *   withPriceImpact: true,
  * });
  * ```
  */
@@ -158,6 +187,10 @@ export function createPerpMarketService(
 
   if (options.withFeeProcessor) {
     deps.feeProcessor = createFeeProcessorAdapter();
+  }
+
+  if (options.withPriceImpact) {
+    deps.priceImpact = createPriceImpactAdapter();
   }
 
   return new PerpMarketService(deps);

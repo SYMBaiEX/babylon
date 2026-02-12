@@ -49,6 +49,77 @@ export class PerpMarketService {
   }
 
   /**
+   * Apply post-trade price impact and adjust the position's entry price.
+   *
+   * This prevents the "self-impact profit exploit" (BF-75) where a user
+   * profits from the price movement caused by their own trade:
+   * 1. Open large leveraged short → entry recorded at pre-impact price
+   * 2. Price impact crashes the market price
+   * 3. Close at crashed price → profit from own impact
+   *
+   * By updating the entry to the post-impact price, users cannot profit
+   * from their own trade's price impact.
+   *
+   * @returns Updated entry price and liquidation price, or undefined if no adjustment needed
+   */
+  private async applyPostTradeImpact(
+    ticker: string,
+    positionId: string,
+    preImpactEntry: number,
+    side: PerpSide,
+    leverage: number
+  ): Promise<{ entryPrice: number; liquidationPrice: number } | undefined> {
+    if (!this.deps.priceImpact) return undefined;
+
+    try {
+      const postImpactPrice = await this.deps.priceImpact.applyAndGetPrice(ticker);
+      if (postImpactPrice === undefined) return undefined;
+
+      // Only adjust if there's a meaningful difference
+      if (Math.abs(postImpactPrice - preImpactEntry) <= 0.001) return undefined;
+
+      const newLiquidationPrice = calculateLiquidationPrice(
+        postImpactPrice,
+        side,
+        leverage
+      );
+
+      await this.db.updateOpenPosition(positionId, {
+        entryPrice: postImpactPrice,
+        currentPrice: postImpactPrice,
+        liquidationPrice: newLiquidationPrice,
+      });
+
+      logger.info(
+        `Entry price adjusted for self-impact: ${preImpactEntry.toFixed(2)} → ${postImpactPrice.toFixed(2)}`,
+        {
+          positionId,
+          ticker,
+          side,
+          preImpactPrice: preImpactEntry,
+          postImpactPrice,
+          liquidationPrice: newLiquidationPrice,
+        },
+        'PerpService'
+      );
+
+      return { entryPrice: postImpactPrice, liquidationPrice: newLiquidationPrice };
+    } catch (error) {
+      // Log but don't fail the trade - price impact adjustment is defensive
+      logger.error(
+        'Post-trade impact adjustment failed',
+        {
+          positionId,
+          ticker,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'PerpService'
+      );
+      return undefined;
+    }
+  }
+
+  /**
    * Return current market snapshot (single source of truth).
    */
   async getMarketsSnapshot(): Promise<PerpMarketRecord[]> {
@@ -227,6 +298,19 @@ export class PerpMarketService {
       volume24h: market.volume24h + size,
       timestamp: now.toISOString(),
     });
+
+    // BF-75: Apply price impact and adjust entry price to prevent self-impact exploit
+    const impactAdj = await this.applyPostTradeImpact(
+      ticker,
+      position.id,
+      entryPrice,
+      side,
+      leverage
+    );
+    if (impactAdj) {
+      result.entryPrice = impactAdj.entryPrice;
+      result.liquidationPrice = impactAdj.liquidationPrice;
+    }
 
     return result;
   }
@@ -853,6 +937,19 @@ export class PerpMarketService {
       relatedId: existing.id,
     });
 
+    // BF-75: Apply price impact and adjust averaged entry price
+    const impactAdj = await this.applyPostTradeImpact(
+      existing.ticker,
+      result.positionId,
+      result.entryPrice,
+      result.side,
+      existing.leverage
+    );
+    if (impactAdj) {
+      result.entryPrice = impactAdj.entryPrice;
+      result.liquidationPrice = impactAdj.liquidationPrice;
+    }
+
     return result;
   }
 
@@ -912,7 +1009,7 @@ export class PerpMarketService {
     } else {
       // FLIP: Close existing and open inverse position
       // Use transaction for atomicity - all DB operations use tx
-      return this.db.transaction(async (tx) => {
+      const flipResult = await this.db.transaction(async (tx) => {
         const exitPrice = market.currentPrice;
 
         // === STEP 1: Close existing position (inline logic for atomicity) ===
@@ -1074,6 +1171,21 @@ export class PerpMarketService {
 
         return result;
       });
+
+      // BF-75: Apply price impact and adjust entry for the new flipped position
+      const impactAdj = await this.applyPostTradeImpact(
+        existing.ticker,
+        flipResult.positionId,
+        flipResult.entryPrice,
+        tradeSide,
+        Math.min(leverage, market.maxLeverage ?? DEFAULT_MAX_LEVERAGE)
+      );
+      if (impactAdj) {
+        flipResult.entryPrice = impactAdj.entryPrice;
+        flipResult.liquidationPrice = impactAdj.liquidationPrice;
+      }
+
+      return flipResult;
     }
   }
 
