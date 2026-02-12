@@ -155,8 +155,9 @@ export class PerpMarketService {
     if (!this.deps.priceImpact) return undefined;
 
     try {
-      const postClosePrice =
-        await this.deps.priceImpact.applyAndGetPrice(params.ticker);
+      const postClosePrice = await this.deps.priceImpact.applyAndGetPrice(
+        params.ticker
+      );
       if (postClosePrice === undefined) return undefined;
 
       // Only adjust if there's a meaningful difference
