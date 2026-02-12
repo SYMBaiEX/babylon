@@ -53,7 +53,7 @@ function isPnlTagData(data: unknown): data is PnlTagData {
 import { MessageCircle, PanelRight, Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AgentCreate } from '@/components/agents/AgentCreate';
 import { AgentEditModal } from '@/components/agents/AgentEditModal';
@@ -65,6 +65,10 @@ import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
 import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
+import {
+  TUTORIAL_PERPS_DATA,
+  TUTORIAL_PERPS_ENTITY_ID,
+} from './_components/tutorial/steps';
 import { useAgentsTutorial } from './_components/tutorial/useAgentsTutorial';
 import { AgentPnL } from './AgentPnL';
 import { AgentPortfolio } from './AgentPortfolio';
@@ -268,7 +272,61 @@ export default function TeamChatPage() {
     },
   });
 
-  // Sync UI state with tutorial steps (switch mobile tabs, open bottom panel)
+  // Build chat details with fake tutorial messages injected at the top
+  const tutorialChatDetails = useMemo(() => {
+    if (!chatDetails) return chatDetails;
+    // Only inject when tutorial is active and on step 3+ (Team Chat)
+    if (!tutorial.isActive || tutorial.currentStep < 2) return chatDetails;
+
+    const agentSenderId =
+      teamChat?.agents?.[0]?.id ?? 'tutorial-agent';
+    const agentName =
+      teamChat?.agents?.[0]?.displayName ??
+      teamChat?.agents?.[0]?.username ??
+      'Agent';
+    const now = new Date().toISOString();
+
+    const fakeUserMessage = {
+      id: 'tutorial-msg-user',
+      content: `@${agentName}, what are the top trending perpetual markets right now?`,
+      senderId: user?.id ?? 'tutorial-user',
+      createdAt: now,
+      stableKey: 'tutorial-msg-user',
+    };
+
+    const fakeAgentMessage = {
+      id: 'tutorial-msg-agent',
+      content:
+        'Here are the top trending perpetual markets I\'m watching right now. BTC is showing strong momentum and ETH has interesting volume patterns.',
+      senderId: agentSenderId,
+      createdAt: now,
+      stableKey: 'tutorial-msg-agent',
+      metadata: {
+        tags: [
+          {
+            type: 'perps' as const,
+            label: 'Perps Markets',
+            icon: 'TrendingUp' as const,
+            entityId: TUTORIAL_PERPS_ENTITY_ID,
+            data: TUTORIAL_PERPS_DATA,
+          },
+        ],
+      },
+    };
+
+    return {
+      ...chatDetails,
+      messages: [fakeUserMessage, fakeAgentMessage],
+    };
+  }, [
+    chatDetails,
+    tutorial.isActive,
+    tutorial.currentStep,
+    teamChat?.agents,
+    user?.id,
+  ]);
+
+  // Sync UI state with tutorial steps (switch mobile tabs, open panels)
   useEffect(() => {
     if (!tutorial.isActive) return;
     const step = tutorial.steps[tutorial.currentStep];
@@ -281,11 +339,45 @@ export default function TeamChatPage() {
       setMobileView('agents');
     }
 
-    // Ensure bottom panel is visible for its step
+    // Step 5: auto-open right sidebar with tutorial perps data
+    if (step.target === '[data-tour="agents-right-sidebar"]') {
+      const tabId = `perps-id-${TUTORIAL_PERPS_ENTITY_ID}`;
+      setRightSidebarTabs((prev) => {
+        if (prev.some((t) => t.id === tabId)) return prev;
+        return [
+          ...prev,
+          {
+            id: tabId,
+            type: 'perps' as const,
+            title: 'Perps Markets',
+            data: TUTORIAL_PERPS_DATA,
+          },
+        ];
+      });
+      setActiveRightTabId(tabId);
+      setRightSidebarOpen(true);
+    }
+
+    // Step 6: close right sidebar for bottom panel step
     if (step.target === '[data-tour="agents-bottom-panel"]') {
+      setRightSidebarOpen(false);
       setBottomPanelOpen(true);
     }
   }, [tutorial.isActive, tutorial.currentStep, tutorial.steps]);
+
+  // Clean up right sidebar when tutorial is dismissed/completed
+  useEffect(() => {
+    if (tutorial.isActive) return;
+    const tutorialTabId = `perps-id-${TUTORIAL_PERPS_ENTITY_ID}`;
+    setRightSidebarTabs((prev) => {
+      const filtered = prev.filter((t) => t.id !== tutorialTabId);
+      if (filtered.length === prev.length) return prev; // no change
+      if (filtered.length === 0) {
+        queueMicrotask(() => setRightSidebarOpen(false));
+      }
+      return filtered;
+    });
+  }, [tutorial.isActive]);
 
   // Set default entity for bottom panel - defaults to user
   // Also validates that selected agent still exists (handles agent removal)
@@ -817,7 +909,7 @@ export default function TeamChatPage() {
         }`}
       >
         <TeamChatView
-          chatDetails={chatDetails}
+          chatDetails={tutorialChatDetails}
           currentUserId={user?.id}
           authenticated={authenticated}
           sseConnected={sseConnected}
@@ -918,7 +1010,7 @@ export default function TeamChatPage() {
           className="flex min-h-0 min-w-0 flex-1 flex-col bg-background"
         >
           <TeamChatView
-            chatDetails={chatDetails}
+            chatDetails={tutorialChatDetails}
             currentUserId={user?.id}
             authenticated={authenticated}
             sseConnected={sseConnected}

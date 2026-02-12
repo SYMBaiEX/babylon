@@ -209,6 +209,7 @@ export function RightSidebar({
       {/* Sidebar */}
       <div
         ref={sidebarRef}
+        data-tour="agents-right-sidebar"
         className={cn(
           'fixed top-0 right-0 z-50 flex flex-col border-border border-l bg-background',
           'shadow-xl lg:absolute lg:z-40 lg:shadow-none',

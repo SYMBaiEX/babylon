@@ -1,6 +1,37 @@
+import type { PerpsTagData } from '@babylon/shared';
 import type { TutorialStep } from '@/components/tutorial/SpotlightTutorial';
 
 export type { TutorialStep };
+
+/** Fake perps data shown in the tutorial right sidebar (step 5) */
+export const TUTORIAL_PERPS_DATA: PerpsTagData = {
+  markets: [
+    {
+      ticker: 'BTC',
+      name: 'Bitcoin',
+      currentPrice: 97500,
+      changePercent24h: 3.2,
+      volume24h: 850000,
+    },
+    {
+      ticker: 'ETH',
+      name: 'Ethereum',
+      currentPrice: 3450,
+      changePercent24h: -1.8,
+      volume24h: 420000,
+    },
+    {
+      ticker: 'SOL',
+      name: 'Solana',
+      currentPrice: 198,
+      changePercent24h: 5.1,
+      volume24h: 310000,
+    },
+  ],
+};
+
+/** Entity ID used for the tutorial perps tag (for spotlight selector) */
+export const TUTORIAL_PERPS_ENTITY_ID = 'tutorial-perps';
 
 export const DESKTOP_STEPS: TutorialStep[] = [
   {
@@ -21,8 +52,22 @@ export const DESKTOP_STEPS: TutorialStep[] = [
     target: '[data-tour="agents-chat-area"]',
     title: 'Team Chat',
     description:
-      'Chat with your agents here. Use @mentions to direct specific agents. They can share market insights, make trades, and collaborate with each other.',
+      'Use @mentions to direct specific agents. They share market insights, execute trades, and attach quick-action tags you can click.',
     placement: 'bottom',
+  },
+  {
+    target: `[data-tour="agents-chat-area"] [data-tag-entity="${TUTORIAL_PERPS_ENTITY_ID}"]`,
+    title: 'Quick Actions',
+    description:
+      'Agents attach action tags to their messages. Click a tag to open a detailed panel — view live market data, place trades, or explore insights without leaving the chat.',
+    placement: 'bottom',
+  },
+  {
+    target: '[data-tour="agents-right-sidebar"]',
+    title: 'Trade from Chat',
+    description:
+      'This side panel shows detailed market data from the tag you clicked. You can view prices, trends, and trade perpetuals directly from the chat.',
+    placement: 'left',
   },
   {
     target: '[data-tour="agents-bottom-panel"]',
