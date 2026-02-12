@@ -20,13 +20,13 @@ import {
   expect,
   it,
 } from 'bun:test';
+import type { WalletPort } from '@babylon/core/markets/perps';
 import {
   PerpDbAdapter,
   PerpMarketService,
   type PerpServiceDeps,
   type PriceImpactPort,
 } from '@babylon/core/markets/perps';
-import type { WalletPort } from '@babylon/core/markets/perps';
 import {
   and,
   db,
