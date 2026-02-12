@@ -1,4 +1,5 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import { PerpDbAdapter } from '@babylon/core/markets/perps';
 import { handlePlayerTrade } from '@babylon/engine';
 import {
   fireAndForgetWithRetry,
@@ -45,6 +46,60 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Wait for it to complete to ensure price is updated before response
   try {
     await applyUserTradePriceImpact(ticker);
+
+    // BF-75 FIX: Update entry price to post-impact price to prevent
+    // self-impact profit exploit. Without this, a user can:
+    // 1. Open a large leveraged short → entry recorded at pre-impact price
+    // 2. Price impact crashes the market price
+    // 3. Close at crashed price → profit from their own impact
+    // 4. Price recovers after close → repeat for infinite money
+    //
+    // The fix ensures the entry price reflects the post-impact price,
+    // so the user cannot profit from their own trade's price impact.
+    if (result.positionId) {
+      const perpDb = new PerpDbAdapter();
+      const markets = await perpDb.listMarkets();
+      const updatedMarket = markets.find(
+        (m) => m.ticker.toUpperCase() === ticker.toUpperCase()
+      );
+
+      if (
+        updatedMarket &&
+        Math.abs(updatedMarket.currentPrice - result.entryPrice) > 0.001
+      ) {
+        const postImpactPrice = updatedMarket.currentPrice;
+
+        // Recalculate liquidation price with new entry
+        const liquidationThreshold = 0.9 / leverage;
+        const newLiquidationPrice =
+          normalizedSide === 'long'
+            ? postImpactPrice * (1 - liquidationThreshold)
+            : postImpactPrice * (1 + liquidationThreshold);
+
+        await perpDb.updateOpenPosition(result.positionId, {
+          entryPrice: postImpactPrice,
+          currentPrice: postImpactPrice,
+          liquidationPrice: newLiquidationPrice,
+        });
+
+        logger.info(
+          `Entry price adjusted for self-impact: ${result.entryPrice.toFixed(2)} → ${postImpactPrice.toFixed(2)}`,
+          {
+            positionId: result.positionId,
+            ticker,
+            side: normalizedSide,
+            preImpactPrice: result.entryPrice,
+            postImpactPrice,
+            liquidationPrice: newLiquidationPrice,
+          },
+          'PerpOpen'
+        );
+
+        // Update result to reflect actual entry price in the response
+        result.entryPrice = postImpactPrice;
+        result.liquidationPrice = newLiquidationPrice;
+      }
+    }
   } catch (error) {
     // Log but don't fail the trade - price impact is enhancement
     logger.error(
