@@ -647,7 +647,6 @@ export function PredictionTradingModal({
                       )}
                     </div>
                   )}
-
                 </>
               )}
 
@@ -742,7 +741,6 @@ export function PredictionTradingModal({
                       </button>
                     </div>
                   </div>
-
                 </>
               )}
             </>

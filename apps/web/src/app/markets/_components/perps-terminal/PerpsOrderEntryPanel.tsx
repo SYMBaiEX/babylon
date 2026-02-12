@@ -471,7 +471,6 @@ export function PerpsOrderEntryPanel({
             </div>
           </div>
         )}
-
       </div>
 
       {/* Sticky order button */}

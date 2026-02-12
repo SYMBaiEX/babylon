@@ -2161,7 +2161,6 @@ export function MarketsTradingTerminal({
                 </div>
               </div>
             )}
-
           </div>
 
           <div className="shrink-0 p-4 pt-0">
