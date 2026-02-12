@@ -60,6 +60,7 @@ import {
   users,
 } from '@babylon/db';
 import {
+  createPerpPriceImpactPort,
   FEE_CONFIG,
   FeeService,
   invalidateAfterPredictionTrade,
@@ -787,6 +788,7 @@ function buildPerpService() {
       },
       getBalance: (userId: string) => WalletService.getBalance(userId),
     },
+    priceImpact: createPerpPriceImpactPort(),
     fees: {
       tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
       platformShare: FEE_CONFIG.PLATFORM_SHARE,

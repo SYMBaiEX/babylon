@@ -174,6 +174,34 @@ export interface PerpTradeResult {
   previousEntryPrice?: number;
 }
 
+/**
+ * Port for applying post-trade price impact and retrieving the resulting price.
+ *
+ * When provided, the service will:
+ * 1. Apply price impact after opening/adding/flipping a position
+ * 2. Update the position's entry price to the post-impact price
+ *
+ * This prevents the "self-impact profit exploit" where a user profits from
+ * the price movement caused by their own trade.
+ */
+export interface PriceImpactPort {
+  /**
+   * Apply price impact for a ticker and return the new market price.
+   * Returns undefined if no impact was applied or the price didn't change.
+   */
+  applyAndGetPrice(ticker: string): Promise<number | undefined>;
+
+  /**
+   * Get the base/initial price for a ticker.
+   *
+   * Used for **symmetric** slippage clamping so that the max impact is
+   * identical on both the open and close legs of a trade.  Without this,
+   * percentage-based clamping (10% of currentPrice) is asymmetric and
+   * creates a small arbitrage on round-trips.
+   */
+  getBasePrice?(ticker: string): Promise<number | undefined>;
+}
+
 // Service deps bundle (optional helper)
 export interface PerpServiceDeps {
   db: PerpDbPort;
@@ -183,4 +211,6 @@ export interface PerpServiceDeps {
   clock?: ClockPort;
   fees: FeeConfig;
   feeProcessor?: FeeProcessor;
+  /** Optional price impact port to prevent self-impact exploits */
+  priceImpact?: PriceImpactPort;
 }

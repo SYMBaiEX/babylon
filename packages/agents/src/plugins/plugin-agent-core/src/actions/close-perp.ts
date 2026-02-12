@@ -6,7 +6,11 @@
 
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { and, db, eq, isNull, perpPositions } from '@babylon/db';
-import { FEE_CONFIG, WalletService } from '@babylon/engine';
+import {
+  createPerpPriceImpactPort,
+  FEE_CONFIG,
+  WalletService,
+} from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -182,6 +186,7 @@ export const closePerpAction: Action = {
           referrerShare: FEE_CONFIG.REFERRER_SHARE,
           minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
         },
+        priceImpact: createPerpPriceImpactPort(),
       });
 
       const positionSize = Number(position.size);
