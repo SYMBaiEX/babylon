@@ -5,7 +5,7 @@
  * These tests focus on the calculation logic and helper functions.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Helper function replicas for testing (same logic as in total-points-service.ts)
@@ -440,6 +440,205 @@ describe('Dirty Flag Logic (conceptual)', () => {
 
     // reDirtyAt > cutoff: should NOT clear (user was re-dirtied)
     expect(reDirtyAt <= cutoff).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: POINTS_WHITELIST_ONLY env flag
+// ---------------------------------------------------------------------------
+
+describe('POINTS_WHITELIST_ONLY env flag', () => {
+  // Replica of isWhitelistOnly() for unit testing
+  function isWhitelistOnly(): boolean {
+    return process.env.POINTS_WHITELIST_ONLY !== 'false';
+  }
+
+  const originalEnv = process.env.POINTS_WHITELIST_ONLY;
+
+  afterEach(() => {
+    // Restore original env after each test
+    if (originalEnv === undefined) {
+      delete process.env.POINTS_WHITELIST_ONLY;
+    } else {
+      process.env.POINTS_WHITELIST_ONLY = originalEnv;
+    }
+  });
+
+  it('should default to whitelist-only when env var is not set', () => {
+    delete process.env.POINTS_WHITELIST_ONLY;
+    expect(isWhitelistOnly()).toBe(true);
+  });
+
+  it('should be whitelist-only when env var is "true"', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'true';
+    expect(isWhitelistOnly()).toBe(true);
+  });
+
+  it('should be whitelist-only when env var is empty string', () => {
+    process.env.POINTS_WHITELIST_ONLY = '';
+    expect(isWhitelistOnly()).toBe(true);
+  });
+
+  it('should be whitelist-only when env var is any arbitrary string', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'yes';
+    expect(isWhitelistOnly()).toBe(true);
+  });
+
+  it('should disable whitelist-only when env var is exactly "false"', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'false';
+    expect(isWhitelistOnly()).toBe(false);
+  });
+
+  it('should NOT disable whitelist-only for "False" or "FALSE" (case-sensitive)', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'False';
+    expect(isWhitelistOnly()).toBe(true);
+
+    process.env.POINTS_WHITELIST_ONLY = 'FALSE';
+    expect(isWhitelistOnly()).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: Whitelist-scoped batch operation branching
+// ---------------------------------------------------------------------------
+
+describe('Whitelist-scoped batch operations', () => {
+  // Simulates the branching logic in markZeroTotalPointsDirty / bulkBackfillFromBalance
+  function isWhitelistOnly(): boolean {
+    return process.env.POINTS_WHITELIST_ONLY !== 'false';
+  }
+
+  interface MockUser {
+    id: string;
+    totalPoints: string;
+    virtualBalance: string;
+    isAgent: boolean;
+    isActor: boolean;
+  }
+
+  interface MockWhitelistEntry {
+    userId: string;
+    revokedAt: Date | null;
+  }
+
+  function getBackfillCandidates(
+    allUsers: MockUser[],
+    whitelistEntries: MockWhitelistEntry[]
+  ): MockUser[] {
+    const baseFiltered = allUsers.filter(
+      (u) =>
+        !u.isAgent &&
+        !u.isActor &&
+        u.totalPoints === '0' &&
+        Number.parseFloat(u.virtualBalance) > 0
+    );
+
+    if (isWhitelistOnly()) {
+      const activeWhitelistUserIds = new Set(
+        whitelistEntries
+          .filter((w) => w.revokedAt === null)
+          .map((w) => w.userId)
+      );
+      return baseFiltered.filter((u) => activeWhitelistUserIds.has(u.id));
+    }
+
+    return baseFiltered;
+  }
+
+  const originalEnv = process.env.POINTS_WHITELIST_ONLY;
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.POINTS_WHITELIST_ONLY;
+    } else {
+      process.env.POINTS_WHITELIST_ONLY = originalEnv;
+    }
+  });
+
+  const mockUsers: MockUser[] = [
+    { id: 'wl-user-1', totalPoints: '0', virtualBalance: '2000', isAgent: false, isActor: false },
+    { id: 'wl-user-2', totalPoints: '0', virtualBalance: '1500', isAgent: false, isActor: false },
+    { id: 'regular-1', totalPoints: '0', virtualBalance: '1000', isAgent: false, isActor: false },
+    { id: 'regular-2', totalPoints: '0', virtualBalance: '1000', isAgent: false, isActor: false },
+    { id: 'agent-1', totalPoints: '0', virtualBalance: '5000', isAgent: true, isActor: false },
+    { id: 'actor-1', totalPoints: '0', virtualBalance: '8000', isAgent: false, isActor: true },
+    { id: 'revoked-1', totalPoints: '0', virtualBalance: '3000', isAgent: false, isActor: false },
+    { id: 'already-set', totalPoints: '1500', virtualBalance: '1500', isAgent: false, isActor: false },
+  ];
+
+  const mockWhitelist: MockWhitelistEntry[] = [
+    { userId: 'wl-user-1', revokedAt: null },
+    { userId: 'wl-user-2', revokedAt: null },
+    { userId: 'revoked-1', revokedAt: new Date('2026-01-01') },
+  ];
+
+  it('should only return active whitelist users when POINTS_WHITELIST_ONLY is default', () => {
+    delete process.env.POINTS_WHITELIST_ONLY;
+
+    const candidates = getBackfillCandidates(mockUsers, mockWhitelist);
+    const ids = candidates.map((c) => c.id);
+
+    expect(ids).toContain('wl-user-1');
+    expect(ids).toContain('wl-user-2');
+    expect(ids).not.toContain('regular-1');
+    expect(ids).not.toContain('regular-2');
+    expect(ids).not.toContain('agent-1');
+    expect(ids).not.toContain('actor-1');
+    expect(ids).not.toContain('revoked-1'); // revoked whitelist entry
+    expect(ids).not.toContain('already-set'); // totalPoints already set
+    expect(candidates.length).toBe(2);
+  });
+
+  it('should return all eligible users when POINTS_WHITELIST_ONLY=false', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'false';
+
+    const candidates = getBackfillCandidates(mockUsers, mockWhitelist);
+    const ids = candidates.map((c) => c.id);
+
+    // All non-agent, non-actor users with totalPoints=0 and balance > 0
+    expect(ids).toContain('wl-user-1');
+    expect(ids).toContain('wl-user-2');
+    expect(ids).toContain('regular-1');
+    expect(ids).toContain('regular-2');
+    expect(ids).toContain('revoked-1');
+    expect(ids).not.toContain('agent-1'); // still excluded (isAgent)
+    expect(ids).not.toContain('actor-1'); // still excluded (isActor)
+    expect(ids).not.toContain('already-set'); // totalPoints != 0
+    expect(candidates.length).toBe(5);
+  });
+
+  it('should always exclude agents and actors regardless of flag', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'false';
+
+    const candidates = getBackfillCandidates(mockUsers, mockWhitelist);
+    const hasAgent = candidates.some((c) => c.isAgent);
+    const hasActor = candidates.some((c) => c.isActor);
+
+    expect(hasAgent).toBe(false);
+    expect(hasActor).toBe(false);
+  });
+
+  it('should skip users whose totalPoints are already set', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'false';
+
+    const candidates = getBackfillCandidates(mockUsers, mockWhitelist);
+    const ids = candidates.map((c) => c.id);
+
+    expect(ids).not.toContain('already-set');
+  });
+
+  it('should handle empty whitelist gracefully in whitelist mode', () => {
+    delete process.env.POINTS_WHITELIST_ONLY;
+
+    const candidates = getBackfillCandidates(mockUsers, []);
+    expect(candidates.length).toBe(0);
+  });
+
+  it('should handle empty user list gracefully', () => {
+    process.env.POINTS_WHITELIST_ONLY = 'false';
+
+    const candidates = getBackfillCandidates([], mockWhitelist);
+    expect(candidates.length).toBe(0);
   });
 });
 

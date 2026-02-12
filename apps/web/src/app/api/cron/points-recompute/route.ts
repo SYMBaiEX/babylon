@@ -45,6 +45,12 @@ export async function POST(request: NextRequest) {
   logger.info('Points recompute started', { isMidnight }, 'PointsRecompute');
 
   try {
+    // Bulk backfill: if many users still have totalPoints=0, fast-set them
+    // to virtualBalance in a single SQL UPDATE before doing per-user recompute.
+    // This runs in seconds and gives immediate leaderboard visibility.
+    const bulkBackfilled =
+      await TotalPointsService.bulkBackfillFromBalance();
+
     // Self-heal: mark users with totalPoints=0 as dirty so recompute can backfill.
     const markedZeroTotalPoints =
       await TotalPointsService.markZeroTotalPointsDirty();
@@ -62,6 +68,7 @@ export async function POST(request: NextRequest) {
 
     const result = {
       success: true,
+      bulkBackfilled,
       markedZeroTotalPoints,
       recomputed: recomputeResult,
       snapshot: snapshotResult,
