@@ -12,61 +12,113 @@
  * Run with: DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5433/babylon" bun test packages/testing/integration/perp-avg-fill-integration.test.ts
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'bun:test';
 import {
   PerpDbAdapter,
   PerpMarketService,
-  type PriceImpactPort,
   type PerpServiceDeps,
+  type PriceImpactPort,
 } from '@babylon/core/markets/perps';
 import type { WalletPort } from '@babylon/core/markets/shared/common';
+import {
+  and,
+  db,
+  eq,
+  isNull,
+  organizationState,
+  perpMarketSnapshots,
+  perpPositions,
+} from '@babylon/db';
 import {
   calculatePriceFromHoldings,
   PERP_MARKET_CONFIG,
 } from '@babylon/shared';
-import {
-  db,
-  eq,
-  isNull,
-  and,
-  perpPositions,
-  perpMarketSnapshots,
-  organizationState,
-} from '@babylon/db';
 
 // ---------------------------------------------------------------------------
 // Test-local wallet (in-memory, no real wallet service needed)
 // ---------------------------------------------------------------------------
 class TestWallet implements WalletPort {
   private balances = new Map<string, number>();
-  private txLog: Array<{ type: string; userId: string; amount: number; reason: string }> = [];
+  private txLog: Array<{
+    type: string;
+    userId: string;
+    amount: number;
+    reason: string;
+  }> = [];
 
   constructor(private defaultBalance = 100_000) {}
 
-  async debit(p: { userId: string; amount: number; reason: string; description?: string; relatedId?: string }) {
+  async debit(p: {
+    userId: string;
+    amount: number;
+    reason: string;
+    description?: string;
+    relatedId?: string;
+  }) {
     const bal = this.balances.get(p.userId) ?? this.defaultBalance;
-    if (bal < p.amount) throw new Error(`Insufficient funds: ${bal} < ${p.amount}`);
+    if (bal < p.amount)
+      throw new Error(`Insufficient funds: ${bal} < ${p.amount}`);
     this.balances.set(p.userId, bal - p.amount);
-    this.txLog.push({ type: 'debit', userId: p.userId, amount: p.amount, reason: p.reason });
+    this.txLog.push({
+      type: 'debit',
+      userId: p.userId,
+      amount: p.amount,
+      reason: p.reason,
+    });
   }
 
-  async credit(p: { userId: string; amount: number; reason: string; description?: string; relatedId?: string }) {
+  async credit(p: {
+    userId: string;
+    amount: number;
+    reason: string;
+    description?: string;
+    relatedId?: string;
+  }) {
     const bal = this.balances.get(p.userId) ?? this.defaultBalance;
     this.balances.set(p.userId, bal + p.amount);
-    this.txLog.push({ type: 'credit', userId: p.userId, amount: p.amount, reason: p.reason });
+    this.txLog.push({
+      type: 'credit',
+      userId: p.userId,
+      amount: p.amount,
+      reason: p.reason,
+    });
   }
 
-  async recordPnL(p: { userId: string; pnl: number; reason: string; relatedId?: string }) {
-    this.txLog.push({ type: 'pnl', userId: p.userId, amount: p.pnl, reason: p.reason });
+  async recordPnL(p: {
+    userId: string;
+    pnl: number;
+    reason: string;
+    relatedId?: string;
+  }) {
+    this.txLog.push({
+      type: 'pnl',
+      userId: p.userId,
+      amount: p.pnl,
+      reason: p.reason,
+    });
   }
 
   async getBalance(userId: string) {
     return { balance: this.balances.get(userId) ?? this.defaultBalance };
   }
 
-  getLog() { return this.txLog; }
-  reset() { this.balances.clear(); this.txLog.length = 0; }
-  bal(userId: string) { return this.balances.get(userId) ?? this.defaultBalance; }
+  getLog() {
+    return this.txLog;
+  }
+  reset() {
+    this.balances.clear();
+    this.txLog.length = 0;
+  }
+  bal(userId: string) {
+    return this.balances.get(userId) ?? this.defaultBalance;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -80,26 +132,39 @@ function createTestPriceImpact(): PriceImpactPort {
       const normalizedTicker = ticker.toUpperCase();
 
       const [snapshot] = await db
-        .select({ organizationId: perpMarketSnapshots.organizationId, currentPrice: perpMarketSnapshots.currentPrice })
+        .select({
+          organizationId: perpMarketSnapshots.organizationId,
+          currentPrice: perpMarketSnapshots.currentPrice,
+        })
         .from(perpMarketSnapshots)
         .where(eq(perpMarketSnapshots.ticker, normalizedTicker))
         .limit(1);
       if (!snapshot) return undefined;
 
       const [state] = await db
-        .select({ basePrice: organizationState.basePrice, currentPrice: organizationState.currentPrice })
+        .select({
+          basePrice: organizationState.basePrice,
+          currentPrice: organizationState.currentPrice,
+        })
         .from(organizationState)
         .where(eq(organizationState.id, snapshot.organizationId))
         .limit(1);
       if (!state) return undefined;
 
       const initialPrice = Number(state.basePrice ?? 100);
-      const currentPrice = Number(snapshot.currentPrice ?? state.currentPrice ?? initialPrice);
+      const currentPrice = Number(
+        snapshot.currentPrice ?? state.currentPrice ?? initialPrice
+      );
 
       const openPositions = await db
         .select({ side: perpPositions.side, size: perpPositions.size })
         .from(perpPositions)
-        .where(and(eq(perpPositions.ticker, normalizedTicker), isNull(perpPositions.closedAt)));
+        .where(
+          and(
+            eq(perpPositions.ticker, normalizedTicker),
+            isNull(perpPositions.closedAt)
+          )
+        );
 
       let netHoldings = 0;
       for (const pos of openPositions) {
@@ -107,15 +172,22 @@ function createTestPriceImpact(): PriceImpactPort {
         netHoldings += pos.side === 'long' ? size : -size;
       }
 
-      const newPrice = calculatePriceFromHoldings(initialPrice, currentPrice, netHoldings, PERP_MARKET_CONFIG);
+      const newPrice = calculatePriceFromHoldings(
+        initialPrice,
+        currentPrice,
+        netHoldings,
+        PERP_MARKET_CONFIG
+      );
 
       if (Math.abs(newPrice - currentPrice) < 0.001) return currentPrice;
 
-      await db.update(perpMarketSnapshots)
+      await db
+        .update(perpMarketSnapshots)
         .set({ currentPrice: newPrice })
         .where(eq(perpMarketSnapshots.ticker, normalizedTicker));
 
-      await db.update(organizationState)
+      await db
+        .update(organizationState)
         .set({ currentPrice: newPrice })
         .where(eq(organizationState.id, snapshot.organizationId));
 
@@ -149,7 +221,12 @@ function createTestService(wallet: TestWallet): PerpMarketService {
   const deps: PerpServiceDeps = {
     db: new PerpDbAdapter(),
     wallet,
-    fees: { tradingFeeRate: 0.001, platformShare: 0.5, referrerShare: 0.5, minFeeAmount: 0.01 },
+    fees: {
+      tradingFeeRate: 0.001,
+      platformShare: 0.5,
+      referrerShare: 0.5,
+      minFeeAmount: 0.01,
+    },
     priceImpact: createTestPriceImpact(),
   };
   return new PerpMarketService(deps);
@@ -167,33 +244,45 @@ const USER_C = 'test-avg-fill-user-c-' + Date.now();
 
 const createdPositionIds: string[] = [];
 
-const EFFECTIVE_SUPPLY = PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
+const EFFECTIVE_SUPPLY =
+  PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
 
 describe('Perp Delta-Based Average Fill Integration', () => {
   beforeAll(async () => {
     // Find a ticker with zero open interest (clean slate)
     const markets = await db.select().from(perpMarketSnapshots);
-    const cleanMarket = markets.find(m => Number(m.openInterest) === 0 && Number(m.currentPrice) > 10);
+    const cleanMarket = markets.find(
+      (m) => Number(m.openInterest) === 0 && Number(m.currentPrice) > 10
+    );
     if (!cleanMarket) throw new Error('No clean market found for testing');
 
     TEST_TICKER = cleanMarket.ticker;
     ORG_ID = cleanMarket.organizationId;
 
-    const [state] = await db.select().from(organizationState)
-      .where(eq(organizationState.id, ORG_ID)).limit(1);
+    const [state] = await db
+      .select()
+      .from(organizationState)
+      .where(eq(organizationState.id, ORG_ID))
+      .limit(1);
 
     BASE_PRICE = state ? Number(state.basePrice ?? 100) : 100;
 
     // **KEY**: Reset market price to basePrice so the market is in sync with 0 positions
-    await db.update(perpMarketSnapshots)
+    await db
+      .update(perpMarketSnapshots)
       .set({ currentPrice: BASE_PRICE, openInterest: 0, volume24h: 0 })
       .where(eq(perpMarketSnapshots.ticker, TEST_TICKER));
-    await db.update(organizationState)
+    await db
+      .update(organizationState)
       .set({ currentPrice: BASE_PRICE })
       .where(eq(organizationState.id, ORG_ID));
 
-    console.log(`\nUsing ticker: ${TEST_TICKER}, basePrice: ${BASE_PRICE}, effectiveSupply: ${EFFECTIVE_SUPPLY}`);
-    console.log(`Users: ${USER_A.slice(-10)}, ${USER_B.slice(-10)}, ${USER_C.slice(-10)}`);
+    console.log(
+      `\nUsing ticker: ${TEST_TICKER}, basePrice: ${BASE_PRICE}, effectiveSupply: ${EFFECTIVE_SUPPLY}`
+    );
+    console.log(
+      `Users: ${USER_A.slice(-10)}, ${USER_B.slice(-10)}, ${USER_C.slice(-10)}`
+    );
   });
 
   afterAll(async () => {
@@ -201,16 +290,25 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     console.log(`\nCleaning up ${createdPositionIds.length} test positions...`);
     for (const id of createdPositionIds) {
       try {
-        await db.update(perpPositions)
-          .set({ closedAt: new Date(), unrealizedPnL: 0, unrealizedPnLPercent: 0 })
+        await db
+          .update(perpPositions)
+          .set({
+            closedAt: new Date(),
+            unrealizedPnL: 0,
+            unrealizedPnLPercent: 0,
+          })
           .where(eq(perpPositions.id, id));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     // Reset market
-    await db.update(perpMarketSnapshots)
+    await db
+      .update(perpMarketSnapshots)
       .set({ openInterest: 0, volume24h: 0, currentPrice: BASE_PRICE })
       .where(eq(perpMarketSnapshots.ticker, TEST_TICKER));
-    await db.update(organizationState)
+    await db
+      .update(organizationState)
       .set({ currentPrice: BASE_PRICE })
       .where(eq(organizationState.id, ORG_ID));
     console.log('Cleanup complete.');
@@ -219,19 +317,35 @@ describe('Perp Delta-Based Average Fill Integration', () => {
   // Reset market to basePrice before each test for isolation
   beforeEach(async () => {
     // Close any test user positions
-    const open = await db.select().from(perpPositions)
-      .where(and(eq(perpPositions.ticker, TEST_TICKER), isNull(perpPositions.closedAt)));
-    const testPos = open.filter(p => [USER_A, USER_B, USER_C].includes(p.userId));
+    const open = await db
+      .select()
+      .from(perpPositions)
+      .where(
+        and(
+          eq(perpPositions.ticker, TEST_TICKER),
+          isNull(perpPositions.closedAt)
+        )
+      );
+    const testPos = open.filter((p) =>
+      [USER_A, USER_B, USER_C].includes(p.userId)
+    );
     for (const p of testPos) {
-      await db.update(perpPositions)
-        .set({ closedAt: new Date(), unrealizedPnL: 0, unrealizedPnLPercent: 0 })
+      await db
+        .update(perpPositions)
+        .set({
+          closedAt: new Date(),
+          unrealizedPnL: 0,
+          unrealizedPnLPercent: 0,
+        })
         .where(eq(perpPositions.id, p.id));
     }
     // Reset price
-    await db.update(perpMarketSnapshots)
+    await db
+      .update(perpMarketSnapshots)
       .set({ currentPrice: BASE_PRICE, openInterest: 0, volume24h: 0 })
       .where(eq(perpMarketSnapshots.ticker, TEST_TICKER));
-    await db.update(organizationState)
+    await db
+      .update(organizationState)
       .set({ currentPrice: BASE_PRICE })
       .where(eq(organizationState.id, ORG_ID));
   });
@@ -258,7 +372,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     });
     createdPositionIds.push(result.positionId);
 
-    console.log(`  Open long: base=${BASE_PRICE}, rawImpact=${rawImpact.toFixed(2)}, expectedAvg=${expectedAvgFill.toFixed(2)}, actual=${result.entryPrice.toFixed(2)}`);
+    console.log(
+      `  Open long: base=${BASE_PRICE}, rawImpact=${rawImpact.toFixed(2)}, expectedAvg=${expectedAvgFill.toFixed(2)}, actual=${result.entryPrice.toFixed(2)}`
+    );
 
     expect(result.entryPrice).toBeCloseTo(expectedAvgFill, 1);
     expect(result.entryPrice).toBeGreaterThan(BASE_PRICE);
@@ -295,7 +411,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     const pnl = close.realizedPnL ?? 0;
     const totalFees = open.feePaid + close.feePaid;
 
-    console.log(`  Round-trip: entry=${open.entryPrice.toFixed(2)}, exit=${close.exitPrice?.toFixed(2)}, PnL=${pnl.toFixed(4)}, net=${netChange.toFixed(2)}, fees=${totalFees.toFixed(2)}`);
+    console.log(
+      `  Round-trip: entry=${open.entryPrice.toFixed(2)}, exit=${close.exitPrice?.toFixed(2)}, PnL=${pnl.toFixed(4)}, net=${netChange.toFixed(2)}, fees=${totalFees.toFixed(2)}`
+    );
 
     // PnL should be near zero (delta-based clamping with same basePrice is symmetric)
     expect(Math.abs(pnl)).toBeLessThan(1.0);
@@ -333,7 +451,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     const pnl = close.realizedPnL ?? 0;
     const totalFees = open.feePaid + close.feePaid;
 
-    console.log(`  Round-trip short: entry=${open.entryPrice.toFixed(2)}, exit=${close.exitPrice?.toFixed(2)}, PnL=${pnl.toFixed(4)}, net=${netChange.toFixed(2)}, fees=${totalFees.toFixed(2)}`);
+    console.log(
+      `  Round-trip short: entry=${open.entryPrice.toFixed(2)}, exit=${close.exitPrice?.toFixed(2)}, PnL=${pnl.toFixed(4)}, net=${netChange.toFixed(2)}, fees=${totalFees.toFixed(2)}`
+    );
 
     expect(Math.abs(pnl)).toBeLessThan(1.0);
     expect(netChange).toBeLessThanOrEqual(1.0);
@@ -367,7 +487,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     const pnl = close.realizedPnL ?? 0;
     const totalFees = open.feePaid + close.feePaid;
 
-    console.log(`  Exploit test: entry=${open.entryPrice.toFixed(2)}, exit=${close.exitPrice?.toFixed(2)}, PnL=${pnl.toFixed(4)}, netProfit=${netProfit.toFixed(2)}, fees=${totalFees.toFixed(2)}`);
+    console.log(
+      `  Exploit test: entry=${open.entryPrice.toFixed(2)}, exit=${close.exitPrice?.toFixed(2)}, PnL=${pnl.toFixed(4)}, netProfit=${netProfit.toFixed(2)}, fees=${totalFees.toFixed(2)}`
+    );
 
     // The exploit should be blocked: user should NOT profit
     expect(netProfit).toBeLessThanOrEqual(1.0);
@@ -406,7 +528,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     const endBal = wallet.bal(USER_A);
     const netChange = endBal - startBal;
 
-    console.log(`  5 cycles: start=${startBal.toFixed(2)}, end=${endBal.toFixed(2)}, net=${netChange.toFixed(2)}, fees=${totalFees.toFixed(2)}`);
+    console.log(
+      `  5 cycles: start=${startBal.toFixed(2)}, end=${endBal.toFixed(2)}, net=${netChange.toFixed(2)}, fees=${totalFees.toFixed(2)}`
+    );
 
     // Net change should be negative (just fees, no compounding profit)
     expect(netChange).toBeLessThanOrEqual(1.0);
@@ -448,14 +572,19 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     });
 
     const pnlA = closeA.realizedPnL ?? 0;
-    console.log(`  Multi-user: A entry=${openA.entryPrice.toFixed(2)}, exit=${closeA.exitPrice?.toFixed(2)}, PnL=${pnlA.toFixed(2)}`);
+    console.log(
+      `  Multi-user: A entry=${openA.entryPrice.toFixed(2)}, exit=${closeA.exitPrice?.toFixed(2)}, PnL=${pnlA.toFixed(2)}`
+    );
 
     // A should have SOME positive PnL (from B's impact pushing price up)
     // This is legitimate profit, not self-impact
     expect(pnlA).toBeGreaterThan(-20); // shouldn't lose a lot
 
     // Clean up B
-    const closeB = await serviceB.closePosition({ userId: USER_B, positionId: openB.positionId });
+    const closeB = await serviceB.closePosition({
+      userId: USER_B,
+      positionId: openB.positionId,
+    });
     console.log(`  B PnL: ${(closeB.realizedPnL ?? 0).toFixed(2)}`);
   });
 
@@ -482,7 +611,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
       percentage: 0.5,
     });
 
-    console.log(`  Partial close: size=${partialClose.size}, remaining=${partialClose.remainingSize}, PnL=${(partialClose.realizedPnL ?? 0).toFixed(4)}`);
+    console.log(
+      `  Partial close: size=${partialClose.size}, remaining=${partialClose.remainingSize}, PnL=${(partialClose.realizedPnL ?? 0).toFixed(4)}`
+    );
 
     expect(partialClose.fullyClosed).toBe(false);
     expect(partialClose.remainingSize).toBeGreaterThan(0);
@@ -495,7 +626,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
       positionId: open.positionId,
     });
 
-    console.log(`  Full close: PnL=${(fullClose.realizedPnL ?? 0).toFixed(4)}, fullyClosed=${fullClose.fullyClosed}`);
+    console.log(
+      `  Full close: PnL=${(fullClose.realizedPnL ?? 0).toFixed(4)}, fullyClosed=${fullClose.fullyClosed}`
+    );
     expect(fullClose.fullyClosed).toBe(true);
   });
 
@@ -524,16 +657,26 @@ describe('Perp Delta-Based Average Fill Integration', () => {
 
     const midBal = wallet.bal(userId);
     // Margin per open: 1000/5 = 200, fee: 1000*0.001 = 1 → 201 each
-    // But 2nd and 3rd trades rebalance (same ticker). 
+    // But 2nd and 3rd trades rebalance (same ticker).
     // 1st open: 201 debit. 2nd (short=opposite): close the long + open short (complex).
     // Let's just verify rough bounds
-    console.log(`  After 3 trades: ${startBal.toFixed(2)} → ${midBal.toFixed(2)}`);
+    console.log(
+      `  After 3 trades: ${startBal.toFixed(2)} → ${midBal.toFixed(2)}`
+    );
     expect(startBal - midBal).toBeGreaterThan(100);
     expect(startBal - midBal).toBeLessThan(2000);
 
     // Close remaining open position
-    const openPos = await db.select().from(perpPositions)
-      .where(and(eq(perpPositions.ticker, TEST_TICKER), eq(perpPositions.userId, userId), isNull(perpPositions.closedAt)));
+    const openPos = await db
+      .select()
+      .from(perpPositions)
+      .where(
+        and(
+          eq(perpPositions.ticker, TEST_TICKER),
+          eq(perpPositions.userId, userId),
+          isNull(perpPositions.closedAt)
+        )
+      );
 
     for (const p of openPos) {
       await service.closePosition({ userId, positionId: p.id });
@@ -541,7 +684,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
 
     const endBal = wallet.bal(userId);
     const netChange = endBal - startBal;
-    console.log(`  After close all: ${endBal.toFixed(2)}, net=${netChange.toFixed(2)}`);
+    console.log(
+      `  After close all: ${endBal.toFixed(2)}, net=${netChange.toFixed(2)}`
+    );
 
     // Net change should be modest (mostly fees, no huge exploit)
     expect(netChange).toBeLessThan(50);
@@ -569,7 +714,9 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     // They should be identical! (round-trip neutral)
     expect(openAvgFill).toBeCloseTo(closeAvgExit, 10);
 
-    console.log(`  Math: impact=${impact.toFixed(2)}, openAvg=${openAvgFill.toFixed(2)}, closeAvg=${closeAvgExit.toFixed(2)}, diff=${Math.abs(openAvgFill - closeAvgExit).toFixed(10)}`);
+    console.log(
+      `  Math: impact=${impact.toFixed(2)}, openAvg=${openAvgFill.toFixed(2)}, closeAvg=${closeAvgExit.toFixed(2)}, diff=${Math.abs(openAvgFill - closeAvgExit).toFixed(10)}`
+    );
 
     // Open short: avgFill = price - impact/2
     const openShortAvg = price - impact / 2;
@@ -579,6 +726,8 @@ describe('Perp Delta-Based Average Fill Integration', () => {
     const closeShortAvg = postShortPrice + impact / 2;
 
     expect(openShortAvg).toBeCloseTo(closeShortAvg, 10);
-    console.log(`  Short: openAvg=${openShortAvg.toFixed(2)}, closeAvg=${closeShortAvg.toFixed(2)}`);
+    console.log(
+      `  Short: openAvg=${openShortAvg.toFixed(2)}, closeAvg=${closeShortAvg.toFixed(2)}`
+    );
   });
 });
