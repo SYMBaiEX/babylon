@@ -190,6 +190,16 @@ export interface PriceImpactPort {
    * Returns undefined if no impact was applied or the price didn't change.
    */
   applyAndGetPrice(ticker: string): Promise<number | undefined>;
+
+  /**
+   * Get the base/initial price for a ticker.
+   *
+   * Used for **symmetric** slippage clamping so that the max impact is
+   * identical on both the open and close legs of a trade.  Without this,
+   * percentage-based clamping (10% of currentPrice) is asymmetric and
+   * creates a small arbitrage on round-trips.
+   */
+  getBasePrice?(ticker: string): Promise<number | undefined>;
 }
 
 // Service deps bundle (optional helper)

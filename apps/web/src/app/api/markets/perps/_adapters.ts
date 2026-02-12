@@ -135,6 +135,25 @@ export function createPriceImpactAdapter(): PriceImpactPort {
       );
       return market?.currentPrice;
     },
+
+    async getBasePrice(ticker: string): Promise<number | undefined> {
+      const normalizedTicker = ticker.toUpperCase();
+
+      const [snapshot] = await db
+        .select({ organizationId: perpMarketSnapshots.organizationId })
+        .from(perpMarketSnapshots)
+        .where(eq(perpMarketSnapshots.ticker, normalizedTicker))
+        .limit(1);
+      if (!snapshot) return undefined;
+
+      const [state] = await db
+        .select({ basePrice: organizationState.basePrice })
+        .from(organizationState)
+        .where(eq(organizationState.id, snapshot.organizationId))
+        .limit(1);
+
+      return state ? Number(state.basePrice ?? 100) : undefined;
+    },
   };
 }
 

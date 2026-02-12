@@ -1,4 +1,4 @@
-import { logger } from '@babylon/shared';
+import { logger, PERP_MARKET_CONFIG } from '@babylon/shared';
 import type {
   PerpCloseInput,
   PerpDbPort,
@@ -50,14 +50,25 @@ export class PerpMarketService {
 
   /**
    * Apply post-trade price impact and adjust the position's entry price
-   * to the average fill price: (preImpact + postImpact) / 2.
+   * to the delta-based average fill price.
    *
-   * This models how a real AMM/order book works: the execution price is
-   * the average price across the impact curve, not the pre-trade or
-   * post-trade price. This:
-   * - Prevents the "self-impact profit exploit" (BF-75)
-   * - Gives users a fair average fill (not penalized with full impact)
-   * - Shows honest unrealized PnL while the position is open
+   * The average fill is computed from the **incremental trade delta** rather
+   * than the absolute equilibrium price.  Clamping uses the asset's
+   * **basePrice** so that the max impact is identical on both the open and
+   * close legs, making round-trips exactly neutral.
+   *
+   * Formula:
+   *   effectiveSupply = SYNTHETIC_SUPPLY / LIQUIDITY_FACTOR
+   *   rawImpact       = tradeSize / effectiveSupply
+   *   maxImpact       = basePrice * MAX_CHANGE_PER_TRADE   (symmetric)
+   *   impact          = min(rawImpact, maxImpact)
+   *   direction       = +1 for long (buying pushes price up = worse entry),
+   *                     -1 for short (selling pushes price down = worse entry)
+   *   avgFillPrice    = preImpactPrice + direction * impact / 2
+   *
+   * After computing the user's fill, we still call `applyAndGetPrice` to
+   * update the global market price to the correct vAMM equilibrium (that
+   * value is used for display / other users, but NOT for this user's fill).
    *
    * @returns Updated entry price and liquidation price, or undefined if no adjustment needed
    */
@@ -66,21 +77,33 @@ export class PerpMarketService {
     positionId: string,
     preImpactEntry: number,
     side: PerpSide,
-    leverage: number
+    leverage: number,
+    tradeSize: number
   ): Promise<{ entryPrice: number; liquidationPrice: number } | undefined> {
     if (!this.deps.priceImpact) return undefined;
 
     try {
+      // 1. Get basePrice for symmetric clamping (falls back to preImpactEntry)
+      const basePrice =
+        (await this.deps.priceImpact.getBasePrice?.(ticker)) ?? preImpactEntry;
+
+      // 2. Compute delta-based average fill
+      const effectiveSupply =
+        PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY /
+        PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
+      const rawImpact = tradeSize / effectiveSupply;
+      const maxImpact = basePrice * PERP_MARKET_CONFIG.MAX_CHANGE_PER_TRADE;
+      const impact = Math.min(rawImpact, maxImpact);
+
+      if (impact <= 0.001) return undefined;
+
+      // Long = buying = price slides up (worse entry).  Short = opposite.
+      const direction = side === 'long' ? 1 : -1;
+      const avgFillPrice = preImpactEntry + (direction * impact) / 2;
+
+      // 3. Update global market price to absolute equilibrium (for display / other users)
       const postImpactPrice =
         await this.deps.priceImpact.applyAndGetPrice(ticker);
-      if (postImpactPrice === undefined) return undefined;
-
-      // Only adjust if there's a meaningful difference
-      if (Math.abs(postImpactPrice - preImpactEntry) <= 0.001) return undefined;
-
-      // Average fill: midpoint of pre-impact and post-impact prices
-      // This models the execution price across the linear impact curve
-      const avgFillPrice = (preImpactEntry + postImpactPrice) / 2;
 
       const newLiquidationPrice = calculateLiquidationPrice(
         avgFillPrice,
@@ -90,19 +113,21 @@ export class PerpMarketService {
 
       await this.db.updateOpenPosition(positionId, {
         entryPrice: avgFillPrice,
-        currentPrice: postImpactPrice, // market price is the actual post-impact
+        currentPrice: postImpactPrice ?? preImpactEntry,
         liquidationPrice: newLiquidationPrice,
       });
 
       logger.info(
-        `Entry price adjusted to avg fill: ${preImpactEntry.toFixed(2)} → ${avgFillPrice.toFixed(2)} (post-impact: ${postImpactPrice.toFixed(2)})`,
+        `Entry price adjusted to avg fill: ${preImpactEntry.toFixed(2)} → ${avgFillPrice.toFixed(2)} (delta: ${(direction * impact).toFixed(4)}, market: ${(postImpactPrice ?? preImpactEntry).toFixed(2)})`,
         {
           positionId,
           ticker,
           side,
           preImpactPrice: preImpactEntry,
-          postImpactPrice,
           avgFillPrice,
+          deltaImpact: direction * impact,
+          postMarketPrice: postImpactPrice,
+          basePrice,
           liquidationPrice: newLiquidationPrice,
         },
         'PerpService'
@@ -113,7 +138,6 @@ export class PerpMarketService {
         liquidationPrice: newLiquidationPrice,
       };
     } catch (error) {
-      // Log but don't fail the trade - price impact adjustment is defensive
       logger.error(
         'Post-trade impact adjustment failed',
         {
@@ -130,18 +154,17 @@ export class PerpMarketService {
   /**
    * Apply post-close price impact and adjust the settlement.
    *
-   * On close, the position exits at market.currentPrice (pre-close-impact).
-   * The close itself changes netHoldings, moving the global price. The "fair"
-   * exit is the average of pre-close and post-close prices, matching how a
-   * real AMM would fill a sell order across the impact curve.
+   * Uses the same **delta-based** average fill as `applyPostTradeImpact`
+   * to ensure round-trip symmetry.  Clamping is based on basePrice.
    *
-   * This method:
-   * 1. Applies the price impact (updating global price)
-   * 2. Computes average exit price
-   * 3. Calculates the PnL difference between old exit and average exit
-   * 4. Adjusts the user's wallet for the difference
+   * Direction:
+   *   Closing a long = selling = price slides DOWN = worse exit for the seller.
+   *   Closing a short = buying  = price slides UP  = worse exit for the buyer.
    *
-   * @returns Average exit price and adjustment amount, or undefined if no adjustment needed
+   * After computing the user's fill, the global market price is updated to
+   * the vAMM equilibrium via `applyAndGetPrice` (for display / other users).
+   *
+   * @returns Average exit price and wallet adjustment amount, or undefined
    */
   private async applyPostCloseImpact(params: {
     ticker: string;
@@ -155,18 +178,30 @@ export class PerpMarketService {
     if (!this.deps.priceImpact) return undefined;
 
     try {
-      const postClosePrice = await this.deps.priceImpact.applyAndGetPrice(
-        params.ticker
-      );
-      if (postClosePrice === undefined) return undefined;
+      // 1. Get basePrice for symmetric clamping
+      const basePrice =
+        (await this.deps.priceImpact.getBasePrice?.(params.ticker)) ??
+        params.exitPrice;
 
-      // Only adjust if there's a meaningful difference
-      if (Math.abs(postClosePrice - params.exitPrice) <= 0.001)
-        return undefined;
+      // 2. Compute delta-based average exit
+      const effectiveSupply =
+        PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY /
+        PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
+      const rawImpact = params.closeSize / effectiveSupply;
+      const maxImpact = basePrice * PERP_MARKET_CONFIG.MAX_CHANGE_PER_TRADE;
+      const impact = Math.min(rawImpact, maxImpact);
 
-      const avgExitPrice = (params.exitPrice + postClosePrice) / 2;
+      if (impact <= 0.001) return undefined;
 
-      // Calculate PnL at original exit vs average exit
+      // Closing a long = selling = price drops = WORSE exit for seller (lower).
+      // Closing a short = buying = price rises = WORSE exit for buyer (higher).
+      const direction = params.side === 'long' ? -1 : 1;
+      const avgExitPrice = params.exitPrice + (direction * impact) / 2;
+
+      // 3. Update global market price to vAMM equilibrium
+      await this.deps.priceImpact.applyAndGetPrice(params.ticker);
+
+      // 4. Calculate PnL adjustment (old exit vs average exit)
       const { pnl: oldPnl } = calculateUnrealizedPnL(
         params.entryPrice,
         params.exitPrice,
@@ -182,11 +217,9 @@ export class PerpMarketService {
 
       const adjustment = newPnl - oldPnl;
 
-      // Only adjust if meaningful (typically negative = debit, user was overcredited)
       if (Math.abs(adjustment) <= 0.001) return undefined;
 
       if (adjustment < 0) {
-        // User was overcredited at the favorable pre-close price
         await this.deps.wallet.debit({
           userId: params.userId,
           amount: Math.abs(adjustment),
@@ -195,7 +228,6 @@ export class PerpMarketService {
           relatedId: params.positionId,
         });
       } else {
-        // Rare case: user was undercredited
         await this.deps.wallet.credit({
           userId: params.userId,
           amount: adjustment,
@@ -205,7 +237,6 @@ export class PerpMarketService {
         });
       }
 
-      // Record the PnL adjustment
       await this.deps.wallet.recordPnL({
         userId: params.userId,
         pnl: adjustment,
@@ -214,14 +245,15 @@ export class PerpMarketService {
       });
 
       logger.info(
-        `Exit price adjusted to avg fill: ${params.exitPrice.toFixed(2)} → ${avgExitPrice.toFixed(2)} (post-close: ${postClosePrice.toFixed(2)}, adj: ${adjustment.toFixed(4)})`,
+        `Exit price adjusted to avg fill: ${params.exitPrice.toFixed(2)} → ${avgExitPrice.toFixed(2)} (delta: ${(direction * impact).toFixed(4)}, adj: ${adjustment.toFixed(4)})`,
         {
           positionId: params.positionId,
           ticker: params.ticker,
           side: params.side,
           preClosePrice: params.exitPrice,
-          postClosePrice,
           avgExitPrice,
+          deltaImpact: direction * impact,
+          basePrice,
           adjustment,
         },
         'PerpService'
@@ -428,7 +460,8 @@ export class PerpMarketService {
       position.id,
       entryPrice,
       side,
-      leverage
+      leverage,
+      size
     );
     if (impactAdj) {
       result.entryPrice = impactAdj.entryPrice;
@@ -1091,7 +1124,8 @@ export class PerpMarketService {
       result.positionId,
       result.entryPrice,
       result.side,
-      existing.leverage
+      existing.leverage,
+      input.size
     );
     if (impactAdj) {
       result.entryPrice = impactAdj.entryPrice;
@@ -1326,7 +1360,8 @@ export class PerpMarketService {
         flipResult.positionId,
         flipResult.entryPrice,
         tradeSide,
-        Math.min(leverage, market.maxLeverage ?? DEFAULT_MAX_LEVERAGE)
+        Math.min(leverage, market.maxLeverage ?? DEFAULT_MAX_LEVERAGE),
+        tradeSize - existing.size
       );
       if (impactAdj) {
         flipResult.entryPrice = impactAdj.entryPrice;
