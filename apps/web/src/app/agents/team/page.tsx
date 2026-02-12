@@ -278,8 +278,7 @@ export default function TeamChatPage() {
     // Only inject when tutorial is active and on step 3+ (Team Chat)
     if (!tutorial.isActive || tutorial.currentStep < 2) return chatDetails;
 
-    const agentSenderId =
-      teamChat?.agents?.[0]?.id ?? 'tutorial-agent';
+    const agentSenderId = teamChat?.agents?.[0]?.id ?? 'tutorial-agent';
     const agentName =
       teamChat?.agents?.[0]?.displayName ??
       teamChat?.agents?.[0]?.username ??
@@ -297,7 +296,7 @@ export default function TeamChatPage() {
     const fakeAgentMessage = {
       id: 'tutorial-msg-agent',
       content:
-        'Here are the top trending perpetual markets I\'m watching right now. BTC is showing strong momentum and ETH has interesting volume patterns.',
+        "Here are the top trending perpetual markets I'm watching right now. BTC is showing strong momentum and ETH has interesting volume patterns.",
       senderId: agentSenderId,
       createdAt: now,
       stableKey: 'tutorial-msg-agent',
