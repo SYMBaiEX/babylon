@@ -84,6 +84,9 @@ import type {
 import { MARKET_TIME_RANGES } from '@/types/markets';
 import { formatBalance } from '../../_lib/formatters';
 import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
+import { SpotlightTutorial } from '../tutorial/SpotlightTutorial';
+import { TutorialHelpButton } from '../tutorial/TutorialHelpButton';
+import { useMarketsTutorial } from '../tutorial/useMarketsTutorial';
 import { TerminalAgentsChat } from './TerminalAgentsChat';
 import { TerminalPortfolio } from './TerminalPortfolio';
 import { TerminalSocialFeed } from './TerminalSocialFeed';
@@ -539,6 +542,35 @@ export function MarketsTradingTerminal({
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [mobileBottomNavHeight, setMobileBottomNavHeight] = useState(56);
   const [mobileChartAnimationKey, setMobileChartAnimationKey] = useState(0);
+
+  // Tutorial
+  const tutorial = useMarketsTutorial({
+    onBeforeStart: () => {
+      setIsMobilePanelOpen(false);
+      setIsMobileMarketListOpen(false);
+      setIsMobileTradeSheetOpen(false);
+      setIsMobileChartFullscreen(false);
+    },
+  });
+
+  // Sync UI state with tutorial steps (open dropdown, switch tabs)
+  useEffect(() => {
+    if (!tutorial.isActive) return;
+    const step = tutorial.steps[tutorial.currentStep];
+    if (!step) return;
+
+    // Auto-open/close market dropdown
+    setMarketDropdownOpen(step.target === '[data-tour="market-dropdown"]');
+
+    // Auto-switch bottom tab based on step title
+    if (step.title === 'Social Feed') {
+      setBottomTab('social');
+      setBottomCollapsed(false);
+    } else if (step.title === 'AI Agents') {
+      setBottomTab('agent');
+      setBottomCollapsed(false);
+    }
+  }, [tutorial.isActive, tutorial.currentStep, tutorial.steps]);
 
   // Cooldown state to prevent refresh spam (protects backend at scale)
   const [refreshOnCooldown, setRefreshOnCooldown] = useState(false);
@@ -1690,6 +1722,7 @@ export function MarketsTradingTerminal({
   const marketDropdown = marketDropdownOpen ? (
     <div
       ref={marketDropdownRef}
+      data-tour-include="market-dropdown"
       className="fade-in-0 zoom-in-95 absolute top-full left-0 z-50 flex max-h-[60vh] w-96 animate-in flex-col rounded-br-lg border-border border-t border-r border-b bg-background/95 shadow-lg backdrop-blur-md duration-150"
     >
       <div className="min-h-0 flex-1 overflow-auto">{listPanel}</div>
@@ -1697,31 +1730,37 @@ export function MarketsTradingTerminal({
   ) : null;
 
   const centerPanel = (
-    <div className="flex h-full min-h-0 flex-col bg-background/10">
+    <div
+      data-tour="chart-area"
+      className="flex h-full min-h-0 flex-col bg-background/10"
+    >
       {selected?.kind === 'prediction' ? (
         <>
           <div className="relative shrink-0 border-white/5 border-b px-4 py-2.5">
             {/* Row 1: Title + action buttons */}
             <div className="flex items-start gap-3">
-              <button
-                type="button"
-                data-market-dropdown-trigger
-                onClick={() => setMarketDropdownOpen((v) => !v)}
-                className="group inline-flex min-w-0 items-start gap-1.5 text-left"
-              >
-                <span className="mt-[3px] inline-flex shrink-0 items-center justify-center rounded bg-muted/40 p-1 text-foreground transition-colors group-hover:bg-muted/60">
-                  <ChevronDown
-                    size={14}
-                    className={cn(
-                      'transition-transform',
-                      marketDropdownOpen && 'rotate-180'
-                    )}
-                  />
-                </span>
-                <span className="line-clamp-2 text-balance font-semibold text-foreground text-sm leading-snug">
-                  {predictionState?.text ?? 'Prediction market'}
-                </span>
-              </button>
+              <div data-tour="market-dropdown" className="relative min-w-0">
+                <button
+                  type="button"
+                  data-market-dropdown-trigger
+                  onClick={() => setMarketDropdownOpen((v) => !v)}
+                  className="group inline-flex min-w-0 items-start gap-1.5 text-left"
+                >
+                  <span className="mt-[3px] inline-flex shrink-0 items-center justify-center rounded bg-muted/40 p-1 text-foreground transition-colors group-hover:bg-muted/60">
+                    <ChevronDown
+                      size={14}
+                      className={cn(
+                        'transition-transform',
+                        marketDropdownOpen && 'rotate-180'
+                      )}
+                    />
+                  </span>
+                  <span className="line-clamp-2 text-balance font-semibold text-foreground text-sm leading-snug">
+                    {predictionState?.text ?? 'Prediction market'}
+                  </span>
+                </button>
+                {marketDropdown}
+              </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <button
                   type="button"
@@ -1750,6 +1789,7 @@ export function MarketsTradingTerminal({
                     <Maximize2 size={14} />
                   )}
                 </button>
+                <TutorialHelpButton onClick={tutorial.restart} />
               </div>
             </div>
 
@@ -1796,7 +1836,6 @@ export function MarketsTradingTerminal({
                 ))}
               </div>
             </div>
-            {marketDropdown}
           </div>
 
           <div className="min-h-0 flex-1 p-4">
@@ -1813,28 +1852,31 @@ export function MarketsTradingTerminal({
       ) : selectedPerp ? (
         <>
           <div className="relative flex shrink-0 items-center justify-between gap-3 border-white/5 border-b px-4 py-2.5">
-            <button
-              type="button"
-              data-market-dropdown-trigger
-              onClick={() => setMarketDropdownOpen((v) => !v)}
-              className="group flex min-w-0 items-baseline gap-2"
-            >
-              <span className="inline-flex shrink-0 items-center justify-center self-center rounded bg-muted/40 p-1 text-foreground transition-colors group-hover:bg-muted/60">
-                <ChevronDown
-                  size={14}
-                  className={cn(
-                    'transition-transform',
-                    marketDropdownOpen && 'rotate-180'
-                  )}
-                />
-              </span>
-              <span className="font-semibold text-foreground text-sm">
-                ${selectedPerp.ticker}
-              </span>
-              <span className="truncate text-muted-foreground text-xs">
-                {selectedPerp.name}
-              </span>
-            </button>
+            <div data-tour="market-dropdown" className="relative min-w-0">
+              <button
+                type="button"
+                data-market-dropdown-trigger
+                onClick={() => setMarketDropdownOpen((v) => !v)}
+                className="group flex min-w-0 items-baseline gap-2"
+              >
+                <span className="inline-flex shrink-0 items-center justify-center self-center rounded bg-muted/40 p-1 text-foreground transition-colors group-hover:bg-muted/60">
+                  <ChevronDown
+                    size={14}
+                    className={cn(
+                      'transition-transform',
+                      marketDropdownOpen && 'rotate-180'
+                    )}
+                  />
+                </span>
+                <span className="font-semibold text-foreground text-sm">
+                  ${selectedPerp.ticker}
+                </span>
+                <span className="truncate text-muted-foreground text-xs">
+                  {selectedPerp.name}
+                </span>
+              </button>
+              {marketDropdown}
+            </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <div className="flex items-center gap-1 rounded-md bg-muted/20 p-0.5 font-semibold text-[11px]">
                 {MARKET_TIME_RANGES.map((range) => (
@@ -1871,8 +1913,8 @@ export function MarketsTradingTerminal({
                   <Maximize2 size={14} />
                 )}
               </button>
+              <TutorialHelpButton onClick={tutorial.restart} />
             </div>
-            {marketDropdown}
           </div>
           <div className="min-h-0 flex-1 p-4">
             <PerpPriceChart
@@ -1888,7 +1930,10 @@ export function MarketsTradingTerminal({
           </div>
         </>
       ) : (
-        <div className="relative flex h-full flex-col">
+        <div
+          data-tour="market-dropdown"
+          className="relative flex h-full flex-col"
+        >
           <button
             type="button"
             data-market-dropdown-trigger
@@ -1905,7 +1950,10 @@ export function MarketsTradingTerminal({
   );
 
   const rightPanel = (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div
+      data-tour="order-entry"
+      className="flex h-full min-h-0 flex-col bg-background"
+    >
       {selected?.kind === 'prediction' ? (
         <div className="flex h-full min-h-0 flex-col">
           <div className="border-border border-b px-3 py-3">
@@ -2212,7 +2260,10 @@ export function MarketsTradingTerminal({
   );
 
   const bottomPanel = (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div
+      data-tour="bottom-panel"
+      className="flex h-full min-h-0 flex-col bg-background"
+    >
       <div className="flex items-center justify-between border-border border-b bg-background px-2">
         <div className="flex min-w-0 flex-1">
           <TabButton
@@ -2463,7 +2514,10 @@ export function MarketsTradingTerminal({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="contents">
               <div className="relative flex min-h-0 w-full flex-1 flex-col border-white/5 border-b">
-                <div className="border-white/5 border-b bg-background/60 px-2 py-2 shadow-sm backdrop-blur-md">
+                <div
+                  data-tour="mobile-tab-bar"
+                  className="border-white/5 border-b bg-background/60 px-2 py-2 shadow-sm backdrop-blur-md"
+                >
                   <MobileTabBar
                     activeTab={
                       isMobilePanelOpen
@@ -2559,6 +2613,7 @@ export function MarketsTradingTerminal({
               {/* Minimal bottom nav */}
               <button
                 type="button"
+                data-tour="mobile-dock-markets"
                 onClick={() => {
                   setIsMobilePanelOpen(false);
                   setIsMobileTradeSheetOpen(false);
@@ -2570,6 +2625,7 @@ export function MarketsTradingTerminal({
               </button>
               <button
                 type="button"
+                data-tour="mobile-dock-trade"
                 onClick={() => {
                   setIsMobilePanelOpen(false);
                   setIsMobileMarketListOpen(false);
@@ -2992,6 +3048,15 @@ export function MarketsTradingTerminal({
                 })()
               : null
         }
+      />
+
+      <SpotlightTutorial
+        isActive={tutorial.isActive}
+        currentStep={tutorial.currentStep}
+        steps={tutorial.steps}
+        next={tutorial.next}
+        prev={tutorial.prev}
+        dismiss={tutorial.dismiss}
       />
     </div>
   );
