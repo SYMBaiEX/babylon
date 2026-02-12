@@ -15,10 +15,7 @@ import {
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { trackServerEvent } from '@/lib/posthog/server';
-import {
-  applyUserTradePriceImpact,
-  createPerpMarketService,
-} from '../../../_adapters';
+import { createPerpMarketService } from '../../../_adapters';
 
 const IdParamSchema = z.object({
   id: z.string(),
@@ -43,7 +40,8 @@ export const POST = withErrorHandling(
       user.userId,
       RATE_LIMIT_CONFIGS.CLOSE_POSITION
     );
-    if (!rateLimitResult.allowed) return rateLimitError(rateLimitResult.retryAfter);
+    if (!rateLimitResult.allowed)
+      return rateLimitError(rateLimitResult.retryAfter);
 
     const { id: positionId } = IdParamSchema.parse(await context.params);
 
@@ -54,14 +52,21 @@ export const POST = withErrorHandling(
     } catch {
       // Body is optional for this endpoint
     }
-    const parsed = Object.keys(body).length > 0
-      ? ClosePerpPositionSchema.parse(body)
-      : { percentage: undefined as number | undefined, slippage: undefined as number | undefined };
+    const parsed =
+      Object.keys(body).length > 0
+        ? ClosePerpPositionSchema.parse(body)
+        : {
+            percentage: undefined as number | undefined,
+            slippage: undefined as number | undefined,
+          };
 
-    // Create service with fee processor and broadcast for real-time updates
+    // Create service with fee processor, broadcast, and price impact protection
+    // Price impact adjustment (BF-75) is handled inside the service via PriceImpactPort,
+    // using average fill pricing for fair close execution.
     const service = createPerpMarketService({
       withFeeProcessor: true,
       withBroadcast: true,
+      withPriceImpact: true,
     });
 
     const result = await service.closePosition({
@@ -70,22 +75,6 @@ export const POST = withErrorHandling(
       percentage: parsed.percentage,
       maxSlippage: parsed.slippage,
     });
-
-    // Apply price impact from the trade
-    // Wait for it to complete to ensure price is updated before response
-    try {
-      await applyUserTradePriceImpact(result.ticker);
-    } catch (error) {
-      // Log but don't fail the trade - price impact is enhancement
-      logger.error(
-        'Price impact failed',
-        {
-          ticker: result.ticker,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'PerpClose'
-      );
-    }
 
     // Track analytics event (fire and forget)
     trackServerEvent(user.userId, 'trade_closed', {

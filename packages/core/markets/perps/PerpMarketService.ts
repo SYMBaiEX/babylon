@@ -49,16 +49,15 @@ export class PerpMarketService {
   }
 
   /**
-   * Apply post-trade price impact and adjust the position's entry price.
+   * Apply post-trade price impact and adjust the position's entry price
+   * to the average fill price: (preImpact + postImpact) / 2.
    *
-   * This prevents the "self-impact profit exploit" (BF-75) where a user
-   * profits from the price movement caused by their own trade:
-   * 1. Open large leveraged short → entry recorded at pre-impact price
-   * 2. Price impact crashes the market price
-   * 3. Close at crashed price → profit from own impact
-   *
-   * By updating the entry to the post-impact price, users cannot profit
-   * from their own trade's price impact.
+   * This models how a real AMM/order book works: the execution price is
+   * the average price across the impact curve, not the pre-trade or
+   * post-trade price. This:
+   * - Prevents the "self-impact profit exploit" (BF-75)
+   * - Gives users a fair average fill (not penalized with full impact)
+   * - Shows honest unrealized PnL while the position is open
    *
    * @returns Updated entry price and liquidation price, or undefined if no adjustment needed
    */
@@ -72,38 +71,47 @@ export class PerpMarketService {
     if (!this.deps.priceImpact) return undefined;
 
     try {
-      const postImpactPrice = await this.deps.priceImpact.applyAndGetPrice(ticker);
+      const postImpactPrice =
+        await this.deps.priceImpact.applyAndGetPrice(ticker);
       if (postImpactPrice === undefined) return undefined;
 
       // Only adjust if there's a meaningful difference
       if (Math.abs(postImpactPrice - preImpactEntry) <= 0.001) return undefined;
 
+      // Average fill: midpoint of pre-impact and post-impact prices
+      // This models the execution price across the linear impact curve
+      const avgFillPrice = (preImpactEntry + postImpactPrice) / 2;
+
       const newLiquidationPrice = calculateLiquidationPrice(
-        postImpactPrice,
+        avgFillPrice,
         side,
         leverage
       );
 
       await this.db.updateOpenPosition(positionId, {
-        entryPrice: postImpactPrice,
-        currentPrice: postImpactPrice,
+        entryPrice: avgFillPrice,
+        currentPrice: postImpactPrice, // market price is the actual post-impact
         liquidationPrice: newLiquidationPrice,
       });
 
       logger.info(
-        `Entry price adjusted for self-impact: ${preImpactEntry.toFixed(2)} → ${postImpactPrice.toFixed(2)}`,
+        `Entry price adjusted to avg fill: ${preImpactEntry.toFixed(2)} → ${avgFillPrice.toFixed(2)} (post-impact: ${postImpactPrice.toFixed(2)})`,
         {
           positionId,
           ticker,
           side,
           preImpactPrice: preImpactEntry,
           postImpactPrice,
+          avgFillPrice,
           liquidationPrice: newLiquidationPrice,
         },
         'PerpService'
       );
 
-      return { entryPrice: postImpactPrice, liquidationPrice: newLiquidationPrice };
+      return {
+        entryPrice: avgFillPrice,
+        liquidationPrice: newLiquidationPrice,
+      };
     } catch (error) {
       // Log but don't fail the trade - price impact adjustment is defensive
       logger.error(
@@ -111,6 +119,120 @@ export class PerpMarketService {
         {
           positionId,
           ticker,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'PerpService'
+      );
+      return undefined;
+    }
+  }
+
+  /**
+   * Apply post-close price impact and adjust the settlement.
+   *
+   * On close, the position exits at market.currentPrice (pre-close-impact).
+   * The close itself changes netHoldings, moving the global price. The "fair"
+   * exit is the average of pre-close and post-close prices, matching how a
+   * real AMM would fill a sell order across the impact curve.
+   *
+   * This method:
+   * 1. Applies the price impact (updating global price)
+   * 2. Computes average exit price
+   * 3. Calculates the PnL difference between old exit and average exit
+   * 4. Adjusts the user's wallet for the difference
+   *
+   * @returns Average exit price and adjustment amount, or undefined if no adjustment needed
+   */
+  private async applyPostCloseImpact(params: {
+    ticker: string;
+    userId: string;
+    positionId: string;
+    exitPrice: number;
+    entryPrice: number;
+    side: PerpSide;
+    closeSize: number;
+  }): Promise<{ avgExitPrice: number; adjustment: number } | undefined> {
+    if (!this.deps.priceImpact) return undefined;
+
+    try {
+      const postClosePrice =
+        await this.deps.priceImpact.applyAndGetPrice(params.ticker);
+      if (postClosePrice === undefined) return undefined;
+
+      // Only adjust if there's a meaningful difference
+      if (Math.abs(postClosePrice - params.exitPrice) <= 0.001)
+        return undefined;
+
+      const avgExitPrice = (params.exitPrice + postClosePrice) / 2;
+
+      // Calculate PnL at original exit vs average exit
+      const { pnl: oldPnl } = calculateUnrealizedPnL(
+        params.entryPrice,
+        params.exitPrice,
+        params.side,
+        params.closeSize
+      );
+      const { pnl: newPnl } = calculateUnrealizedPnL(
+        params.entryPrice,
+        avgExitPrice,
+        params.side,
+        params.closeSize
+      );
+
+      const adjustment = newPnl - oldPnl;
+
+      // Only adjust if meaningful (typically negative = debit, user was overcredited)
+      if (Math.abs(adjustment) <= 0.001) return undefined;
+
+      if (adjustment < 0) {
+        // User was overcredited at the favorable pre-close price
+        await this.deps.wallet.debit({
+          userId: params.userId,
+          amount: Math.abs(adjustment),
+          reason: 'perp_close_impact',
+          description: `Close impact adjustment for ${params.ticker}`,
+          relatedId: params.positionId,
+        });
+      } else {
+        // Rare case: user was undercredited
+        await this.deps.wallet.credit({
+          userId: params.userId,
+          amount: adjustment,
+          reason: 'perp_close_impact',
+          description: `Close impact adjustment for ${params.ticker}`,
+          relatedId: params.positionId,
+        });
+      }
+
+      // Record the PnL adjustment
+      await this.deps.wallet.recordPnL({
+        userId: params.userId,
+        pnl: adjustment,
+        reason: 'perp_close_impact',
+        relatedId: params.positionId,
+      });
+
+      logger.info(
+        `Exit price adjusted to avg fill: ${params.exitPrice.toFixed(2)} → ${avgExitPrice.toFixed(2)} (post-close: ${postClosePrice.toFixed(2)}, adj: ${adjustment.toFixed(4)})`,
+        {
+          positionId: params.positionId,
+          ticker: params.ticker,
+          side: params.side,
+          preClosePrice: params.exitPrice,
+          postClosePrice,
+          avgExitPrice,
+          adjustment,
+        },
+        'PerpService'
+      );
+
+      return { avgExitPrice, adjustment };
+    } catch (error) {
+      logger.error(
+        'Post-close impact adjustment failed',
+        {
+          positionId: params.positionId,
+          ticker: params.ticker,
           error: error instanceof Error ? error.message : String(error),
         },
         'PerpService'
@@ -491,6 +613,31 @@ export class PerpMarketService {
       volume24h: market.volume24h + closeSize,
       timestamp: (this.deps.clock?.now() ?? new Date()).toISOString(),
     });
+
+    // BF-75: Apply close-side price impact with average fill exit price
+    const closeImpact = await this.applyPostCloseImpact({
+      ticker: position.ticker,
+      userId: input.userId,
+      positionId: position.id,
+      exitPrice,
+      entryPrice: position.entryPrice,
+      side: position.side,
+      closeSize,
+    });
+    if (closeImpact) {
+      result.exitPrice = closeImpact.avgExitPrice;
+      // Recalculate realized PnL with adjusted exit for the response
+      const { pnl: adjPnl } = calculateUnrealizedPnL(
+        position.entryPrice,
+        closeImpact.avgExitPrice,
+        position.side,
+        closeSize
+      );
+      result.realizedPnL = adjPnl - proportionalFunding;
+      result.balance = (
+        await this.deps.wallet.getBalance(input.userId)
+      ).balance;
+    }
 
     return result;
   }

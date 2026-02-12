@@ -32,7 +32,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     user.userId,
     RATE_LIMIT_CONFIGS.OPEN_POSITION
   );
-  if (!rateLimitResult.allowed) return rateLimitError(rateLimitResult.retryAfter);
+  if (!rateLimitResult.allowed)
+    return rateLimitError(rateLimitResult.retryAfter);
 
   const body = await request.json();
   const { ticker, side, size, leverage } = PerpOpenPositionSchema.parse(body);
