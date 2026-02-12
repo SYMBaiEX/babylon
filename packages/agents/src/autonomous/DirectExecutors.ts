@@ -52,6 +52,7 @@ import {
   StaticDataRegistry,
   storeTagsForPost,
   WalletService,
+  createPerpPriceImpactPort,
 } from '@babylon/engine';
 import { isPureRepost } from '@babylon/shared';
 import { agentPnLService } from '../services/AgentPnLService';
@@ -923,6 +924,7 @@ async function executePerpTrade(params: {
         referrerShare: 0.5,
         minFeeAmount: 0.01,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     await service.openPosition({
@@ -1011,6 +1013,7 @@ async function executeClosePerpPosition(params: {
         referrerShare: 0.5,
         minFeeAmount: 0.01,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     // Capture the result from closePosition to get accurate realizedPnL

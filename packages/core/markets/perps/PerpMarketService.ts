@@ -32,6 +32,9 @@ const MAX_USER_EXPOSURE = 1_000_000;
 /** Maximum number of open positions per user */
 const MAX_POSITIONS_PER_USER = 50;
 
+// Ignore microscopic price adjustments to avoid churn/noise.
+const MIN_IMPACT_DELTA = 0.001;
+
 /**
  * PerpMarketService
  *
@@ -95,7 +98,7 @@ export class PerpMarketService {
       const maxImpact = basePrice * PERP_MARKET_CONFIG.MAX_CHANGE_PER_TRADE;
       const impact = Math.min(rawImpact, maxImpact);
 
-      if (impact <= 0.001) return undefined;
+      if (impact <= MIN_IMPACT_DELTA) return undefined;
 
       // Long = buying = price slides up (worse entry).  Short = opposite.
       const direction = side === 'long' ? 1 : -1;
@@ -152,38 +155,23 @@ export class PerpMarketService {
   }
 
   /**
-   * Apply post-close price impact and adjust the settlement.
+   * Compute the delta-based average exit price for a close operation.
    *
-   * Uses the same **delta-based** average fill as `applyPostTradeImpact`
-   * to ensure round-trip symmetry.  Clamping is based on basePrice.
-   *
-   * Direction:
-   *   Closing a long = selling = price slides DOWN = worse exit for the seller.
-   *   Closing a short = buying  = price slides UP  = worse exit for the buyer.
-   *
-   * After computing the user's fill, the global market price is updated to
-   * the vAMM equilibrium via `applyAndGetPrice` (for display / other users).
-   *
-   * @returns Average exit price and wallet adjustment amount, or undefined
+   * This is a pure pricing step (no wallet or DB writes).
    */
-  private async applyPostCloseImpact(params: {
+  private async previewCloseImpact(params: {
     ticker: string;
-    userId: string;
-    positionId: string;
     exitPrice: number;
-    entryPrice: number;
     side: PerpSide;
     closeSize: number;
-  }): Promise<{ avgExitPrice: number; adjustment: number } | undefined> {
+  }): Promise<{ avgExitPrice: number; deltaImpact: number } | undefined> {
     if (!this.deps.priceImpact) return undefined;
 
     try {
-      // 1. Get basePrice for symmetric clamping
       const basePrice =
         (await this.deps.priceImpact.getBasePrice?.(params.ticker)) ??
         params.exitPrice;
 
-      // 2. Compute delta-based average exit
       const effectiveSupply =
         PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY /
         PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
@@ -191,81 +179,43 @@ export class PerpMarketService {
       const maxImpact = basePrice * PERP_MARKET_CONFIG.MAX_CHANGE_PER_TRADE;
       const impact = Math.min(rawImpact, maxImpact);
 
-      if (impact <= 0.001) return undefined;
+      if (impact <= MIN_IMPACT_DELTA) return undefined;
 
-      // Closing a long = selling = price drops = WORSE exit for seller (lower).
-      // Closing a short = buying = price rises = WORSE exit for buyer (higher).
+      // Closing a long = selling = lower average exit.
+      // Closing a short = buying = higher average exit.
       const direction = params.side === 'long' ? -1 : 1;
-      const avgExitPrice = params.exitPrice + (direction * impact) / 2;
+      const deltaImpact = direction * impact;
+      const avgExitPrice = params.exitPrice + deltaImpact / 2;
 
-      // 3. Update global market price to vAMM equilibrium
-      await this.deps.priceImpact.applyAndGetPrice(params.ticker);
-
-      // 4. Calculate PnL adjustment (old exit vs average exit)
-      const { pnl: oldPnl } = calculateUnrealizedPnL(
-        params.entryPrice,
-        params.exitPrice,
-        params.side,
-        params.closeSize
-      );
-      const { pnl: newPnl } = calculateUnrealizedPnL(
-        params.entryPrice,
-        avgExitPrice,
-        params.side,
-        params.closeSize
-      );
-
-      const adjustment = newPnl - oldPnl;
-
-      if (Math.abs(adjustment) <= 0.001) return undefined;
-
-      if (adjustment < 0) {
-        await this.deps.wallet.debit({
-          userId: params.userId,
-          amount: Math.abs(adjustment),
-          reason: 'perp_close_impact',
-          description: `Close impact adjustment for ${params.ticker}`,
-          relatedId: params.positionId,
-        });
-      } else {
-        await this.deps.wallet.credit({
-          userId: params.userId,
-          amount: adjustment,
-          reason: 'perp_close_impact',
-          description: `Close impact adjustment for ${params.ticker}`,
-          relatedId: params.positionId,
-        });
-      }
-
-      await this.deps.wallet.recordPnL({
-        userId: params.userId,
-        pnl: adjustment,
-        reason: 'perp_close_impact',
-        relatedId: params.positionId,
-      });
-
-      logger.info(
-        `Exit price adjusted to avg fill: ${params.exitPrice.toFixed(2)} → ${avgExitPrice.toFixed(2)} (delta: ${(direction * impact).toFixed(4)}, adj: ${adjustment.toFixed(4)})`,
+      return { avgExitPrice, deltaImpact };
+    } catch (error) {
+      logger.error(
+        'Failed to preview close impact',
         {
-          positionId: params.positionId,
           ticker: params.ticker,
-          side: params.side,
-          preClosePrice: params.exitPrice,
-          avgExitPrice,
-          deltaImpact: direction * impact,
-          basePrice,
-          adjustment,
+          error: error instanceof Error ? error.message : String(error),
         },
         'PerpService'
       );
+      return undefined;
+    }
+  }
 
-      return { avgExitPrice, adjustment };
+  /**
+   * Apply post-close market impact update for mark-to-market consistency.
+   */
+  private async applyPostCloseMarketImpact(
+    ticker: string
+  ): Promise<number | undefined> {
+    if (!this.deps.priceImpact) return undefined;
+
+    try {
+      return await this.deps.priceImpact.applyAndGetPrice(ticker);
     } catch (error) {
       logger.error(
-        'Post-close impact adjustment failed',
+        'Post-close market impact update failed',
         {
-          positionId: params.positionId,
-          ticker: params.ticker,
+          ticker,
           error: error instanceof Error ? error.message : String(error),
         },
         'PerpService'
@@ -497,12 +447,12 @@ export class PerpMarketService {
       );
     }
 
-    const exitPrice = input.exitPriceOverride ?? market.currentPrice;
+    const requestedExitPrice = input.exitPriceOverride ?? market.currentPrice;
 
     // Reject non-finite or extreme prices to prevent NaN/Infinity PnL
-    if (!Number.isFinite(exitPrice) || exitPrice <= 0) {
+    if (!Number.isFinite(requestedExitPrice) || requestedExitPrice <= 0) {
       throw new Error(
-        `Invalid exit price for ${position.ticker}: ${exitPrice}. Cannot close position.`
+        `Invalid exit price for ${position.ticker}: ${requestedExitPrice}. Cannot close position.`
       );
     }
 
@@ -512,10 +462,10 @@ export class PerpMarketService {
       // Use mark price as the reference (more stable), falling back to position's tracked price
       const referencePrice = market.markPrice ?? market.currentPrice;
       const priceDeviation =
-        Math.abs(exitPrice - referencePrice) / referencePrice;
+        Math.abs(requestedExitPrice - referencePrice) / referencePrice;
       if (priceDeviation > input.maxSlippage) {
         throw new Error(
-          `Slippage exceeded: execution price ${exitPrice.toFixed(2)} deviates ` +
+          `Slippage exceeded: execution price ${requestedExitPrice.toFixed(2)} deviates ` +
             `${(priceDeviation * 100).toFixed(2)}% from mark price ${referencePrice.toFixed(2)} ` +
             `(max allowed: ${(input.maxSlippage * 100).toFixed(2)}%)`
         );
@@ -531,6 +481,16 @@ export class PerpMarketService {
     const closeSize = position.size * closePercentage;
     const remainingSize = position.size - closeSize;
     const isFullClose = remainingSize < 0.01; // Treat tiny remainders as full close
+
+    // BF-75: determine average-fill execution price up front so persistence,
+    // events, and response all use the same close price.
+    const closeImpact = await this.previewCloseImpact({
+      ticker: position.ticker,
+      exitPrice: requestedExitPrice,
+      side: position.side,
+      closeSize,
+    });
+    const exitPrice = closeImpact?.avgExitPrice ?? requestedExitPrice;
 
     // Calculate PnL for the portion being closed
     const { pnl } = calculateUnrealizedPnL(
@@ -614,6 +574,35 @@ export class PerpMarketService {
       });
     }
 
+    // Apply market-level post-close impact after settlement to keep the close
+    // path fail-safe (position is already settled if this step fails).
+    const postCloseMarketPrice = closeImpact
+      ? await this.applyPostCloseMarketImpact(position.ticker)
+      : undefined;
+
+    // For partial closes, re-mark remaining position to the post-impact price.
+    if (
+      !isFullClose &&
+      postCloseMarketPrice !== undefined &&
+      Number.isFinite(postCloseMarketPrice) &&
+      Math.abs(postCloseMarketPrice - exitPrice) > MIN_IMPACT_DELTA
+    ) {
+      const { pnl: markedPnl, pnlPercent: markedPnlPercent } =
+        calculateUnrealizedPnL(
+          position.entryPrice,
+          postCloseMarketPrice,
+          position.side,
+          remainingSize
+        );
+
+      await this.db.updateOpenPosition(position.id, {
+        currentPrice: postCloseMarketPrice,
+        unrealizedPnL: markedPnl,
+        unrealizedPnLPercent: markedPnlPercent,
+        lastUpdated: now,
+      });
+    }
+
     const result: PerpTradeResult = {
       positionId: position.id,
       ticker: position.ticker,
@@ -648,34 +637,24 @@ export class PerpMarketService {
       timestamp: (this.deps.clock?.now() ?? new Date()).toISOString(),
     });
 
-    // BF-75: Apply close-side price impact with average fill exit price
-    const closeImpact = await this.applyPostCloseImpact({
-      ticker: position.ticker,
-      userId: input.userId,
-      positionId: position.id,
-      exitPrice,
-      entryPrice: position.entryPrice,
-      side: position.side,
-      closeSize,
-    });
     if (closeImpact) {
-      result.exitPrice = closeImpact.avgExitPrice;
-      // Recalculate realized PnL with adjusted exit for the response
-      const { pnl: adjPnl } = calculateUnrealizedPnL(
-        position.entryPrice,
-        closeImpact.avgExitPrice,
-        position.side,
-        closeSize
+      logger.info(
+        `Exit price adjusted to avg fill: ${requestedExitPrice.toFixed(2)} → ${exitPrice.toFixed(2)} (delta: ${closeImpact.deltaImpact.toFixed(4)})`,
+        {
+          positionId: position.id,
+          ticker: position.ticker,
+          side: position.side,
+          requestedExitPrice,
+          avgExitPrice: exitPrice,
+          deltaImpact: closeImpact.deltaImpact,
+          postCloseMarketPrice,
+        },
+        'PerpService'
       );
-      result.realizedPnL = adjPnl - proportionalFunding;
-      result.balance = (
-        await this.deps.wallet.getBalance(input.userId)
-      ).balance;
     }
 
     return result;
   }
-
   /**
    * Update open positions with new prices, apply liquidations, and update market stats.
    *

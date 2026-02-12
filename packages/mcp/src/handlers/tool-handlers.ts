@@ -65,6 +65,7 @@ import {
   invalidateAfterPredictionTrade,
   StaticDataRegistry,
   WalletService,
+  createPerpPriceImpactPort,
 } from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
 import {
@@ -787,6 +788,7 @@ function buildPerpService() {
       },
       getBalance: (userId: string) => WalletService.getBalance(userId),
     },
+    priceImpact: createPerpPriceImpactPort(),
     fees: {
       tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
       platformShare: FEE_CONFIG.PLATFORM_SHARE,

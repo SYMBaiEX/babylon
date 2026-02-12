@@ -26,7 +26,7 @@ import {
 } from '@babylon/core/markets/prediction';
 import { db, getRawDrizzle } from '@babylon/db';
 import { perpMarketSnapshots } from '@babylon/db/schema';
-import { WalletService } from '@babylon/engine';
+import { WalletService, createPerpPriceImpactPort } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
 import {
   ContentValidator,
@@ -1501,6 +1501,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
           ),
         getBalance: (userId: string) => WalletService.getBalance(userId),
       },
+      priceImpact: createPerpPriceImpactPort(),
       broadcast: {
         emit: async () => {
           // No-op for A2A - broadcasts handled separately

@@ -5,7 +5,7 @@
  */
 
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
-import { FEE_CONFIG, WalletService } from '@babylon/engine';
+import { FEE_CONFIG, WalletService, createPerpPriceImpactPort } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -208,6 +208,7 @@ export const openPerpAction: Action = {
           referrerShare: FEE_CONFIG.REFERRER_SHARE,
           minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
         },
+        priceImpact: createPerpPriceImpactPort(),
       });
 
       // Check if market exists (case-insensitive lookup)

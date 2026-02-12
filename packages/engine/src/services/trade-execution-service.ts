@@ -57,6 +57,7 @@ import type {
 } from '../types/market-decisions';
 import { formatError } from '../utils/error-utils';
 import { FeeService } from './fee-service';
+import { createPerpPriceImpactPort } from './perp-price-impact-port';
 import {
   type AggregatedImpact,
   aggregateTradeImpacts,
@@ -496,6 +497,7 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     // Open position via PerpMarketService (uses perpPositions table)
@@ -1143,6 +1145,7 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     const result = await perpService.closePosition({
