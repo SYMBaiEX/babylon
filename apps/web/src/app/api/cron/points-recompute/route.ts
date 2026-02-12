@@ -48,8 +48,7 @@ export async function POST(request: NextRequest) {
     // Bulk backfill: if many users still have totalPoints=0, fast-set them
     // to virtualBalance in a single SQL UPDATE before doing per-user recompute.
     // This runs in seconds and gives immediate leaderboard visibility.
-    const bulkBackfilled =
-      await TotalPointsService.bulkBackfillFromBalance();
+    const bulkBackfilled = await TotalPointsService.bulkBackfillFromBalance();
 
     // Self-heal: mark users with totalPoints=0 as dirty so recompute can backfill.
     const markedZeroTotalPoints =

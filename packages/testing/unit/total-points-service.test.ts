@@ -556,14 +556,62 @@ describe('Whitelist-scoped batch operations', () => {
   });
 
   const mockUsers: MockUser[] = [
-    { id: 'wl-user-1', totalPoints: '0', virtualBalance: '2000', isAgent: false, isActor: false },
-    { id: 'wl-user-2', totalPoints: '0', virtualBalance: '1500', isAgent: false, isActor: false },
-    { id: 'regular-1', totalPoints: '0', virtualBalance: '1000', isAgent: false, isActor: false },
-    { id: 'regular-2', totalPoints: '0', virtualBalance: '1000', isAgent: false, isActor: false },
-    { id: 'agent-1', totalPoints: '0', virtualBalance: '5000', isAgent: true, isActor: false },
-    { id: 'actor-1', totalPoints: '0', virtualBalance: '8000', isAgent: false, isActor: true },
-    { id: 'revoked-1', totalPoints: '0', virtualBalance: '3000', isAgent: false, isActor: false },
-    { id: 'already-set', totalPoints: '1500', virtualBalance: '1500', isAgent: false, isActor: false },
+    {
+      id: 'wl-user-1',
+      totalPoints: '0',
+      virtualBalance: '2000',
+      isAgent: false,
+      isActor: false,
+    },
+    {
+      id: 'wl-user-2',
+      totalPoints: '0',
+      virtualBalance: '1500',
+      isAgent: false,
+      isActor: false,
+    },
+    {
+      id: 'regular-1',
+      totalPoints: '0',
+      virtualBalance: '1000',
+      isAgent: false,
+      isActor: false,
+    },
+    {
+      id: 'regular-2',
+      totalPoints: '0',
+      virtualBalance: '1000',
+      isAgent: false,
+      isActor: false,
+    },
+    {
+      id: 'agent-1',
+      totalPoints: '0',
+      virtualBalance: '5000',
+      isAgent: true,
+      isActor: false,
+    },
+    {
+      id: 'actor-1',
+      totalPoints: '0',
+      virtualBalance: '8000',
+      isAgent: false,
+      isActor: true,
+    },
+    {
+      id: 'revoked-1',
+      totalPoints: '0',
+      virtualBalance: '3000',
+      isAgent: false,
+      isActor: false,
+    },
+    {
+      id: 'already-set',
+      totalPoints: '1500',
+      virtualBalance: '1500',
+      isAgent: false,
+      isActor: false,
+    },
   ];
 
   const mockWhitelist: MockWhitelistEntry[] = [
