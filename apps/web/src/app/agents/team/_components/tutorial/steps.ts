@@ -43,9 +43,9 @@ export const DESKTOP_STEPS: TutorialStep[] = [
   },
   {
     target: '[data-tour="agents-add-button"]',
-    title: 'Create New Agents',
+    title: 'Create Your First Agent',
     description:
-      'Tap here to add a new agent to your team. Customize its personality, goals, and how it interacts with markets.',
+      'Click Next to create your first AI agent. You\'ll customize its personality, goals, and how it interacts with markets.',
     placement: 'bottom',
   },
   {

@@ -53,7 +53,7 @@ function isPnlTagData(data: unknown): data is PnlTagData {
 import { MessageCircle, PanelRight, Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AgentCreate } from '@/components/agents/AgentCreate';
 import { AgentEditModal } from '@/components/agents/AgentEditModal';
@@ -271,6 +271,17 @@ export default function TeamChatPage() {
       setMobileView('agents');
     },
   });
+
+  // Open create-agent modal when user clicks "Next" on step 2 (Create New Agents)
+  const prevTutorialStepRef = useRef(tutorial.currentStep);
+  useEffect(() => {
+    const prev = prevTutorialStepRef.current;
+    prevTutorialStepRef.current = tutorial.currentStep;
+    // Step index 1 = "Create New Agents"; advancing past it opens the modal
+    if (tutorial.isActive && prev === 1 && tutorial.currentStep === 2) {
+      setShowCreateAgentModal(true);
+    }
+  }, [tutorial.isActive, tutorial.currentStep]);
 
   // Build chat details with fake tutorial messages injected at the top
   const tutorialChatDetails = useMemo(() => {
@@ -1269,7 +1280,7 @@ export default function TeamChatPage() {
       )}
 
       <SpotlightTutorial
-        isActive={tutorial.isActive}
+        isActive={tutorial.isActive && !showCreateAgentModal}
         currentStep={tutorial.currentStep}
         steps={tutorial.steps}
         next={tutorial.next}
