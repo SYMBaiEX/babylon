@@ -33,6 +33,8 @@ import {
   TradeConfirmationDialog,
 } from '@/components/markets/TradeConfirmationDialog';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
+import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,8 +86,6 @@ import type {
 import { MARKET_TIME_RANGES } from '@/types/markets';
 import { formatBalance } from '../../_lib/formatters';
 import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
-import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
-import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import { useMarketsTutorial } from '../tutorial/useMarketsTutorial';
 import { TerminalAgentsChat } from './TerminalAgentsChat';
 import { TerminalPortfolio } from './TerminalPortfolio';

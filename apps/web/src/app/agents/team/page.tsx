@@ -61,8 +61,11 @@ import { TeamChatView } from '@/components/chats';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
+import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
+import { useAgentsTutorial } from './_components/tutorial/useAgentsTutorial';
 import { AgentPnL } from './AgentPnL';
 import { AgentPortfolio } from './AgentPortfolio';
 import {
@@ -87,9 +90,6 @@ import {
   RightSidebar,
   type RightSidebarTab,
 } from './RightSidebar';
-import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
-import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
-import { useAgentsTutorial } from './_components/tutorial/useAgentsTutorial';
 
 // Lazy load AgentLogs for performance
 const AgentLogs = dynamic(
