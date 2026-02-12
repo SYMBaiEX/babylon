@@ -167,6 +167,7 @@ export function BottomPanel({
   return (
     <div
       ref={panelRef}
+      data-tour="agents-bottom-panel"
       className={cn(
         'relative shrink-0 border-border border-t bg-background transition-[height] duration-200',
         isResizing && 'select-none transition-none'

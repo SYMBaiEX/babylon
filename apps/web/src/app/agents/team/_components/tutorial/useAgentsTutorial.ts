@@ -4,18 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TutorialState } from '@/components/tutorial/SpotlightTutorial';
 import { DESKTOP_STEPS, MOBILE_STEPS } from './steps';
 
-const STORAGE_KEY = 'babylon-markets-tutorial-completed';
+const STORAGE_KEY = 'babylon-agents-tutorial-completed';
 const AUTO_START_DELAY = 500;
 
-export type MarketsTutorialState = TutorialState;
+export type AgentsTutorialState = TutorialState;
 
-interface UseMarketsTutorialOptions {
+interface UseAgentsTutorialOptions {
   onBeforeStart?: () => void;
 }
 
-export function useMarketsTutorial(
-  options?: UseMarketsTutorialOptions
-): MarketsTutorialState {
+export function useAgentsTutorial(
+  options?: UseAgentsTutorialOptions
+): AgentsTutorialState {
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [hasCompleted, setHasCompleted] = useState(true);
@@ -24,7 +24,7 @@ export function useMarketsTutorial(
 
   const steps = useMemo(() => {
     if (typeof window === 'undefined') return DESKTOP_STEPS;
-    return window.matchMedia('(min-width: 768px)').matches
+    return window.matchMedia('(min-width: 1024px)').matches
       ? DESKTOP_STEPS
       : MOBILE_STEPS;
   }, []);

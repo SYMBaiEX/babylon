@@ -10,8 +10,24 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { TutorialStep } from './steps';
-import type { MarketsTutorialState } from './useMarketsTutorial';
+export interface TutorialStep {
+  target: string;
+  title: string;
+  description: string;
+  placement: 'top' | 'bottom' | 'left' | 'right';
+}
+
+export interface TutorialState {
+  isActive: boolean;
+  currentStep: number;
+  steps: TutorialStep[];
+  hasCompleted: boolean;
+  next: () => void;
+  prev: () => void;
+  dismiss: () => void;
+  complete: () => void;
+  restart: () => void;
+}
 
 const SPOTLIGHT_PADDING = 8;
 const TOOLTIP_GAP = 12;
@@ -64,7 +80,7 @@ function computeTargetRect(selector: string): Rect | null {
 }
 
 type SpotlightTutorialProps = Pick<
-  MarketsTutorialState,
+  TutorialState,
   'isActive' | 'currentStep' | 'steps' | 'next' | 'prev' | 'dismiss'
 >;
 

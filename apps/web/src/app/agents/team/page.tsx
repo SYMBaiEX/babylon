@@ -87,6 +87,9 @@ import {
   RightSidebar,
   type RightSidebarTab,
 } from './RightSidebar';
+import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
+import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
+import { useAgentsTutorial } from './_components/tutorial/useAgentsTutorial';
 
 // Lazy load AgentLogs for performance
 const AgentLogs = dynamic(
@@ -257,6 +260,32 @@ export default function TeamChatPage() {
     autonomousGroupChats?: boolean;
     a2aEnabled?: boolean;
   } | null>(null);
+
+  // Tutorial
+  const tutorial = useAgentsTutorial({
+    onBeforeStart: () => {
+      setMobileView('agents');
+    },
+  });
+
+  // Sync UI state with tutorial steps (switch mobile tabs, open bottom panel)
+  useEffect(() => {
+    if (!tutorial.isActive) return;
+    const step = tutorial.steps[tutorial.currentStep];
+    if (!step) return;
+
+    // On mobile, switch to the correct tab
+    if (step.target === '[data-tour="agents-mobile-chat-tab"]') {
+      setMobileView('agents');
+    } else if (step.target === '[data-tour="agents-mobile-add"]') {
+      setMobileView('agents');
+    }
+
+    // Ensure bottom panel is visible for its step
+    if (step.target === '[data-tour="agents-bottom-panel"]') {
+      setBottomPanelOpen(true);
+    }
+  }, [tutorial.isActive, tutorial.currentStep, tutorial.steps]);
 
   // Set default entity for bottom panel - defaults to user
   // Also validates that selected agent still exists (handles agent removal)
@@ -591,7 +620,10 @@ export default function TeamChatPage() {
       className="relative flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:h-dvh lg:border-l"
     >
       {/* Mobile Tab Navigation - visible on small screens only */}
-      <div className="flex h-12 shrink-0 items-center justify-around border-border border-b bg-background lg:hidden">
+      <div
+        data-tour="agents-mobile-tabs"
+        className="flex h-12 shrink-0 items-center justify-around border-border border-b bg-background lg:hidden"
+      >
         <button
           type="button"
           onClick={() => setMobileView('agents')}
@@ -606,6 +638,7 @@ export default function TeamChatPage() {
         </button>
         <button
           type="button"
+          data-tour="agents-mobile-chat-tab"
           onClick={() => setMobileView('chat')}
           className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs transition-colors ${
             mobileView === 'chat'
@@ -661,6 +694,7 @@ export default function TeamChatPage() {
             <h2 className="font-bold text-foreground text-xl">Agents</h2>
             <button
               type="button"
+              data-tour="agents-mobile-add"
               onClick={() => setShowCreateAgentModal(true)}
               className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               aria-label="Add agent"
@@ -832,7 +866,10 @@ export default function TeamChatPage() {
         {/* Member Sidebar - visible on lg+ when not collapsed */}
         {!leftSidebarCollapsed && (
           <>
-            <div className="flex w-80 shrink-0 flex-col border-border border-r">
+            <div
+              data-tour="agents-member-list"
+              className="flex w-80 shrink-0 flex-col border-border border-r"
+            >
               {/* Conversations Section */}
               <div className="p-3">
                 <ConversationList
@@ -849,14 +886,18 @@ export default function TeamChatPage() {
               {/* Agents Header */}
               <div className="flex items-center justify-between p-3">
                 <h2 className="font-bold text-foreground text-xl">Agents</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateAgentModal(true)}
-                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  aria-label="Add agent"
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <TutorialHelpButton onClick={tutorial.restart} />
+                  <button
+                    type="button"
+                    data-tour="agents-add-button"
+                    onClick={() => setShowCreateAgentModal(true)}
+                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    aria-label="Add agent"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Member list - extracted component */}
@@ -872,7 +913,10 @@ export default function TeamChatPage() {
         )}
 
         {/* Chat Content - min-width ensures chat doesn't get too small on desktop */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+        <div
+          data-tour="agents-chat-area"
+          className="flex min-h-0 min-w-0 flex-1 flex-col bg-background"
+        >
           <TeamChatView
             chatDetails={chatDetails}
             currentUserId={user?.id}
@@ -1132,6 +1176,15 @@ export default function TeamChatPage() {
           }}
         />
       )}
+
+      <SpotlightTutorial
+        isActive={tutorial.isActive}
+        currentStep={tutorial.currentStep}
+        steps={tutorial.steps}
+        next={tutorial.next}
+        prev={tutorial.prev}
+        dismiss={tutorial.dismiss}
+      />
     </div>
   );
 }

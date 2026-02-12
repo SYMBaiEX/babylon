@@ -1,9 +1,6 @@
-export interface TutorialStep {
-  target: string;
-  title: string;
-  description: string;
-  placement: 'top' | 'bottom' | 'left' | 'right';
-}
+import type { TutorialStep } from '@/components/tutorial/SpotlightTutorial';
+
+export type { TutorialStep };
 
 export const DESKTOP_STEPS: TutorialStep[] = [
   {
