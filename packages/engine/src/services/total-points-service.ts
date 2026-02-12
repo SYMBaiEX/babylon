@@ -121,7 +121,7 @@ function isWhitelistOnly(): boolean {
 export const TotalPointsService = {
   /**
    * Recompute totalPoints for a single user.
-   * totalPoints = wallet + open position values (perps + predictions).
+   * totalPoints = wallet + open positions + reputationPoints.
    * Only the user's own positions are included (not agent positions).
    */
   async recomputeTotalPoints(userId: string): Promise<number> {
@@ -130,6 +130,7 @@ export const TotalPointsService = {
         id: users.id,
         privyId: users.privyId,
         virtualBalance: users.virtualBalance,
+        reputationPoints: users.reputationPoints,
       })
       .from(users)
       .where(or(eq(users.id, userId), eq(users.privyId, userId)))
@@ -146,6 +147,7 @@ export const TotalPointsService = {
     }
 
     const wallet = toNumber(user.virtualBalance);
+    const reputation = user.reputationPoints;
     const canonicalUserId = user.id;
     const positionUserIds = Array.from(
       new Set([canonicalUserId, user.privyId].filter(Boolean))
@@ -202,7 +204,7 @@ export const TotalPointsService = {
       0
     );
 
-    const totalPoints = wallet + perpsValue + predictionsValue;
+    const totalPoints = wallet + perpsValue + predictionsValue + reputation;
 
     await db
       .update(users)
@@ -405,7 +407,8 @@ export const TotalPointsService = {
   },
 
   /**
-   * Bulk backfill: set totalPoints = virtualBalance for users with totalPoints = 0.
+   * Bulk backfill: set totalPoints = virtualBalance + reputationPoints for
+   * users with totalPoints = 0.
    * When POINTS_WHITELIST_ONLY !== 'false', scoped to active whitelist entries.
    * Also marks backfilled users as dirty so the cron can add position values.
    */
@@ -415,7 +418,7 @@ export const TotalPointsService = {
       ? await db.execute(sql`
           UPDATE "User" u
           SET
-            "totalPoints" = COALESCE(CAST(u."virtualBalance" AS DECIMAL(18,2)), 0),
+            "totalPoints" = COALESCE(CAST(u."virtualBalance" AS DECIMAL(18,2)), 0) + u."reputationPoints",
             "totalPointsDirtyAt" = NOW()
           FROM "Whitelist" w
           WHERE w."userId" = u."id"
@@ -423,17 +426,15 @@ export const TotalPointsService = {
             AND u."totalPoints" = '0'
             AND u."isAgent" = false
             AND u."isActor" = false
-            AND COALESCE(CAST(u."virtualBalance" AS DECIMAL(18,2)), 0) > 0
         `)
       : await db.execute(sql`
           UPDATE "User"
           SET
-            "totalPoints" = COALESCE(CAST("virtualBalance" AS DECIMAL(18,2)), 0),
+            "totalPoints" = COALESCE(CAST("virtualBalance" AS DECIMAL(18,2)), 0) + "reputationPoints",
             "totalPointsDirtyAt" = NOW()
           WHERE "totalPoints" = '0'
             AND "isAgent" = false
             AND "isActor" = false
-            AND COALESCE(CAST("virtualBalance" AS DECIMAL(18,2)), 0) > 0
         `);
 
     // postgres-js puts affected row count on `.count`; drizzle passes through
