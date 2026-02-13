@@ -85,5 +85,12 @@
     ".next/dev/types/**/*.ts",
     "types/**/*.d.ts"
   ],
-  "exclude": ["node_modules", "dist", "**/*.disabled", "src/**/__tests__/**/*", "src/app/sw.ts", "public/sw.js"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.disabled",
+    "src/**/__tests__/**/*",
+    "src/app/sw.ts",
+    "public/sw.js"
+  ]
 }

@@ -27,8 +27,8 @@ export default function OfflinePage() {
           <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
           <line x1="12" y1="20" x2="12.01" y2="20" />
         </svg>
-        <h1 className="mb-3 text-2xl font-semibold">You're Offline</h1>
-        <p className="mb-8 leading-relaxed text-[#a1a1aa]">
+        <h1 className="mb-3 font-semibold text-2xl">You're Offline</h1>
+        <p className="mb-8 text-[#a1a1aa] leading-relaxed">
           Babylon requires an internet connection for real-time prediction
           markets and live events.
         </p>
@@ -41,5 +41,5 @@ export default function OfflinePage() {
         </button>
       </div>
     </div>
-  )
+  );
 }

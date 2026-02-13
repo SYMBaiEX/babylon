@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
+import withSerwistInit from '@serwist/next';
 import { config } from 'dotenv';
 import type { NextConfig } from 'next';
 import * as path from 'path';
-import withSerwistInit from '@serwist/next';
 
 // Use process.cwd() which works reliably in Next.js config context
 // This is the app directory (apps/web), so go up two levels to get monorepo root
@@ -10,8 +10,9 @@ const monorepoRoot = path.resolve(process.cwd(), '../..');
 
 // Serwist PWA — service worker generation
 const revision =
-  spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf-8' }).stdout?.trim() ||
-  crypto.randomUUID();
+  spawnSync('git', ['rev-parse', 'HEAD'], {
+    encoding: 'utf-8',
+  }).stdout?.trim() || crypto.randomUUID();
 
 const withSerwist = withSerwistInit({
   swSrc: 'src/app/sw.ts',
@@ -470,7 +471,10 @@ async function getConfig(): Promise<NextConfig> {
 
   try {
     const { withSentryConfig } = await import('@sentry/nextjs');
-    resolvedConfig = withSentryConfig(resolvedConfig, sentryWebpackPluginOptions);
+    resolvedConfig = withSentryConfig(
+      resolvedConfig,
+      sentryWebpackPluginOptions
+    );
   } catch (error) {
     const shouldLog = process.env.CI || process.env.NODE_ENV !== 'production';
     if (shouldLog) {
