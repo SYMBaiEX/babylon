@@ -23,6 +23,18 @@ export const ChatMessageCreateSchema = z.object({
 });
 
 /**
+ * Chat message reaction emoji schema
+ */
+export const ChatMessageReactionEmojiSchema = createTrimmedStringSchema(1, 16);
+
+/**
+ * Chat message reaction submission schema
+ */
+export const ChatMessageReactionCreateSchema = z.object({
+  emoji: ChatMessageReactionEmojiSchema,
+});
+
+/**
  * Chat creation schema
  */
 export const ChatCreateSchema = z

@@ -1,8 +1,13 @@
 import { logger, type MessageMetadata } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type MessageType, MessageTypeEnum } from '@/components/chats/types';
+import {
+  type MessageReactionSummary,
+  type MessageType,
+  MessageTypeEnum,
+} from '@/components/chats/types';
 import { CHAT_PAGE_SIZE } from '@/lib/constants';
+import { useAuthStore } from '@/stores/authStore';
 import { useSSEChannel } from './useSSE';
 
 /**
@@ -22,6 +27,8 @@ export interface ChatMessage {
   isThinking?: boolean;
   /** Metadata containing action tags for sidebar display */
   metadata?: MessageMetadata | null;
+  /** Aggregated emoji reactions summary (counts + whether current user reacted). */
+  reactions?: MessageReactionSummary[];
 }
 
 /** Raw message from API (createdAt may be string or Date) */
@@ -32,6 +39,7 @@ interface RawApiMessage {
   type?: MessageType;
   createdAt: string | Date;
   metadata?: MessageMetadata | null;
+  reactions?: MessageReactionSummary[];
 }
 
 /** Format raw API message to ChatMessage */
@@ -47,6 +55,7 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
         ? msg.createdAt
         : msg.createdAt.toISOString(),
     metadata: msg.metadata,
+    reactions: msg.reactions,
   };
 }
 
@@ -137,6 +146,49 @@ function replaceOptimisticMessage(
   return [...messages, confirmed];
 }
 
+function reactionsEqual(
+  a: MessageReactionSummary[] | undefined,
+  b: MessageReactionSummary[] | undefined
+): boolean {
+  if (!a?.length && !b?.length) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  const key = (r: MessageReactionSummary) =>
+    `${r.emoji}:${r.count}:${r.reactedByMe ? 1 : 0}`;
+  const as = [...a].map(key).sort().join('|');
+  const bs = [...b].map(key).sort().join('|');
+  return as === bs;
+}
+
+function applyReactionDelta(
+  existing: MessageReactionSummary[] | undefined,
+  emoji: string,
+  action: 'added' | 'removed',
+  isMine: boolean
+): MessageReactionSummary[] {
+  const map = new Map<string, MessageReactionSummary>();
+  for (const r of existing ?? []) map.set(r.emoji, { ...r });
+
+  const prev = map.get(emoji);
+  const prevCount = prev?.count ?? 0;
+  const nextCount =
+    action === 'added' ? prevCount + 1 : Math.max(0, prevCount - 1);
+
+  if (nextCount <= 0) {
+    map.delete(emoji);
+  } else {
+    map.set(emoji, {
+      emoji,
+      count: nextCount,
+      reactedByMe: isMine ? action === 'added' : (prev?.reactedByMe ?? false),
+    });
+  }
+
+  const out = [...map.values()];
+  out.sort((a, b) => b.count - a.count);
+  return out;
+}
+
 /** Polling interval - less aggressive since SSE is primary */
 const POLLING_INTERVAL_MS = 15000;
 
@@ -180,6 +232,7 @@ const POLLING_INTERVAL_MS = 15000;
  */
 export function useChatMessages(chatId: string | null) {
   const { getAccessToken } = usePrivy();
+  const { user } = useAuthStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -187,6 +240,21 @@ export function useChatMessages(chatId: string | null) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const previousChatIdRef = useRef<string | null>(null);
   const hasLoadedRef = useRef<Set<string>>(new Set());
+  const pendingReactionDeltasRef = useRef<Set<string>>(new Set());
+
+  const markPendingReactionDelta = useCallback(
+    (delta: {
+      messageId: string;
+      emoji: string;
+      action: 'added' | 'removed';
+    }) => {
+      const key = `${delta.messageId}:${delta.emoji}:${delta.action}`;
+      pendingReactionDeltasRef.current.add(key);
+      // Safety: auto-expire in case the SSE event never arrives.
+      setTimeout(() => pendingReactionDeltasRef.current.delete(key), 5000);
+    },
+    []
+  );
 
   // Load existing messages from API (initial load)
   const loadMessages = useCallback(
@@ -297,42 +365,83 @@ export function useChatMessages(chatId: string | null) {
   // Handle SSE updates for this chat
   const handleChatUpdate = useCallback(
     (data: Record<string, unknown>) => {
-      if (data.type !== 'new_message' || !data.message) return;
+      if (data.type === 'new_message' && data.message) {
+        const m = data.message as Record<string, unknown>;
+        // Type guard for required fields
+        if (
+          typeof m.id !== 'string' ||
+          typeof m.content !== 'string' ||
+          typeof m.chatId !== 'string' ||
+          typeof m.senderId !== 'string' ||
+          typeof m.createdAt !== 'string' ||
+          m.chatId !== chatId
+        ) {
+          return;
+        }
 
-      const m = data.message as Record<string, unknown>;
-      // Type guard for required fields
-      if (
-        typeof m.id !== 'string' ||
-        typeof m.content !== 'string' ||
-        typeof m.chatId !== 'string' ||
-        typeof m.senderId !== 'string' ||
-        typeof m.createdAt !== 'string' ||
-        m.chatId !== chatId
-      ) {
+        const newMessage: ChatMessage = {
+          id: m.id,
+          content: m.content,
+          chatId: m.chatId,
+          senderId: m.senderId,
+          type:
+            m.type === MessageTypeEnum.USER ||
+            m.type === MessageTypeEnum.SYSTEM ||
+            m.type === MessageTypeEnum.COORDINATOR
+              ? (m.type as MessageType)
+              : undefined,
+          createdAt: m.createdAt,
+          isGameChat:
+            typeof m.isGameChat === 'boolean' ? m.isGameChat : undefined,
+          metadata: m.metadata as MessageMetadata | null | undefined,
+          reactions: Array.isArray(m.reactions)
+            ? (m.reactions as MessageReactionSummary[])
+            : undefined,
+        };
+
+        setIsLoading(false);
+        setMessages((prev) => replaceOptimisticMessage(prev, newMessage));
         return;
       }
 
-      const newMessage: ChatMessage = {
-        id: m.id,
-        content: m.content,
-        chatId: m.chatId,
-        senderId: m.senderId,
-        type:
-          m.type === MessageTypeEnum.USER ||
-          m.type === MessageTypeEnum.SYSTEM ||
-          m.type === MessageTypeEnum.COORDINATOR
-            ? (m.type as MessageType)
-            : undefined,
-        createdAt: m.createdAt,
-        isGameChat:
-          typeof m.isGameChat === 'boolean' ? m.isGameChat : undefined,
-        metadata: m.metadata as MessageMetadata | null | undefined,
-      };
+      if (data.type === 'message_reaction' && data.reaction) {
+        const r = data.reaction as Record<string, unknown>;
+        if (
+          typeof r.messageId !== 'string' ||
+          typeof r.chatId !== 'string' ||
+          typeof r.emoji !== 'string' ||
+          typeof r.userId !== 'string' ||
+          typeof r.action !== 'string' ||
+          r.chatId !== chatId ||
+          (r.action !== 'added' && r.action !== 'removed')
+        ) {
+          return;
+        }
 
-      setIsLoading(false);
-      setMessages((prev) => replaceOptimisticMessage(prev, newMessage));
+        const isMine = !!user?.id && r.userId === user.id;
+        const emoji = r.emoji;
+        const action = r.action as 'added' | 'removed';
+
+        if (isMine) {
+          const key = `${r.messageId}:${emoji}:${action}`;
+          if (pendingReactionDeltasRef.current.has(key)) {
+            pendingReactionDeltasRef.current.delete(key);
+            return;
+          }
+        }
+
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === r.messageId);
+          if (idx < 0) return prev;
+          const msg = prev[idx];
+          const next = applyReactionDelta(msg.reactions, emoji, action, isMine);
+          return prev.map((m, i) =>
+            i === idx ? { ...m, reactions: next } : m
+          );
+        });
+      }
     },
-    [chatId]
+    [chatId, user?.id]
   );
 
   // Subscribe to chat channel
@@ -400,7 +509,28 @@ export function useChatMessages(chatId: string | null) {
             let changed = false;
 
             for (const msg of formatted) {
-              if (existingIds.has(msg.id)) continue;
+              if (existingIds.has(msg.id)) {
+                const existingIdx = updated.findIndex((m) => m.id === msg.id);
+                if (existingIdx < 0) continue;
+                const existing = updated[existingIdx];
+
+                // Merge in reactions/metadata updates from the API snapshot.
+                if (!reactionsEqual(existing.reactions, msg.reactions)) {
+                  updated[existingIdx] = {
+                    ...existing,
+                    reactions: msg.reactions,
+                  };
+                  changed = true;
+                }
+                if (msg.metadata && !existing.metadata) {
+                  updated[existingIdx] = {
+                    ...updated[existingIdx],
+                    metadata: msg.metadata,
+                  };
+                  changed = true;
+                }
+                continue;
+              }
 
               const pending = updated.find((m) => isMatchingOptimistic(m, msg));
               if (pending) {
@@ -494,5 +624,6 @@ export function useChatMessages(chatId: string | null) {
     clearMessages,
     reloadMessages,
     isConnected,
+    markPendingReactionDelta,
   };
 }

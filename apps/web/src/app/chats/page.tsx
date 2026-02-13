@@ -105,6 +105,7 @@ export default function ChatsPage() {
 
     // Actions
     sendMessage,
+    toggleReaction,
   } = useChatPage();
 
   // Detect if the current chat is with the user's own agent
@@ -218,6 +219,7 @@ export default function ChatsPage() {
                 topSentinelRef={topSentinelRef}
                 messagesEndRef={messagesEndRef}
                 onBack={() => setSelectedChatId(null)}
+                onToggleReaction={toggleReaction}
                 onManageGroup={handleManageGroup}
                 onLeaveChat={() => setLeaveConfirmOpen(true)}
                 onMessageChange={setMessageInput}

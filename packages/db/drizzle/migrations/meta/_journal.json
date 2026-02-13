@@ -281,6 +281,13 @@
       "when": 1770912000000,
       "tag": "0040_add_offline_wallet_ready",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1770990012019,
+      "tag": "0041_add_message_reactions",
+      "breakpoints": true
     }
   ]
 }

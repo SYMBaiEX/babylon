@@ -20,7 +20,11 @@ import {
   useState,
 } from 'react';
 import { toast } from 'sonner';
-import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
+import type {
+  ChatDetails,
+  ChatParticipant,
+  MessageReactionSummary,
+} from '@/components/chats/types';
 import { MessageTypeEnum } from '@/components/chats/types';
 import {
   OptimisticMessageIdPrefix,
@@ -264,7 +268,95 @@ export function useTeamChat(): UseTeamChatReturn {
     updateMessage,
     removeMessage,
     clearMessages,
+    markPendingReactionDelta,
   } = useChatMessages(teamChat?.chatId ?? null);
+
+  const applyMyReactionDelta = useCallback(
+    (
+      existing: MessageReactionSummary[] | undefined,
+      emoji: string,
+      action: 'added' | 'removed'
+    ): MessageReactionSummary[] => {
+      const map = new Map<string, MessageReactionSummary>();
+      for (const r of existing ?? []) map.set(r.emoji, { ...r });
+
+      const prev = map.get(emoji);
+      const prevCount = prev?.count ?? 0;
+      const nextCount =
+        action === 'added' ? prevCount + 1 : Math.max(0, prevCount - 1);
+
+      if (nextCount <= 0) {
+        map.delete(emoji);
+      } else {
+        map.set(emoji, {
+          emoji,
+          count: nextCount,
+          reactedByMe: action === 'added',
+        });
+      }
+
+      const out = [...map.values()];
+      out.sort((a, b) => b.count - a.count);
+      return out;
+    },
+    []
+  );
+
+  const toggleReaction = useCallback(
+    async (messageId: string, emoji: string, currentlyReactedByMe: boolean) => {
+      if (!teamChat?.chatId || !user) return;
+
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const existing = realtimeMessages.find((m) => m.id === messageId);
+      const prevReactions = existing?.reactions;
+
+      const action: 'added' | 'removed' = currentlyReactedByMe
+        ? 'removed'
+        : 'added';
+      markPendingReactionDelta({ messageId, emoji, action });
+      updateMessage(messageId, {
+        reactions: applyMyReactionDelta(prevReactions, emoji, action),
+      });
+
+      const url = currentlyReactedByMe
+        ? `/api/chats/${teamChat.chatId}/messages/${messageId}/reactions?emoji=${encodeURIComponent(
+            emoji
+          )}`
+        : `/api/chats/${teamChat.chatId}/messages/${messageId}/reactions`;
+
+      const response = await fetch(url, {
+        method: currentlyReactedByMe ? 'DELETE' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: currentlyReactedByMe ? undefined : JSON.stringify({ emoji }),
+      });
+
+      if (!response.ok) {
+        updateMessage(messageId, { reactions: prevReactions });
+        toast.error('Failed to update reaction');
+        return;
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data.reactions)) {
+        updateMessage(messageId, { reactions: data.reactions });
+      }
+    },
+    [
+      teamChat?.chatId,
+      teamChat,
+      user,
+      getAccessToken,
+      realtimeMessages,
+      updateMessage,
+      markPendingReactionDelta,
+      applyMyReactionDelta,
+    ]
+  );
 
   // Helper to find scroll container from messagesEndRef
   const getScrollContainer = useCallback((): HTMLElement | null => {
@@ -1425,6 +1517,7 @@ export function useTeamChat(): UseTeamChatReturn {
     tagAgentInInput,
     // Actions
     sendMessage,
+    toggleReaction,
     refresh: fetchTeamChat,
     handleScroll,
     scrollToBottom,

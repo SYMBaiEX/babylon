@@ -100,6 +100,25 @@ export async function broadcastChatMessage(
   });
 }
 
+/**
+ * Broadcast a chat message reaction delta to a specific chat room.
+ */
+export async function broadcastChatMessageReaction(
+  chatId: string,
+  reaction: {
+    messageId: string;
+    chatId: string;
+    emoji: string;
+    userId: string;
+    action: 'added' | 'removed';
+  }
+): Promise<void> {
+  await broadcastToChannel(`chat:${chatId}`, {
+    type: 'message_reaction',
+    reaction: reaction as unknown as JsonValue,
+  });
+}
+
 // ============================================================================
 // Agent Activity Broadcasting
 // ============================================================================
