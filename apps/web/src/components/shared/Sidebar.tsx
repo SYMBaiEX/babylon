@@ -332,6 +332,9 @@ function SidebarContent() {
                   onClick={login}
                   className={cn(sharedClassName, 'w-full')}
                   title={item.name}
+                  {...(item.name === 'Agents'
+                    ? { 'data-tour': 'sidebar-agents' }
+                    : {})}
                 >
                   {navContent}
                 </button>
@@ -346,6 +349,9 @@ function SidebarContent() {
                 className={sharedClassName}
                 title={item.name}
                 onClick={() => trackNavigation(item.href, 'sidebar')}
+                {...(item.name === 'Agents'
+                  ? { 'data-tour': 'sidebar-agents' }
+                  : {})}
               >
                 {navContent}
               </Link>

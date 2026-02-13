@@ -194,6 +194,7 @@ export function MessageBubble({
                   key={`${tag.type}-${tag.entityId ?? i}`}
                   type="button"
                   onClick={() => onTagClick?.(tag, message.id)}
+                  data-tag-entity={tag.entityId}
                   className="group flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 py-1 pr-2 pl-3 font-medium text-primary text-xs transition-all hover:border-primary/40 hover:bg-primary/10"
                 >
                   <span>{tag.label}</span>
