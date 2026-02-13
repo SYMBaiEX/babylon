@@ -62,7 +62,9 @@ export function verifySignedState(
     return { valid: false, reason: 'malformed state token' };
   }
 
-  const [nonce, timestampStr, providedSignature] = parts;
+  const nonce = parts[0]!;
+  const timestampStr = parts[1]!;
+  const providedSignature = parts[2]!;
 
   // Validate UUID format for the nonce
   const uuidRegex =
