@@ -29,7 +29,9 @@ interface Member {
   username: string | null;
   profileImageUrl: string | null;
   memberType: 'user' | 'agent' | 'npc';
+  role: 'owner' | 'admin' | 'member';
   isAdmin: boolean;
+  isOwner: boolean;
   joinedAt: Date | string;
 }
 
@@ -42,8 +44,9 @@ interface GroupDetails {
   description: string | null;
   type: 'user' | 'npc' | 'agent' | 'team';
   members: Member[];
+  userRole: 'owner' | 'admin' | 'member';
   isAdmin: boolean;
-  isCreator: boolean;
+  isOwner: boolean;
   createdById: string;
 }
 
@@ -96,6 +99,10 @@ export function GroupManagementModal({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Group info state
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+
   // Add member state
   const [showAddMember, setShowAddMember] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,6 +121,8 @@ export function GroupManagementModal({
     if (!isOpen || !groupId) {
       setGroupDetails(null);
       setError(null);
+      setIsEditingGroupName(false);
+      setGroupNameDraft('');
       setShowAddMember(false);
       setSearchQuery('');
       setSearchResults([]);
@@ -138,11 +147,69 @@ export function GroupManagementModal({
 
       const data = await response.json();
       setGroupDetails(data.group);
+      setGroupNameDraft(data.group?.name || '');
+      setIsEditingGroupName(false);
       setLoading(false);
     };
 
     loadGroupDetails();
   }, [isOpen, groupId, getAccessToken]);
+
+  const handleUpdateGroupName = async () => {
+    if (!groupId) return;
+
+    const nextName = groupNameDraft.trim();
+    if (!nextName) {
+      setError('Group name is required');
+      return;
+    }
+    if (nextName.length > 100) {
+      setError('Group name must be 100 characters or less');
+      return;
+    }
+
+    setActionLoading('group-name');
+    setError(null);
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/groups/${groupId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: nextName }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'Failed to update group name');
+        return;
+      }
+
+      // Reload group details so member/admin flags stay consistent.
+      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (detailsResponse.ok) {
+        const data = await detailsResponse.json();
+        setGroupDetails(data.group);
+        setGroupNameDraft(data.group?.name || nextName);
+      }
+
+      toast.success('Group name updated');
+      setIsEditingGroupName(false);
+      onGroupUpdated?.();
+    } catch (err) {
+      console.error('Failed to update group name:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   // Search for users (including user-created agents)
   useEffect(() => {
@@ -510,7 +577,7 @@ export function GroupManagementModal({
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-2">
                   {/* Leave Group (everyone can do this) */}
-                  {!groupDetails.isCreator && (
+                  {!groupDetails.isOwner && (
                     <button
                       onClick={() => setConfirmAction({ type: 'leave' })}
                       disabled={!!actionLoading}
@@ -521,8 +588,8 @@ export function GroupManagementModal({
                     </button>
                   )}
 
-                  {/* Delete Group (admins only, not for NPC groups) */}
-                  {groupDetails.isAdmin && !isNpcGroup && (
+                  {/* Delete Group (owner only, not for NPC groups) */}
+                  {groupDetails.isOwner && !isNpcGroup && (
                     <button
                       onClick={() => setConfirmAction({ type: 'delete' })}
                       disabled={!!actionLoading}
@@ -541,6 +608,74 @@ export function GroupManagementModal({
                       This is an NPC-controlled group. Member management is
                       handled by the tiered invitation system.
                     </p>
+                  </div>
+                )}
+
+                {/* Group Name */}
+                {!isNpcGroup && (
+                  <div className="rounded-lg border border-border bg-sidebar p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="block font-semibold text-sm">
+                        Group name
+                      </label>
+                      {groupDetails.isAdmin && (
+                        <div className="flex items-center gap-2">
+                          {isEditingGroupName ? (
+                            <>
+                              <button
+                                onClick={handleUpdateGroupName}
+                                disabled={
+                                  !!actionLoading ||
+                                  actionLoading === 'group-name'
+                                }
+                                className="rounded-lg bg-primary px-3 py-1.5 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
+                              >
+                                {actionLoading === 'group-name' ? (
+                                  <Loader2 className="inline h-4 w-4 animate-spin" />
+                                ) : (
+                                  'Save'
+                                )}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setError(null);
+                                  setGroupNameDraft(groupDetails.name);
+                                  setIsEditingGroupName(false);
+                                }}
+                                disabled={!!actionLoading}
+                                className="rounded-lg border border-border bg-background px-3 py-1.5 font-medium text-sm transition-colors hover:bg-accent disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setError(null);
+                                setGroupNameDraft(groupDetails.name);
+                                setIsEditingGroupName(true);
+                              }}
+                              disabled={!!actionLoading}
+                              className="rounded-lg border border-border bg-background px-3 py-1.5 font-medium text-sm transition-colors hover:bg-accent disabled:opacity-50"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {isEditingGroupName ? (
+                      <input
+                        type="text"
+                        value={groupNameDraft}
+                        onChange={(e) => setGroupNameDraft(e.target.value)}
+                        maxLength={100}
+                        className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors focus:border-primary focus:outline-none"
+                      />
+                    ) : (
+                      <p className="mt-2 truncate text-sm">{groupDetails.name}</p>
+                    )}
                   </div>
                 )}
 
@@ -640,7 +775,7 @@ export function GroupManagementModal({
                   {/* Members List */}
                   <div className="space-y-2">
                     {groupDetails.members.map((member) => {
-                      const isCreator = member.id === groupDetails.createdById;
+                      const isOwner = member.isOwner;
                       return (
                         <div
                           key={member.id}
@@ -662,7 +797,7 @@ export function GroupManagementModal({
                                   member.username ||
                                   'Unknown'}
                               </span>
-                              {isCreator && (
+                              {isOwner && (
                                 <Crown className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
                               )}
                               {member.isAdmin && (
@@ -678,7 +813,7 @@ export function GroupManagementModal({
 
                           {/* Actions (only for admins, not for creator, not for NPC groups) */}
                           {groupDetails.isAdmin &&
-                            !isCreator &&
+                            !isOwner &&
                             !isNpcGroup && (
                               <div className="flex items-center gap-1">
                                 {!member.isAdmin ? (
