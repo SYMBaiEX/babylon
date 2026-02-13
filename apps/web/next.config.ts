@@ -1,10 +1,24 @@
+import { spawnSync } from 'node:child_process';
 import { config } from 'dotenv';
 import type { NextConfig } from 'next';
 import * as path from 'path';
+import withSerwistInit from '@serwist/next';
 
 // Use process.cwd() which works reliably in Next.js config context
 // This is the app directory (apps/web), so go up two levels to get monorepo root
 const monorepoRoot = path.resolve(process.cwd(), '../..');
+
+// Serwist PWA — service worker generation
+const revision =
+  spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf-8' }).stdout?.trim() ||
+  crypto.randomUUID();
+
+const withSerwist = withSerwistInit({
+  swSrc: 'src/app/sw.ts',
+  swDest: 'public/sw.js',
+  additionalPrecacheEntries: [{ url: '/~offline', revision }],
+  disable: process.env.NODE_ENV === 'development',
+});
 
 // Capture any Sentry auth token explicitly provided by the environment before dotenv runs.
 // We intentionally ignore tokens sourced from local `.env` files to avoid stale/invalid tokens
@@ -56,6 +70,10 @@ const nextConfig: NextConfig = {
       {
         source: '/.well-known/agent-card.json',
         destination: '/api/game/card',
+      },
+      {
+        source: '/.well-known/assetlinks.json',
+        destination: '/assetlinks.json',
       },
     ];
   },
@@ -441,7 +459,8 @@ const sentryWebpackPluginOptions = {
 
 // Wrap Sentry config in async function to handle top-level await
 async function getConfig(): Promise<NextConfig> {
-  let resolvedConfig: NextConfig = nextConfig;
+  // Apply Serwist PWA wrapper first
+  let resolvedConfig: NextConfig = withSerwist(nextConfig);
 
   // If we're not uploading sourcemaps/releases, don't wrap the config at all.
   // This prevents local builds from invoking Sentry CLI when a stale token is present.
@@ -451,7 +470,7 @@ async function getConfig(): Promise<NextConfig> {
 
   try {
     const { withSentryConfig } = await import('@sentry/nextjs');
-    resolvedConfig = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+    resolvedConfig = withSentryConfig(resolvedConfig, sentryWebpackPluginOptions);
   } catch (error) {
     const shouldLog = process.env.CI || process.env.NODE_ENV !== 'production';
     if (shouldLog) {
