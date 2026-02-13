@@ -16,7 +16,7 @@ const ROOT = path.resolve(import.meta.dir, '..');
 const SVG_PATH = path.join(ROOT, 'apps/web/public/favicon.svg');
 const ICONS_DIR = path.join(ROOT, 'apps/web/public/icons');
 
-const SIZES = [192, 512];
+const SIZES = [144, 192, 512];
 
 async function generateIcons() {
   // Dynamic import sharp — it may need to be installed

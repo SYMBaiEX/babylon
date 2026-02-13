@@ -150,9 +150,21 @@ export function DiscordActivityProvider({
           patchUrlMappings([{ prefix: '/api', target: proxyTarget }]);
         }
 
-        // Step 3: Generate a cryptographic state parameter for CSRF protection.
-        const oauthState = crypto.randomUUID();
-        sessionStorage.setItem('discord_oauth_state', oauthState);
+        // Step 3: Fetch a server-signed state token for CSRF protection.
+        // The server generates an HMAC-SHA256 signed nonce with a TTL, so the
+        // token exchange endpoint can verify the state was issued by us and
+        // hasn't expired.
+        const stateRes = await fetch(
+          '/.proxy/api/auth/discord/activity/state'
+        );
+        if (!stateRes.ok) {
+          throw new Error(
+            `Failed to obtain OAuth state token (status ${stateRes.status})`
+          );
+        }
+        const { state: oauthState } = (await stateRes.json()) as {
+          state: string;
+        };
 
         // Authorize — opens the OAuth permission modal inside Discord.
         const { code } = await discordSdk.commands.authorize({
@@ -164,7 +176,7 @@ export function DiscordActivityProvider({
         });
 
         // Step 4: Exchange the code for an access token on our server.
-        // Include the state for server-side validation.
+        // Include the signed state for server-side CSRF validation.
         const tokenRes = await fetch('/.proxy/api/auth/discord/activity', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

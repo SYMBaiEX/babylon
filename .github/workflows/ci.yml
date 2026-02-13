@@ -117,3 +117,29 @@ jobs:
             echo "❌ Build failed - apps/web/.next directory does not exist"
             exit 1
           fi
+
+      - name: Check for placeholder values in deployment artifacts
+        run: |
+          echo "🔍 Checking for placeholder values that should not reach production..."
+          FAILED=false
+
+          # assetlinks.json — TWA domain verification will silently fail
+          # if the SHA-256 fingerprint placeholder is still present.
+          if [ -f apps/web/public/assetlinks.json ]; then
+            if grep -q 'PLACEHOLDER' apps/web/public/assetlinks.json; then
+              echo "⚠️  apps/web/public/assetlinks.json contains PLACEHOLDER value"
+              echo "   Replace sha256_cert_fingerprints with the actual signing key fingerprint."
+              echo "   Run: keytool -list -v -keystore <your.keystore> | grep SHA256"
+              FAILED=true
+            else
+              echo "✅ assetlinks.json has no placeholder values"
+            fi
+          fi
+
+          if [ "$FAILED" = true ]; then
+            echo ""
+            echo "❌ Deployment artifacts contain placeholder values."
+            echo "   This is a warning in CI — these MUST be replaced before production deployment."
+          else
+            echo "✅ No placeholder values found in deployment artifacts"
+          fi

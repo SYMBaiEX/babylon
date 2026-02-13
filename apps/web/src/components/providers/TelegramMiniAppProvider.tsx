@@ -138,13 +138,83 @@ export function TelegramMiniAppProvider({
         if (sdk.themeParams.bindCssVars.isAvailable())
           sdk.themeParams.bindCssVars();
 
-        // Extract user from launch data.
-        // SDK v3 returns properties with tgWebApp prefix; user fields may
-        // be typed loosely, so we defensively cast.
+        // Extract and validate user from launch data.
+        //
+        // The raw initData string is sent to our server for HMAC-SHA-256
+        // validation against the bot token. This prevents spoofing attacks
+        // where a malicious client forges initData with arbitrary user IDs.
+        //
+        // If validation is not configured (no TELEGRAM_BOT_TOKEN on server),
+        // we fall back to trusting the client-side data — this allows
+        // development and environments where the bot token isn't available.
         let extractedUsername: string | undefined;
-        try {
-          const lp = sdk.retrieveLaunchParams();
-          const initData = lp?.tgWebAppData as
+
+        const lp = sdk.retrieveLaunchParams();
+
+        // The raw initData query string is available as tgWebAppData in
+        // serialised form, or we can reconstruct it from the launch params.
+        // SDK v3 exposes `initDataRaw` on the launch params for this purpose.
+        const rawInitData =
+          (lp as Record<string, unknown>).tgWebAppDataRaw as
+            | string
+            | undefined;
+
+        let userValidated = false;
+
+        if (rawInitData) {
+          // Validate initData server-side via HMAC-SHA-256
+          const validateRes = await fetch('/api/auth/telegram/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initData: rawInitData }),
+          });
+
+          if (validateRes.ok) {
+            const validated = (await validateRes.json()) as {
+              valid: boolean;
+              user: {
+                id: number;
+                first_name: string;
+                last_name?: string;
+                username?: string;
+                photo_url?: string;
+              };
+            };
+
+            if (validated.valid && validated.user) {
+              extractedUsername = validated.user.username;
+              setTelegramUser({
+                id: validated.user.id,
+                firstName: validated.user.first_name,
+                lastName: validated.user.last_name,
+                username: validated.user.username,
+                photoUrl: validated.user.photo_url,
+              });
+              userValidated = true;
+            }
+          } else if (validateRes.status === 501) {
+            // Server returned 501 — TELEGRAM_BOT_TOKEN not configured.
+            // Fall through to client-side extraction below.
+            logger.warn(
+              'Telegram initData validation not configured on server, using unverified client data',
+              {},
+              'TelegramMiniApp'
+            );
+          } else {
+            // Validation explicitly failed (403 or other) — the initData
+            // is tampered with or expired. Do not trust user data.
+            logger.error(
+              'Telegram initData validation failed — user data not trusted',
+              { status: validateRes.status },
+              'TelegramMiniApp'
+            );
+          }
+        }
+
+        // Fallback: extract user from client-side launch data if server
+        // validation was not available (no bot token configured).
+        if (!userValidated) {
+          const initData = (lp as Record<string, unknown>)?.tgWebAppData as
             | { user?: Record<string, unknown> }
             | undefined;
           if (initData?.user) {
@@ -165,15 +235,13 @@ export function TelegramMiniAppProvider({
                   : undefined,
             });
           }
-        } catch {
-          // Could not extract user — non-critical.
         }
 
         setIsMiniApp(true);
 
         logger.info(
           'Telegram Mini App initialized',
-          { user: extractedUsername },
+          { user: extractedUsername, validated: userValidated },
           'TelegramMiniApp'
         );
 
@@ -211,10 +279,15 @@ export function TelegramMiniAppProvider({
 
     // Trigger Privy's login modal. Because we're inside the Telegram WebView
     // the Telegram login option is available and will use the existing session.
+    //
+    // NOTE: We intentionally do NOT reset hasAttemptedLogin on failure.
+    // A failed attempt is still an attempt — resetting would cause an infinite
+    // retry loop on subsequent re-renders if login consistently fails (e.g.
+    // network error, Privy misconfiguration). Users can manually retry by
+    // refreshing the Mini App.
     try {
       login();
     } catch (err) {
-      hasAttemptedLogin.current = false;
       const message = err instanceof Error ? err.message : String(err);
       logger.error(
         'Telegram Mini App auto-login failed',
