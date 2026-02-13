@@ -15,6 +15,7 @@ import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 import { NftAccessGate, NftPromoBanner } from '@/components/nft';
 import { Providers } from '@/components/providers/Providers';
+import { SolanaMobileProvider } from '@/components/providers/SolanaMobileProvider';
 import { BottomNav } from '@/components/shared/BottomNav';
 import { MobileHeader } from '@/components/shared/MobileHeader';
 import { Sidebar } from '@/components/shared/Sidebar';
@@ -28,7 +29,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
     shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
+    apple: '/icons/icon-192.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Babylon',
   },
   openGraph: {
     title: 'Babylon',
@@ -157,6 +163,7 @@ export default async function RootLayout({
             </>
           )}
         </Providers>
+        <SolanaMobileProvider />
         <Analytics />
         <SpeedInsights />
       </body>
