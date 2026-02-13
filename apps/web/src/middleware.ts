@@ -7,6 +7,8 @@ const ALLOWED_PATHS = new Set([
   '/robots.txt',
   '/sitemap.xml',
   '/manifest.webmanifest',
+  '/sw.js',
+  '/.well-known/assetlinks.json',
 ]);
 
 const DEFAULT_WAITLIST_HOSTS = [
