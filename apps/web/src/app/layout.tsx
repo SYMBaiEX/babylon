@@ -15,7 +15,6 @@ import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 import { NftAccessGate, NftPromoBanner } from '@/components/nft';
 import { Providers } from '@/components/providers/Providers';
-import { SolanaMobileProvider } from '@/components/providers/SolanaMobileProvider';
 import { BottomNav } from '@/components/shared/BottomNav';
 import { MobileHeader } from '@/components/shared/MobileHeader';
 import { Sidebar } from '@/components/shared/Sidebar';
@@ -163,7 +162,6 @@ export default async function RootLayout({
             </>
           )}
         </Providers>
-        <SolanaMobileProvider />
         <Analytics />
         <SpeedInsights />
       </body>

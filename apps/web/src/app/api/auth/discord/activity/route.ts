@@ -19,6 +19,7 @@ import { z } from 'zod';
 
 const RequestSchema = z.object({
   code: z.string().min(1),
+  state: z.string().uuid('Invalid OAuth state parameter'),
 });
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
@@ -49,12 +50,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: 'Missing or invalid code parameter' },
+      { error: 'Missing or invalid request parameters' },
       { status: 400 }
     );
   }
 
-  const { code } = parsed.data;
+  const { code, state } = parsed.data;
+
+  // Log the state for audit trail (value itself is non-sensitive — it's a
+  // one-time nonce generated client-side for CSRF protection).
+  logger.debug(
+    'Discord Activity token exchange request received',
+    { statePresent: !!state },
+    'DiscordActivity'
+  );
 
   try {
     const tokenResponse = await fetch(

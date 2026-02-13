@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { useEffect, useRef } from 'react';
 
 /**
@@ -36,10 +37,12 @@ export function SolanaMobileProvider() {
           createDefaultChainSelector,
           createDefaultWalletNotFoundHandler,
         }) => {
+          const appUrl =
+            process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
           registerMwa({
             appIdentity: {
               name: 'Babylon',
-              uri: 'https://play.babylon.market',
+              uri: appUrl,
               icon: 'icons/icon-192.png',
             },
             authorizationCache: createDefaultAuthorizationCache(),
@@ -47,11 +50,22 @@ export function SolanaMobileProvider() {
             chainSelector: createDefaultChainSelector(),
             onWalletNotFound: createDefaultWalletNotFoundHandler(),
           });
+
+          logger.info(
+            'Solana MWA registered successfully',
+            { uri: appUrl },
+            'SolanaMobile'
+          );
         }
       )
       .catch((err) => {
         // Non-critical — Privy embedded wallets are the fallback.
-        console.warn('Failed to register Solana MWA:', err);
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(
+          'Failed to register Solana MWA',
+          { error: message },
+          'SolanaMobile'
+        );
       });
   }, []);
 

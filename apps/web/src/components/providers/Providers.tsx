@@ -17,6 +17,7 @@ import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
 import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
+import { SolanaMobileProvider } from './SolanaMobileProvider';
 import { TelegramMiniAppProvider } from './TelegramMiniAppProvider';
 
 /**
@@ -295,6 +296,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     <FarcasterMiniAppProvider>
                       <TelegramMiniAppProvider>
                         <DiscordActivityProvider>
+                          {/* Solana MWA registration (side-effect only, no UI) */}
+                          <SolanaMobileProvider />
                           {/* PostHog user identification */}
                           <PostHogIdentifier />
                           {/* Capture referral code from URL if present */}

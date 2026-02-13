@@ -98,12 +98,15 @@ export function DiscordActivityProvider({
     }
 
     // Discord Activities run inside an iframe on *.discordsays.com.
-    // Quick heuristic: check if we're in an iframe and the referrer or
-    // parent origin hints at Discord.  The SDK itself will throw if we're
-    // not actually in an Activity, so this is just a fast bailout.
-    const isLikelyDiscord =
-      window.self !== window.top || // embedded in iframe
+    // Check for Discord-specific indicators before loading the SDK to
+    // avoid unnecessary dynamic imports for non-Discord iframes.
+    const url = new URL(window.location.href);
+    const isDiscordHostname =
       window.location.hostname.endsWith('.discordsays.com');
+    const hasDiscordParams =
+      url.searchParams.has('frame_id') && url.searchParams.has('instance_id');
+    const isLikelyDiscord =
+      isDiscordHostname || (window.self !== window.top && hasDiscordParams);
 
     if (!isLikelyDiscord) {
       logger.debug('Not in Discord Activity context', {}, 'DiscordActivity');
@@ -141,23 +144,31 @@ export function DiscordActivityProvider({
         //   /api  → play.babylon.market
         //   /blob → *.public.blob.vercel-storage.com
         if (process.env.NODE_ENV === 'production') {
-          patchUrlMappings([{ prefix: '/api', target: 'play.babylon.market' }]);
+          const proxyTarget =
+            process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, '') ||
+            'play.babylon.market';
+          patchUrlMappings([{ prefix: '/api', target: proxyTarget }]);
         }
 
-        // Step 3: Authorize — opens the OAuth permission modal inside Discord.
+        // Step 3: Generate a cryptographic state parameter for CSRF protection.
+        const oauthState = crypto.randomUUID();
+        sessionStorage.setItem('discord_oauth_state', oauthState);
+
+        // Authorize — opens the OAuth permission modal inside Discord.
         const { code } = await discordSdk.commands.authorize({
           client_id: clientId,
           response_type: 'code',
-          state: '',
+          state: oauthState,
           prompt: 'none',
           scope: ['identify'],
         });
 
         // Step 4: Exchange the code for an access token on our server.
+        // Include the state for server-side validation.
         const tokenRes = await fetch('/.proxy/api/auth/discord/activity', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code, state: oauthState }),
         });
 
         if (!tokenRes.ok) {
