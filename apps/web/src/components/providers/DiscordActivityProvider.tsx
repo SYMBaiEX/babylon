@@ -154,9 +154,7 @@ export function DiscordActivityProvider({
         // The server generates an HMAC-SHA256 signed nonce with a TTL, so the
         // token exchange endpoint can verify the state was issued by us and
         // hasn't expired.
-        const stateRes = await fetch(
-          '/.proxy/api/auth/discord/activity/state'
-        );
+        const stateRes = await fetch('/.proxy/api/auth/discord/activity/state');
         if (!stateRes.ok) {
           throw new Error(
             `Failed to obtain OAuth state token (status ${stateRes.status})`

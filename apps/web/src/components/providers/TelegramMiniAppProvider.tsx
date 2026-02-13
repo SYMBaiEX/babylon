@@ -154,10 +154,9 @@ export function TelegramMiniAppProvider({
         // The raw initData query string is available as tgWebAppData in
         // serialised form, or we can reconstruct it from the launch params.
         // SDK v3 exposes `initDataRaw` on the launch params for this purpose.
-        const rawInitData =
-          (lp as Record<string, unknown>).tgWebAppDataRaw as
-            | string
-            | undefined;
+        const rawInitData = (lp as Record<string, unknown>).tgWebAppDataRaw as
+          | string
+          | undefined;
 
         let userValidated = false;
 

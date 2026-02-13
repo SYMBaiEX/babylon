@@ -137,4 +137,3 @@ export const GET = withErrorHandling(async () => {
 
   return NextResponse.json({ state });
 });
-

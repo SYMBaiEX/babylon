@@ -216,4 +216,3 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     authDate: result.data.authDate,
   });
 });
-
