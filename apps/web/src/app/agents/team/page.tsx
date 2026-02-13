@@ -64,6 +64,10 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
 import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  type TeamScope,
+  useTeamTradingSummary,
+} from '@/hooks/useTeamTradingSummary';
 import { useTeamChat } from '@/hooks/useTeamChat';
 import {
   TUTORIAL_PERPS_DATA,
@@ -72,6 +76,8 @@ import {
 import { useAgentsTutorial } from './_components/tutorial/useAgentsTutorial';
 import { AgentPnL } from './AgentPnL';
 import { AgentPortfolio } from './AgentPortfolio';
+import { TeamPnL } from './TeamPnL';
+import { TeamPortfolio } from './TeamPortfolio';
 import {
   BOTTOM_PANEL_COLLAPSED_HEIGHT,
   BOTTOM_PANEL_DEFAULT_HEIGHT,
@@ -233,6 +239,8 @@ export default function TeamChatPage() {
   const [bottomPanelHeight, setBottomPanelHeight] = useState(
     BOTTOM_PANEL_DEFAULT_HEIGHT
   );
+
+  const [teamScope, setTeamScope] = useState<TeamScope>('owner_agents');
 
   // Calculate current bottom panel height for RightSidebar
   const currentBottomPanelHeight = bottomPanelOpen
@@ -432,13 +440,32 @@ export default function TeamChatPage() {
     (id: string, type: EntityType) => {
       setBottomPanelEntityId(id);
       setBottomPanelEntityType(type);
-      // If switching to user and on logs tab, switch to activity (logs not available for users)
+      // If switching to user/team and on logs tab, switch to activity/wallet (logs not available)
       if (type === 'user' && bottomPanelTab === 'logs') {
         setBottomPanelTab('activity');
+      }
+      if (type === 'team' && (bottomPanelTab === 'logs' || bottomPanelTab === 'activity')) {
+        setBottomPanelTab('wallet');
       }
     },
     [bottomPanelTab]
   );
+
+  const teamSummaryEnabled =
+    Boolean(user?.id) &&
+    ready &&
+    authenticated &&
+    bottomPanelOpen &&
+    bottomPanelEntityType === 'team' &&
+    (bottomPanelTab === 'wallet' || bottomPanelTab === 'pnl');
+
+  const { summary: teamSummary, loading: teamSummaryLoading, error: teamSummaryError } =
+    useTeamTradingSummary({
+      ownerId: user?.id,
+      ownerName: user?.displayName || user?.username || 'You',
+      enabled: teamSummaryEnabled,
+      getAccessToken,
+    });
 
   // Handle sidebar "Settings" - open edit modal
   const handleViewSettings = useCallback(
@@ -1121,6 +1148,24 @@ export default function TeamChatPage() {
             {/* Wallet Tab */}
             {bottomPanelTab === 'wallet' &&
               (() => {
+                if (bottomPanelEntityType === 'team') {
+                  return (
+                    <TeamPortfolio
+                      summary={teamSummary}
+                      loading={teamSummaryLoading}
+                      error={teamSummaryError}
+                      scope={teamScope}
+                      onScopeChange={setTeamScope}
+                      onSelectMember={(id, type) => {
+                        if (type === 'user') {
+                          handleBottomPanelEntityChange(id, 'user');
+                          return;
+                        }
+                        handleBottomPanelEntityChange(id, 'agent');
+                      }}
+                    />
+                  );
+                }
                 if (bottomPanelEntityType === 'user') {
                   return (
                     <AgentPortfolio
@@ -1149,6 +1194,24 @@ export default function TeamChatPage() {
             {/* PnL Tab */}
             {bottomPanelTab === 'pnl' &&
               (() => {
+                if (bottomPanelEntityType === 'team') {
+                  return (
+                    <TeamPnL
+                      summary={teamSummary}
+                      loading={teamSummaryLoading}
+                      error={teamSummaryError}
+                      scope={teamScope}
+                      onScopeChange={setTeamScope}
+                      onSelectMember={(id, type) => {
+                        if (type === 'user') {
+                          handleBottomPanelEntityChange(id, 'user');
+                          return;
+                        }
+                        handleBottomPanelEntityChange(id, 'agent');
+                      }}
+                    />
+                  );
+                }
                 if (bottomPanelEntityType === 'user') {
                   return (
                     <AgentPnL
