@@ -107,6 +107,7 @@ export async function calculatePortfolioBreakdown(
       virtualBalance: users.virtualBalance,
       totalDeposited: users.totalDeposited,
       totalWithdrawn: users.totalWithdrawn,
+      reputationPoints: users.reputationPoints,
     })
     .from(users)
     .where(or(eq(users.id, userId), eq(users.privyId, userId)))
@@ -119,6 +120,7 @@ export async function calculatePortfolioBreakdown(
         virtualBalance: unknown;
         totalDeposited: unknown;
         totalWithdrawn: unknown;
+        reputationPoints: number;
       }
     | undefined;
   if (!user) return null;
@@ -223,7 +225,7 @@ export async function calculatePortfolioBreakdown(
   const available = wallet + agents;
   const totalAssets = wallet + agents + positionsValue;
   const totalPnL = totalAssets - originalAmount;
-  const totalPoints = wallet + positionsValue;
+  const totalPoints = wallet + positionsValue + user.reputationPoints;
 
   return {
     wallet,
