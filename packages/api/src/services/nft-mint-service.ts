@@ -164,6 +164,24 @@ const HAS_MINTED_ABI = [
 const TRANSFER_EVENT_SIGNATURE =
   '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef' as const;
 
+/**
+ * Maximum token ID in the ProtoMonkeys collection.
+ */
+const MAX_TOKEN_ID = 100;
+
+/**
+ * Contract deployment block for log queries.
+ * Using a known deployment block avoids `fromBlock: 'earliest'` which many
+ * RPC providers reject for large block ranges on mainnet.
+ * Override with `NFT_CONTRACT_DEPLOY_BLOCK` env var if redeployed.
+ */
+function getContractDeployBlock(): bigint {
+  const envBlock = process.env.NFT_CONTRACT_DEPLOY_BLOCK;
+  if (envBlock) return BigInt(envBlock);
+  // Default: 0n (safe for hardhat/sepolia; set env var for mainnet)
+  return 0n;
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -370,7 +388,7 @@ export async function reconcileOnChainMint(
       from: '0x0000000000000000000000000000000000000000' as Address,
       to: walletAddress,
     },
-    fromBlock: 'earliest',
+    fromBlock: getContractDeployBlock(),
     toBlock: 'latest',
   });
 
@@ -387,7 +405,7 @@ export async function reconcileOnChainMint(
   const mintLog = logs[0]!;
   const mintedTokenId = Number(mintLog.args.tokenId);
 
-  if (mintedTokenId < 1 || mintedTokenId > 100) {
+  if (mintedTokenId < 1 || mintedTokenId > MAX_TOKEN_ID) {
     logger.warn(
       'reconcileOnChainMint: tokenId out of range',
       { userId, walletAddress, mintedTokenId },
@@ -606,6 +624,7 @@ export async function checkEligibility(
 
   // On-chain verification: DB says hasMinted=false, but check on-chain to catch desyncs.
   // Only do this if the user has a Privy embedded wallet configured.
+  let onChainMintConfirmed = false;
   try {
     const { contractAddress, chainId } = getConfig();
     if (contractAddress && isAddress(contractAddress)) {
@@ -624,19 +643,40 @@ export async function checkEligibility(
         );
 
         if (hasMintedOnChain) {
+          // We now know for certain the user minted on-chain.
+          // Even if reconciliation fails below, we must return 'already_minted'.
+          onChainMintConfirmed = true;
+
           logger.warn(
             'checkEligibility: on-chain hasMinted=true but DB false — reconciling',
             { userId, embeddedWallet, contractAddress },
             'NFTMintService'
           );
-          await reconcileOnChainMint(
-            userId,
-            embeddedWallet,
-            contractAddress as Address,
-            chainId
-          );
 
-          // Re-fetch snapshot to get the reconciled data
+          try {
+            await reconcileOnChainMint(
+              userId,
+              embeddedWallet,
+              contractAddress as Address,
+              chainId
+            );
+          } catch (reconcileErr) {
+            // Reconciliation failed (e.g. getLogs block-range error), but we still
+            // know the user minted — don't fall through to 'eligible'.
+            logger.warn(
+              'checkEligibility: reconciliation failed, returning already_minted without NFT details',
+              {
+                userId,
+                error:
+                  reconcileErr instanceof Error
+                    ? reconcileErr.message
+                    : String(reconcileErr),
+              },
+              'NFTMintService'
+            );
+          }
+
+          // Try to fetch reconciled data (may be stale if reconciliation failed)
           const [updated] = await db
             .select({
               mintedTokenId: nftSnapshot.mintedTokenId,
@@ -682,6 +722,17 @@ export async function checkEligibility(
       }
     }
   } catch (e) {
+    // If we already confirmed on-chain mint, don't fall through to 'eligible'
+    if (onChainMintConfirmed) {
+      return {
+        eligible: true,
+        status: 'already_minted',
+        snapshotRank: snapshotEntry.rank,
+        snapshotPoints: snapshotEntry.points,
+        snapshotTakenAt: snapshotEntry.snapshotTakenAt,
+        hasMinted: true,
+      };
+    }
     // Don't block eligibility checks if on-chain verification fails
     logger.warn(
       'checkEligibility: on-chain hasMinted check failed, using DB state',
@@ -728,48 +779,9 @@ export async function prepareMint(userId: string): Promise<PrepareResult> {
   }
 
   // Resolve user's embedded wallet address from Privy (multi-chain safe).
+  // Note: the on-chain hasMinted check is handled by checkEligibility() above,
+  // which will return already_minted and trigger reconciliation if needed.
   const walletAddress = await resolveUserEmbeddedWalletAddress(userId);
-
-  // On-chain safety check: verify wallet hasn't already minted
-  try {
-    const hasMintedOnChain = await checkHasMintedOnChain(
-      walletAddress,
-      contractAddress,
-      chainId
-    );
-    if (hasMintedOnChain) {
-      // Auto-reconcile: the mint succeeded on-chain but DB missed it
-      logger.warn(
-        'prepareMint: on-chain hasMinted=true but DB says false — reconciling',
-        { userId, walletAddress, contractAddress },
-        'NFTMintService'
-      );
-      await reconcileOnChainMint(
-        userId,
-        walletAddress,
-        contractAddress,
-        chainId
-      );
-      throw new ValidationError(
-        'You have already minted your NFT! Refresh to see it.',
-        ['userId'],
-        [{ field: 'userId', message: 'Already minted (reconciled from chain)' }]
-      );
-    }
-  } catch (e) {
-    // Re-throw ValidationErrors (including the one we just threw above)
-    if (e instanceof ValidationError) throw e;
-    // Log RPC failures but don't block the mint
-    logger.warn(
-      'prepareMint: on-chain hasMinted check failed, proceeding',
-      {
-        userId,
-        walletAddress,
-        error: e instanceof Error ? e.message : String(e),
-      },
-      'NFTMintService'
-    );
-  }
 
   // Generate nonce and deadline (1 hour from now)
   const nonce = generateNonce();
@@ -914,11 +926,11 @@ export async function confirmMint(
   const mintedTokenId = Number(BigInt(mintLog.topics[3]));
 
   // Validate token ID is in valid range
-  if (mintedTokenId < 1 || mintedTokenId > 100) {
+  if (mintedTokenId < 1 || mintedTokenId > MAX_TOKEN_ID) {
     throw new ValidationError(
       `Invalid token ID: ${mintedTokenId}`,
       ['tokenId'],
-      [{ field: 'tokenId', message: 'Token ID out of range 1-100' }]
+      [{ field: 'tokenId', message: `Token ID out of range 1-${MAX_TOKEN_ID}` }]
     );
   }
 
@@ -1058,11 +1070,11 @@ export async function confirmMint(
  * @returns ERC-721 compatible metadata
  */
 export async function getTokenMetadata(tokenId: number) {
-  if (tokenId < 1 || tokenId > 100) {
+  if (tokenId < 1 || tokenId > MAX_TOKEN_ID) {
     throw new ValidationError(
       'Invalid token ID',
       ['tokenId'],
-      [{ field: 'tokenId', message: 'Must be between 1 and 100' }]
+      [{ field: 'tokenId', message: `Must be between 1 and ${MAX_TOKEN_ID}` }]
     );
   }
 
