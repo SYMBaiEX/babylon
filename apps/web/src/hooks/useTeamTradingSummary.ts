@@ -5,7 +5,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export type TeamScope = 'owner_agents' | 'agents_only';
 
+export interface TeamTotals {
+  walletBalance: number;
+  lifetimePnL: number;
+  unrealizedPnL: number;
+  currentPnL: number;
+  openPositions: number;
+}
+
 export interface TeamMemberTradingSummary {
+  /** Maps to EntityType for panel selection: owner → 'user', agent → 'agent' */
   entityType: 'owner' | 'agent';
   id: string;
   name: string;
@@ -21,30 +30,31 @@ export interface TeamTradingSummary {
   ownerId: string;
   ownerName: string;
   members: TeamMemberTradingSummary[]; // includes owner + agents
-  totals: {
-    walletBalance: number;
-    lifetimePnL: number;
-    unrealizedPnL: number;
-    currentPnL: number;
-    openPositions: number;
-  };
-  agentsOnlyTotals: {
-    walletBalance: number;
-    lifetimePnL: number;
-    unrealizedPnL: number;
-    currentPnL: number;
-    openPositions: number;
-  };
+  totals: TeamTotals;
+  agentsOnlyTotals: TeamTotals;
   updatedAt: string | null;
 }
 
-function toNumber(value: unknown, fallback = 0): number {
+function toNumber(value: string | number | undefined | null, fallback = 0): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   }
   return fallback;
+}
+
+function sumMemberTotals(members: TeamMemberTradingSummary[]): TeamTotals {
+  return members.reduce(
+    (acc, m) => ({
+      walletBalance: acc.walletBalance + m.walletBalance,
+      lifetimePnL: acc.lifetimePnL + m.lifetimePnL,
+      unrealizedPnL: acc.unrealizedPnL + m.unrealizedPnL,
+      currentPnL: acc.currentPnL + m.currentPnL,
+      openPositions: acc.openPositions + m.openPositions,
+    }),
+    { walletBalance: 0, lifetimePnL: 0, unrealizedPnL: 0, currentPnL: 0, openPositions: 0 }
+  );
 }
 
 interface AgentsApiAgent {
@@ -65,13 +75,7 @@ interface UserBalanceApiResponse {
   lifetimePnL: string;
 }
 
-type PositionPerp = {
-  unrealizedPnL: number;
-  isAgentPosition?: boolean;
-  agentId?: string | null;
-};
-
-type PositionPrediction = {
+type PositionWithUnrealizedPnL = {
   unrealizedPnL: number;
   isAgentPosition?: boolean;
   agentId?: string | null;
@@ -79,12 +83,18 @@ type PositionPrediction = {
 
 interface PositionsApiResponse {
   perpetuals?: {
-    positions?: PositionPerp[];
+    positions?: PositionWithUnrealizedPnL[];
   };
   predictions?: {
-    positions?: PositionPrediction[];
+    positions?: PositionWithUnrealizedPnL[];
   };
   timestamp?: string;
+}
+
+function isAbortError(e: unknown): boolean {
+  if (e instanceof DOMException && e.name === 'AbortError') return true;
+  if (e instanceof Error && e.name === 'AbortError') return true;
+  return false;
 }
 
 export function useTeamTradingSummary({
@@ -173,12 +183,17 @@ export function useTeamTradingSummary({
         setPositions(positionsJson);
         setAgents(agentsJson.agents ?? []);
       } catch (e) {
-        if (cancelled) return;
-        const message = e instanceof Error ? e.message : 'Failed to load team summary';
+        if (cancelled || isAbortError(e)) return;
+        const message =
+          e instanceof SyntaxError
+            ? 'Invalid response from server. Please try again.'
+            : e instanceof Error
+              ? e.message
+              : 'Failed to load team summary';
         setError(message);
         logger.error(
           'Failed to fetch team trading summary',
-          { error: message, ownerId },
+          { error: e instanceof Error ? e.message : String(e), ownerId },
           'useTeamTradingSummary'
         );
       } finally {
@@ -263,28 +278,8 @@ export function useTeamTradingSummary({
     });
 
     const members = [ownerRow, ...agentRows];
-
-    const totals = members.reduce(
-      (acc, m) => ({
-        walletBalance: acc.walletBalance + m.walletBalance,
-        lifetimePnL: acc.lifetimePnL + m.lifetimePnL,
-        unrealizedPnL: acc.unrealizedPnL + m.unrealizedPnL,
-        currentPnL: acc.currentPnL + m.currentPnL,
-        openPositions: acc.openPositions + m.openPositions,
-      }),
-      { walletBalance: 0, lifetimePnL: 0, unrealizedPnL: 0, currentPnL: 0, openPositions: 0 }
-    );
-
-    const agentsOnlyTotals = agentRows.reduce(
-      (acc, m) => ({
-        walletBalance: acc.walletBalance + m.walletBalance,
-        lifetimePnL: acc.lifetimePnL + m.lifetimePnL,
-        unrealizedPnL: acc.unrealizedPnL + m.unrealizedPnL,
-        currentPnL: acc.currentPnL + m.currentPnL,
-        openPositions: acc.openPositions + m.openPositions,
-      }),
-      { walletBalance: 0, lifetimePnL: 0, unrealizedPnL: 0, currentPnL: 0, openPositions: 0 }
-    );
+    const totals = sumMemberTotals(members);
+    const agentsOnlyTotals = sumMemberTotals(agentRows);
 
     return {
       ownerId,

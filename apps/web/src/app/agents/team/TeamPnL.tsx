@@ -4,47 +4,10 @@ import { cn, formatCompactCurrency } from '@babylon/shared';
 import { Loader2, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import type {
-  TeamMemberTradingSummary,
   TeamScope,
   TeamTradingSummary,
 } from '@/hooks/useTeamTradingSummary';
-
-function ScopeToggle({
-  scope,
-  onChange,
-}: {
-  scope: TeamScope;
-  onChange: (scope: TeamScope) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 rounded-md border border-border bg-muted/20 p-1 text-xs">
-      <button
-        type="button"
-        onClick={() => onChange('owner_agents')}
-        className={cn(
-          'rounded px-2 py-1 font-medium transition-colors',
-          scope === 'owner_agents'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
-        )}
-      >
-        Owner + Agents
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('agents_only')}
-        className={cn(
-          'rounded px-2 py-1 font-medium transition-colors',
-          scope === 'agents_only'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
-        )}
-      >
-        Agents Only
-      </button>
-    </div>
-  );
-}
+import { ScopeToggle } from './_components/ScopeToggle';
 
 function pnlChip(value: number) {
   const positive = value >= 0;
@@ -68,18 +31,6 @@ function pnlChip(value: number) {
   );
 }
 
-function sumTotals(rows: TeamMemberTradingSummary[]) {
-  return rows.reduce(
-    (acc, r) => ({
-      lifetimePnL: acc.lifetimePnL + r.lifetimePnL,
-      unrealizedPnL: acc.unrealizedPnL + r.unrealizedPnL,
-      currentPnL: acc.currentPnL + r.currentPnL,
-      openPositions: acc.openPositions + r.openPositions,
-    }),
-    { lifetimePnL: 0, unrealizedPnL: 0, currentPnL: 0, openPositions: 0 }
-  );
-}
-
 export function TeamPnL({
   summary,
   loading,
@@ -95,14 +46,7 @@ export function TeamPnL({
   onScopeChange: (scope: TeamScope) => void;
   onSelectMember?: (id: string, type: 'user' | 'agent') => void;
 }) {
-  if (!summary && !loading && !error) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
+  // Hooks must be called unconditionally (Rules of Hooks)
   const members = useMemo(() => {
     if (!summary) return [];
     return scope === 'agents_only'
@@ -110,7 +54,25 @@ export function TeamPnL({
       : summary.members;
   }, [summary, scope]);
 
-  const totals = useMemo(() => sumTotals(members), [members]);
+  // Use pre-computed totals from the hook instead of re-reducing
+  const totals = useMemo(() => {
+    if (!summary) return { lifetimePnL: 0, unrealizedPnL: 0, currentPnL: 0, openPositions: 0 };
+    const src = scope === 'agents_only' ? summary.agentsOnlyTotals : summary.totals;
+    return {
+      lifetimePnL: src.lifetimePnL,
+      unrealizedPnL: src.unrealizedPnL,
+      currentPnL: src.currentPnL,
+      openPositions: src.openPositions,
+    };
+  }, [summary, scope]);
+
+  if (!summary && !loading && !error) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

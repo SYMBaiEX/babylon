@@ -1156,13 +1156,7 @@ export default function TeamChatPage() {
                       error={teamSummaryError}
                       scope={teamScope}
                       onScopeChange={setTeamScope}
-                      onSelectMember={(id, type) => {
-                        if (type === 'user') {
-                          handleBottomPanelEntityChange(id, 'user');
-                          return;
-                        }
-                        handleBottomPanelEntityChange(id, 'agent');
-                      }}
+                      onSelectMember={handleBottomPanelEntityChange}
                     />
                   );
                 }
@@ -1202,13 +1196,7 @@ export default function TeamChatPage() {
                       error={teamSummaryError}
                       scope={teamScope}
                       onScopeChange={setTeamScope}
-                      onSelectMember={(id, type) => {
-                        if (type === 'user') {
-                          handleBottomPanelEntityChange(id, 'user');
-                          return;
-                        }
-                        handleBottomPanelEntityChange(id, 'agent');
-                      }}
+                      onSelectMember={handleBottomPanelEntityChange}
                     />
                   );
                 }
