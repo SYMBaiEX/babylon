@@ -81,31 +81,36 @@ export function LinkSocialAccountsModal({
     }
 
     setUnlinkingTwitter(true);
-    const response = await fetch('/api/twitter/disconnect', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    try {
+      const response = await fetch('/api/twitter/disconnect', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    const data = (await response.json().catch(() => null)) as
-      | { success?: boolean; error?: string }
-      | null;
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
 
-    if (!response.ok || !data?.success) {
-      toast.error(data?.error || 'Failed to unlink X account');
+      if (!response.ok || !data?.success) {
+        toast.error(data?.error || 'Failed to unlink X account');
+        return;
+      }
+
+      setUser({
+        ...user,
+        hasTwitter: false,
+        twitterUsername: undefined,
+      });
+      setConfirmUnlinkTwitter(false);
+      toast.success('X account unlinked');
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
       setUnlinkingTwitter(false);
-      return;
     }
-
-    setUser({
-      ...user,
-      hasTwitter: false,
-      twitterUsername: undefined,
-    });
-    setConfirmUnlinkTwitter(false);
-    setUnlinkingTwitter(false);
-    toast.success('X account unlinked');
   };
 
   const handleFarcasterAuth = async () => {
@@ -219,7 +224,9 @@ export function LinkSocialAccountsModal({
                 <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
                   <Check className="h-4 w-4 text-green-500" />
                   <span className="font-medium text-sm">
-                    {user.twitterUsername ? `@${user.twitterUsername}` : 'Connected'}
+                    {user.twitterUsername
+                      ? `@${user.twitterUsername}`
+                      : 'Connected'}
                   </span>
                   <div className="ml-auto flex items-center gap-2">
                     {user.twitterUsername && (
