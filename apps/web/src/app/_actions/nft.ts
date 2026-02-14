@@ -11,6 +11,7 @@ import {
   type ConfirmResult,
   confirmMint,
   prepareMint,
+  reconcileOnChainMint,
 } from '@babylon/api/services/nft-mint-service';
 import { logger, ValidationError } from '@babylon/shared';
 import type { Address, Hex } from 'viem';
@@ -221,6 +222,42 @@ export async function mintNftAction(input?: {
   } catch (e) {
     const step: MintStep = 'send_transaction';
     const errorId = crypto.randomUUID();
+
+    // Detect AlreadyMinted revert (0xddefae28) — the user minted on-chain
+    // but the DB wasn't updated. Reconcile and return a friendly message.
+    const errMsg = errorMessage(e).toLowerCase();
+    if (errMsg.includes('0xddefae28') || errMsg.includes('alreadyminted')) {
+      logger.warn(
+        'NFT mint AlreadyMinted revert detected — reconciling',
+        { errorId, userId: ctx.dbUserId, walletId: ctx.privyWalletId },
+        'mintNftAction'
+      );
+      try {
+        await reconcileOnChainMint(
+          ctx.dbUserId,
+          prepare.to,
+          prepare.contractAddress as Address,
+          prepare.chainId
+        );
+      } catch (reconcileErr) {
+        logger.error(
+          'NFT mint reconciliation after AlreadyMinted failed',
+          {
+            errorId,
+            userId: ctx.dbUserId,
+            error: toSafeLogError(reconcileErr),
+          },
+          'mintNftAction'
+        );
+      }
+      return {
+        status: 'error',
+        error: "You've already minted your NFT! Refresh the page to see it.",
+        step,
+        errorId,
+      };
+    }
+
     logger.error(
       'NFT mint send transaction failed',
       {
