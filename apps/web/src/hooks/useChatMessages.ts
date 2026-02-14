@@ -9,6 +9,7 @@ import {
 import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useSSEChannel } from './useSSE';
+import { applyReactionDelta } from './useToggleReaction';
 
 /**
  * Represents a chat message in the system.
@@ -158,35 +159,6 @@ function reactionsEqual(
   const as = [...a].map(key).sort().join('|');
   const bs = [...b].map(key).sort().join('|');
   return as === bs;
-}
-
-function applyReactionDelta(
-  existing: MessageReactionSummary[] | undefined,
-  emoji: string,
-  action: 'added' | 'removed',
-  isMine: boolean
-): MessageReactionSummary[] {
-  const map = new Map<string, MessageReactionSummary>();
-  for (const r of existing ?? []) map.set(r.emoji, { ...r });
-
-  const prev = map.get(emoji);
-  const prevCount = prev?.count ?? 0;
-  const nextCount =
-    action === 'added' ? prevCount + 1 : Math.max(0, prevCount - 1);
-
-  if (nextCount <= 0) {
-    map.delete(emoji);
-  } else {
-    map.set(emoji, {
-      emoji,
-      count: nextCount,
-      reactedByMe: isMine ? action === 'added' : (prev?.reactedByMe ?? false),
-    });
-  }
-
-  const out = [...map.values()];
-  out.sort((a, b) => b.count - a.count);
-  return out;
 }
 
 /** Polling interval - less aggressive since SSE is primary */
@@ -433,7 +405,7 @@ export function useChatMessages(chatId: string | null) {
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.id === r.messageId);
           if (idx < 0) return prev;
-          const msg = prev[idx];
+          const msg = prev[idx]!;
           const next = applyReactionDelta(msg.reactions, emoji, action, isMine);
           return prev.map((m, i) =>
             i === idx ? { ...m, reactions: next } : m
@@ -512,7 +484,7 @@ export function useChatMessages(chatId: string | null) {
               if (existingIds.has(msg.id)) {
                 const existingIdx = updated.findIndex((m) => m.id === msg.id);
                 if (existingIdx < 0) continue;
-                const existing = updated[existingIdx];
+                const existing = updated[existingIdx]!;
 
                 // Merge in reactions/metadata updates from the API snapshot.
                 if (!reactionsEqual(existing.reactions, msg.reactions)) {
@@ -524,7 +496,7 @@ export function useChatMessages(chatId: string | null) {
                 }
                 if (msg.metadata && !existing.metadata) {
                   updated[existingIdx] = {
-                    ...updated[existingIdx],
+                    ...updated[existingIdx]!,
                     metadata: msg.metadata,
                   };
                   changed = true;

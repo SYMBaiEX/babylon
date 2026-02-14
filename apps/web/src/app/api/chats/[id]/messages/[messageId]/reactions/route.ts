@@ -27,20 +27,11 @@ import {
   messages,
 } from '@babylon/db';
 import {
+  ALLOWED_REACTION_EMOJI_SET,
   ChatMessageReactionCreateSchema,
   generateSnowflakeId,
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-
-const ALLOWED_REACTION_EMOJIS = new Set([
-  '👍',
-  '❤️',
-  '😂',
-  '🔥',
-  '😮',
-  '😢',
-  '🙏',
-]);
 
 async function requireChatAccess(
   user: Awaited<ReturnType<typeof authenticate>>,
@@ -131,7 +122,7 @@ export const POST = withErrorHandling(
     const body = await request.json();
     const { emoji } = ChatMessageReactionCreateSchema.parse(body);
 
-    if (!ALLOWED_REACTION_EMOJIS.has(emoji)) {
+    if (!ALLOWED_REACTION_EMOJI_SET.has(emoji)) {
       throw new BusinessLogicError(
         'Unsupported reaction emoji',
         'UNSUPPORTED_REACTION_EMOJI'
@@ -193,7 +184,7 @@ export const DELETE = withErrorHandling(
     if (!emoji) {
       throw new BusinessLogicError('emoji is required', 'EMOJI_REQUIRED');
     }
-    if (!ALLOWED_REACTION_EMOJIS.has(emoji)) {
+    if (!ALLOWED_REACTION_EMOJI_SET.has(emoji)) {
       throw new BusinessLogicError(
         'Unsupported reaction emoji',
         'UNSUPPORTED_REACTION_EMOJI'

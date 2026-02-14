@@ -5,13 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatMessages } from '@/hooks/useChatMessages';
+import { useToggleReaction } from '@/hooks/useToggleReaction';
 import { useAuthStore } from '@/stores/authStore';
-import type {
-  Chat,
-  ChatDetails,
-  ChatFilter,
-  MessageReactionSummary,
-} from '../types';
+import type { Chat, ChatDetails, ChatFilter } from '../types';
 
 export function useChatPage() {
   const router = useRouter();
@@ -90,91 +86,12 @@ export function useChatPage() {
     markPendingReactionDelta,
   } = useChatMessages(selectedChatId);
 
-  const applyMyReactionDelta = useCallback(
-    (
-      existing: MessageReactionSummary[] | undefined,
-      emoji: string,
-      action: 'added' | 'removed'
-    ): MessageReactionSummary[] => {
-      const map = new Map<string, MessageReactionSummary>();
-      for (const r of existing ?? []) map.set(r.emoji, { ...r });
-
-      const prev = map.get(emoji);
-      const prevCount = prev?.count ?? 0;
-      const nextCount =
-        action === 'added' ? prevCount + 1 : Math.max(0, prevCount - 1);
-
-      if (nextCount <= 0) {
-        map.delete(emoji);
-      } else {
-        map.set(emoji, {
-          emoji,
-          count: nextCount,
-          reactedByMe: action === 'added',
-        });
-      }
-
-      const out = [...map.values()];
-      out.sort((a, b) => b.count - a.count);
-      return out;
-    },
-    []
-  );
-
-  const toggleReaction = useCallback(
-    async (messageId: string, emoji: string, currentlyReactedByMe: boolean) => {
-      if (!selectedChatId || !user) return;
-
-      const token = await getAccessToken();
-      if (!token) return;
-
-      const existing = realtimeMessages.find((m) => m.id === messageId);
-      const prevReactions = existing?.reactions;
-
-      const action: 'added' | 'removed' = currentlyReactedByMe
-        ? 'removed'
-        : 'added';
-
-      markPendingReactionDelta({ messageId, emoji, action });
-      updateMessage(messageId, {
-        reactions: applyMyReactionDelta(prevReactions, emoji, action),
-      });
-
-      const url = currentlyReactedByMe
-        ? `/api/chats/${selectedChatId}/messages/${messageId}/reactions?emoji=${encodeURIComponent(
-            emoji
-          )}`
-        : `/api/chats/${selectedChatId}/messages/${messageId}/reactions`;
-
-      const response = await fetch(url, {
-        method: currentlyReactedByMe ? 'DELETE' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: currentlyReactedByMe ? undefined : JSON.stringify({ emoji }),
-      });
-
-      if (!response.ok) {
-        updateMessage(messageId, { reactions: prevReactions });
-        return;
-      }
-
-      const data = await response.json();
-      if (Array.isArray(data.reactions)) {
-        updateMessage(messageId, { reactions: data.reactions });
-      }
-    },
-    [
-      selectedChatId,
-      user,
-      getAccessToken,
-      realtimeMessages,
-      updateMessage,
-      markPendingReactionDelta,
-      applyMyReactionDelta,
-    ]
-  );
+  const toggleReaction = useToggleReaction({
+    chatId: selectedChatId,
+    messages: realtimeMessages,
+    updateMessage,
+    markPendingReactionDelta,
+  });
 
   // Load chats
   const loadChats = useCallback(async () => {

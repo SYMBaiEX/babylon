@@ -1,6 +1,11 @@
 'use client';
 
-import { COORDINATOR_SENDER_ID, cn, type MessageTag } from '@babylon/shared';
+import {
+  ALLOWED_REACTION_EMOJIS,
+  COORDINATOR_SENDER_ID,
+  cn,
+  type MessageTag,
+} from '@babylon/shared';
 import { ChevronRight, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { Response } from '@/components/chat/Response';
@@ -13,8 +18,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { ChatParticipant, Message } from './types';
 import { getProfilePath } from './types';
-
-const COMMON_REACTIONS = ['👍', '❤️', '😂', '🔥', '😮', '😢', '🙏'] as const;
 
 /**
  * Extracts the displayable content from a message, stripping `<think>...</think>` reasoning blocks.
@@ -237,7 +240,7 @@ export function MessageBubble({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align={isCurrentUser ? 'end' : 'start'}>
-                  {COMMON_REACTIONS.map((emoji) => {
+                  {ALLOWED_REACTION_EMOJIS.map((emoji) => {
                     const existing = (message.reactions ?? []).find(
                       (r) => r.emoji === emoji
                     );
