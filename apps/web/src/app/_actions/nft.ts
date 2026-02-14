@@ -1,10 +1,5 @@
 'use server';
 
-// Allow up to 2 minutes for the mint flow (tx submission + confirmation polling).
-// Without this, the default Vercel serverless function timeout (~60s) can kill
-// the polling loop before confirmation completes.
-export const maxDuration = 120;
-
 import {
   extractPrivyApiDiagnostics,
   getAuthedUserContextFromPrivyTokenBundle,
