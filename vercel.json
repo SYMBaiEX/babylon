@@ -1,5 +1,8 @@
 {
   "functions": {
+    "src/app/_actions/nft.ts": {
+      "maxDuration": 120
+    },
     "src/app/api/cron/metrics-snapshot/route.ts": {
       "maxDuration": 60
     },
