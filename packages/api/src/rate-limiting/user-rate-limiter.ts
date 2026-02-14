@@ -61,6 +61,11 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 60000,
     actionType: 'send_message',
   }, // 20 messages per minute
+  REACTION_TOGGLE: {
+    maxRequests: 30,
+    windowMs: 60000,
+    actionType: 'reaction_toggle',
+  }, // 30 reaction toggles per minute
   TYPING_INDICATOR: {
     maxRequests: 60,
     windowMs: 60000,

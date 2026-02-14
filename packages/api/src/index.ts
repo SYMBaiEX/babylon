@@ -245,6 +245,7 @@ export {
   type AgentActivityEvent,
   broadcastAgentActivity,
   broadcastChatMessage,
+  broadcastChatMessageReaction,
   broadcastChatTitleUpdate,
   broadcastThinkingIndicator,
   broadcastToChannel,

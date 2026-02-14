@@ -69,7 +69,6 @@ export async function registerAgent(): Promise<AgentIdentity> {
   // Register on-chain
   console.log('⛓️  Registering on-chain...');
   const tx = await agent.registerIPFS();
-  // @ts-expect-error -- agent0-sdk generic (TransactionHandle<RegistrationFile>) collapses under bundler resolution; runtime type is correct
   const { result: registration } = await tx.waitMined();
 
   console.log('✅ Registration complete!');

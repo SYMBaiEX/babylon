@@ -48,6 +48,14 @@ export interface Message {
   isThinking?: boolean;
   /** Metadata containing action tags for sidebar display */
   metadata?: MessageMetadata | null;
+  /** Aggregated emoji reactions summary (counts + whether current user reacted). */
+  reactions?: MessageReactionSummary[];
+}
+
+export interface MessageReactionSummary {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
 }
 
 export interface ChatParticipant {

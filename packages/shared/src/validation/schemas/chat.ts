@@ -23,6 +23,37 @@ export const ChatMessageCreateSchema = z.object({
 });
 
 /**
+ * Canonical list of supported reaction emojis.
+ * Used by both the API (server-side validation) and the UI (picker).
+ */
+export const ALLOWED_REACTION_EMOJIS = [
+  '👍',
+  '❤️',
+  '😂',
+  '🔥',
+  '😮',
+  '😢',
+  '🙏',
+] as const;
+
+/** Set for O(1) membership checks on the server. */
+export const ALLOWED_REACTION_EMOJI_SET = new Set<string>(
+  ALLOWED_REACTION_EMOJIS
+);
+
+/**
+ * Chat message reaction emoji schema
+ */
+export const ChatMessageReactionEmojiSchema = createTrimmedStringSchema(1, 16);
+
+/**
+ * Chat message reaction submission schema
+ */
+export const ChatMessageReactionCreateSchema = z.object({
+  emoji: ChatMessageReactionEmojiSchema,
+});
+
+/**
  * Chat creation schema
  */
 export const ChatCreateSchema = z

@@ -65,10 +65,12 @@ import {
   asUser,
   chatParticipants,
   chats,
+  count,
   desc,
   eq,
   inArray,
   lt,
+  messageReactions,
   messages,
   users,
 } from '@babylon/db';
@@ -353,6 +355,55 @@ export const GET = withErrorHandling(
     // Reverse to get chronological order (oldest first)
     const messagesInOrder = [...messagesList].reverse();
 
+    // Message reactions summary (counts + reactedByMe)
+    const messageIds = messagesInOrder.map((m) => m.id);
+    const reactionsByMessageId = new Map<
+      string,
+      { emoji: string; count: number; reactedByMe: boolean }[]
+    >();
+    if (messageIds.length > 0) {
+      const [counts, mine] = await Promise.all([
+        asSystem(async (db) => {
+          return await db
+            .select({
+              messageId: messageReactions.messageId,
+              emoji: messageReactions.emoji,
+              count: count(),
+            })
+            .from(messageReactions)
+            .where(inArray(messageReactions.messageId, messageIds))
+            .groupBy(messageReactions.messageId, messageReactions.emoji);
+        }, 'get-message-reaction-counts'),
+        authUser
+          ? asSystem(async (db) => {
+              return await db
+                .select({
+                  messageId: messageReactions.messageId,
+                  emoji: messageReactions.emoji,
+                })
+                .from(messageReactions)
+                .where(
+                  and(
+                    inArray(messageReactions.messageId, messageIds),
+                    eq(messageReactions.userId, authUser!.userId)
+                  )
+                );
+            }, 'get-message-reactions-mine')
+          : Promise.resolve([]),
+      ]);
+
+      const mineSet = new Set(mine.map((r) => `${r.messageId}:${r.emoji}`));
+      for (const row of counts) {
+        const arr = reactionsByMessageId.get(row.messageId) ?? [];
+        arr.push({
+          emoji: row.emoji,
+          count: Number(row.count ?? 0),
+          reactedByMe: mineSet.has(`${row.messageId}:${row.emoji}`),
+        });
+        reactionsByMessageId.set(row.messageId, arr);
+      }
+    }
+
     // Get the cursor for the next page (oldest message ID in this batch)
     const nextCursor = hasMore
       ? fullChat.messages[effectiveLimit - 1]?.id
@@ -413,6 +464,7 @@ export const GET = withErrorHandling(
         type: msg.type,
         createdAt: msg.createdAt,
         metadata: msg.metadata,
+        reactions: reactionsByMessageId.get(msg.id) ?? [],
       })),
       participants: participantsInfo,
       pagination: {

@@ -33,6 +33,11 @@ interface ChatViewProps {
   onLeaveChat: () => void;
   onMessageChange: (value: string) => void;
   onSendMessage: () => void;
+  onToggleReaction?: (
+    messageId: string,
+    emoji: string,
+    currentlyReactedByMe: boolean
+  ) => void;
 }
 
 export function ChatView({
@@ -57,6 +62,7 @@ export function ChatView({
   onLeaveChat,
   onMessageChange,
   onSendMessage,
+  onToggleReaction,
 }: ChatViewProps) {
   // Convert chat participants to mentionable members format
   const mentionableMembers: MentionableAgent[] = useMemo(() => {
@@ -129,6 +135,7 @@ export function ChatView({
             authenticated={authenticated}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}
+            onToggleReaction={onToggleReaction}
           />
         </div>
       </div>

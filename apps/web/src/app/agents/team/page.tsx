@@ -188,6 +188,7 @@ export default function TeamChatPage() {
     messagesEndRef,
     topSentinelRef,
     sendMessage,
+    toggleReaction,
     handleScroll,
     scrollToBottom,
     refresh: refreshTeamChat,
@@ -934,6 +935,7 @@ export default function TeamChatPage() {
           messagesEndRef={messagesEndRef}
           onMessageChange={handleInputChange}
           onSendMessage={sendMessage}
+          onToggleReaction={toggleReaction}
           agents={[
             ...(user
               ? [
@@ -1034,6 +1036,7 @@ export default function TeamChatPage() {
             messagesEndRef={messagesEndRef}
             onMessageChange={handleInputChange}
             onSendMessage={sendMessage}
+            onToggleReaction={toggleReaction}
             agents={[
               // Include current user so they can mention themselves
               ...(user

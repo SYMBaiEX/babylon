@@ -1,10 +1,21 @@
 'use client';
 
-import { COORDINATOR_SENDER_ID, cn, type MessageTag } from '@babylon/shared';
-import { ChevronRight } from 'lucide-react';
+import {
+  ALLOWED_REACTION_EMOJIS,
+  COORDINATOR_SENDER_ID,
+  cn,
+  type MessageTag,
+} from '@babylon/shared';
+import { ChevronRight, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { Response } from '@/components/chat/Response';
 import { Avatar } from '@/components/shared/Avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { ChatParticipant, Message } from './types';
 import { getProfilePath } from './types';
 
@@ -37,6 +48,12 @@ interface MessageBubbleProps {
   density?: 'default' | 'compact';
   /** Callback when a tag is clicked - opens sidebar with tag data */
   onTagClick?: (tag: MessageTag, messageId: string) => void;
+  /** Toggle a reaction emoji on this message (current user). */
+  onToggleReaction?: (
+    messageId: string,
+    emoji: string,
+    currentlyReactedByMe: boolean
+  ) => void;
 }
 
 export function MessageBubble({
@@ -47,6 +64,7 @@ export function MessageBubble({
   isThinking,
   density = 'default',
   onTagClick,
+  onToggleReaction,
 }: MessageBubbleProps) {
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
@@ -183,6 +201,69 @@ export function MessageBubble({
             </Response>
           )}
         </div>
+
+        {/* Reactions */}
+        {!isThinking && (message.reactions?.length || onToggleReaction) && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {(message.reactions ?? []).map((r) => (
+              <button
+                key={r.emoji}
+                type="button"
+                onClick={() =>
+                  onToggleReaction?.(message.id, r.emoji, r.reactedByMe)
+                }
+                disabled={!onToggleReaction}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+                  onToggleReaction ? 'hover:bg-muted' : 'cursor-default',
+                  r.reactedByMe
+                    ? 'border-primary/30 bg-primary/10 text-primary'
+                    : 'border-border bg-background text-foreground'
+                )}
+                aria-label={`React ${r.emoji}`}
+              >
+                <span aria-hidden="true">{r.emoji}</span>
+                <span className="font-medium tabular-nums">{r.count}</span>
+              </button>
+            ))}
+
+            {onToggleReaction && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Add reaction"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>React</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={isCurrentUser ? 'end' : 'start'}>
+                  {ALLOWED_REACTION_EMOJIS.map((emoji) => {
+                    const existing = (message.reactions ?? []).find(
+                      (r) => r.emoji === emoji
+                    );
+                    const reacted = existing?.reactedByMe ?? false;
+                    return (
+                      <DropdownMenuItem
+                        key={emoji}
+                        onClick={() =>
+                          onToggleReaction(message.id, emoji, reacted)
+                        }
+                      >
+                        <span className="mr-2" aria-hidden="true">
+                          {emoji}
+                        </span>
+                        <span>{reacted ? 'Remove' : 'React'}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        )}
 
         {/* Action Tags - Pill-style chips (outside message bubble) */}
         {!isThinking &&

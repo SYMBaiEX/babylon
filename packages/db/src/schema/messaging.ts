@@ -126,6 +126,33 @@ export const messages = pgTable(
   ]
 );
 
+// MessageReaction - emoji reactions on chat messages
+export const messageReactions = pgTable(
+  'MessageReaction',
+  {
+    id: text('id').primaryKey(),
+    chatId: text('chatId').notNull(),
+    messageId: text('messageId').notNull(),
+    userId: text('userId').notNull(),
+    emoji: text('emoji').notNull(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('MessageReaction_messageId_userId_emoji_key').on(
+      table.messageId,
+      table.userId,
+      table.emoji
+    ),
+    index('MessageReaction_messageId_idx').on(table.messageId),
+    index('MessageReaction_chatId_idx').on(table.chatId),
+    index('MessageReaction_userId_idx').on(table.userId),
+    index('MessageReaction_chatId_messageId_idx').on(
+      table.chatId,
+      table.messageId
+    ),
+  ]
+);
+
 // DMAcceptance
 export const dmAcceptances = pgTable(
   'DMAcceptance',
@@ -355,6 +382,7 @@ export const groupInvites = pgTable(
 export const chatsRelations = relations(chats, ({ one, many }) => ({
   ChatParticipant: many(chatParticipants),
   Message: many(messages),
+  MessageReaction: many(messageReactions),
   group: one(groups, {
     fields: [chats.groupId],
     references: [groups.id],
@@ -371,12 +399,27 @@ export const chatParticipantsRelations = relations(
   })
 );
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   chat: one(chats, {
     fields: [messages.chatId],
     references: [chats.id],
   }),
+  MessageReaction: many(messageReactions),
 }));
+
+export const messageReactionsRelations = relations(
+  messageReactions,
+  ({ one }) => ({
+    chat: one(chats, {
+      fields: [messageReactions.chatId],
+      references: [chats.id],
+    }),
+    message: one(messages, {
+      fields: [messageReactions.messageId],
+      references: [messages.id],
+    }),
+  })
+);
 
 export const groupsRelations = relations(groups, ({ many }) => ({
   chats: many(chats),
@@ -408,6 +451,8 @@ export type ChatParticipant = typeof chatParticipants.$inferSelect;
 export type NewChatParticipant = typeof chatParticipants.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type MessageReaction = typeof messageReactions.$inferSelect;
+export type NewMessageReaction = typeof messageReactions.$inferInsert;
 export type DMAcceptance = typeof dmAcceptances.$inferSelect;
 export type NewDMAcceptance = typeof dmAcceptances.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
