@@ -12,13 +12,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export type BottomPanelTab = 'activity' | 'wallet' | 'pnl' | 'logs';
-export type EntityType = 'user' | 'agent';
+export type EntityType = 'user' | 'agent' | 'team';
 
 interface EntityOption {
   id: string;
   name: string;
   type: EntityType;
 }
+
+const TEAM_ENTITY_ID = 'team';
 
 const MIN_HEIGHT = 150;
 const MAX_HEIGHT = 500;
@@ -43,9 +45,12 @@ interface BottomPanelProps {
 
 /**
  * Bottom panel with tabs for Activity, Wallet, PnL, and Logs.
- * Supports viewing both user and agent data.
- * - Agent: Shows all 4 tabs (Activity, Wallet, PnL, Logs)
- * - User: Shows only Wallet and PnL tabs
+ *
+ * Entity behavior:
+ * - Team: Wallet + PnL
+ * - User: Activity + Wallet + PnL
+ * - Agent: Activity + Wallet + PnL + Logs
+ *
  * Spans full width, collapsible, and resizable.
  */
 export function BottomPanel({
@@ -82,8 +87,11 @@ export function BottomPanel({
     };
   }, []);
 
-  // Build entity options list (user first, then agents)
+  // Build entity options list (team first, then user, then agents)
   const entities: EntityOption[] = [
+    ...(userId
+      ? [{ id: TEAM_ENTITY_ID, name: 'Team', type: 'team' as EntityType }]
+      : []),
     ...(userId
       ? [{ id: userId, name: userName || 'You', type: 'user' as EntityType }]
       : []),
@@ -101,16 +109,18 @@ export function BottomPanel({
 
   // Determine which tabs to show based on entity type
   const isUserSelected = selectedEntityType === 'user';
+  const isTeamSelected = selectedEntityType === 'team';
   const allTabs: { id: BottomPanelTab; label: string }[] = [
     { id: 'activity', label: 'Activity' },
     { id: 'wallet', label: 'Wallet' },
     { id: 'pnl', label: 'PnL' },
     { id: 'logs', label: 'Logs' },
   ];
-  // Hide Logs tab for user (Activity is now available for users)
-  const tabs = isUserSelected
-    ? allTabs.filter((t) => t.id !== 'logs')
-    : allTabs;
+  const tabs = isTeamSelected
+    ? allTabs.filter((t) => t.id === 'wallet' || t.id === 'pnl')
+    : isUserSelected
+      ? allTabs.filter((t) => t.id !== 'logs')
+      : allTabs;
 
   // Handle tab click - if clicking active tab while open, collapse
   const handleTabClick = useCallback(
@@ -275,7 +285,24 @@ export function BottomPanel({
                 align="end"
                 className="max-h-60 w-48 overflow-y-auto"
               >
-                {/* User option first */}
+                {/* Team option first */}
+                {userId && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => onEntityChange(TEAM_ENTITY_ID, 'team')}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="truncate font-medium">Team</span>
+                      {selectedEntityId === TEAM_ENTITY_ID &&
+                        selectedEntityType === 'team' && (
+                          <Check className="h-4 w-4 shrink-0 text-primary" />
+                        )}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+
+                {/* User option */}
                 {userId && (
                   <>
                     <DropdownMenuItem
