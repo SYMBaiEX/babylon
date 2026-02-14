@@ -2,7 +2,7 @@
 
 import { cn, signInWithFarcaster } from '@babylon/shared';
 import { Check, ExternalLink, Shield, X as XIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
@@ -45,6 +45,15 @@ export function LinkSocialAccountsModal({
 }: LinkSocialAccountsModalProps) {
   const { user, setUser } = useAuthStore();
   const [linking, setLinking] = useState<string | null>(null);
+  const [confirmUnlinkTwitter, setConfirmUnlinkTwitter] = useState(false);
+  const [unlinkingTwitter, setUnlinkingTwitter] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setLinking(null);
+    setConfirmUnlinkTwitter(false);
+    setUnlinkingTwitter(false);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -60,6 +69,48 @@ export function LinkSocialAccountsModal({
     sessionStorage.setItem('oauth_return_url', window.location.pathname);
 
     window.location.href = initiateUrl;
+  };
+
+  const handleTwitterDisconnect = async () => {
+    if (!user?.id) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      toast.error('Please sign in again to unlink X');
+      return;
+    }
+
+    setUnlinkingTwitter(true);
+    try {
+      const response = await fetch('/api/twitter/disconnect', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !data?.success) {
+        toast.error(data?.error || 'Failed to unlink X account');
+        return;
+      }
+
+      setUser({
+        ...user,
+        hasTwitter: false,
+        twitterUsername: undefined,
+      });
+      setConfirmUnlinkTwitter(false);
+      toast.success('X account unlinked');
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setUnlinkingTwitter(false);
+    }
   };
 
   const handleFarcasterAuth = async () => {
@@ -169,19 +220,66 @@ export function LinkSocialAccountsModal({
             </div>
 
             {user?.hasTwitter ? (
-              <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
-                <Check className="h-4 w-4 text-green-500" />
-                <span className="font-medium text-sm">
-                  @{user.twitterUsername}
-                </span>
-                <a
-                  href={`https://x.com/${user.twitterUsername}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-auto text-primary hover:text-primary/80"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="font-medium text-sm">
+                    {user.twitterUsername
+                      ? `@${user.twitterUsername}`
+                      : 'Connected'}
+                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    {user.twitterUsername && (
+                      <a
+                        href={`https://x.com/${user.twitterUsername}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:text-primary/80"
+                        title="Open X profile"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setConfirmUnlinkTwitter((v) => !v)}
+                      className="rounded px-2 py-1 font-medium text-red-600 text-xs hover:bg-red-500/10"
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                </div>
+
+                {confirmUnlinkTwitter && (
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                    <p className="text-muted-foreground text-xs">
+                      This disconnects your X account from Babylon. You can
+                      reconnect a different X account afterwards.
+                    </p>
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmUnlinkTwitter(false)}
+                        disabled={unlinkingTwitter}
+                        className="rounded px-3 py-1.5 font-medium text-xs hover:bg-muted"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleTwitterDisconnect()}
+                        disabled={unlinkingTwitter}
+                        className={cn(
+                          'rounded px-3 py-1.5 font-semibold text-xs',
+                          'bg-red-600 text-white hover:bg-red-600/90',
+                          'disabled:cursor-not-allowed disabled:opacity-50'
+                        )}
+                      >
+                        {unlinkingTwitter ? 'Unlinking...' : 'Confirm unlink'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
