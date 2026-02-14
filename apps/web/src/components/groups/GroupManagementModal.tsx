@@ -22,6 +22,11 @@ import { GroupTypeBadge } from './MemberTypeBadge';
 
 /**
  * Member structure for group management modal.
+ *
+ * Role model: `role` is the canonical field.
+ * - `isAdmin` is derived: `role === 'admin' || role === 'owner'`
+ * - `isOwner` is derived: `role === 'owner'`
+ * Invariant: `isOwner === true` implies `isAdmin === true`.
  */
 interface Member {
   id: string;
@@ -37,6 +42,9 @@ interface Member {
 
 /**
  * Group details structure for group management modal.
+ *
+ * `userRole`, `isAdmin`, and `isOwner` reflect the current user's role.
+ * See {@link Member} for the role model invariants.
  */
 interface GroupDetails {
   id: string;
@@ -47,7 +55,6 @@ interface GroupDetails {
   userRole: 'owner' | 'admin' | 'member';
   isAdmin: boolean;
   isOwner: boolean;
-  createdById: string;
 }
 
 /**
@@ -103,6 +110,14 @@ export function GroupManagementModal({
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
   const [groupNameDraft, setGroupNameDraft] = useState('');
 
+  const secondaryBtnClass =
+    'rounded-lg border border-border bg-background px-3 py-1.5 font-medium text-sm transition-colors hover:bg-accent disabled:opacity-50';
+
+  const resetGroupNameEdit = () => {
+    setError(null);
+    if (groupDetails) setGroupNameDraft(groupDetails.name);
+  };
+
   // Add member state
   const [showAddMember, setShowAddMember] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,24 +147,29 @@ export function GroupManagementModal({
     const loadGroupDetails = async () => {
       setLoading(true);
       setError(null);
-      const token = await getAccessToken();
-      const response = await fetch(`/api/groups/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        const token = await getAccessToken();
+        const response = await fetch(`/api/groups/${groupId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      if (!response.ok) {
-        setError('Failed to load group details');
+        if (!response.ok) {
+          setError('Failed to load group details');
+          return;
+        }
+
+        const data = await response.json();
+        setGroupDetails(data.group);
+        setGroupNameDraft(data.group?.name || '');
+        setIsEditingGroupName(false);
+      } catch (err) {
+        console.error('Failed to load group details:', err);
+        setError('Failed to load group details. Please try again.');
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const data = await response.json();
-      setGroupDetails(data.group);
-      setGroupNameDraft(data.group?.name || '');
-      setIsEditingGroupName(false);
-      setLoading(false);
     };
 
     loadGroupDetails();
@@ -183,21 +203,33 @@ export function GroupManagementModal({
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         setError(data.error || 'Failed to update group name');
         return;
       }
 
       // Reload group details so member/admin flags stay consistent.
-      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (detailsResponse.ok) {
-        const data = await detailsResponse.json();
-        setGroupDetails(data.group);
-        setGroupNameDraft(data.group?.name || nextName);
+      try {
+        const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (detailsResponse.ok) {
+          const data = await detailsResponse.json();
+          setGroupDetails(data.group);
+          setGroupNameDraft(data.group?.name || nextName);
+        } else {
+          // PATCH succeeded; optimistically update UI with the new name
+          setGroupDetails((prev) =>
+            prev ? { ...prev, name: nextName } : prev
+          );
+          setGroupNameDraft(nextName);
+        }
+      } catch {
+        // Reload failed but PATCH succeeded; apply optimistic update
+        setGroupDetails((prev) => (prev ? { ...prev, name: nextName } : prev));
+        setGroupNameDraft(nextName);
       }
 
       toast.success('Group name updated');
@@ -615,7 +647,10 @@ export function GroupManagementModal({
                 {!isNpcGroup && (
                   <div className="rounded-lg border border-border bg-sidebar p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <label className="block font-semibold text-sm">
+                      <label
+                        htmlFor="group-name-input"
+                        className="block font-semibold text-sm"
+                      >
                         Group name
                       </label>
                       {groupDetails.isAdmin && (
@@ -624,10 +659,7 @@ export function GroupManagementModal({
                             <>
                               <button
                                 onClick={handleUpdateGroupName}
-                                disabled={
-                                  !!actionLoading ||
-                                  actionLoading === 'group-name'
-                                }
+                                disabled={!!actionLoading}
                                 className="rounded-lg bg-primary px-3 py-1.5 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
                               >
                                 {actionLoading === 'group-name' ? (
@@ -638,12 +670,11 @@ export function GroupManagementModal({
                               </button>
                               <button
                                 onClick={() => {
-                                  setError(null);
-                                  setGroupNameDraft(groupDetails.name);
+                                  resetGroupNameEdit();
                                   setIsEditingGroupName(false);
                                 }}
                                 disabled={!!actionLoading}
-                                className="rounded-lg border border-border bg-background px-3 py-1.5 font-medium text-sm transition-colors hover:bg-accent disabled:opacity-50"
+                                className={secondaryBtnClass}
                               >
                                 Cancel
                               </button>
@@ -651,12 +682,11 @@ export function GroupManagementModal({
                           ) : (
                             <button
                               onClick={() => {
-                                setError(null);
-                                setGroupNameDraft(groupDetails.name);
+                                resetGroupNameEdit();
                                 setIsEditingGroupName(true);
                               }}
                               disabled={!!actionLoading}
-                              className="rounded-lg border border-border bg-background px-3 py-1.5 font-medium text-sm transition-colors hover:bg-accent disabled:opacity-50"
+                              className={secondaryBtnClass}
                             >
                               Edit
                             </button>
@@ -667,14 +697,28 @@ export function GroupManagementModal({
 
                     {isEditingGroupName ? (
                       <input
+                        id="group-name-input"
                         type="text"
                         value={groupNameDraft}
                         onChange={(e) => setGroupNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleUpdateGroupName();
+                          }
+                          if (e.key === 'Escape') {
+                            resetGroupNameEdit();
+                            setIsEditingGroupName(false);
+                          }
+                        }}
+                        autoFocus
                         maxLength={100}
                         className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors focus:border-primary focus:outline-none"
                       />
                     ) : (
-                      <p className="mt-2 truncate text-sm">{groupDetails.name}</p>
+                      <p className="mt-2 truncate text-sm">
+                        {groupDetails.name}
+                      </p>
                     )}
                   </div>
                 )}
@@ -812,51 +856,13 @@ export function GroupManagementModal({
                           </div>
 
                           {/* Actions (only for admins, not for creator, not for NPC groups) */}
-                          {groupDetails.isAdmin &&
-                            !isOwner &&
-                            !isNpcGroup && (
-                              <div className="flex items-center gap-1">
-                                {!member.isAdmin ? (
-                                  <button
-                                    onClick={() =>
-                                      setConfirmAction({
-                                        type: 'promote',
-                                        userId: member.id,
-                                        userName:
-                                          member.displayName ||
-                                          member.username ||
-                                          'this user',
-                                      })
-                                    }
-                                    disabled={!!actionLoading}
-                                    className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
-                                    title="Make Admin"
-                                  >
-                                    <Shield className="h-4 w-4 text-primary" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() =>
-                                      setConfirmAction({
-                                        type: 'demote',
-                                        userId: member.id,
-                                        userName:
-                                          member.displayName ||
-                                          member.username ||
-                                          'this user',
-                                      })
-                                    }
-                                    disabled={!!actionLoading}
-                                    className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
-                                    title="Remove Admin"
-                                  >
-                                    <Shield className="h-4 w-4 text-muted-foreground" />
-                                  </button>
-                                )}
+                          {groupDetails.isAdmin && !isOwner && !isNpcGroup && (
+                            <div className="flex items-center gap-1">
+                              {!member.isAdmin ? (
                                 <button
                                   onClick={() =>
                                     setConfirmAction({
-                                      type: 'remove',
+                                      type: 'promote',
                                       userId: member.id,
                                       userName:
                                         member.displayName ||
@@ -866,12 +872,48 @@ export function GroupManagementModal({
                                   }
                                   disabled={!!actionLoading}
                                   className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
-                                  title="Remove Member"
+                                  title="Make Admin"
                                 >
-                                  <UserMinus className="h-4 w-4 text-red-500" />
+                                  <Shield className="h-4 w-4 text-primary" />
                                 </button>
-                              </div>
-                            )}
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    setConfirmAction({
+                                      type: 'demote',
+                                      userId: member.id,
+                                      userName:
+                                        member.displayName ||
+                                        member.username ||
+                                        'this user',
+                                    })
+                                  }
+                                  disabled={!!actionLoading}
+                                  className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
+                                  title="Remove Admin"
+                                >
+                                  <Shield className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() =>
+                                  setConfirmAction({
+                                    type: 'remove',
+                                    userId: member.id,
+                                    userName:
+                                      member.displayName ||
+                                      member.username ||
+                                      'this user',
+                                  })
+                                }
+                                disabled={!!actionLoading}
+                                className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
+                                title="Remove Member"
+                              >
+                                <UserMinus className="h-4 w-4 text-red-500" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
