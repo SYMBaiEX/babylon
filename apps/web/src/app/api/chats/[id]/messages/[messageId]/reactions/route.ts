@@ -10,7 +10,10 @@ import {
   authenticate,
   BusinessLogicError,
   broadcastChatMessageReaction,
+  checkRateLimitAsync,
   NotFoundError,
+  RATE_LIMIT_CONFIGS,
+  rateLimitError,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -117,6 +120,14 @@ export const POST = withErrorHandling(
     context: { params: Promise<{ id: string; messageId: string }> }
   ) => {
     const user = await authenticate(request);
+
+    // Rate-limit reaction toggles (30 per minute per user)
+    const rl = await checkRateLimitAsync(
+      user.userId,
+      RATE_LIMIT_CONFIGS.REACTION_TOGGLE
+    );
+    if (!rl.allowed) return rateLimitError(rl.retryAfter);
+
     const { id: chatId, messageId } = await context.params;
 
     const body = await request.json();
@@ -177,6 +188,14 @@ export const DELETE = withErrorHandling(
     context: { params: Promise<{ id: string; messageId: string }> }
   ) => {
     const user = await authenticate(request);
+
+    // Rate-limit reaction toggles (30 per minute per user)
+    const rl = await checkRateLimitAsync(
+      user.userId,
+      RATE_LIMIT_CONFIGS.REACTION_TOGGLE
+    );
+    if (!rl.allowed) return rateLimitError(rl.retryAfter);
+
     const { id: chatId, messageId } = await context.params;
 
     const { searchParams } = new URL(request.url);
