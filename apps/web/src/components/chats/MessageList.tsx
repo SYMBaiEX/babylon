@@ -46,6 +46,12 @@ interface MessageListProps {
   density?: 'default' | 'compact';
   /** Callback when a message tag is clicked */
   onTagClick?: (tag: MessageTag, messageId: string) => void;
+  /** Toggle a reaction emoji on a message (current user) */
+  onToggleReaction?: (
+    messageId: string,
+    emoji: string,
+    currentlyReactedByMe: boolean
+  ) => void;
 }
 
 export function MessageList({
@@ -60,6 +66,7 @@ export function MessageList({
   messagesEndRef,
   density = 'default',
   onTagClick,
+  onToggleReaction,
 }: MessageListProps) {
   // Extract usernames from participants for @mention formatting
   // Only usernames that exist in the chat will be formatted as mentions
@@ -134,6 +141,7 @@ export function MessageList({
                 isThinking={msg.isThinking}
                 density={density}
                 onTagClick={onTagClick}
+                onToggleReaction={authenticated ? onToggleReaction : undefined}
               />
             );
           }
@@ -155,6 +163,7 @@ export function MessageList({
                 isThinking={msg.isThinking}
                 density={density}
                 onTagClick={onTagClick}
+                onToggleReaction={authenticated ? onToggleReaction : undefined}
               />
             );
           }

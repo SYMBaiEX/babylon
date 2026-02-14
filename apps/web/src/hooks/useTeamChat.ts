@@ -27,6 +27,7 @@ import {
   useChatMessages,
 } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
+import { useToggleReaction } from '@/hooks/useToggleReaction';
 import { useAuthStore } from '@/stores/authStore';
 
 // Constants for scroll behavior
@@ -199,6 +200,11 @@ interface UseTeamChatReturn {
 
   // Actions
   sendMessage: () => Promise<void>;
+  toggleReaction: (
+    messageId: string,
+    emoji: string,
+    currentlyReactedByMe: boolean
+  ) => Promise<void>;
   refresh: () => Promise<void>;
   handleScroll: (container: HTMLDivElement) => void;
   scrollToBottom: (behavior?: 'instant' | 'smooth') => void;
@@ -264,7 +270,15 @@ export function useTeamChat(): UseTeamChatReturn {
     updateMessage,
     removeMessage,
     clearMessages,
+    markPendingReactionDelta,
   } = useChatMessages(teamChat?.chatId ?? null);
+
+  const toggleReaction = useToggleReaction({
+    chatId: teamChat?.chatId ?? null,
+    messages: realtimeMessages,
+    updateMessage,
+    markPendingReactionDelta,
+  });
 
   // Helper to find scroll container from messagesEndRef
   const getScrollContainer = useCallback((): HTMLElement | null => {
@@ -1425,6 +1439,7 @@ export function useTeamChat(): UseTeamChatReturn {
     tagAgentInInput,
     // Actions
     sendMessage,
+    toggleReaction,
     refresh: fetchTeamChat,
     handleScroll,
     scrollToBottom,

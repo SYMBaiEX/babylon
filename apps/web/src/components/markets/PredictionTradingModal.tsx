@@ -647,37 +647,6 @@ export function PredictionTradingModal({
                       )}
                     </div>
                   )}
-
-                  {/* Buy Submit Button */}
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={
-                      loading ||
-                      amountNum < 1 ||
-                      showBalanceWarning ||
-                      balanceLoading
-                    }
-                    className={cn(
-                      'w-full cursor-pointer rounded py-3 font-bold text-base text-foreground transition-all sm:py-4 sm:text-lg',
-                      side === 'yes'
-                        ? 'bg-green-600 hover:bg-green-700'
-                        : 'bg-red-600 hover:bg-red-700',
-                      (loading ||
-                        amountNum < 1 ||
-                        showBalanceWarning ||
-                        balanceLoading) &&
-                        'cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        Buying Shares...
-                      </span>
-                    ) : (
-                      `BUY ${side.toUpperCase()} - ${formatPrice(amountNum)}`
-                    )}
-                  </button>
                 </>
               )}
 
@@ -772,38 +741,75 @@ export function PredictionTradingModal({
                       </button>
                     </div>
                   </div>
-
-                  {/* Sell Submit Button */}
-                  <button
-                    type="button"
-                    onClick={handleSell}
-                    disabled={
-                      loading ||
-                      (Number.parseFloat(sellShares) || 0) < 0.01 ||
-                      (Number.parseFloat(sellShares) || 0) > userPosition.shares
-                    }
-                    className={cn(
-                      'w-full cursor-pointer rounded bg-amber-600 py-3 font-bold text-base text-foreground transition-all hover:bg-amber-700 sm:py-4 sm:text-lg',
-                      (loading ||
-                        (Number.parseFloat(sellShares) || 0) < 0.01 ||
-                        (Number.parseFloat(sellShares) || 0) >
-                          userPosition.shares) &&
-                        'cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        Selling Shares...
-                      </span>
-                    ) : (
-                      `SELL ${Number.parseFloat(sellShares) || 0} SHARES`
-                    )}
-                  </button>
                 </>
               )}
             </>
           )}
         </div>
+
+        {/* Sticky action button */}
+        {(!isMarketClosed || hasPosition) && (
+          <div className="shrink-0 px-4 py-3 sm:px-6">
+            {mode === 'buy' && (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={
+                  loading ||
+                  amountNum < 1 ||
+                  showBalanceWarning ||
+                  balanceLoading
+                }
+                className={cn(
+                  'w-full cursor-pointer rounded py-3 font-bold text-base text-foreground transition-all sm:py-4 sm:text-lg',
+                  side === 'yes'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-red-600 hover:bg-red-700',
+                  (loading ||
+                    amountNum < 1 ||
+                    showBalanceWarning ||
+                    balanceLoading) &&
+                    'cursor-not-allowed opacity-50'
+                )}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    Buying Shares...
+                  </span>
+                ) : (
+                  `BUY ${side.toUpperCase()} - ${formatPrice(amountNum)}`
+                )}
+              </button>
+            )}
+            {mode === 'sell' && userPosition && (
+              <button
+                type="button"
+                onClick={handleSell}
+                disabled={
+                  loading ||
+                  (Number.parseFloat(sellShares) || 0) < 0.01 ||
+                  (Number.parseFloat(sellShares) || 0) > userPosition.shares
+                }
+                className={cn(
+                  'w-full cursor-pointer rounded bg-amber-600 py-3 font-bold text-base text-foreground transition-all hover:bg-amber-700 sm:py-4 sm:text-lg',
+                  (loading ||
+                    (Number.parseFloat(sellShares) || 0) < 0.01 ||
+                    (Number.parseFloat(sellShares) || 0) >
+                      userPosition.shares) &&
+                    'cursor-not-allowed opacity-50'
+                )}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    Selling Shares...
+                  </span>
+                ) : (
+                  `SELL ${Number.parseFloat(sellShares) || 0} SHARES`
+                )}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="shrink-0 border-border border-t px-4 py-3 sm:px-6 sm:py-4">

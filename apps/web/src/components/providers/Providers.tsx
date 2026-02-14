@@ -11,11 +11,14 @@ import { ThemeProvider } from '@/components/shared/ThemeProvider';
 import { FontSizeProvider } from '@/contexts/FontSizeContext';
 import { WidgetRefreshProvider } from '@/contexts/WidgetRefreshContext';
 import { SessionHeartbeatProvider } from '@/hooks/useSessionHeartbeat';
+import { DiscordActivityProvider } from './DiscordActivityProvider';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
 import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
+import { SolanaMobileProvider } from './SolanaMobileProvider';
+import { TelegramMiniAppProvider } from './TelegramMiniAppProvider';
 
 /**
  * Wrapper component to fix clip-path DOM property issue in Privy.
@@ -291,28 +294,34 @@ export function Providers({ children }: { children: React.ReactNode }) {
                   <GamePlaybackManager />
                   <ThemedPrivyProvider>
                     <FarcasterMiniAppProvider>
-                      {/* PostHog user identification */}
-                      <PostHogIdentifier />
-                      {/* Capture referral code from URL if present */}
-                      <Suspense fallback={null}>
-                        <ReferralCaptureProvider />
-                      </Suspense>
-                      {/* Onboarding provider for username setup */}
-                      {/* <OnboardingProvider> */}
-                      {/* Session heartbeat for engagement metrics */}
-                      <SessionHeartbeatProvider>
-                        {/* Game guide provider for first-time tutorial */}
-                        <GameGuideProvider>
-                          <WidgetRefreshProvider>
-                            {mounted ? (
-                              <Fragment>{children}</Fragment>
-                            ) : (
-                              <div className="min-h-screen bg-sidebar" />
-                            )}
-                          </WidgetRefreshProvider>
-                        </GameGuideProvider>
-                      </SessionHeartbeatProvider>
-                      {/* </OnboardingProvider> */}
+                      <TelegramMiniAppProvider>
+                        <DiscordActivityProvider>
+                          {/* Solana MWA registration (side-effect only, no UI) */}
+                          <SolanaMobileProvider />
+                          {/* PostHog user identification */}
+                          <PostHogIdentifier />
+                          {/* Capture referral code from URL if present */}
+                          <Suspense fallback={null}>
+                            <ReferralCaptureProvider />
+                          </Suspense>
+                          {/* Onboarding provider for username setup */}
+                          {/* <OnboardingProvider> */}
+                          {/* Session heartbeat for engagement metrics */}
+                          <SessionHeartbeatProvider>
+                            {/* Game guide provider for first-time tutorial */}
+                            <GameGuideProvider>
+                              <WidgetRefreshProvider>
+                                {mounted ? (
+                                  <Fragment>{children}</Fragment>
+                                ) : (
+                                  <div className="min-h-screen bg-sidebar" />
+                                )}
+                              </WidgetRefreshProvider>
+                            </GameGuideProvider>
+                          </SessionHeartbeatProvider>
+                          {/* </OnboardingProvider> */}
+                        </DiscordActivityProvider>
+                      </TelegramMiniAppProvider>
                     </FarcasterMiniAppProvider>
                   </ThemedPrivyProvider>
                 </QueryClientProvider>

@@ -13,9 +13,20 @@ import {
   positions,
   userPointsSnapshots,
   users,
+  whitelist,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import {
+  and,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
 // ---------------------------------------------------------------------------
@@ -88,13 +99,29 @@ function calculatePredictionPositionValue(position: {
 }
 
 // ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+
+/**
+ * When true, batch operations (backfill, self-heal, snapshots) are scoped to
+ * active Whitelist entries only. Set POINTS_WHITELIST_ONLY=false (or remove it)
+ * to process ALL users (for open registration).
+ *
+ * Per-user operations (recomputeTotalPoints, markDirty, recomputeDirtyUsers)
+ * are always unscoped — they only touch users explicitly flagged dirty.
+ */
+function isWhitelistOnly(): boolean {
+  return process.env.POINTS_WHITELIST_ONLY !== 'false';
+}
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
 export const TotalPointsService = {
   /**
    * Recompute totalPoints for a single user.
-   * totalPoints = wallet + open position values (perps + predictions).
+   * totalPoints = wallet + open positions + reputationPoints.
    * Only the user's own positions are included (not agent positions).
    */
   async recomputeTotalPoints(userId: string): Promise<number> {
@@ -103,6 +130,7 @@ export const TotalPointsService = {
         id: users.id,
         privyId: users.privyId,
         virtualBalance: users.virtualBalance,
+        reputationPoints: users.reputationPoints,
       })
       .from(users)
       .where(or(eq(users.id, userId), eq(users.privyId, userId)))
@@ -119,6 +147,7 @@ export const TotalPointsService = {
     }
 
     const wallet = toNumber(user.virtualBalance);
+    const reputation = user.reputationPoints;
     const canonicalUserId = user.id;
     const positionUserIds = Array.from(
       new Set([canonicalUserId, user.privyId].filter(Boolean))
@@ -175,7 +204,7 @@ export const TotalPointsService = {
       0
     );
 
-    const totalPoints = wallet + perpsValue + predictionsValue;
+    const totalPoints = wallet + perpsValue + predictionsValue + reputation;
 
     await db
       .update(users)
@@ -198,23 +227,38 @@ export const TotalPointsService = {
 
   /**
    * Backfill helper: mark users with totalPoints=0 as dirty, so the cron can
-   * recompute them incrementally. This is bounded and safe to run repeatedly.
+   * recompute them incrementally.
+   * When POINTS_WHITELIST_ONLY !== 'false', scoped to active whitelist entries.
    */
-  async markZeroTotalPointsDirty(batchSize = 1000): Promise<number> {
+  async markZeroTotalPointsDirty(batchSize = 5000): Promise<number> {
     const safeBatchSize = Math.min(Math.max(1, batchSize), 10_000);
-    const candidates = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(
-        and(
-          eq(users.isAgent, false),
-          eq(users.isActor, false),
-          eq(users.totalPoints, '0'),
-          isNull(users.totalPointsDirtyAt)
+    const baseWhere = and(
+      eq(users.isAgent, false),
+      eq(users.isActor, false),
+      eq(users.totalPoints, '0'),
+      isNull(users.totalPointsDirtyAt)
+    );
+
+    let candidates: { id: string }[];
+    if (isWhitelistOnly()) {
+      candidates = await db
+        .select({ id: users.id })
+        .from(users)
+        .innerJoin(
+          whitelist,
+          and(eq(whitelist.userId, users.id), isNull(whitelist.revokedAt))
         )
-      )
-      .orderBy(users.id)
-      .limit(safeBatchSize);
+        .where(baseWhere)
+        .orderBy(users.id)
+        .limit(safeBatchSize);
+    } else {
+      candidates = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(baseWhere)
+        .orderBy(users.id)
+        .limit(safeBatchSize);
+    }
 
     if (candidates.length === 0) return 0;
 
@@ -228,32 +272,54 @@ export const TotalPointsService = {
   },
 
   /**
-   * Snapshot all non-agent, non-actor users' current totalPoints
-   * into the userPointsSnapshots table.
-   * Uses cursor-based pagination to avoid loading unbounded rows into memory.
+   * Snapshot users' current totalPoints into the userPointsSnapshots table.
+   * When POINTS_WHITELIST_ONLY !== 'false', scoped to active whitelist entries.
    */
   async snapshotAllUsers(): Promise<number> {
     const now = new Date();
     const BATCH_SIZE = 500;
     let processed = 0;
     let lastId: string | null = null;
+    const wlOnly = isWhitelistOnly();
 
     // Cursor-based pagination: fetch BATCH_SIZE at a time, ordered by id
     while (true) {
-      const whereClause = lastId
-        ? and(
-            eq(users.isAgent, false),
-            eq(users.isActor, false),
-            gt(users.id, lastId)
-          )
-        : and(eq(users.isAgent, false), eq(users.isActor, false));
+      const cursorFilter = lastId ? gt(users.id, lastId) : undefined;
 
-      const batch: { id: string; totalPoints: string | null }[] = await db
-        .select({ id: users.id, totalPoints: users.totalPoints })
-        .from(users)
-        .where(whereClause)
-        .orderBy(users.id)
-        .limit(BATCH_SIZE);
+      // Use separate query builders to avoid drizzle type mismatch with
+      // conditional .innerJoin() (join changes the builder generic).
+      let batch: { id: string; totalPoints: string | null }[];
+      if (wlOnly) {
+        batch = await db
+          .select({ id: users.id, totalPoints: users.totalPoints })
+          .from(users)
+          .innerJoin(
+            whitelist,
+            and(eq(whitelist.userId, users.id), isNull(whitelist.revokedAt))
+          )
+          .where(
+            and(
+              eq(users.isAgent, false),
+              eq(users.isActor, false),
+              cursorFilter
+            )
+          )
+          .orderBy(users.id)
+          .limit(BATCH_SIZE);
+      } else {
+        batch = await db
+          .select({ id: users.id, totalPoints: users.totalPoints })
+          .from(users)
+          .where(
+            and(
+              eq(users.isAgent, false),
+              eq(users.isActor, false),
+              cursorFilter
+            )
+          )
+          .orderBy(users.id)
+          .limit(BATCH_SIZE);
+      }
 
       if (batch.length === 0) break;
 
@@ -338,5 +404,49 @@ export const TotalPointsService = {
     }
 
     return processed;
+  },
+
+  /**
+   * Bulk backfill: set totalPoints = virtualBalance + reputationPoints for
+   * users with totalPoints = 0.
+   * When POINTS_WHITELIST_ONLY !== 'false', scoped to active whitelist entries.
+   * Also marks backfilled users as dirty so the cron can add position values.
+   */
+  async bulkBackfillFromBalance(): Promise<number> {
+    const wlOnly = isWhitelistOnly();
+    const result = wlOnly
+      ? await db.execute(sql`
+          UPDATE "User" u
+          SET
+            "totalPoints" = COALESCE(CAST(u."virtualBalance" AS DECIMAL(18,2)), 0) + u."reputationPoints",
+            "totalPointsDirtyAt" = NOW()
+          FROM "Whitelist" w
+          WHERE w."userId" = u."id"
+            AND w."revokedAt" IS NULL
+            AND u."totalPoints" = '0'
+            AND u."isAgent" = false
+            AND u."isActor" = false
+        `)
+      : await db.execute(sql`
+          UPDATE "User"
+          SET
+            "totalPoints" = COALESCE(CAST("virtualBalance" AS DECIMAL(18,2)), 0) + "reputationPoints",
+            "totalPointsDirtyAt" = NOW()
+          WHERE "totalPoints" = '0'
+            AND "isAgent" = false
+            AND "isActor" = false
+        `);
+
+    // postgres-js puts affected row count on `.count`; drizzle passes through
+    // the raw Result object from the driver.
+    const count = Number(
+      (result as unknown as { count?: number }).count ?? result?.length ?? 0
+    );
+    logger.info(
+      `Bulk backfilled totalPoints from virtualBalance for ${count} users (whitelistOnly=${wlOnly})`,
+      { count, whitelistOnly: wlOnly },
+      'TotalPointsService'
+    );
+    return count;
   },
 };

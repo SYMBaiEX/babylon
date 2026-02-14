@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatMessages } from '@/hooks/useChatMessages';
+import { useToggleReaction } from '@/hooks/useToggleReaction';
 import { useAuthStore } from '@/stores/authStore';
 import type { Chat, ChatDetails, ChatFilter } from '../types';
 
@@ -81,7 +82,16 @@ export function useChatPage() {
     hasMore,
     loadMore,
     addMessage,
+    updateMessage,
+    markPendingReactionDelta,
   } = useChatMessages(selectedChatId);
+
+  const toggleReaction = useToggleReaction({
+    chatId: selectedChatId,
+    messages: realtimeMessages,
+    updateMessage,
+    markPendingReactionDelta,
+  });
 
   // Load chats
   const loadChats = useCallback(async () => {
@@ -758,6 +768,7 @@ export function useChatPage() {
 
     // Actions
     sendMessage,
+    toggleReaction,
     loadChats,
   };
 }

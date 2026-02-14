@@ -43,6 +43,7 @@ import {
   users,
 } from '@babylon/db';
 import {
+  createPerpPriceImpactPort,
   FEE_CONFIG,
   FeeService,
   type GeneratedTag,
@@ -923,6 +924,7 @@ async function executePerpTrade(params: {
         referrerShare: 0.5,
         minFeeAmount: 0.01,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     await service.openPosition({
@@ -1011,6 +1013,7 @@ async function executeClosePerpPosition(params: {
         referrerShare: 0.5,
         minFeeAmount: 0.01,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     // Capture the result from closePosition to get accurate realizedPnL

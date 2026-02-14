@@ -53,7 +53,7 @@ function isPnlTagData(data: unknown): data is PnlTagData {
 import { MessageCircle, PanelRight, Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AgentCreate } from '@/components/agents/AgentCreate';
 import { AgentEditModal } from '@/components/agents/AgentEditModal';
@@ -61,8 +61,15 @@ import { TeamChatView } from '@/components/chats';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
+import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
+import {
+  TUTORIAL_PERPS_DATA,
+  TUTORIAL_PERPS_ENTITY_ID,
+} from './_components/tutorial/steps';
+import { useAgentsTutorial } from './_components/tutorial/useAgentsTutorial';
 import { AgentPnL } from './AgentPnL';
 import { AgentPortfolio } from './AgentPortfolio';
 import {
@@ -181,6 +188,7 @@ export default function TeamChatPage() {
     messagesEndRef,
     topSentinelRef,
     sendMessage,
+    toggleReaction,
     handleScroll,
     scrollToBottom,
     refresh: refreshTeamChat,
@@ -257,6 +265,130 @@ export default function TeamChatPage() {
     autonomousGroupChats?: boolean;
     a2aEnabled?: boolean;
   } | null>(null);
+
+  // Tutorial
+  const tutorial = useAgentsTutorial({
+    onBeforeStart: () => {
+      setMobileView('agents');
+    },
+  });
+
+  // Open create-agent modal when user clicks "Next" on step 2 (Create New Agents)
+  const prevTutorialStepRef = useRef(tutorial.currentStep);
+  useEffect(() => {
+    const prev = prevTutorialStepRef.current;
+    prevTutorialStepRef.current = tutorial.currentStep;
+    // Step index 1 = "Create New Agents"; advancing past it opens the modal
+    if (tutorial.isActive && prev === 1 && tutorial.currentStep === 2) {
+      setShowCreateAgentModal(true);
+    }
+  }, [tutorial.isActive, tutorial.currentStep]);
+
+  // Build chat details with fake tutorial messages injected at the top
+  const tutorialChatDetails = useMemo(() => {
+    if (!chatDetails) return chatDetails;
+    // Only inject when tutorial is active and on step 3+ (Team Chat)
+    if (!tutorial.isActive || tutorial.currentStep < 2) return chatDetails;
+
+    const agentSenderId = teamChat?.agents?.[0]?.id ?? 'tutorial-agent';
+    const agentName =
+      teamChat?.agents?.[0]?.displayName ??
+      teamChat?.agents?.[0]?.username ??
+      'Agent';
+    const now = new Date().toISOString();
+
+    const fakeUserMessage = {
+      id: 'tutorial-msg-user',
+      content: `@${agentName}, what are the top trending perpetual markets right now?`,
+      senderId: user?.id ?? 'tutorial-user',
+      createdAt: now,
+      stableKey: 'tutorial-msg-user',
+    };
+
+    const fakeAgentMessage = {
+      id: 'tutorial-msg-agent',
+      content:
+        "Here are the top trending perpetual markets I'm watching right now. BTC is showing strong momentum and ETH has interesting volume patterns.",
+      senderId: agentSenderId,
+      createdAt: now,
+      stableKey: 'tutorial-msg-agent',
+      metadata: {
+        tags: [
+          {
+            type: 'perps' as const,
+            label: 'Perps Markets',
+            icon: 'TrendingUp' as const,
+            entityId: TUTORIAL_PERPS_ENTITY_ID,
+            data: TUTORIAL_PERPS_DATA,
+          },
+        ],
+      },
+    };
+
+    return {
+      ...chatDetails,
+      messages: [fakeUserMessage, fakeAgentMessage],
+    };
+  }, [
+    chatDetails,
+    tutorial.isActive,
+    tutorial.currentStep,
+    teamChat?.agents,
+    user?.id,
+  ]);
+
+  // Sync UI state with tutorial steps (switch mobile tabs, open panels)
+  useEffect(() => {
+    if (!tutorial.isActive) return;
+    const step = tutorial.steps[tutorial.currentStep];
+    if (!step) return;
+
+    // On mobile, switch to the correct tab
+    if (step.target === '[data-tour="agents-mobile-chat-tab"]') {
+      setMobileView('agents');
+    } else if (step.target === '[data-tour="agents-mobile-add"]') {
+      setMobileView('agents');
+    }
+
+    // Step 5: auto-open right sidebar with tutorial perps data
+    if (step.target === '[data-tour="agents-right-sidebar"]') {
+      const tabId = `perps-id-${TUTORIAL_PERPS_ENTITY_ID}`;
+      setRightSidebarTabs((prev) => {
+        if (prev.some((t) => t.id === tabId)) return prev;
+        return [
+          ...prev,
+          {
+            id: tabId,
+            type: 'perps' as const,
+            title: 'Perps Markets',
+            data: TUTORIAL_PERPS_DATA,
+          },
+        ];
+      });
+      setActiveRightTabId(tabId);
+      setRightSidebarOpen(true);
+    }
+
+    // Step 6: close right sidebar for bottom panel step
+    if (step.target === '[data-tour="agents-bottom-panel"]') {
+      setRightSidebarOpen(false);
+      setBottomPanelOpen(true);
+    }
+  }, [tutorial.isActive, tutorial.currentStep, tutorial.steps]);
+
+  // Clean up right sidebar when tutorial is dismissed/completed
+  useEffect(() => {
+    if (tutorial.isActive) return;
+    const tutorialTabId = `perps-id-${TUTORIAL_PERPS_ENTITY_ID}`;
+    setRightSidebarTabs((prev) => {
+      const filtered = prev.filter((t) => t.id !== tutorialTabId);
+      if (filtered.length === prev.length) return prev; // no change
+      if (filtered.length === 0) {
+        queueMicrotask(() => setRightSidebarOpen(false));
+      }
+      return filtered;
+    });
+  }, [tutorial.isActive]);
 
   // Set default entity for bottom panel - defaults to user
   // Also validates that selected agent still exists (handles agent removal)
@@ -591,7 +723,10 @@ export default function TeamChatPage() {
       className="relative flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:h-dvh lg:border-l"
     >
       {/* Mobile Tab Navigation - visible on small screens only */}
-      <div className="flex h-12 shrink-0 items-center justify-around border-border border-b bg-background lg:hidden">
+      <div
+        data-tour="agents-mobile-tabs"
+        className="flex h-12 shrink-0 items-center justify-around border-border border-b bg-background lg:hidden"
+      >
         <button
           type="button"
           onClick={() => setMobileView('agents')}
@@ -606,6 +741,7 @@ export default function TeamChatPage() {
         </button>
         <button
           type="button"
+          data-tour="agents-mobile-chat-tab"
           onClick={() => setMobileView('chat')}
           className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs transition-colors ${
             mobileView === 'chat'
@@ -661,6 +797,7 @@ export default function TeamChatPage() {
             <h2 className="font-bold text-foreground text-xl">Agents</h2>
             <button
               type="button"
+              data-tour="agents-mobile-add"
               onClick={() => setShowCreateAgentModal(true)}
               className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               aria-label="Add agent"
@@ -783,7 +920,7 @@ export default function TeamChatPage() {
         }`}
       >
         <TeamChatView
-          chatDetails={chatDetails}
+          chatDetails={tutorialChatDetails}
           currentUserId={user?.id}
           authenticated={authenticated}
           sseConnected={sseConnected}
@@ -798,6 +935,7 @@ export default function TeamChatPage() {
           messagesEndRef={messagesEndRef}
           onMessageChange={handleInputChange}
           onSendMessage={sendMessage}
+          onToggleReaction={toggleReaction}
           agents={[
             ...(user
               ? [
@@ -832,7 +970,10 @@ export default function TeamChatPage() {
         {/* Member Sidebar - visible on lg+ when not collapsed */}
         {!leftSidebarCollapsed && (
           <>
-            <div className="flex w-80 shrink-0 flex-col border-border border-r">
+            <div
+              data-tour="agents-member-list"
+              className="flex w-80 shrink-0 flex-col border-border border-r"
+            >
               {/* Conversations Section */}
               <div className="p-3">
                 <ConversationList
@@ -849,14 +990,18 @@ export default function TeamChatPage() {
               {/* Agents Header */}
               <div className="flex items-center justify-between p-3">
                 <h2 className="font-bold text-foreground text-xl">Agents</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateAgentModal(true)}
-                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  aria-label="Add agent"
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <TutorialHelpButton onClick={tutorial.restart} />
+                  <button
+                    type="button"
+                    data-tour="agents-add-button"
+                    onClick={() => setShowCreateAgentModal(true)}
+                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    aria-label="Add agent"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Member list - extracted component */}
@@ -872,9 +1017,12 @@ export default function TeamChatPage() {
         )}
 
         {/* Chat Content - min-width ensures chat doesn't get too small on desktop */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+        <div
+          data-tour="agents-chat-area"
+          className="flex min-h-0 min-w-0 flex-1 flex-col bg-background"
+        >
           <TeamChatView
-            chatDetails={chatDetails}
+            chatDetails={tutorialChatDetails}
             currentUserId={user?.id}
             authenticated={authenticated}
             sseConnected={sseConnected}
@@ -888,6 +1036,7 @@ export default function TeamChatPage() {
             messagesEndRef={messagesEndRef}
             onMessageChange={handleInputChange}
             onSendMessage={sendMessage}
+            onToggleReaction={toggleReaction}
             agents={[
               // Include current user so they can mention themselves
               ...(user
@@ -1132,6 +1281,15 @@ export default function TeamChatPage() {
           }}
         />
       )}
+
+      <SpotlightTutorial
+        isActive={tutorial.isActive && !showCreateAgentModal}
+        currentStep={tutorial.currentStep}
+        steps={tutorial.steps}
+        next={tutorial.next}
+        prev={tutorial.prev}
+        dismiss={tutorial.dismiss}
+      />
     </div>
   );
 }

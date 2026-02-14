@@ -152,6 +152,12 @@ interface TeamChatViewProps {
   onToggleRightSidebar?: () => void;
   /** Callback when a message tag is clicked */
   onTagClick?: (tag: MessageTag, messageId: string) => void;
+  /** Toggle a reaction emoji on a message (current user). */
+  onToggleReaction?: (
+    messageId: string,
+    emoji: string,
+    currentlyReactedByMe: boolean
+  ) => void;
 }
 
 /**
@@ -186,6 +192,7 @@ export function TeamChatView({
   rightSidebarOpen = false,
   onToggleRightSidebar,
   onTagClick,
+  onToggleReaction,
 }: TeamChatViewProps) {
   const compact = density === 'compact';
   // Empty state when no chat selected
@@ -291,6 +298,7 @@ export function TeamChatView({
           messagesEndRef={messagesEndRef}
           density={density}
           onTagClick={onTagClick}
+          onToggleReaction={onToggleReaction}
         />
       </div>
 

@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       twitterTokenExpiresAt: null,
       twitterId: null,
       twitterUsername: null,
+      twitterVerifiedAt: null,
       hasTwitter: false,
     },
   });

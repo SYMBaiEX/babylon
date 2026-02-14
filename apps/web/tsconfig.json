@@ -37,7 +37,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     // Bun-specific
-    "types": ["bun-types"],
+    "types": ["bun-types", "@serwist/next/typings"],
     "moduleDetection": "force",
     // Next.js
     "plugins": [
@@ -85,5 +85,12 @@
     ".next/dev/types/**/*.ts",
     "types/**/*.d.ts"
   ],
-  "exclude": ["node_modules", "dist", "**/*.disabled", "src/**/__tests__/**/*"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.disabled",
+    "src/**/__tests__/**/*",
+    "src/app/sw.ts",
+    "public/sw.js"
+  ]
 }

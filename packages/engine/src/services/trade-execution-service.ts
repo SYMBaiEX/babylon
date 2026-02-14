@@ -64,6 +64,7 @@ import {
 } from './market-impact-service';
 import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
+import { createPerpPriceImpactPort } from './perp-price-impact-port';
 import { broadcastToChannel } from './realtime-broadcaster';
 import { StaticDataRegistry } from './static-data-registry';
 import { TotalPointsService } from './total-points-service';
@@ -496,6 +497,7 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     // Open position via PerpMarketService (uses perpPositions table)
@@ -1143,6 +1145,7 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      priceImpact: createPerpPriceImpactPort(),
     });
 
     const result = await perpService.closePosition({

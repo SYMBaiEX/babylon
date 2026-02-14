@@ -1,4 +1,11 @@
-import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  authenticate,
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
+  rateLimitError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { handlePlayerTrade } from '@babylon/engine';
 import {
   ClosePerpPositionSchema,
@@ -8,10 +15,7 @@ import {
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { trackServerEvent } from '@/lib/posthog/server';
-import {
-  applyUserTradePriceImpact,
-  createPerpMarketService,
-} from '../../../_adapters';
+import { createPerpMarketService } from '../../../_adapters';
 
 const IdParamSchema = z.object({
   id: z.string(),
@@ -19,8 +23,9 @@ const IdParamSchema = z.object({
 
 /**
  * POST /api/markets/perps/position/[id]/close
- * Close an existing perpetual futures position.
+ * Close an existing perpetual futures position (full or partial).
  *
+ * Supports partial close via `percentage` body param (0-1, e.g., 0.5 = 50%).
  * Uses PerpMarketService with SSE broadcast enabled for real-time UI updates.
  */
 export const POST = withErrorHandling(
@@ -29,6 +34,15 @@ export const POST = withErrorHandling(
     context: { params: Promise<{ id: string }> }
   ) => {
     const user = await authenticate(request);
+
+    // Rate limit: 10 closes per minute per user
+    const rateLimitResult = await checkRateLimitAsync(
+      user.userId,
+      RATE_LIMIT_CONFIGS.CLOSE_POSITION
+    );
+    if (!rateLimitResult.allowed)
+      return rateLimitError(rateLimitResult.retryAfter);
+
     const { id: positionId } = IdParamSchema.parse(await context.params);
 
     // Parse and validate request body (optional for partial close)
@@ -38,36 +52,29 @@ export const POST = withErrorHandling(
     } catch {
       // Body is optional for this endpoint
     }
-    if (Object.keys(body).length > 0) {
-      ClosePerpPositionSchema.parse(body);
-    }
+    const parsed =
+      Object.keys(body).length > 0
+        ? ClosePerpPositionSchema.parse(body)
+        : {
+            percentage: undefined as number | undefined,
+            slippage: undefined as number | undefined,
+          };
 
-    // Create service with fee processor and broadcast for real-time updates
+    // Create service with fee processor, broadcast, and price impact protection
+    // Price impact adjustment (BF-75) is handled inside the service via PriceImpactPort,
+    // using average fill pricing for fair close execution.
     const service = createPerpMarketService({
       withFeeProcessor: true,
       withBroadcast: true,
+      withPriceImpact: true,
     });
 
     const result = await service.closePosition({
       userId: user.userId,
       positionId,
+      percentage: parsed.percentage,
+      maxSlippage: parsed.slippage,
     });
-
-    // Apply price impact from the trade
-    // Wait for it to complete to ensure price is updated before response
-    try {
-      await applyUserTradePriceImpact(result.ticker);
-    } catch (error) {
-      // Log but don't fail the trade - price impact is enhancement
-      logger.error(
-        'Price impact failed',
-        {
-          ticker: result.ticker,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'PerpClose'
-      );
-    }
 
     // Track analytics event (fire and forget)
     trackServerEvent(user.userId, 'trade_closed', {

@@ -1,4 +1,11 @@
-import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  authenticate,
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
+  rateLimitError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { handlePlayerTrade } from '@babylon/engine';
 import {
   fireAndForgetWithRetry,
@@ -7,19 +14,26 @@ import {
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
-import {
-  applyUserTradePriceImpact,
-  createPerpMarketService,
-} from '../_adapters';
+import { createPerpMarketService } from '../_adapters';
 
 /**
  * POST /api/markets/perps/open
  * Open a new perpetual futures position.
  *
- * Uses PerpMarketService with SSE broadcast enabled for real-time UI updates.
+ * Uses PerpMarketService with SSE broadcast and price impact protection.
+ * Price impact adjustment (BF-75) is handled inside the service via PriceImpactPort,
+ * ensuring ALL position creation paths (open, add, flip) are protected.
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
+
+  // Rate limit: 10 positions per minute per user
+  const rateLimitResult = await checkRateLimitAsync(
+    user.userId,
+    RATE_LIMIT_CONFIGS.OPEN_POSITION
+  );
+  if (!rateLimitResult.allowed)
+    return rateLimitError(rateLimitResult.retryAfter);
 
   const body = await request.json();
   const { ticker, side, size, leverage } = PerpOpenPositionSchema.parse(body);
@@ -27,10 +41,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const normalizedSide = side.toLowerCase() as 'long' | 'short';
   const numericSize = typeof size === 'string' ? Number(size) : size;
 
-  // Create service with fee processor and broadcast for real-time updates
+  // Create service with fee processor, broadcast, and price impact protection
   const service = createPerpMarketService({
     withFeeProcessor: true,
     withBroadcast: true,
+    withPriceImpact: true,
   });
 
   const result = await service.openPosition({
@@ -40,19 +55,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     size: numericSize,
     leverage,
   });
-
-  // Apply price impact from the trade
-  // Wait for it to complete to ensure price is updated before response
-  try {
-    await applyUserTradePriceImpact(ticker);
-  } catch (error) {
-    // Log but don't fail the trade - price impact is enhancement
-    logger.error(
-      'Price impact failed',
-      { ticker, error: error instanceof Error ? error.message : String(error) },
-      'PerpOpen'
-    );
-  }
 
   // Track analytics event (fire and forget)
   trackServerEvent(user.userId, 'trade_opened', {

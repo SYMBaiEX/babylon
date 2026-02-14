@@ -25,7 +25,7 @@ import {
   sql,
   users,
 } from '@babylon/db';
-import { StaticDataRegistry } from '@babylon/engine';
+import { StaticDataRegistry, TotalPointsService } from '@babylon/engine';
 import {
   generateSnowflakeId,
   logger,
@@ -227,6 +227,15 @@ export class PointsService {
       `Awarded ${amount} points to user ${userId} for ${reason}`,
       { userId, amount, reason, pointsBefore, pointsAfter },
       'PointsService'
+    );
+
+    // Reputation changed → mark totalPoints dirty for cron recompute
+    TotalPointsService.markDirty(userId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty after points award',
+        { userId, error: e instanceof Error ? e.message : String(e) },
+        'PointsService'
+      )
     );
 
     return {

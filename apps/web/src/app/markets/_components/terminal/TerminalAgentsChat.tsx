@@ -23,6 +23,7 @@ export function TerminalAgentsChat() {
     messagesEndRef,
     topSentinelRef,
     sendMessage,
+    toggleReaction,
     handleScroll,
   } = useTeamChat();
 
@@ -61,6 +62,7 @@ export function TerminalAgentsChat() {
         messagesEndRef={messagesEndRef}
         onMessageChange={handleInputChange}
         onSendMessage={sendMessage}
+        onToggleReaction={toggleReaction}
         agents={[
           ...(user
             ? [
