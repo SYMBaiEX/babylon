@@ -474,6 +474,12 @@ export default function TeamChatPage() {
     getAccessToken,
   });
 
+  // Agent IDs set for settings icon on latest agent messages
+  const agentIds = useMemo(
+    () => new Set(teamChat?.agents.map((a) => a.id) ?? []),
+    [teamChat?.agents]
+  );
+
   // Handle sidebar "Settings" - open edit modal
   const handleViewSettings = useCallback(
     async (agentId: string) => {
@@ -850,7 +856,6 @@ export default function TeamChatPage() {
             onStopAgent={stopAgent}
             onViewSettings={(agentId) => {
               handleViewSettings(agentId);
-              setMobileView('panel');
             }}
           />
         </div>
@@ -995,6 +1000,8 @@ export default function TeamChatPage() {
             handleTagClick(tag, messageId);
             setMobileView('panel');
           }}
+          agentIds={agentIds}
+          onViewSettings={handleViewSettings}
         />
       </div>
 
@@ -1098,6 +1105,8 @@ export default function TeamChatPage() {
             rightSidebarOpen={rightSidebarOpen}
             onToggleRightSidebar={toggleRightSidebar}
             onTagClick={handleTagClick}
+            agentIds={agentIds}
+            onViewSettings={handleViewSettings}
           />
         </div>
 

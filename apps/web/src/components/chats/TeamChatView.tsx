@@ -158,6 +158,10 @@ interface TeamChatViewProps {
     emoji: string,
     currentlyReactedByMe: boolean
   ) => void;
+  /** Set of agent user IDs — for settings icon on latest agent message */
+  agentIds?: ReadonlySet<string>;
+  /** Callback to open agent settings modal */
+  onViewSettings?: (agentId: string) => void;
 }
 
 /**
@@ -193,6 +197,8 @@ export function TeamChatView({
   onToggleRightSidebar,
   onTagClick,
   onToggleReaction,
+  agentIds,
+  onViewSettings,
 }: TeamChatViewProps) {
   const compact = density === 'compact';
   // Empty state when no chat selected
@@ -299,6 +305,9 @@ export function TeamChatView({
           density={density}
           onTagClick={onTagClick}
           onToggleReaction={onToggleReaction}
+          compactActions
+          agentIds={agentIds}
+          onViewSettings={onViewSettings}
         />
       </div>
 

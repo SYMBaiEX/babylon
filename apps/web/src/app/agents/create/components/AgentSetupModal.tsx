@@ -494,12 +494,19 @@ export function AgentSetupModal({
 
         {/* Footer - fixed */}
         <div className="shrink-0 border-border border-t px-4 py-3 sm:px-6 sm:py-4">
-          <div className="flex justify-end">
+          <div className="flex gap-3">
+            <span
+              className="pointer-events-none flex-1 rounded-lg border border-transparent px-4 py-2.5 font-medium text-transparent sm:py-3"
+              aria-hidden="true"
+            >
+              Back
+            </span>
             <button
               onClick={handleContinue}
               disabled={isContinueDisabled}
               className={cn(
-                'flex w-1/2 items-center justify-center rounded-lg bg-[#0066FF] px-4 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-[#2952d9] sm:py-3',
+                'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium transition-all sm:py-3',
+                'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
                 'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
