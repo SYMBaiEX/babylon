@@ -155,7 +155,6 @@ export default async function RootLayout({
               <Suspense fallback={null}>
                 <FeedAuthBanner />
               </Suspense>
-
             </>
           )}
         </Providers>
