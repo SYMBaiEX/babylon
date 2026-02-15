@@ -367,6 +367,9 @@ function SidebarContent() {
           <button
             type="button"
             onClick={() => setFeedbackModalOpen(true)}
+            aria-label="Feedback"
+            aria-haspopup="dialog"
+            aria-expanded={feedbackModalOpen}
             className={cn(
               'group pointer-events-auto relative z-10 flex items-center gap-3 px-4 py-3',
               'transition-colors duration-200',
