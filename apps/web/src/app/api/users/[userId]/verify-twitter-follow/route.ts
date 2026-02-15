@@ -47,6 +47,7 @@ import {
   AuthorizationError,
   authenticate,
   BusinessLogicError,
+  invalidateCache,
   PointsService,
   requireUserByIdentifier,
   successResponse,
@@ -138,6 +139,11 @@ export const POST = withErrorHandling(
     if (pointsResult.success) {
       pointsAwarded = pointsResult.pointsAwarded;
       newPointsTotal = pointsResult.newTotal;
+
+      // Ensure waitlist dashboard reflects new points immediately.
+      await invalidateCache(canonicalUserId, {
+        namespace: 'waitlist:position',
+      });
 
       logger.info(
         `Awarded ${pointsAwarded} points for Twitter follow (trusted)`,

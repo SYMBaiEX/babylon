@@ -398,7 +398,7 @@ export function useSocialVerification({
 
     const discordInviteUrl =
       process.env.NEXT_PUBLIC_DISCORD_INVITE_URL ||
-      'https://discord.gg/4DYsFgyp';
+      'https://discord.gg/FEJpGH8f3r';
     window.open(discordInviteUrl, '_blank');
     setShowVerifyDiscordJoinButton(true);
     toast.success('After joining, click the "Verify Join" button below!');
