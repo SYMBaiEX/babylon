@@ -10,6 +10,7 @@ import {
   Gift,
   LogOut,
   MessageCircle,
+  MessageSquarePlus,
   Shield,
   TrendingUp,
   Trophy,
@@ -25,6 +26,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { BabylonIcon } from '@/components/shared/icons/BabylonIcon';
 import { BabylonFullLogo } from '@/components/shared/icons/BabylonLogo';
 import { HouseIcon } from '@/components/shared/icons/HouseIcon';
+import { GameFeedbackModal } from '@/components/feedback/GameFeedbackModal';
 import { useAuth } from '@/hooks/useAuth';
 import { usePostHog } from '@/hooks/usePostHog';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
@@ -44,6 +46,7 @@ function SidebarContent() {
   const [showMdMenu, setShowMdMenu] = useState(false);
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
   const mdMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
@@ -359,6 +362,37 @@ function SidebarContent() {
           })}
         </nav>
 
+        {/* Feedback Button - only when authenticated */}
+        {authenticated && (
+          <button
+            type="button"
+            onClick={() => setFeedbackModalOpen(true)}
+            className={cn(
+              'group pointer-events-auto relative z-10 flex items-center gap-3 px-4 py-3',
+              'transition-colors duration-200',
+              'md:justify-center',
+              !collapsed && 'lg:justify-start',
+              'bg-emerald-500/10 hover:bg-emerald-500/20',
+              'dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20'
+            )}
+            title="Feedback"
+          >
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center">
+              <MessageSquarePlus className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <span
+              className={cn(
+                'hidden',
+                !collapsed && 'lg:block',
+                'text-lg transition-colors duration-300',
+                'text-emerald-700 group-hover:text-emerald-800 dark:text-emerald-400 dark:group-hover:text-emerald-300'
+              )}
+            >
+              Feedback
+            </span>
+          </button>
+        )}
+
         {/* Bottom Section - Authentication (Desktop lg+) */}
         <div className={cn('hidden', !collapsed && 'lg:block')}>
           {!ready ? (
@@ -436,6 +470,11 @@ function SidebarContent() {
             )}
           </div>
         )}
+
+        <GameFeedbackModal
+          isOpen={feedbackModalOpen}
+          onClose={() => setFeedbackModalOpen(false)}
+        />
       </aside>
     </>
   );

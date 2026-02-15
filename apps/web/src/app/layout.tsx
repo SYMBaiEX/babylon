@@ -12,7 +12,6 @@ import { Suspense } from 'react';
 import { Toaster } from 'sonner';
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
-import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 import { NftAccessGate, NftPromoBanner } from '@/components/nft';
 import { Providers } from '@/components/providers/Providers';
 import { BottomNav } from '@/components/shared/BottomNav';
@@ -157,8 +156,6 @@ export default async function RootLayout({
                 <FeedAuthBanner />
               </Suspense>
 
-              {/* Floating Feedback Button - shows on all pages when authenticated */}
-              <FeedbackButton />
             </>
           )}
         </Providers>
