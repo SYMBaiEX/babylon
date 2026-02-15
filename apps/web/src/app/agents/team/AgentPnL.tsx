@@ -352,6 +352,7 @@ function UserPnL({
                 <div className="space-y-1">
                   {predictions.map((pos) => {
                     const closed = !isOpenPrediction(pos);
+                    const resolution = closed ? getResolutionLabel(pos) : null;
                     return (
                       <button
                         type="button"
@@ -375,17 +376,15 @@ function UserPnL({
                                   'shrink-0 rounded-full px-1.5 py-0.5 font-medium text-[10px] leading-none',
                                   {
                                     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400':
-                                      getResolutionLabel(pos).variant ===
-                                      'green',
+                                      resolution?.variant === 'green',
                                     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400':
-                                      getResolutionLabel(pos).variant === 'red',
+                                      resolution?.variant === 'red',
                                     'bg-muted text-muted-foreground':
-                                      getResolutionLabel(pos).variant ===
-                                      'muted',
+                                      resolution?.variant === 'muted',
                                   }
                                 )}
                               >
-                                {getResolutionLabel(pos).text}
+                                {resolution?.text}
                               </span>
                             )}
                           </div>
@@ -760,6 +759,7 @@ function AgentPnLView({
                 <div className="space-y-1">
                   {predictions.map((pos) => {
                     const closed = !isOpenPrediction(pos);
+                    const resolution = closed ? getResolutionLabel(pos) : null;
                     return (
                       <button
                         type="button"
@@ -783,17 +783,15 @@ function AgentPnLView({
                                   'shrink-0 rounded-full px-1.5 py-0.5 font-medium text-[10px] leading-none',
                                   {
                                     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400':
-                                      getResolutionLabel(pos).variant ===
-                                      'green',
+                                      resolution?.variant === 'green',
                                     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400':
-                                      getResolutionLabel(pos).variant === 'red',
+                                      resolution?.variant === 'red',
                                     'bg-muted text-muted-foreground':
-                                      getResolutionLabel(pos).variant ===
-                                      'muted',
+                                      resolution?.variant === 'muted',
                                   }
                                 )}
                               >
-                                {getResolutionLabel(pos).text}
+                                {resolution?.text}
                               </span>
                             )}
                           </div>
