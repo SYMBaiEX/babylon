@@ -172,7 +172,7 @@ export function MessageBubble({
             <button
               type="button"
               onClick={() => onViewSettings(message.senderId)}
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className="text-muted-foreground transition-colors hover:text-foreground lg:hidden"
               aria-label="Agent settings"
             >
               <Settings className="h-3.5 w-3.5" />
