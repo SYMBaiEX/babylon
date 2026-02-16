@@ -479,7 +479,6 @@ export function AgentChat({
           showBackButton={showBackButton}
           onBack={onBack}
           onManageGroup={() => {}}
-          onLeaveChat={() => {}}
         />
 
         {/* Agent Balance Banner */}
