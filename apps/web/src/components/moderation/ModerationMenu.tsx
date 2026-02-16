@@ -211,7 +211,7 @@ export function ModerationMenu({
           }
           setShowMenu(!showMenu);
         }}
-        className="rounded-lg p-2 transition-colors hover:bg-muted"
+        className="rounded-lg px-2 py-0 transition-colors hover:bg-muted sm:p-2"
         aria-label="More options"
       >
         <MoreHorizontal className="h-5 w-5 text-muted-foreground" />

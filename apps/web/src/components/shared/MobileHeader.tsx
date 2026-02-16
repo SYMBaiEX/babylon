@@ -1,27 +1,16 @@
-'use client';
+"use client";
 
-import { cn, getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
-import {
-  Bell,
-  Check,
-  Copy,
-  Gift,
-  Home,
-  LogOut,
-  MessageCircle,
-  TrendingUp,
-  Trophy,
-  X,
-} from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { GameFeedbackModal } from '@/components/feedback/GameFeedbackModal';
-import { Avatar } from '@/components/shared/Avatar';
-import { useAuth } from '@/hooks/useAuth';
-import { getAuthToken } from '@/lib/auth';
-import { useAuthStore } from '@/stores/authStore';
+import { cn, getDisplayReferralUrl, getReferralUrl } from "@babylon/shared";
+import { Check, Copy, Gift, LogOut, Trophy, User, X } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { GameFeedbackModal } from "@/components/feedback/GameFeedbackModal";
+import { Avatar } from "@/components/shared/Avatar";
+import { useAuth } from "@/hooks/useAuth";
+import { getAuthToken } from "@/lib/auth";
+import { useAuthStore } from "@/stores/authStore";
 
 /**
  * Mobile header content component for mobile devices.
@@ -47,8 +36,8 @@ function MobileHeaderContent() {
   const pathname = usePathname();
 
   // Hide mobile header when WAITLIST_MODE is enabled on home page
-  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
-  const isHomePage = pathname === '/';
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === "true";
+  const isHomePage = pathname === "/";
   const shouldHide = isWaitlistMode && isHomePage;
 
   // All hooks must be called before any conditional returns
@@ -66,7 +55,7 @@ function MobileHeaderContent() {
           signal: controller.signal,
         }
       ).catch((error: Error) => {
-        if (error.name === 'AbortError') return null;
+        if (error.name === "AbortError") return null;
         throw error;
       });
 
@@ -109,7 +98,7 @@ function MobileHeaderContent() {
       }
 
       const headers: HeadersInit = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       };
 
@@ -171,7 +160,7 @@ function MobileHeaderContent() {
       }
 
       const response = await fetch(
-        '/api/notifications?unreadOnly=true&limit=1',
+        "/api/notifications?unreadOnly=true&limit=1",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -208,40 +197,22 @@ function MobileHeaderContent() {
 
   const menuItems = [
     {
-      name: 'Feed',
-      href: '/feed',
-      icon: Home,
-      active: pathname === '/feed' || pathname === '/',
+      name: "Profile",
+      href: "/profile",
+      icon: User,
+      active: pathname === "/profile",
     },
     {
-      name: 'Terminal',
-      href: '/markets',
-      icon: TrendingUp,
-      active: pathname === '/markets',
-    },
-    {
-      name: 'Chats',
-      href: '/chats',
-      icon: MessageCircle,
-      active: pathname === '/chats',
-    },
-    {
-      name: 'Leaderboards',
-      href: '/leaderboard',
+      name: "Leaderboards",
+      href: "/leaderboard",
       icon: Trophy,
-      active: pathname === '/leaderboard',
+      active: pathname === "/leaderboard",
     },
     {
-      name: 'Rewards',
-      href: '/rewards',
+      name: "Rewards",
+      href: "/rewards",
       icon: Gift,
-      active: pathname === '/rewards',
-    },
-    {
-      name: 'Notifications',
-      href: '/notifications',
-      icon: Bell,
-      active: pathname === '/notifications',
+      active: pathname === "/rewards",
     },
   ];
 
@@ -249,9 +220,9 @@ function MobileHeaderContent() {
     <>
       <header
         className={cn(
-          'md:hidden',
-          'fixed top-0 right-0 left-0 z-40',
-          'bg-sidebar/95'
+          "md:hidden",
+          "fixed top-0 right-0 left-0 z-40",
+          "bg-sidebar/95"
         )}
       >
         <div className="flex h-14 items-center justify-between px-4">
@@ -265,7 +236,7 @@ function MobileHeaderContent() {
               >
                 <Avatar
                   id={user.id}
-                  name={user.displayName || user.email || 'User'}
+                  name={user.displayName || user.email || "User"}
                   type="user"
                   size="sm"
                   src={user.profileImageUrl || undefined}
@@ -328,7 +299,7 @@ function MobileHeaderContent() {
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar
                   id={user?.id}
-                  name={user?.displayName || user?.email || 'User'}
+                  name={user?.displayName || user?.email || "User"}
                   type="user"
                   size="md"
                   src={user?.profileImageUrl || undefined}
@@ -337,7 +308,7 @@ function MobileHeaderContent() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-bold text-foreground text-sm">
-                    {user?.displayName || user?.email || 'User'}
+                    {user?.displayName || user?.email || "User"}
                   </div>
                   <div className="truncate text-muted-foreground text-xs">
                     @{user?.username || `user${user?.id.slice(0, 8)}`}
@@ -351,56 +322,44 @@ function MobileHeaderContent() {
                 }}
                 className="shrink-0 p-2 transition-colors hover:bg-muted"
               >
-                <X size={20} style={{ color: '#0066FF' }} />
+                <X size={20} style={{ color: "#0066FF" }} />
               </button>
             </Link>
 
             {/* Points Display */}
-            <div className="shrink-0 bg-muted/30 px-4 py-4">
-              <div className="flex items-start gap-3">
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                  style={{ backgroundColor: '#0066FF' }}
-                >
-                  <Trophy className="h-5 w-5 text-foreground" />
+            <div className="shrink-0 border-border border-b px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div className="text-muted-foreground text-xs">Reputation</div>
+                <div className="font-bold text-foreground text-sm">
+                  {(user?.reputationPoints || 0).toLocaleString()}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
-                      Reputation
-                    </div>
-                    <div className="font-bold text-base text-foreground">
-                      {(user?.reputationPoints || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className="text-muted-foreground text-xs">
-                      Trading Balance
-                    </div>
-                    <div className="font-semibold text-foreground text-sm">
-                      {(pointsData?.available || 0).toLocaleString()}
-                    </div>
-                  </div>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between">
+                <div className="text-muted-foreground text-xs">
+                  Trading Balance
+                </div>
+                <div className="font-bold text-foreground text-sm">
+                  {(pointsData?.available || 0).toLocaleString()}
                 </div>
               </div>
             </div>
 
             {/* Menu Items - Scrollable */}
-            <nav className="min-h-0 flex-1 overflow-y-auto">
+            <nav className="min-h-0 flex-1 overflow-y-auto pt-2.5">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const hasNotifications =
-                  item.name === 'Notifications' && unreadNotifications > 0;
+                  item.name === "Notifications" && unreadNotifications > 0;
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
                     onClick={() => setShowSideMenu(false)}
                     className={cn(
-                      'relative flex items-center gap-4 px-4 py-3 transition-colors',
+                      "relative flex items-center gap-4 px-4 py-2.5 transition-colors",
                       item.active
-                        ? 'bg-[#0066FF] font-bold text-primary-foreground'
-                        : 'font-semibold text-sidebar-foreground hover:bg-sidebar-accent'
+                        ? "bg-[#0066FF] font-bold text-primary-foreground"
+                        : "font-semibold text-sidebar-foreground hover:bg-sidebar-accent"
                     )}
                   >
                     <div className="relative">
@@ -416,7 +375,7 @@ function MobileHeaderContent() {
             </nav>
 
             {/* Bottom Section - Referral & Logout */}
-            <div className="shrink-0 border-border border-t bg-sidebar pb-20">
+            <div className="shrink-0 border-border border-t bg-sidebar pb-16">
               {/* Referral Code Button */}
               {user?.referralCode && (
                 <button
@@ -426,13 +385,18 @@ function MobileHeaderContent() {
                   {copiedReferral ? (
                     <>
                       <Check className="h-5 w-5 text-green-500" />
-                      <span className="text-base text-green-500">
-                        Referral Link Copied!
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base text-green-500">
+                          Referral Link Copied!
+                        </div>
+                        <div className="truncate font-mono text-muted-foreground text-xs">
+                          {getDisplayReferralUrl(user.referralCode)}
+                        </div>
+                      </div>
                     </>
                   ) : (
                     <>
-                      <Copy className="h-5 w-5" style={{ color: '#0066FF' }} />
+                      <Copy className="h-5 w-5" style={{ color: "#0066FF" }} />
                       <div className="min-w-0 flex-1">
                         <div className="text-base text-foreground">
                           Copy Referral Link
