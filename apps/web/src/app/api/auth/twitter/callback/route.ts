@@ -179,30 +179,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  // Debug: Check all records without filters
-  const allStates = await db.oAuthState.findMany({
-    where: {
-      userId,
-    },
-    select: {
-      state: true,
-      returnPath: true,
-      expiresAt: true,
-      createdAt: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    take: 3,
-  });
-
   if (!oauthState || !oauthState.codeVerifier) {
     logger.warn(
       'Twitter callback missing or expired PKCE state',
       {
         state,
         userId,
-        allStates,
         found: !!oauthState,
       },
       'TwitterCallback'
