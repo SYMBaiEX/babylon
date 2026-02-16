@@ -54,7 +54,7 @@ interface MessageBubbleProps {
     emoji: string,
     currentlyReactedByMe: boolean
   ) => void;
-  /** Compact action row: merge reactions + tags into one row, hide on own messages */
+  /** Compact action row: merge reactions + tags into one row; hides "add reaction" control on own messages */
   compactActions?: boolean;
   /** Callback to open settings for this agent (mobile only, latest message only) */
   onViewSettings?: (agentId: string) => void;
@@ -77,6 +77,69 @@ export function MessageBubble({
   const compact = density === 'compact';
   // Coordinator (Agent Commander) should not link to a profile page
   const isCoordinator = sender?.id === COORDINATOR_SENDER_ID;
+
+  // --- Derived values for reactions + tags rendering ---
+  const reactions = message.reactions ?? [];
+  const hasReactions = reactions.length > 0;
+  const tags = message.metadata?.tags ?? [];
+  const hasTags = tags.length > 0;
+  // In compact mode, hide "add reaction" control on own messages (counts still visible)
+  const showReactControl =
+    !!onToggleReaction && !(compactActions && isCurrentUser);
+
+  // Shared reaction count pills (used in both compact / default layouts)
+  const reactionPills = reactions.map((r) => (
+    <button
+      key={r.emoji}
+      type="button"
+      onClick={() => onToggleReaction?.(message.id, r.emoji, r.reactedByMe)}
+      disabled={!onToggleReaction}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+        onToggleReaction ? 'hover:bg-muted' : 'cursor-default',
+        r.reactedByMe
+          ? 'border-primary/30 bg-primary/10 text-primary'
+          : 'border-border bg-background text-foreground'
+      )}
+      aria-label={`React ${r.emoji}`}
+    >
+      <span aria-hidden="true">{r.emoji}</span>
+      <span className="font-medium tabular-nums">{r.count}</span>
+    </button>
+  ));
+
+  // Shared "Add reaction" dropdown (hidden on own messages in compact mode)
+  const reactDropdown = showReactControl && (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Add reaction"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>React</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={isCurrentUser ? 'end' : 'start'}>
+        {ALLOWED_REACTION_EMOJIS.map((emoji) => {
+          const existing = reactions.find((r) => r.emoji === emoji);
+          const reacted = existing?.reactedByMe ?? false;
+          return (
+            <DropdownMenuItem
+              key={emoji}
+              onClick={() => onToggleReaction?.(message.id, emoji, reacted)}
+            >
+              <span className="mr-2" aria-hidden="true">
+                {emoji}
+              </span>
+              <span>{reacted ? 'Remove' : 'React'}</span>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   return (
     <div
@@ -219,71 +282,14 @@ export function MessageBubble({
         </div>
 
         {/* Reactions + Action Tags */}
-        {compactActions ? (
-          /* Compact: single row, tighter gap, hidden on own messages */
-          !isThinking &&
-          !isCurrentUser &&
-          (message.reactions?.length ||
-            onToggleReaction ||
-            (message.metadata?.tags && message.metadata.tags.length > 0)) && (
+        {!isThinking &&
+          (hasReactions || showReactControl || hasTags) &&
+          (compactActions ? (
+            /* Compact: single row, tighter gap */
             <div className="mt-2 flex flex-wrap items-center gap-0.5">
-              {(message.reactions ?? []).map((r) => (
-                <button
-                  key={r.emoji}
-                  type="button"
-                  onClick={() =>
-                    onToggleReaction?.(message.id, r.emoji, r.reactedByMe)
-                  }
-                  disabled={!onToggleReaction}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
-                    onToggleReaction ? 'hover:bg-muted' : 'cursor-default',
-                    r.reactedByMe
-                      ? 'border-primary/30 bg-primary/10 text-primary'
-                      : 'border-border bg-background text-foreground'
-                  )}
-                  aria-label={`React ${r.emoji}`}
-                >
-                  <span aria-hidden="true">{r.emoji}</span>
-                  <span className="font-medium tabular-nums">{r.count}</span>
-                </button>
-              ))}
-              {onToggleReaction && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label="Add reaction"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>React</span>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align={isCurrentUser ? 'end' : 'start'}>
-                    {ALLOWED_REACTION_EMOJIS.map((emoji) => {
-                      const existing = (message.reactions ?? []).find(
-                        (r) => r.emoji === emoji
-                      );
-                      const reacted = existing?.reactedByMe ?? false;
-                      return (
-                        <DropdownMenuItem
-                          key={emoji}
-                          onClick={() =>
-                            onToggleReaction(message.id, emoji, reacted)
-                          }
-                        >
-                          <span className="mr-2" aria-hidden="true">
-                            {emoji}
-                          </span>
-                          <span>{reacted ? 'Remove' : 'React'}</span>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {message.metadata?.tags?.map((tag, i) => (
+              {reactionPills}
+              {reactDropdown}
+              {tags.map((tag, i) => (
                 <button
                   key={`${tag.type}-${tag.entityId ?? i}`}
                   type="button"
@@ -296,77 +302,18 @@ export function MessageBubble({
                 </button>
               ))}
             </div>
-          )
-        ) : (
-          /* Default: separate rows */
-          <>
-            {!isThinking && (message.reactions?.length || onToggleReaction) && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {(message.reactions ?? []).map((r) => (
-                  <button
-                    key={r.emoji}
-                    type="button"
-                    onClick={() =>
-                      onToggleReaction?.(message.id, r.emoji, r.reactedByMe)
-                    }
-                    disabled={!onToggleReaction}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
-                      onToggleReaction ? 'hover:bg-muted' : 'cursor-default',
-                      r.reactedByMe
-                        ? 'border-primary/30 bg-primary/10 text-primary'
-                        : 'border-border bg-background text-foreground'
-                    )}
-                    aria-label={`React ${r.emoji}`}
-                  >
-                    <span aria-hidden="true">{r.emoji}</span>
-                    <span className="font-medium tabular-nums">{r.count}</span>
-                  </button>
-                ))}
-                {onToggleReaction && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
-                        aria-label="Add reaction"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>React</span>
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align={isCurrentUser ? 'end' : 'start'}
-                    >
-                      {ALLOWED_REACTION_EMOJIS.map((emoji) => {
-                        const existing = (message.reactions ?? []).find(
-                          (r) => r.emoji === emoji
-                        );
-                        const reacted = existing?.reactedByMe ?? false;
-                        return (
-                          <DropdownMenuItem
-                            key={emoji}
-                            onClick={() =>
-                              onToggleReaction(message.id, emoji, reacted)
-                            }
-                          >
-                            <span className="mr-2" aria-hidden="true">
-                              {emoji}
-                            </span>
-                            <span>{reacted ? 'Remove' : 'React'}</span>
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            )}
-            {!isThinking &&
-              message.metadata?.tags &&
-              message.metadata.tags.length > 0 && (
+          ) : (
+            /* Default: separate rows for reactions and tags */
+            <>
+              {(hasReactions || showReactControl) && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {reactionPills}
+                  {reactDropdown}
+                </div>
+              )}
+              {hasTags && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {message.metadata.tags.map((tag, i) => (
+                  {tags.map((tag, i) => (
                     <button
                       key={`${tag.type}-${tag.entityId ?? i}`}
                       type="button"
@@ -380,8 +327,8 @@ export function MessageBubble({
                   ))}
                 </div>
               )}
-          </>
-        )}
+            </>
+          ))}
       </div>
     </div>
   );
