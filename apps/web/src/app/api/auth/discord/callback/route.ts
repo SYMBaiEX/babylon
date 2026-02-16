@@ -16,8 +16,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-// Configurable redirect destination after OAuth completion
-const OAUTH_REDIRECT_PATH = process.env.OAUTH_REDIRECT_PATH ?? '/rewards';
+// Configurable redirect destination after OAuth completion.
+// Treat empty string as "unset" to avoid redirecting to `/?success=...`.
+const OAUTH_REDIRECT_PATH =
+  process.env.OAUTH_REDIRECT_PATH?.trim() || '/rewards';
 
 const DiscordCallbackQuerySchema = z.object({
   code: z.string().optional(),

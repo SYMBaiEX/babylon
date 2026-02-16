@@ -317,6 +317,16 @@ export function useAuth(): UseAuthReturn {
             currentUser.reputationPoints !== hydratedUser.reputationPoints ||
             currentUser.hasFarcaster !== hydratedUser.hasFarcaster ||
             currentUser.hasTwitter !== hydratedUser.hasTwitter ||
+            currentUser.hasDiscord !== hydratedUser.hasDiscord ||
+            currentUser.pointsAwardedForFarcasterFollow !==
+              hydratedUser.pointsAwardedForFarcasterFollow ||
+            currentUser.pointsAwardedForTwitterFollow !==
+              hydratedUser.pointsAwardedForTwitterFollow ||
+            currentUser.pointsAwardedForDiscordJoin !==
+              hydratedUser.pointsAwardedForDiscordJoin ||
+            currentUser.farcasterUsername !== hydratedUser.farcasterUsername ||
+            currentUser.twitterUsername !== hydratedUser.twitterUsername ||
+            currentUser.discordUsername !== hydratedUser.discordUsername ||
             currentUser.isAdmin !== hydratedUser.isAdmin ||
             currentUser.isActor !== hydratedUser.isActor ||
             currentUser.isBanned !== hydratedUser.isBanned ||

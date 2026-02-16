@@ -64,8 +64,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-// Configurable redirect destination after OAuth completion
-const OAUTH_REDIRECT_PATH = process.env.OAUTH_REDIRECT_PATH ?? '/rewards';
+// Configurable redirect destination after OAuth completion.
+// Treat empty string as "unset" to avoid redirecting to `/?success=...`.
+const OAUTH_REDIRECT_PATH =
+  process.env.OAUTH_REDIRECT_PATH?.trim() || '/rewards';
 
 const TwitterCallbackQuerySchema = z.object({
   code: z.string().optional(),
@@ -177,30 +179,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  // Debug: Check all records without filters
-  const allStates = await db.oAuthState.findMany({
-    where: {
-      userId,
-    },
-    select: {
-      state: true,
-      returnPath: true,
-      expiresAt: true,
-      createdAt: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    take: 3,
-  });
-
   if (!oauthState || !oauthState.codeVerifier) {
     logger.warn(
       'Twitter callback missing or expired PKCE state',
       {
         state,
         userId,
-        allStates,
         found: !!oauthState,
       },
       'TwitterCallback'

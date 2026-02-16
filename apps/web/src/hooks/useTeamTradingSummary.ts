@@ -134,6 +134,7 @@ export function useTeamTradingSummary({
     setRefreshNonce((n) => n + 1);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshNonce is an intentional trigger to force re-fetch
   useEffect(() => {
     if (!enabled || !ownerId) return;
 
