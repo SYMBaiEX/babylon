@@ -3,7 +3,10 @@
 import { cn, formatCompactCurrency } from '@babylon/shared';
 import { Loader2, Users, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
-import type { TeamScope, TeamTradingSummary } from '@/hooks/useTeamTradingSummary';
+import type {
+  TeamScope,
+  TeamTradingSummary,
+} from '@/hooks/useTeamTradingSummary';
 import { ScopeToggle } from './_components/ScopeToggle';
 
 export function TeamPortfolio({
@@ -54,7 +57,7 @@ export function TeamPortfolio({
 
   if (error) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">
+      <div className="p-4 text-muted-foreground text-sm">
         Failed to load team wallet: {error}
       </div>
     );
@@ -100,7 +103,10 @@ export function TeamPortfolio({
                 type="button"
                 onClick={() => {
                   if (!onSelectMember) return;
-                  onSelectMember(m.id, m.entityType === 'owner' ? 'user' : 'agent');
+                  onSelectMember(
+                    m.id,
+                    m.entityType === 'owner' ? 'user' : 'agent'
+                  );
                 }}
                 className={cn(
                   'flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left transition-colors',
