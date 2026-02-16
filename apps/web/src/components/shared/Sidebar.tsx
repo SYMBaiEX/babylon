@@ -51,7 +51,7 @@ function SidebarContent() {
   const mdMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { ready, authenticated, user, logout, login } = useAuth();
-  const { trackNavigation } = usePostHog();
+  const { trackNavigation, trackClick } = usePostHog();
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
   // Hide sidebar when WAITLIST_MODE is enabled on home page
@@ -366,7 +366,10 @@ function SidebarContent() {
         {authenticated && (
           <button
             type="button"
-            onClick={() => setFeedbackModalOpen(true)}
+            onClick={() => {
+              trackClick('feedback_button', { source: 'sidebar' });
+              setFeedbackModalOpen(true);
+            }}
             aria-label="Feedback"
             aria-haspopup="dialog"
             aria-expanded={feedbackModalOpen}
