@@ -274,7 +274,7 @@ export const PostCard = memo(function PostCard({
       )}
 
       {/* Two-column layout: Avatar | Content */}
-      <div className="flex gap-3">
+      <div className="flex items-start gap-3">
         {/* Left column: Avatar + Connecting Line */}
         <div className="flex flex-col items-center">
           <Link
@@ -302,12 +302,12 @@ export const PostCard = memo(function PostCard({
         {/* Right column: All content */}
         <div className="min-w-0 flex-1">
           {/* Header: Name/Handle on left, Timestamp and Menu on right */}
-          <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
             {/* Name and Handle inline */}
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={getProfileUrl(displayAuthorId, null)}
-                className="truncate font-semibold text-[15px] text-foreground hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {displayAuthorName}
@@ -315,16 +315,16 @@ export const PostCard = memo(function PostCard({
               {showVerifiedBadge && <VerifiedBadge size="sm" />}
               <Link
                 href={getProfileUrl(displayAuthorId, null)}
-                className="truncate text-[15px] text-muted-foreground hover:underline"
+                className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 @{displayAuthorUsername || displayAuthorId}
               </Link>
             </div>
             {/* Timestamp and Menu - Right aligned */}
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-start gap-2 sm:items-center">
               <time
-                className="text-[15px] text-muted-foreground"
+                className="text-[15px] text-muted-foreground leading-tight"
                 title={postDate.toLocaleString()}
               >
                 {timeAgo}
