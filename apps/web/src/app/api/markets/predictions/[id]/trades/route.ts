@@ -1,8 +1,9 @@
 // GET /api/markets/predictions/[id]/trades – paginated trades for a market
 import type { JsonValue } from '@babylon/api';
 import {
+  addPublicReadHeaders,
   getCache,
-  optionalAuth,
+  publicRateLimit,
   setCache,
   successResponse,
   withErrorHandling,
@@ -39,8 +40,8 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
-    // Optional auth - trades are public
-    await optionalAuth(request).catch(() => null);
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
 
     const { id: marketId } = await context.params;
 
@@ -193,6 +194,8 @@ export const GET = withErrorHandling(
     // Cache briefly; feed is also updated via SSE.
     await setCache(cacheKey, result, { ttl: 10, namespace: 'market-trades' });
 
-    return successResponse(result);
+    const res = successResponse(result);
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

@@ -73,9 +73,14 @@
  * @see {@link /lib/reputation/reputation-service} Reputation service
  */
 
-import { requireUserByIdentifier } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  requireUserByIdentifier,
+} from '@babylon/api';
 import { db } from '@babylon/db';
 import { getReputationBreakdown } from '@babylon/engine';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 interface RouteParams {
@@ -84,7 +89,13 @@ interface RouteParams {
   }>;
 }
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export async function GET(
+  request: NextRequest,
+  { params }: RouteParams
+) {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const { userId } = await params;
 
   const user = await requireUserByIdentifier(userId);
@@ -121,7 +132,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const recentTrend = 0;
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     success: true,
     userId: user.id,
     reputationPoints: Math.round(metrics!.reputationScore),
@@ -138,4 +149,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     rank: rank + 1,
     totalUsers,
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 }

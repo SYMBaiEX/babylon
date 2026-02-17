@@ -46,13 +46,22 @@
  * @see {@link /lib/sse/event-broadcaster} Event broadcaster
  */
 
-import { connections, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  connections,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = withErrorHandling(async (_request: NextRequest) => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const stats = connections.snapshot();
 
   logger.info(
@@ -61,9 +70,11 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
     'GET /api/sse/stats'
   );
 
-  return successResponse({
+  const res = successResponse({
     success: true,
     stats,
     timestamp: Date.now(),
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

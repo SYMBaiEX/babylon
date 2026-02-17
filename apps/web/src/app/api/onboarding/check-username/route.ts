@@ -94,7 +94,12 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import { errorResponse, optionalAuth, successResponse } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  errorResponse,
+  publicRateLimit,
+  successResponse,
+} from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
 import { asPublic, asUser } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -196,11 +201,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Optional auth - username checks are public but RLS still applies
-  const authUser = await optionalAuth(request).catch(() => null);
+  const { error, user: authUser, rateLimitInfo } =
+    await publicRateLimit(request);
+  if (error) return error;
 
   // Check username availability with RLS (public or user context)
-  // Verify authUser has userId before using asUser()
   const result =
     authUser && authUser.userId
       ? await asUser(authUser, async (db) => {
@@ -216,5 +221,7 @@ export async function GET(request: NextRequest) {
     'GET /api/onboarding/check-username'
   );
 
-  return successResponse(result);
+  const res = successResponse(result);
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 }

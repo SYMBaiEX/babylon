@@ -36,11 +36,13 @@ const APP_PUBLIC_EXACT_ALLOWLIST = new Set([
   '/api-docs',
   '/mcp',
   '/.well-known',
+  '/ticker',
 ]);
 
 const APP_PUBLIC_PREFIX_ALLOWLIST = [
   '/nft/',
   '/share/',
+  '/ticker/',
   '/api-docs/',
   '/mcp/',
   '/.well-known/',
@@ -314,6 +316,12 @@ export function middleware(request: NextRequest) {
   }
 
   if (isAppPublicAllowlistedPath(pathname)) {
+    // Ticker embed: minimal layout (no sidebar/nav) for iframe embedding
+    if (pathname === '/ticker' || pathname.startsWith('/ticker/')) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-minimal-layout', '1');
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
     return NextResponse.next();
   }
 

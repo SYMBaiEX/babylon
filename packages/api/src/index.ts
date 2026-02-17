@@ -172,6 +172,7 @@ export {
 } from './query-params';
 // Rate Limiting
 export {
+  addPublicReadHeaders,
   addRateLimitHeaders,
   applyDuplicateDetection,
   applyRateLimit,
@@ -188,6 +189,9 @@ export {
   duplicateContentError,
   getDuplicateStats,
   getRateLimitStatus,
+  publicRateLimit,
+  type PublicRateLimitKind,
+  type PublicRateLimitResult,
   RATE_LIMIT_CONFIGS,
   rateLimitError,
   resetRateLimit,

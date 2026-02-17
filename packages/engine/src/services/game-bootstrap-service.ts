@@ -21,6 +21,7 @@ import {
 } from '@babylon/db';
 import type { ActorTier } from '@babylon/shared';
 import { logger } from '@babylon/shared';
+import { DEFAULT_RSS_SOURCES } from '../config/rss-sources';
 import { CapitalAllocationService } from './capital-allocation-service';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -39,55 +40,6 @@ const MAX_TOP_UP_AMOUNT = 100000;
 const FUNDING_INTERVAL_HOURS = 8;
 /** Funding interval in milliseconds */
 const FUNDING_INTERVAL_MS = FUNDING_INTERVAL_HOURS * 60 * 60 * 1000;
-
-// RSS Feed sources for news generation
-const RSS_FEEDS = [
-  {
-    name: 'New York Times - Technology',
-    feedUrl: 'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml',
-    category: 'tech',
-  },
-  {
-    name: 'New York Times - Business',
-    feedUrl: 'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
-    category: 'business',
-  },
-  {
-    name: 'TechCrunch',
-    feedUrl: 'https://techcrunch.com/feed/',
-    category: 'tech',
-  },
-  {
-    name: 'Ars Technica',
-    feedUrl: 'https://feeds.arstechnica.com/arstechnica/index',
-    category: 'tech',
-  },
-  {
-    name: 'The Verge',
-    feedUrl: 'https://www.theverge.com/rss/index.xml',
-    category: 'tech',
-  },
-  {
-    name: 'Wired',
-    feedUrl: 'https://www.wired.com/feed/rss',
-    category: 'tech',
-  },
-  {
-    name: 'CoinDesk',
-    feedUrl: 'https://www.coindesk.com/arc/outboundfeeds/rss/',
-    category: 'crypto',
-  },
-  {
-    name: 'Cointelegraph',
-    feedUrl: 'https://cointelegraph.com/rss',
-    category: 'crypto',
-  },
-  {
-    name: 'BBC - Technology',
-    feedUrl: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
-    category: 'tech',
-  },
-];
 
 export interface GameBootstrapResult {
   actorsCreated: number;
@@ -587,10 +539,11 @@ export class GameBootstrapService {
     return false;
   }
 
+  /** Seeds rssFeedSources from DEFAULT_RSS_SOURCES (config). WHY config: single place to add/edit feed URLs; runtime enable/disable remains in DB. */
   private static async ensureRSSFeeds(): Promise<number> {
     let created = 0;
 
-    for (const feed of RSS_FEEDS) {
+    for (const feed of DEFAULT_RSS_SOURCES) {
       const existing = await db
         .select({ id: rssFeedSources.id })
         .from(rssFeedSources)

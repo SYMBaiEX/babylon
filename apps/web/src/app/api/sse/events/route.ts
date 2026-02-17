@@ -2,6 +2,7 @@ import {
   connections,
   ensureRedisReady,
   generateConnectionId,
+  publicRateLimit,
   type RealtimeChannel,
   streamRead,
   toStreamKey,
@@ -39,6 +40,9 @@ const parseCursor = (raw: string | null): CursorMap => {
 };
 
 export async function GET(request: NextRequest) {
+  const { error } = await publicRateLimit(request, 'firehose');
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
   const tokenParam = searchParams.get('token');
   const cursorParam = searchParams.get('cursor');

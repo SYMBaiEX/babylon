@@ -101,6 +101,7 @@ export default async function RootLayout({
     requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host') ?? '';
   const hostname = hostHeader.split(':')[0]?.toLowerCase() ?? '';
   const isWaitlistHost = isWaitlistHostname(hostname);
+  const isMinimalLayout = requestHeaders.get('x-minimal-layout') === '1';
 
   const nftGatingEnabled = isNftGatingEnabled();
 
@@ -116,7 +117,7 @@ export default async function RootLayout({
             <GlobalLoginModal />
           </Suspense>
 
-          {isWaitlistHost ? (
+          {isWaitlistHost || isMinimalLayout ? (
             children
           ) : (
             <>

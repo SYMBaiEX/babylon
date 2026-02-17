@@ -65,10 +65,11 @@
 
 import type { JsonValue } from '@babylon/api';
 import {
+  addPublicReadHeaders,
   authenticate,
   BusinessLogicError,
   NotFoundError,
-  optionalAuth,
+  publicRateLimit,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -98,18 +99,14 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
-    const { id: postId } = PostIdParamSchema.parse(await context.params);
+    const { error, user, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+    const withHeaders = (res: ReturnType<typeof successResponse>) => {
+      if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+      return res;
+    };
 
-    // Optional authentication (to show liked status for logged-in users)
-    // Errors during auth check are non-critical - treat as unauthenticated
-    const user = await optionalAuth(request).catch((error) => {
-      logger.debug(
-        'Optional auth failed for GET post request',
-        { postId, error },
-        'GET /api/posts/[id]'
-      );
-      return null;
-    });
+    const { id: postId } = PostIdParamSchema.parse(await context.params);
 
     const now = new Date();
 
@@ -320,35 +317,37 @@ export const GET = withErrorHandling(
           }
         }
 
-        return successResponse({
-          data: {
-            id: gamePost.id,
-            type: 'post',
-            content: gamePost.content,
-            fullContent: null,
-            articleTitle: null,
-            byline: null,
-            biasScore: null,
-            sentiment: null,
-            slant: null,
-            category: null,
-            imageUrl: null,
-            authorId: gamePost.authorId,
-            authorName,
-            authorUsername,
-            authorAvatar: undefined,
-            isActorPost: true,
-            timestamp: timestampStr,
-            createdAt: createdAtStr,
-            likeCount,
-            commentCount,
+        return withHeaders(
+          successResponse({
+            data: {
+              id: gamePost.id,
+              type: 'post',
+              content: gamePost.content,
+              fullContent: null,
+              articleTitle: null,
+              byline: null,
+              biasScore: null,
+              sentiment: null,
+              slant: null,
+              category: null,
+              imageUrl: null,
+              authorId: gamePost.authorId,
+              authorName,
+              authorUsername,
+              authorAvatar: undefined,
+              isActorPost: true,
+              timestamp: timestampStr,
+              createdAt: createdAtStr,
+              likeCount,
+              commentCount,
             shareCount,
             isLiked,
             isShared,
             source: 'game-store',
             ...repostMetadata, // Add repost metadata if applicable
           },
-        });
+          })
+        );
       }
 
       let authorId = 'system';
@@ -504,38 +503,40 @@ export const GET = withErrorHandling(
         }
       }
 
-      return successResponse({
-        data: {
-          id: createdPost.id,
-          type: createdPost.type || 'post',
-          content: createdPost.content,
-          fullContent: createdPost.fullContent || null,
-          articleTitle: createdPost.articleTitle || null,
-          byline: createdPost.byline || null,
-          biasScore:
-            createdPost.biasScore !== undefined ? createdPost.biasScore : null,
-          sentiment: createdPost.sentiment || null,
-          slant: createdPost.slant || null,
-          category: createdPost.category || null,
-          imageUrl: createdPost.imageUrl || null,
-          authorId: createdPost.authorId,
-          authorName,
-          authorUsername,
-          authorProfileImageUrl,
-          authorAvatar: authorProfileImageUrl || undefined,
-          isActorPost: true,
-          timestamp: createdPost.timestamp
-            ? createdPost.timestamp.toISOString()
-            : createdPost.createdAt.toISOString(),
-          createdAt: createdPost.createdAt.toISOString(),
-          likeCount,
-          commentCount,
-          shareCount,
-          isLiked,
-          isShared,
-          source: 'database',
-        },
-      });
+      return withHeaders(
+        successResponse({
+          data: {
+            id: createdPost.id,
+            type: createdPost.type || 'post',
+            content: createdPost.content,
+            fullContent: createdPost.fullContent || null,
+            articleTitle: createdPost.articleTitle || null,
+            byline: createdPost.byline || null,
+            biasScore:
+              createdPost.biasScore !== undefined ? createdPost.biasScore : null,
+            sentiment: createdPost.sentiment || null,
+            slant: createdPost.slant || null,
+            category: createdPost.category || null,
+            imageUrl: createdPost.imageUrl || null,
+            authorId: createdPost.authorId,
+            authorName,
+            authorUsername,
+            authorProfileImageUrl,
+            authorAvatar: authorProfileImageUrl || undefined,
+            isActorPost: true,
+            timestamp: createdPost.timestamp
+              ? createdPost.timestamp.toISOString()
+              : createdPost.createdAt.toISOString(),
+            createdAt: createdPost.createdAt.toISOString(),
+            likeCount,
+            commentCount,
+            shareCount,
+            isLiked,
+            isShared,
+            source: 'database',
+          },
+        })
+      );
     }
 
     if (!post) {
@@ -712,38 +713,40 @@ export const GET = withErrorHandling(
       'GET /api/posts/[id]'
     );
 
-    return successResponse({
-      data: {
-        id: post.id,
-        type: post.type || 'post',
-        content: post.content,
-        fullContent: post.fullContent || null,
-        articleTitle: post.articleTitle || null,
-        byline: post.byline || null,
-        biasScore: post.biasScore !== undefined ? post.biasScore : null,
-        sentiment: post.sentiment || null,
-        slant: post.slant || null,
-        category: post.category || null,
-        imageUrl: post.imageUrl || null,
-        authorId: post.authorId,
-        authorName: authorName,
-        authorUsername: authorUsername,
-        authorProfileImageUrl: authorProfileImageUrl,
-        authorAvatar: authorProfileImageUrl || undefined,
-        isActorPost: true, // Posts are from game actors
-        timestamp: post.timestamp
-          ? post.timestamp.toISOString()
-          : post.createdAt.toISOString(),
-        createdAt: post.createdAt.toISOString(),
-        likeCount,
-        commentCount,
-        shareCount,
-        isLiked,
-        isShared,
-        source: 'database',
-        ...repostMetadata, // Add repost metadata if applicable
-      },
-    });
+    return withHeaders(
+      successResponse({
+        data: {
+          id: post.id,
+          type: post.type || 'post',
+          content: post.content,
+          fullContent: post.fullContent || null,
+          articleTitle: post.articleTitle || null,
+          byline: post.byline || null,
+          biasScore: post.biasScore !== undefined ? post.biasScore : null,
+          sentiment: post.sentiment || null,
+          slant: post.slant || null,
+          category: post.category || null,
+          imageUrl: post.imageUrl || null,
+          authorId: post.authorId,
+          authorName: authorName,
+          authorUsername: authorUsername,
+          authorProfileImageUrl: authorProfileImageUrl,
+          authorAvatar: authorProfileImageUrl || undefined,
+          isActorPost: true, // Posts are from game actors
+          timestamp: post.timestamp
+            ? post.timestamp.toISOString()
+            : post.createdAt.toISOString(),
+          createdAt: post.createdAt.toISOString(),
+          likeCount,
+          commentCount,
+          shareCount,
+          isLiked,
+          isShared,
+          source: 'database',
+          ...repostMetadata, // Add repost metadata if applicable
+        },
+      })
+    );
   }
 );
 

@@ -147,7 +147,12 @@
  * @see {@link /src/components/trading} Trading components
  */
 
-import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
@@ -161,8 +166,8 @@ const QuerySchema = z.object({
 });
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Optional auth - trades are public
-  await optionalAuth(request).catch(() => null);
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
 
   // Parse query parameters
   const { searchParams } = new URL(request.url);
@@ -541,9 +546,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Limit to requested amount
   const limitedTrades = allTrades.slice(0, params.limit);
 
-  return successResponse({
+  const res = successResponse({
     trades: limitedTrades,
     total: allTrades.length,
     hasMore: allTrades.length > params.limit,
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

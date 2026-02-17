@@ -66,6 +66,12 @@ export {
   WORLD_FACTS_CONFIG,
 } from './runtime-config';
 
+// RSS Sources: default feed URLs for bootstrap. WHY exported: same pattern as other engine config; allows tests or tooling to read the list without importing the bootstrap service.
+export {
+  DEFAULT_RSS_SOURCES,
+  type RssSourceConfig,
+} from './rss-sources';
+
 // Simulation Configuration
 export {
   DEFAULT_SIMULATION_CONFIG,
