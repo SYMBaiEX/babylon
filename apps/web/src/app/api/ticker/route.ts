@@ -63,7 +63,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const origin =
     request.headers.get('x-forwarded-host') && request.headers.get('x-forwarded-proto')
       ? `${request.headers.get('x-forwarded-proto')}://${request.headers.get('x-forwarded-host')}`
-      : new URL(request.url).origin;
+      : process.env.NEXT_PUBLIC_BASE_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+        new URL(request.url).origin;
 
   if (streams.has('news')) {
     try {
@@ -73,7 +75,30 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       );
       if (res.ok) {
         const data = (await res.json()) as { success?: boolean; news?: Array<{ id: string; title: string; description?: string; timestamp: string }> };
-        const news = data.news ?? [];
+        let news = data.news ?? [];
+        if (news.length === 0) {
+          const postsRes = await fetch(
+            `${origin}/api/posts?type=article&limit=${limit}`,
+            { cache: 'no-store' }
+          );
+          if (postsRes.ok) {
+            const postsData = (await postsRes.json()) as { posts?: Array<{ id: string; articleTitle?: string; content?: string; timestamp?: string }> };
+            const posts = postsData.posts ?? [];
+            news = posts.slice(0, limit).map((p) => {
+              const ts = p.timestamp;
+              const timestamp =
+                typeof ts === 'string'
+                  ? ts
+                  : (ts as { toISOString?: () => string })?.toISOString?.() ?? new Date().toISOString();
+              return {
+                id: p.id,
+                title: p.articleTitle ?? p.content?.slice(0, 80) ?? 'Article',
+                description: '',
+                timestamp,
+              };
+            });
+          }
+        }
         result.news = news.slice(0, limit).map(
           (item): TickerNewsItem => ({
             id: item.id,
@@ -138,14 +163,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     try {
       const service = createPerpMarketService();
       const markets = await service.getMarketsSnapshot();
-      result.perps = markets.slice(0, limit).map(
-        (m): TickerPerpItem => ({
+      result.perps = markets.slice(0, limit).map((m): TickerPerpItem => {
+        const storedChange = m.changePercent24h;
+        const changePercent24h =
+          storedChange !== 0
+            ? storedChange
+            : m.price24hAgo != null &&
+                m.price24hAgo !== 0
+              ? ((m.currentPrice - m.price24hAgo) / m.price24hAgo) * 100
+              : 0;
+        return {
           ticker: m.ticker,
           price: m.currentPrice,
-          changePercent24h: m.changePercent24h,
+          changePercent24h,
           type: 'perp',
-        })
-      );
+        };
+      });
     } catch (e) {
       logger.warn('Ticker perps fetch failed', { error: e }, 'GET /api/ticker');
       result.perps = [];

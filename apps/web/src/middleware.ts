@@ -306,6 +306,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(`${appOrigin}${pathname}${search}`);
   }
 
+  // Ticker embed: minimal layout (no sidebar/nav) for iframe. Run before NFT gating so it always applies.
+  if (pathname === '/ticker' || pathname.startsWith('/ticker/')) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-minimal-layout', '1');
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // App host behavior: enforce gating via /api/nft/access for non-public pages.
   if (!isNftGatingEnabled()) {
     return NextResponse.next();
@@ -316,12 +323,6 @@ export function middleware(request: NextRequest) {
   }
 
   if (isAppPublicAllowlistedPath(pathname)) {
-    // Ticker embed: minimal layout (no sidebar/nav) for iframe embedding
-    if (pathname === '/ticker' || pathname.startsWith('/ticker/')) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-minimal-layout', '1');
-      return NextResponse.next({ request: { headers: requestHeaders } });
-    }
     return NextResponse.next();
   }
 
