@@ -24,6 +24,15 @@ export type { DrizzleClient, JsonValue, SQLValue } from './client';
 export { TableRepository } from './client';
 // Database runtime (connection management, `db`, JSON mode)
 export * from './db';
+// Explicit re-export so runtimes (e.g. Bun in CI) resolve these reliably from the barrel
+export {
+  asPublic,
+  asSystem,
+  asUser,
+  getJsonState,
+  getJsonStoragePath,
+  getStorageMode,
+} from './db';
 /**
  * Re-export unique relation types from model-types.
  *
