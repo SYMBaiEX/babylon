@@ -1,25 +1,25 @@
-"use client";
+'use client';
 
-import type { PostInteraction } from "@babylon/shared";
-import { cn, getProfileUrl } from "@babylon/shared";
-import { Repeat2 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { type KeyboardEvent, type MouseEvent, memo } from "react";
-import { InteractionBar } from "@/components/interactions";
-import { ModerationMenu } from "@/components/moderation/ModerationMenu";
+import type { PostInteraction } from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
+import { Repeat2 } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { type KeyboardEvent, type MouseEvent, memo } from 'react';
+import { InteractionBar } from '@/components/interactions';
+import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import {
   CommentPreview,
   type CommentPreviewData,
-} from "@/components/posts/CommentPreview";
-import { Avatar } from "@/components/shared/Avatar";
-import { TaggedText } from "@/components/shared/TaggedText";
+} from '@/components/posts/CommentPreview';
+import { Avatar } from '@/components/shared/Avatar';
+import { TaggedText } from '@/components/shared/TaggedText';
 import {
   isNpcIdentifier,
   VerifiedBadge,
-} from "@/components/shared/VerifiedBadge";
-import { useFontSize } from "@/contexts/FontSizeContext";
-import { useAuth } from "@/hooks/useAuth";
+} from '@/components/shared/VerifiedBadge';
+import { useFontSize } from '@/contexts/FontSizeContext';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Post card component for displaying feed posts.
@@ -89,7 +89,7 @@ export interface PostCardProps {
     commentPreviews?: CommentPreviewData[];
   };
   className?: string;
-  density?: "default" | "compact";
+  density?: 'default' | 'compact';
   onCommentClick?: () => void;
   showInteractions?: boolean;
   showCommentPreviews?: boolean;
@@ -100,7 +100,7 @@ export interface PostCardProps {
 export const PostCard = memo(function PostCard({
   post,
   className,
-  density = "default",
+  density = 'default',
   onCommentClick,
   showInteractions = true,
   showCommentPreviews = true,
@@ -110,7 +110,7 @@ export const PostCard = memo(function PostCard({
   const router = useRouter();
   const { fontSize } = useFontSize();
   const { user } = useAuth();
-  const compact = density === "compact";
+  const compact = density === 'compact';
   const densityScale = compact ? 0.9 : 1;
 
   const postDate = new Date(post.timestamp);
@@ -121,18 +121,18 @@ export const PostCard = memo(function PostCard({
 
   let timeAgo: string;
   if (diffMinutes < 1) {
-    timeAgo = "Just now";
+    timeAgo = 'Just now';
   } else if (diffMinutes < 60) {
     timeAgo = `${diffMinutes}m ago`;
   } else if (diffHours < 24) {
     timeAgo = `${diffHours}h ago`;
   } else {
     // Show date for posts older than 24 hours
-    timeAgo = postDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
+    timeAgo = postDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
       year:
-        postDate.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+        postDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
     });
   }
 
@@ -177,8 +177,8 @@ export const PostCard = memo(function PostCard({
   const quotedPostId = post.originalPost
     ? post.originalPostId
     : post.isRepost && post.isQuote
-    ? post.id
-    : null;
+      ? post.id
+      : null;
 
   // Internal click handler that navigates to the correct post
   // For simple reposts, navigate to the original post
@@ -205,7 +205,7 @@ export const PostCard = memo(function PostCard({
   };
 
   const handleQuotedPostKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Enter" && event.key !== " ") {
+    if (event.key !== 'Enter' && event.key !== ' ') {
       return;
     }
 
@@ -224,9 +224,9 @@ export const PostCard = memo(function PostCard({
     return (
       <article
         className={cn(
-          compact ? "px-3 py-2" : "px-4 py-3",
-          "w-full overflow-hidden",
-          "border-border border-b",
+          compact ? 'px-3 py-2' : 'px-4 py-3',
+          'w-full overflow-hidden',
+          'border-border border-b',
           className
         )}
       >
@@ -240,11 +240,11 @@ export const PostCard = memo(function PostCard({
   return (
     <article
       className={cn(
-        compact ? "px-3 py-3" : "px-4 py-4",
+        compact ? 'px-3 py-3' : 'px-4 py-4',
         !isDetail &&
-          "cursor-pointer transition-all duration-200 hover:bg-muted/30",
-        "w-full overflow-hidden",
-        !isDetail && "border-border border-b",
+          'cursor-pointer transition-all duration-200 hover:bg-muted/30',
+        'w-full overflow-hidden',
+        !isDetail && 'border-border border-b',
         className
       )}
       style={{
@@ -257,7 +257,7 @@ export const PostCard = memo(function PostCard({
         <div className="mb-1 flex items-center gap-2 pl-12 text-muted-foreground text-xs">
           <Repeat2 size={14} className="text-green-600" />
           <span>
-            Reposted by{" "}
+            Reposted by{' '}
             {user?.id === post.authorId ? (
               <span className="font-semibold text-foreground">you</span>
             ) : (
@@ -285,7 +285,7 @@ export const PostCard = memo(function PostCard({
             <Avatar
               id={displayAuthorId}
               name={displayAuthorName}
-              type={post.type === "article" ? "business" : "actor"}
+              type={post.type === 'article' ? 'business' : 'actor'}
               size="md"
               src={displayAuthorProfileImageUrl || undefined}
               scaleFactor={fontSize}
@@ -302,12 +302,12 @@ export const PostCard = memo(function PostCard({
         {/* Right column: All content */}
         <div className="min-w-0 flex-1">
           {/* Header: Name/Handle on left, Timestamp and Menu on right */}
-          <div className="flex items-start sm:items-center justify-between gap-3 sm:pt-0.5 leading-none">
+          <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
             {/* Name and Handle inline */}
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={getProfileUrl(displayAuthorId, null)}
-                className="truncate font-semibold text-[15px] leading-tight text-foreground hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {displayAuthorName}
@@ -315,16 +315,16 @@ export const PostCard = memo(function PostCard({
               {showVerifiedBadge && <VerifiedBadge size="sm" />}
               <Link
                 href={getProfileUrl(displayAuthorId, null)}
-                className="truncate text-[15px] leading-tight text-muted-foreground hover:underline"
+                className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 @{displayAuthorUsername || displayAuthorId}
               </Link>
             </div>
             {/* Timestamp and Menu - Right aligned */}
-            <div className="flex items-start sm:items-center gap-2">
+            <div className="flex items-start gap-2 sm:items-center">
               <time
-                className="text-[15px] leading-tight text-muted-foreground"
+                className="text-[15px] text-muted-foreground leading-tight"
                 title={postDate.toLocaleString()}
               >
                 {timeAgo}
@@ -347,13 +347,13 @@ export const PostCard = memo(function PostCard({
           </div>
 
           {/* Post Content */}
-          {post.type === "article" ? (
+          {post.type === 'article' ? (
             // Article card - Show title, summary, and "Read more" button
             <div className="mb-3 w-full">
               {/* Article title with Read More Button */}
               <div className="mb-3 flex items-start justify-between gap-4">
                 <h2 className="flex-1 font-bold text-foreground text-lg leading-tight sm:text-xl">
-                  {post.articleTitle || "Untitled Article"}
+                  {post.articleTitle || 'Untitled Article'}
                 </h2>
                 {!isDetail && (
                   <button
@@ -382,10 +382,10 @@ export const PostCard = memo(function PostCard({
                 <TaggedText
                   text={post.originalPost.content}
                   onTagClick={(tag) => {
-                    if (tag.startsWith("@")) {
+                    if (tag.startsWith('@')) {
                       const username = tag.slice(1);
-                      router.push(getProfileUrl("", username));
-                    } else if (tag.startsWith("$")) {
+                      router.push(getProfileUrl('', username));
+                    } else if (tag.startsWith('$')) {
                       const symbol = tag.slice(1);
                       router.push(
                         `/markets?search=${encodeURIComponent(symbol)}`
@@ -408,10 +408,10 @@ export const PostCard = memo(function PostCard({
                   <TaggedText
                     text={post.quoteComment}
                     onTagClick={(tag) => {
-                      if (tag.startsWith("@")) {
+                      if (tag.startsWith('@')) {
                         const username = tag.slice(1);
-                        router.push(getProfileUrl("", username));
-                      } else if (tag.startsWith("$")) {
+                        router.push(getProfileUrl('', username));
+                      } else if (tag.startsWith('$')) {
                         const symbol = tag.slice(1);
                         router.push(
                           `/markets?search=${encodeURIComponent(symbol)}`
@@ -425,15 +425,15 @@ export const PostCard = memo(function PostCard({
               {/* Embedded original post */}
               <div
                 className={cn(
-                  "rounded-xl border border-border p-4",
-                  "overflow-hidden transition-colors",
+                  'rounded-xl border border-border p-4',
+                  'overflow-hidden transition-colors',
                   quotedPostId
-                    ? "cursor-pointer hover:bg-muted/50"
-                    : "cursor-default"
+                    ? 'cursor-pointer hover:bg-muted/50'
+                    : 'cursor-default'
                 )}
-                role={quotedPostId ? "link" : undefined}
+                role={quotedPostId ? 'link' : undefined}
                 tabIndex={quotedPostId ? 0 : undefined}
-                aria-label={quotedPostId ? "View quoted post" : undefined}
+                aria-label={quotedPostId ? 'View quoted post' : undefined}
                 onClick={handleQuotedPostClick}
                 onKeyDown={handleQuotedPostKeyDown}
               >
@@ -485,10 +485,10 @@ export const PostCard = memo(function PostCard({
                       <TaggedText
                         text={post.originalPost.content}
                         onTagClick={(tag) => {
-                          if (tag.startsWith("@")) {
+                          if (tag.startsWith('@')) {
                             const username = tag.slice(1);
-                            router.push(getProfileUrl("", username));
-                          } else if (tag.startsWith("$")) {
+                            router.push(getProfileUrl('', username));
+                          } else if (tag.startsWith('$')) {
                             const symbol = tag.slice(1);
                             router.push(
                               `/markets?search=${encodeURIComponent(symbol)}`
@@ -509,13 +509,13 @@ export const PostCard = memo(function PostCard({
             // Regular post - Show content as normal
             <div className="post-content mb-3 w-full whitespace-pre-wrap break-words text-[15px] text-foreground leading-normal">
               <TaggedText
-                text={post.content || ""}
+                text={post.content || ''}
                 onTagClick={(tag) => {
-                  if (tag.startsWith("@")) {
+                  if (tag.startsWith('@')) {
                     // Handle @mentions - route to profile
                     const username = tag.slice(1);
-                    router.push(getProfileUrl("", username));
-                  } else if (tag.startsWith("$")) {
+                    router.push(getProfileUrl('', username));
+                  } else if (tag.startsWith('$')) {
                     // Handle $cashtags - route to markets
                     const symbol = tag.slice(1);
                     router.push(
