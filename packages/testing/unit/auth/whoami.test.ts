@@ -5,7 +5,15 @@
  * to discover their contextId for A2A requests.
  */
 
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from 'bun:test';
 
 // Mock user data (minimal: only id and username)
 const mockUsers = new Map([
@@ -28,91 +36,13 @@ const mockValidateUserApiKey = mock(async (apiKey: string) => {
   return null;
 });
 
-// Mock db query
-const mockDbSelect = mock(() => ({
-  from: () => ({
-    where: () => ({
-      limit: (n: number) => {
-        // Return based on last query context
-        const lastCall = mockDbSelect.mock.calls.at(-1) as
-          | [{ userId?: string }]
-          | undefined;
-        const userId = lastCall?.[0]?.userId;
-        const user = userId ? mockUsers.get(userId) : undefined;
-        return Promise.resolve(user ? [user] : []);
-      },
-    }),
-  }),
-}));
-
 // Track the userId being queried
 let lastQueriedUserId: string | null = null;
-
-// Mock @babylon/api
-mock.module('@babylon/api', () => ({
-  validateUserApiKey: mockValidateUserApiKey,
-}));
-
-// Mock @babylon/db
-mock.module('@babylon/db', () => ({
-  db: {
-    select: (fields: { id: unknown; username: unknown }) => ({
-      from: () => ({
-        where: (condition: unknown) => ({
-          limit: () => {
-            // Extract userId from the mock call context
-            const user = mockUsers.get(lastQueriedUserId || '');
-            return Promise.resolve(user ? [user] : []);
-          },
-        }),
-      }),
-    }),
-  },
-  eq: (field: unknown, value: string) => {
-    lastQueriedUserId = value;
-    return { field, value };
-  },
-  users: {
-    id: 'users.id',
-    username: 'users.username',
-  },
-}));
-
-// Mock @babylon/shared
-mock.module('@babylon/shared', () => ({
-  logger: {
-    debug: () => {},
-    warn: () => {},
-    error: () => {},
-    info: () => {},
-  },
-}));
 
 // Expected headers for all auth responses
 const noCacheHeaders = { 'Cache-Control': 'no-store' };
 
-// Mock NextResponse
-const mockJsonResponse = mock(
-  (
-    body: unknown,
-    init?: { status?: number; headers?: Record<string, string> }
-  ) => ({
-    body,
-    status: init?.status || 200,
-    headers: init?.headers,
-  })
-);
-
-mock.module('next/server', () => ({
-  NextResponse: {
-    json: mockJsonResponse,
-  },
-}));
-
-// Import the route handler after mocks are set up
-const { GET } = await import(
-  '../../../../apps/web/src/app/api/auth/whoami/route'
-);
+let GET: (request: Request) => Promise<Response>;
 
 // Helper to create mock NextRequest
 const createMockRequest = (apiKey: string | null): Request => {
@@ -128,120 +58,163 @@ const createMockRequest = (apiKey: string | null): Request => {
 };
 
 describe('/api/auth/whoami endpoint', () => {
+  beforeAll(async () => {
+    mock.module('@babylon/api', () => ({
+      validateUserApiKey: mockValidateUserApiKey,
+    }));
+
+    mock.module('@babylon/db', () => ({
+      db: {
+        select: (_fields: { id: unknown; username: unknown }) => ({
+          from: () => ({
+            where: (_condition: unknown) => ({
+              limit: () => {
+                const user = mockUsers.get(lastQueriedUserId || '');
+                return Promise.resolve(user ? [user] : []);
+              },
+            }),
+          }),
+        }),
+      },
+      eq: (field: unknown, value: string) => {
+        lastQueriedUserId = value;
+        return { field, value };
+      },
+      users: {
+        id: 'users.id',
+        username: 'users.username',
+      },
+    }));
+
+    mock.module('@babylon/shared', () => ({
+      logger: {
+        debug: () => {},
+        warn: () => {},
+        error: () => {},
+        info: () => {},
+      },
+    }));
+
+    ({ GET } = await import('../../../../apps/web/src/app/api/auth/whoami/route'));
+  });
+
   beforeEach(() => {
     mockValidateUserApiKey.mockClear();
-    mockJsonResponse.mockClear();
     lastQueriedUserId = null;
+  });
+
+  afterAll(() => {
+    // Prevent module mock leakage into unrelated test files.
+    mock.restore();
   });
 
   describe('Valid API key scenarios', () => {
     it('should return correct user info for valid API key', async () => {
       const request = createMockRequest('bab_live_valid123');
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
       expect(mockValidateUserApiKey).toHaveBeenCalledWith('bab_live_valid123');
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { userId: 'user-123', username: 'testuser' },
-        { headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ userId: 'user-123', username: 'testuser' });
     });
 
     it('should return correct user info for different valid API key', async () => {
       const request = createMockRequest('bab_live_valid456');
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
       expect(mockValidateUserApiKey).toHaveBeenCalledWith('bab_live_valid456');
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { userId: 'user-456', username: 'anotheruser' },
-        { headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ userId: 'user-456', username: 'anotheruser' });
     });
   });
 
   describe('Invalid API key scenarios', () => {
     it('should return 401 for invalid API key', async () => {
       const request = createMockRequest('bab_live_invalid_key');
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
       expect(mockValidateUserApiKey).toHaveBeenCalledWith(
         'bab_live_invalid_key'
       );
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { error: 'Invalid or expired API key' },
-        { status: 401, headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ error: 'Invalid or expired API key' });
     });
 
     it('should return 401 for expired API key', async () => {
       const request = createMockRequest('bab_live_expired_key_xyz');
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { error: 'Invalid or expired API key' },
-        { status: 401, headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ error: 'Invalid or expired API key' });
     });
 
     it('should return 401 for revoked API key', async () => {
       const request = createMockRequest('bab_live_revoked_key_abc');
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { error: 'Invalid or expired API key' },
-        { status: 401, headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ error: 'Invalid or expired API key' });
     });
   });
 
   describe('Missing API key scenarios', () => {
     it('should return 401 when API key header is missing', async () => {
       const request = createMockRequest(null);
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
       // Should not even call validateUserApiKey
       expect(mockValidateUserApiKey).not.toHaveBeenCalled();
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { error: 'X-Babylon-Api-Key header is required' },
-        { status: 401, headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ error: 'X-Babylon-Api-Key header is required' });
     });
 
     it('should return 401 when API key header is empty string', async () => {
       const request = createMockRequest('');
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
       // Empty string is falsy, should not call validateUserApiKey
       expect(mockValidateUserApiKey).not.toHaveBeenCalled();
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { error: 'X-Babylon-Api-Key header is required' },
-        { status: 401, headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ error: 'X-Babylon-Api-Key header is required' });
     });
   });
 
   describe('User not found scenarios', () => {
     it('should return 404 when API key is valid but user does not exist', async () => {
       const request = createMockRequest('bab_live_deleted_user');
-      await GET(request as never);
+      const response = await GET(request as never);
+      const body = await response.json();
 
       // API key validation passes
       expect(mockValidateUserApiKey).toHaveBeenCalledWith(
         'bab_live_deleted_user'
       );
       // But user lookup fails
-      expect(mockJsonResponse).toHaveBeenCalledWith(
-        { error: 'User not found' },
-        { status: 404, headers: noCacheHeaders }
-      );
+      expect(response.status).toBe(404);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(body).toEqual({ error: 'User not found' });
     });
   });
 
   describe('Security considerations', () => {
     it('should only expose userId and username (minimal data)', async () => {
       const request = createMockRequest('bab_live_valid123');
-      await GET(request as never);
-
-      const responseBody = mockJsonResponse.mock.calls[0]?.[0];
+      const response = await GET(request as never);
+      const responseBody = await response.json();
 
       // Should only contain these two fields (minimal for contextId use case)
       expect(Object.keys(responseBody as object)).toEqual([
@@ -271,19 +244,13 @@ describe('/api/auth/whoami endpoint', () => {
     it('should set Cache-Control: no-store header on all responses', async () => {
       // Test success response
       const successRequest = createMockRequest('bab_live_valid123');
-      await GET(successRequest as never);
-      expect(mockJsonResponse.mock.calls[0]?.[1]?.headers).toEqual(
-        noCacheHeaders
-      );
-
-      mockJsonResponse.mockClear();
+      const successResponse = await GET(successRequest as never);
+      expect(successResponse.headers.get('Cache-Control')).toBe('no-store');
 
       // Test error response
-      const errorRequest = createMockRequest('invalid_key');
-      await GET(errorRequest as never);
-      expect(mockJsonResponse.mock.calls[0]?.[1]?.headers).toEqual(
-        noCacheHeaders
-      );
+      const errorRequest = createMockRequest('bab_live_invalid');
+      const errorResponse = await GET(errorRequest as never);
+      expect(errorResponse.headers.get('Cache-Control')).toBe('no-store');
     });
   });
 });
