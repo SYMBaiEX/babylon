@@ -69,6 +69,8 @@ export function LeaderboardWidgetSidebar({
       const scrollTop = document.scrollingElement?.scrollTop || 0;
       const viewportHeight = window.innerHeight;
       const sidebarHeight = inner.offsetHeight;
+      const containerTop = container.getBoundingClientRect().top;
+      const bannerOffset = Math.max(0, containerTop);
 
       // Determine scroll direction
       if (scrollTop > lastScrollTop) {
@@ -79,15 +81,15 @@ export function LeaderboardWidgetSidebar({
       lastScrollTop = scrollTop;
 
       // Check if sidebar fits in viewport
-      const fitsInViewport = sidebarHeight <= viewportHeight;
+      const fitsInViewport = sidebarHeight <= viewportHeight - bannerOffset;
 
       if (fitsInViewport) {
         inner.style.position = 'fixed';
-        inner.style.top = '0px';
+        inner.style.top = `${bannerOffset}px`;
         inner.style.transform = '';
       } else {
         // Sidebar is taller than viewport - implement bi-directional scroll lock
-        const maxTranslate = sidebarHeight - viewportHeight;
+        const maxTranslate = sidebarHeight - (viewportHeight - bannerOffset);
 
         if (direction === 'down') {
           // Scrolling down: pin sidebar bottom to viewport bottom
@@ -98,7 +100,7 @@ export function LeaderboardWidgetSidebar({
         }
 
         inner.style.position = 'fixed';
-        inner.style.top = '0px';
+        inner.style.top = `${bannerOffset}px`;
         inner.style.transform = `translateY(-${translateY}px)`;
       }
 

@@ -35,7 +35,10 @@ export interface TeamTradingSummary {
   updatedAt: string | null;
 }
 
-function toNumber(value: string | number | undefined | null, fallback = 0): number {
+function toNumber(
+  value: string | number | undefined | null,
+  fallback = 0
+): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
     const parsed = Number(value);
@@ -53,7 +56,13 @@ function sumMemberTotals(members: TeamMemberTradingSummary[]): TeamTotals {
       currentPnL: acc.currentPnL + m.currentPnL,
       openPositions: acc.openPositions + m.openPositions,
     }),
-    { walletBalance: 0, lifetimePnL: 0, unrealizedPnL: 0, currentPnL: 0, openPositions: 0 }
+    {
+      walletBalance: 0,
+      lifetimePnL: 0,
+      unrealizedPnL: 0,
+      currentPnL: 0,
+      openPositions: 0,
+    }
   );
 }
 
@@ -115,9 +124,8 @@ export function useTeamTradingSummary({
 } {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ownerBalance, setOwnerBalance] = useState<UserBalanceApiResponse | null>(
-    null
-  );
+  const [ownerBalance, setOwnerBalance] =
+    useState<UserBalanceApiResponse | null>(null);
   const [agents, setAgents] = useState<AgentsApiAgent[] | null>(null);
   const [positions, setPositions] = useState<PositionsApiResponse | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -126,6 +134,7 @@ export function useTeamTradingSummary({
     setRefreshNonce((n) => n + 1);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshNonce is an intentional trigger to force re-fetch
   useEffect(() => {
     if (!enabled || !ownerId) return;
 
@@ -142,9 +151,12 @@ export function useTeamTradingSummary({
           fetch(`/api/users/${encodeURIComponent(ownerId)}/balance`, {
             signal: abort.signal,
           }),
-          fetch(`/api/markets/positions/${encodeURIComponent(ownerId)}?type=all&status=open`, {
-            signal: abort.signal,
-          }),
+          fetch(
+            `/api/markets/positions/${encodeURIComponent(ownerId)}?type=all&status=open`,
+            {
+              signal: abort.signal,
+            }
+          ),
           getAccessToken(),
         ]);
 
@@ -159,14 +171,17 @@ export function useTeamTradingSummary({
         });
 
         if (!balanceRes.ok) {
-          throw new Error(`Failed to fetch owner balance (${balanceRes.status})`);
+          throw new Error(
+            `Failed to fetch owner balance (${balanceRes.status})`
+          );
         }
         if (!positionsRes.ok) {
           throw new Error(`Failed to fetch positions (${positionsRes.status})`);
         }
 
         const balanceJson = (await balanceRes.json()) as UserBalanceApiResponse;
-        const positionsJson = (await positionsRes.json()) as PositionsApiResponse;
+        const positionsJson =
+          (await positionsRes.json()) as PositionsApiResponse;
 
         const agentsRes = await agentsPromise;
         if (!agentsRes.ok) {
@@ -220,7 +235,10 @@ export function useTeamTradingSummary({
     >();
 
     const addPosition = (memberId: string, unrealized: number) => {
-      const cur = byMember.get(memberId) ?? { unrealizedPnL: 0, openPositions: 0 };
+      const cur = byMember.get(memberId) ?? {
+        unrealizedPnL: 0,
+        openPositions: 0,
+      };
       byMember.set(memberId, {
         unrealizedPnL: cur.unrealizedPnL + unrealized,
         openPositions: cur.openPositions + 1,

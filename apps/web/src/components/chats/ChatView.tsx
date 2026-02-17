@@ -30,7 +30,6 @@ interface ChatViewProps {
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   onBack?: () => void;
   onManageGroup: () => void;
-  onLeaveChat: () => void;
   onMessageChange: (value: string) => void;
   onSendMessage: () => void;
   onToggleReaction?: (
@@ -59,7 +58,6 @@ export function ChatView({
   messagesEndRef,
   onBack,
   onManageGroup,
-  onLeaveChat,
   onMessageChange,
   onSendMessage,
   onToggleReaction,
@@ -102,7 +100,6 @@ export function ChatView({
           showBackButton={showBackButton}
           onBack={onBack}
           onManageGroup={onManageGroup}
-          onLeaveChat={onLeaveChat}
         />
 
         {/* Header Separator */}
@@ -141,7 +138,7 @@ export function ChatView({
       </div>
 
       {/* Footer - Fixed */}
-      <div className="shrink-0">
+      <div className="shrink-0 pb-safe md:pb-0">
         {/* Feedback Messages */}
         {authenticated && (
           <FeedbackMessages

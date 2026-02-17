@@ -9,6 +9,7 @@ import {
 import { ChevronDown, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useCollapsibleHeight } from '@/hooks/useCollapsibleHeight';
 import { useUserPositions } from '@/hooks/useUserPositions';
@@ -50,6 +51,24 @@ type AgentPnLProps =
       entityName: string;
       agentId?: never;
     };
+
+/** Returns true if a prediction position is still open (not resolved/closed) */
+function isOpenPrediction(p: { resolved?: boolean; status?: string }): boolean {
+  if (p.resolved) return false;
+  if (p.status && p.status !== 'active') return false;
+  return true;
+}
+
+/** Returns a label + color variant for a closed prediction position */
+function getResolutionLabel(p: {
+  resolution?: boolean | null;
+  status?: string;
+}): { text: string; variant: 'green' | 'red' | 'muted' } {
+  if (p.status === 'cancelled') return { text: 'Cancelled', variant: 'muted' };
+  if (p.resolution === true) return { text: 'Won', variant: 'green' };
+  if (p.resolution === false) return { text: 'Lost', variant: 'red' };
+  return { text: 'Closed', variant: 'muted' };
+}
 
 /** Collapsible section with smooth height animation */
 function CollapsibleSection({
@@ -125,6 +144,7 @@ function UserPnL({
   const [expandedSections, setExpandedSections] = useState<
     Set<'predictions' | 'perps'>
   >(new Set(['predictions', 'perps']));
+  const [showClosed, setShowClosed] = useState(false);
 
   // Portfolio breakdown (same calculation as profile page)
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot | null>(null);
@@ -138,11 +158,16 @@ function UserPnL({
 
   const loading = portfolioLoading || perpsLoading || predictionsLoading;
 
-  // Filter to only user's personal active positions (exclude agent positions and non-active)
+  // Filter to only user's personal positions (exclude agent positions)
   const perps = (perpsData ?? []).filter((p) => !p.isAgentPosition);
-  const predictions = (predictionsData ?? []).filter(
-    (p) => !p.isAgentPosition && (!p.status || p.status === 'active')
+  const userPredictions = (predictionsData ?? []).filter(
+    (p) => !p.isAgentPosition
   );
+  const openPredictions = userPredictions.filter(isOpenPrediction);
+  const closedPredictions = userPredictions.filter((p) => !isOpenPrediction(p));
+  const predictions = showClosed
+    ? [...openPredictions, ...closedPredictions]
+    : openPredictions;
 
   // Fetch portfolio breakdown (same endpoint as profile page)
   useEffect(() => {
@@ -294,11 +319,25 @@ function UserPnL({
 
       {/* Open Positions */}
       <div className="flex flex-col rounded-lg border border-border bg-card/50 p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-        <div className="mb-2 shrink-0 font-medium text-sm">Open Positions</div>
+        <div className="mb-2 flex shrink-0 items-center justify-between">
+          <span className="font-medium text-sm">
+            {showClosed ? 'All Positions' : 'Open Positions'}
+          </span>
+          {closedPredictions.length > 0 && (
+            <label className="flex items-center gap-1.5 text-muted-foreground text-xs">
+              <span>Show closed</span>
+              <Switch
+                checked={showClosed}
+                onCheckedChange={setShowClosed}
+                className="scale-75"
+              />
+            </label>
+          )}
+        </div>
 
         {predictions.length === 0 && perps.length === 0 ? (
           <div className="flex items-center justify-center py-4 text-muted-foreground text-xs">
-            No open positions
+            {showClosed ? 'No positions' : 'No open positions'}
           </div>
         ) : (
           <div className="space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -311,48 +350,74 @@ function UserPnL({
                 onToggle={() => toggleSection('predictions')}
               >
                 <div className="space-y-1">
-                  {predictions.map((pos) => (
-                    <button
-                      type="button"
-                      key={pos.id}
-                      onClick={() =>
-                        router.push(`/markets/predictions/${pos.marketId}`)
-                      }
-                      className="flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">
-                          {pos.question || `Market ${pos.marketId}`}
+                  {predictions.map((pos) => {
+                    const closed = !isOpenPrediction(pos);
+                    const resolution = closed ? getResolutionLabel(pos) : null;
+                    return (
+                      <button
+                        type="button"
+                        key={pos.id}
+                        onClick={() =>
+                          router.push(`/markets/predictions/${pos.marketId}`)
+                        }
+                        className={cn(
+                          'flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50',
+                          closed && 'opacity-60'
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 truncate font-medium">
+                            <span className="truncate">
+                              {pos.question || `Market ${pos.marketId}`}
+                            </span>
+                            {closed && (
+                              <span
+                                className={cn(
+                                  'shrink-0 rounded-full px-1.5 py-0.5 font-medium text-[10px] leading-none',
+                                  {
+                                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400':
+                                      resolution?.variant === 'green',
+                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400':
+                                      resolution?.variant === 'red',
+                                    'bg-muted text-muted-foreground':
+                                      resolution?.variant === 'muted',
+                                  }
+                                )}
+                              >
+                                {resolution?.text}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span
+                              className={cn(
+                                'font-medium',
+                                pos.side === 'YES'
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              )}
+                            >
+                              {pos.side}
+                            </span>
+                            <span>{Number(pos.shares).toFixed(2)} shares</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        {pos.unrealizedPnL !== undefined && (
                           <span
                             className={cn(
-                              'font-medium',
-                              pos.side === 'YES'
+                              'ml-2 shrink-0 font-medium',
+                              Number(pos.unrealizedPnL) >= 0
                                 ? 'text-green-600'
                                 : 'text-red-600'
                             )}
                           >
-                            {pos.side}
+                            {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
+                            {formatCompactCurrency(Number(pos.unrealizedPnL))}
                           </span>
-                          <span>{Number(pos.shares).toFixed(2)} shares</span>
-                        </div>
-                      </div>
-                      {pos.unrealizedPnL !== undefined && (
-                        <span
-                          className={cn(
-                            'ml-2 shrink-0 font-medium',
-                            Number(pos.unrealizedPnL) >= 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          )}
-                        >
-                          {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
-                          {formatCompactCurrency(Number(pos.unrealizedPnL))}
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </CollapsibleSection>
             )}
@@ -436,6 +501,7 @@ function AgentPnLView({
   const [expandedSections, setExpandedSections] = useState<
     Set<'predictions' | 'perps'>
   >(new Set(['predictions', 'perps']));
+  const [showClosed, setShowClosed] = useState(false);
 
   // Portfolio breakdown (same calculation as profile page)
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot | null>(null);
@@ -455,10 +521,12 @@ function AgentPnLView({
     loading: positionsLoading,
   } = useUserPositions(agentId);
 
-  // Filter to only active prediction positions (matches check-pnl action)
-  const predictions = allPredictions.filter(
-    (p) => !p.status || p.status === 'active'
-  );
+  // Split prediction positions into open vs closed
+  const openPredictions = allPredictions.filter(isOpenPrediction);
+  const closedPredictions = allPredictions.filter((p) => !isOpenPrediction(p));
+  const predictions = showClosed
+    ? [...openPredictions, ...closedPredictions]
+    : openPredictions;
 
   // Fetch portfolio breakdown (same endpoint as profile page)
   useEffect(() => {
@@ -654,7 +722,21 @@ function AgentPnLView({
 
       {/* Open Positions */}
       <div className="flex flex-col rounded-lg border border-border bg-card/50 p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-        <div className="mb-2 shrink-0 font-medium text-sm">Open Positions</div>
+        <div className="mb-2 flex shrink-0 items-center justify-between">
+          <span className="font-medium text-sm">
+            {showClosed ? 'All Positions' : 'Open Positions'}
+          </span>
+          {closedPredictions.length > 0 && (
+            <label className="flex items-center gap-1.5 text-muted-foreground text-xs">
+              <span>Show closed</span>
+              <Switch
+                checked={showClosed}
+                onCheckedChange={setShowClosed}
+                className="scale-75"
+              />
+            </label>
+          )}
+        </div>
 
         {positionsLoading ? (
           <div className="flex items-center justify-center py-4">
@@ -662,7 +744,7 @@ function AgentPnLView({
           </div>
         ) : predictions.length === 0 && perps.length === 0 ? (
           <div className="flex items-center justify-center py-4 text-muted-foreground text-xs">
-            No open positions
+            {showClosed ? 'No positions' : 'No open positions'}
           </div>
         ) : (
           <div className="space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -675,48 +757,74 @@ function AgentPnLView({
                 onToggle={() => toggleSection('predictions')}
               >
                 <div className="space-y-1">
-                  {predictions.map((pos) => (
-                    <button
-                      type="button"
-                      key={pos.id}
-                      onClick={() =>
-                        router.push(`/markets/predictions/${pos.marketId}`)
-                      }
-                      className="flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">
-                          {pos.question || `Market ${pos.marketId}`}
+                  {predictions.map((pos) => {
+                    const closed = !isOpenPrediction(pos);
+                    const resolution = closed ? getResolutionLabel(pos) : null;
+                    return (
+                      <button
+                        type="button"
+                        key={pos.id}
+                        onClick={() =>
+                          router.push(`/markets/predictions/${pos.marketId}`)
+                        }
+                        className={cn(
+                          'flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50',
+                          closed && 'opacity-60'
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 truncate font-medium">
+                            <span className="truncate">
+                              {pos.question || `Market ${pos.marketId}`}
+                            </span>
+                            {closed && (
+                              <span
+                                className={cn(
+                                  'shrink-0 rounded-full px-1.5 py-0.5 font-medium text-[10px] leading-none',
+                                  {
+                                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400':
+                                      resolution?.variant === 'green',
+                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400':
+                                      resolution?.variant === 'red',
+                                    'bg-muted text-muted-foreground':
+                                      resolution?.variant === 'muted',
+                                  }
+                                )}
+                              >
+                                {resolution?.text}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span
+                              className={cn(
+                                'font-medium',
+                                pos.side === 'YES'
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              )}
+                            >
+                              {pos.side}
+                            </span>
+                            <span>{Number(pos.shares).toFixed(2)} shares</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        {pos.unrealizedPnL !== undefined && (
                           <span
                             className={cn(
-                              'font-medium',
-                              pos.side === 'YES'
+                              'ml-2 shrink-0 font-medium',
+                              Number(pos.unrealizedPnL) >= 0
                                 ? 'text-green-600'
                                 : 'text-red-600'
                             )}
                           >
-                            {pos.side}
+                            {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
+                            {formatCompactCurrency(Number(pos.unrealizedPnL))}
                           </span>
-                          <span>{Number(pos.shares).toFixed(2)} shares</span>
-                        </div>
-                      </div>
-                      {pos.unrealizedPnL !== undefined && (
-                        <span
-                          className={cn(
-                            'ml-2 shrink-0 font-medium',
-                            Number(pos.unrealizedPnL) >= 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          )}
-                        >
-                          {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
-                          {formatCompactCurrency(Number(pos.unrealizedPnL))}
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </CollapsibleSection>
             )}

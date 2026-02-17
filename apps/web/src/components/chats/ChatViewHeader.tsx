@@ -1,22 +1,9 @@
 'use client';
 
-import {
-  ArrowLeft,
-  Loader2,
-  LogOut,
-  MoreVertical,
-  Settings,
-  Users,
-} from 'lucide-react';
+import { ArrowLeft, Loader2, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar } from '@/components/shared/Avatar';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import type { ChatDetails } from './types';
 import { getProfilePath } from './types';
 
@@ -26,7 +13,6 @@ interface ChatViewHeaderProps {
   showBackButton?: boolean;
   onBack?: () => void;
   onManageGroup: () => void;
-  onLeaveChat: () => void;
 }
 
 export function ChatViewHeader({
@@ -35,7 +21,6 @@ export function ChatViewHeader({
   showBackButton = false,
   onBack,
   onManageGroup,
-  onLeaveChat,
 }: ChatViewHeaderProps) {
   return (
     <div className="overflow-hidden bg-background px-4 py-4">
@@ -121,32 +106,15 @@ export function ChatViewHeader({
 
         {/* Group actions */}
         {chatDetails.chat.isGroup && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onManageGroup}
-              title="Manage Group"
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={onLeaveChat}
-                  className="text-red-500"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Leave Chat</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            onClick={onManageGroup}
+            title="Manage Group"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
         )}
       </div>
     </div>

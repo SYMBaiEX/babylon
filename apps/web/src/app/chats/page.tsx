@@ -13,17 +13,6 @@ import {
 } from '@/components/chats';
 import { CreateGroupModal } from '@/components/groups/CreateGroupModal';
 import { GroupManagementModal } from '@/components/groups/GroupManagementModal';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { buttonVariants } from '@/components/ui/button';
 import { useA2A } from '@/hooks/useA2A';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatParam } from '@/hooks/useChatParam';
@@ -76,14 +65,6 @@ export default function ChatsPage() {
     sendWarning,
     sendSuccess,
 
-    // Leave chat
-    isLeaveConfirmOpen,
-    setLeaveConfirmOpen,
-    isLeavingChat,
-    leaveChatError,
-    setLeaveChatError,
-    handleLeaveChat,
-
     // Group modals
     isCreateGroupModalOpen,
     setIsCreateGroupModalOpen,
@@ -106,6 +87,7 @@ export default function ChatsPage() {
     // Actions
     sendMessage,
     toggleReaction,
+    loadChats,
   } = useChatPage();
 
   // Detect if the current chat is with the user's own agent
@@ -146,10 +128,9 @@ export default function ChatsPage() {
 
   return (
     <>
-      {/* Use fixed viewport heights to ensure proper scroll containment */}
-      {/* Mobile: 100dvh - 56px (MobileHeader pt-14) - 56px (BottomNav pb-14) = 112px */}
-      {/* Desktop: full viewport height (no header/nav padding) */}
-      <div className="flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:h-dvh lg:border-l">
+      {/* Mobile: fixed between MobileHeader (top-14) and BottomNav (bottom-14) */}
+      {/* Desktop: normal flow, full viewport height */}
+      <div className="fixed inset-x-0 top-14 bottom-14 z-30 flex flex-col overflow-hidden border-border md:relative md:inset-auto md:z-auto md:h-dvh lg:border-l">
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Left Column: Chat List */}
           {/* Mobile: full width when no chat selected, hidden when chat selected */}
@@ -221,7 +202,6 @@ export default function ChatsPage() {
                 onBack={() => setSelectedChatId(null)}
                 onToggleReaction={toggleReaction}
                 onManageGroup={handleManageGroup}
-                onLeaveChat={() => setLeaveConfirmOpen(true)}
                 onMessageChange={setMessageInput}
                 onSendMessage={sendMessage}
               />
@@ -229,43 +209,6 @@ export default function ChatsPage() {
           </div>
         </div>
       </div>
-
-      {/* Leave Chat Confirmation Dialog */}
-      <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Leave Chat?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <p className="text-muted-foreground text-sm">
-                Are you sure you want to leave this chat?
-              </p>
-              {leaveChatError && (
-                <p className="mt-2 text-red-500 text-sm">{leaveChatError}</p>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setLeaveConfirmOpen(false);
-                setLeaveChatError(null);
-              }}
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleLeaveChat}
-              className={buttonVariants()}
-              disabled={isLeavingChat}
-            >
-              {isLeavingChat && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Leave
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Group Modals */}
       <CreateGroupModal
@@ -282,6 +225,12 @@ export default function ChatsPage() {
         }}
         groupId={selectedGroupId}
         onGroupUpdated={handleGroupUpdated}
+        onGroupRemoved={() => {
+          setSelectedChatId(null);
+          setIsGroupManagementModalOpen(false);
+          setSelectedGroupId(null);
+          loadChats();
+        }}
       />
     </>
   );

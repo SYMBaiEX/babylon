@@ -64,11 +64,11 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
 import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import { useAuth } from '@/hooks/useAuth';
+import { useTeamChat } from '@/hooks/useTeamChat';
 import {
   type TeamScope,
   useTeamTradingSummary,
 } from '@/hooks/useTeamTradingSummary';
-import { useTeamChat } from '@/hooks/useTeamChat';
 import {
   TUTORIAL_PERPS_DATA,
   TUTORIAL_PERPS_ENTITY_ID,
@@ -76,8 +76,6 @@ import {
 import { useAgentsTutorial } from './_components/tutorial/useAgentsTutorial';
 import { AgentPnL } from './AgentPnL';
 import { AgentPortfolio } from './AgentPortfolio';
-import { TeamPnL } from './TeamPnL';
-import { TeamPortfolio } from './TeamPortfolio';
 import {
   BOTTOM_PANEL_COLLAPSED_HEIGHT,
   BOTTOM_PANEL_DEFAULT_HEIGHT,
@@ -100,6 +98,8 @@ import {
   RightSidebar,
   type RightSidebarTab,
 } from './RightSidebar';
+import { TeamPnL } from './TeamPnL';
+import { TeamPortfolio } from './TeamPortfolio';
 
 // Lazy load AgentLogs for performance
 const AgentLogs = dynamic(
@@ -445,7 +445,10 @@ export default function TeamChatPage() {
       if (type === 'user' && bottomPanelTab === 'logs') {
         setBottomPanelTab('activity');
       }
-      if (type === 'team' && (bottomPanelTab === 'logs' || bottomPanelTab === 'activity')) {
+      if (
+        type === 'team' &&
+        (bottomPanelTab === 'logs' || bottomPanelTab === 'activity')
+      ) {
         setBottomPanelTab('wallet');
       }
     },
@@ -460,13 +463,22 @@ export default function TeamChatPage() {
     bottomPanelEntityType === 'team' &&
     (bottomPanelTab === 'wallet' || bottomPanelTab === 'pnl');
 
-  const { summary: teamSummary, loading: teamSummaryLoading, error: teamSummaryError } =
-    useTeamTradingSummary({
-      ownerId: user?.id,
-      ownerName: user?.displayName || user?.username || 'You',
-      enabled: teamSummaryEnabled,
-      getAccessToken,
-    });
+  const {
+    summary: teamSummary,
+    loading: teamSummaryLoading,
+    error: teamSummaryError,
+  } = useTeamTradingSummary({
+    ownerId: user?.id,
+    ownerName: user?.displayName || user?.username || 'You',
+    enabled: teamSummaryEnabled,
+    getAccessToken,
+  });
+
+  // Agent IDs set for settings icon on latest agent messages
+  const agentIds = useMemo(
+    () => new Set(teamChat?.agents.map((a) => a.id) ?? []),
+    [teamChat?.agents]
+  );
 
   // Handle sidebar "Settings" - open edit modal
   const handleViewSettings = useCallback(
@@ -844,7 +856,6 @@ export default function TeamChatPage() {
             onStopAgent={stopAgent}
             onViewSettings={(agentId) => {
               handleViewSettings(agentId);
-              setMobileView('panel');
             }}
           />
         </div>
@@ -989,6 +1000,8 @@ export default function TeamChatPage() {
             handleTagClick(tag, messageId);
             setMobileView('panel');
           }}
+          agentIds={agentIds}
+          onViewSettings={handleViewSettings}
         />
       </div>
 
@@ -1092,6 +1105,8 @@ export default function TeamChatPage() {
             rightSidebarOpen={rightSidebarOpen}
             onToggleRightSidebar={toggleRightSidebar}
             onTagClick={handleTagClick}
+            agentIds={agentIds}
+            onViewSettings={handleViewSettings}
           />
         </div>
 

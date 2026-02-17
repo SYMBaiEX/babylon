@@ -79,7 +79,7 @@ export default function MarketsPage() {
   return (
     <PageContainer
       noPadding
-      className="flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh"
+      className="flex h-[calc(100dvh-112px)] min-h-0 flex-col overflow-hidden md:h-dvh"
     >
       <div className="flex flex-1 overflow-hidden border-border bg-background/20 lg:border-l">
         <MarketsTradingTerminal

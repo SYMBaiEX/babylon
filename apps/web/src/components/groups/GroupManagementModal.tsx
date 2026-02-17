@@ -91,6 +91,8 @@ interface GroupManagementModalProps {
   onClose: () => void;
   groupId: string | null;
   onGroupUpdated?: () => void;
+  /** Called after the user leaves or deletes the group (clears selection). */
+  onGroupRemoved?: () => void;
 }
 
 export function GroupManagementModal({
@@ -98,6 +100,7 @@ export function GroupManagementModal({
   onClose,
   groupId,
   onGroupUpdated,
+  onGroupRemoved,
 }: GroupManagementModalProps) {
   const { getAccessToken } = usePrivy();
   const { user } = useAuthStore();
@@ -496,7 +499,7 @@ export function GroupManagementModal({
       return;
     }
 
-    onGroupUpdated?.();
+    onGroupRemoved?.();
     onClose();
   };
 
@@ -524,7 +527,7 @@ export function GroupManagementModal({
       return;
     }
 
-    onGroupUpdated?.();
+    onGroupRemoved?.();
     onClose();
   };
 
@@ -613,7 +616,7 @@ export function GroupManagementModal({
                     <button
                       onClick={() => setConfirmAction({ type: 'leave' })}
                       disabled={!!actionLoading}
-                      className="rounded-lg border border-yellow-600 px-4 py-2 font-medium text-sm text-yellow-600 transition-colors hover:bg-yellow-600/10 disabled:opacity-50"
+                      className="rounded-lg border border-red-500 px-4 py-2 font-medium text-red-500 text-sm transition-colors hover:bg-red-500/10 disabled:opacity-50"
                     >
                       <LogOut className="mr-2 inline h-4 w-4" />
                       Leave Group
@@ -974,11 +977,10 @@ export function GroupManagementModal({
                   className={cn(
                     'flex-1 rounded-lg px-4 py-2.5 font-medium transition-colors disabled:opacity-50',
                     confirmAction.type === 'delete' ||
-                      confirmAction.type === 'remove'
+                      confirmAction.type === 'remove' ||
+                      confirmAction.type === 'leave'
                       ? 'bg-red-500 text-primary-foreground hover:bg-red-600'
-                      : confirmAction.type === 'leave'
-                        ? 'bg-yellow-500 text-primary-foreground hover:bg-yellow-600'
-                        : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
                   )}
                 >
                   {actionLoading ? (

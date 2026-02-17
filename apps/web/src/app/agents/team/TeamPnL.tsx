@@ -56,8 +56,15 @@ export function TeamPnL({
 
   // Use pre-computed totals from the hook instead of re-reducing
   const totals = useMemo(() => {
-    if (!summary) return { lifetimePnL: 0, unrealizedPnL: 0, currentPnL: 0, openPositions: 0 };
-    const src = scope === 'agents_only' ? summary.agentsOnlyTotals : summary.totals;
+    if (!summary)
+      return {
+        lifetimePnL: 0,
+        unrealizedPnL: 0,
+        currentPnL: 0,
+        openPositions: 0,
+      };
+    const src =
+      scope === 'agents_only' ? summary.agentsOnlyTotals : summary.totals;
     return {
       lifetimePnL: src.lifetimePnL,
       unrealizedPnL: src.unrealizedPnL,
@@ -84,7 +91,7 @@ export function TeamPnL({
 
   if (error) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">
+      <div className="p-4 text-muted-foreground text-sm">
         Failed to load team P&L: {error}
       </div>
     );
@@ -139,7 +146,7 @@ export function TeamPnL({
             <span className="font-medium">{totals.openPositions}</span>
           </div>
         </div>
-        <div className="pt-1 text-muted-foreground text-[11px]">
+        <div className="pt-1 text-[11px] text-muted-foreground">
           {currentPositive
             ? 'Team is currently profitable.'
             : 'Team is currently down.'}
@@ -163,7 +170,10 @@ export function TeamPnL({
                 type="button"
                 onClick={() => {
                   if (!onSelectMember) return;
-                  onSelectMember(m.id, m.entityType === 'owner' ? 'user' : 'agent');
+                  onSelectMember(
+                    m.id,
+                    m.entityType === 'owner' ? 'user' : 'agent'
+                  );
                 }}
                 className={cn(
                   'flex w-full items-start justify-between gap-3 rounded-md px-2 py-2 text-left transition-colors',
@@ -182,8 +192,9 @@ export function TeamPnL({
                       @{m.username}
                     </div>
                   )}
-                  <div className="mt-1 text-muted-foreground text-[11px]">
-                    {m.openPositions} open position{m.openPositions === 1 ? '' : 's'}
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {m.openPositions} open position
+                    {m.openPositions === 1 ? '' : 's'}
                   </div>
                 </div>
 
@@ -192,7 +203,7 @@ export function TeamPnL({
                     {m.currentPnL >= 0 ? '+' : ''}
                     {formatCompactCurrency(m.currentPnL)}
                   </div>
-                  <div className="text-muted-foreground text-[11px]">
+                  <div className="text-[11px] text-muted-foreground">
                     L: {m.lifetimePnL >= 0 ? '+' : ''}
                     {formatCompactCurrency(m.lifetimePnL)}
                     {'  '}U: {m.unrealizedPnL >= 0 ? '+' : ''}

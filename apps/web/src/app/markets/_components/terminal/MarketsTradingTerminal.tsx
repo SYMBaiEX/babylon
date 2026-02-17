@@ -96,9 +96,6 @@ type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
 type BottomTab = 'agent' | 'social' | 'portfolio' | 'positions' | 'trades';
 type MobileTab = 'chart' | BottomTab;
 
-/** Base height of the bottom nav (matches app layout's pb-14) */
-const BOTTOM_NAV_BASE_HEIGHT = 56;
-
 /** Minimum shares threshold for sellable positions */
 const MIN_SELLABLE_SHARES = 0.01;
 
@@ -674,9 +671,9 @@ export function MarketsTradingTerminal({
   }, [refreshAllPositionData]);
 
   const mobileBottomDockOffset = useMemo(() => {
-    // The app layout uses `pb-14` (56px) to reserve space for the fixed BottomNav.
-    // We only need to offset by the *extra* height beyond that (e.g. iOS safe-area).
-    return Math.max(0, mobileBottomNavHeight - BOTTOM_NAV_BASE_HEIGHT);
+    // Position the dock above the fixed BottomNav. Use the measured nav height
+    // so it accounts for safe-area insets on devices like Pixel 10 Pro.
+    return mobileBottomNavHeight;
   }, [mobileBottomNavHeight]);
 
   // Track the height of the app's fixed BottomNav to properly position the mobile dock.
@@ -1357,8 +1354,12 @@ export function MarketsTradingTerminal({
 
       const url =
         predictionTradeMode === 'buy'
-          ? `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/buy`
-          : `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/sell`;
+          ? `/api/markets/predictions/${encodeURIComponent(
+              predictionState.id.toString()
+            )}/buy`
+          : `/api/markets/predictions/${encodeURIComponent(
+              predictionState.id.toString()
+            )}/sell`;
 
       // Note: sellPosition is validated earlier in this function for sell mode
       const body =
@@ -1406,7 +1407,9 @@ export function MarketsTradingTerminal({
       if (predictionTradeMode === 'buy') {
         toast.success(`Bought ${predictionSide.toUpperCase()} shares!`, {
           description: predictionBuyCalculation
-            ? `${predictionBuyCalculation.sharesBought.toFixed(2)} shares at ${predictionBuyCalculation.avgPrice.toFixed(3)} each`
+            ? `${predictionBuyCalculation.sharesBought.toFixed(
+                2
+              )} shares at ${predictionBuyCalculation.avgPrice.toFixed(3)} each`
             : undefined,
         });
       } else {
@@ -1804,7 +1807,10 @@ export function MarketsTradingTerminal({
                           predictionState?.endDate ??
                             predictionState?.resolutionDate
                         )
-                          ? ` • Ends ${formatDate(predictionState?.endDate ?? predictionState?.resolutionDate)}`
+                          ? ` • Ends ${formatDate(
+                              predictionState?.endDate ??
+                                predictionState?.resolutionDate
+                            )}`
                           : ''
                       }`}
                 </div>
@@ -2238,8 +2244,12 @@ export function MarketsTradingTerminal({
                 : !authenticated
                   ? 'Log In to Trade'
                   : predictionTradeMode === 'buy'
-                    ? `BUY ${predictionSide.toUpperCase()} · ${BABYLON_POINTS_SYMBOL}${predictionAmountNum.toFixed(0)}`
-                    : `SELL ${predictionSide.toUpperCase()} · ${clampedSellShares.toFixed(2)} shares`}
+                    ? `BUY ${predictionSide.toUpperCase()} · ${BABYLON_POINTS_SYMBOL}${predictionAmountNum.toFixed(
+                        0
+                      )}`
+                    : `SELL ${predictionSide.toUpperCase()} · ${clampedSellShares.toFixed(
+                        2
+                      )} shares`}
             </button>
           </div>
         </div>
@@ -2606,7 +2616,7 @@ export function MarketsTradingTerminal({
           </div>
 
           <div
-            className="sticky z-40 w-full select-none overflow-hidden rounded-t-[20px] border-white/5 border-t bg-background shadow-[0_-5px_15px_rgba(0,0,0,0.12)]"
+            className="fixed right-0 left-0 z-40 w-full select-none overflow-hidden rounded-t-[20px] border-white/5 border-t bg-background shadow-[0_-5px_15px_rgba(0,0,0,0.12)]"
             style={{ bottom: mobileBottomDockOffset }}
           >
             <div className="flex h-[72px] items-center justify-between px-2 pb-2 font-medium text-[10px] text-muted-foreground">
@@ -2801,8 +2811,8 @@ export function MarketsTradingTerminal({
           )}
 
           {isMobileMarketListOpen && (
-            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-[70] flex animate-in flex-col bg-background duration-200">
-              <div className="flex items-center justify-between border-white/5 border-b p-4">
+            <div className="fade-in slide-in-from-bottom-2 fixed inset-0 z-[70] flex animate-in flex-col bg-background pt-safe duration-200">
+              <div className="flex items-center justify-between border-white/5 border-b px-3">
                 <h2 className="font-bold text-lg">Markets</h2>
                 <button
                   type="button"
