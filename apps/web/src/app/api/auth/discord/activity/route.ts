@@ -20,7 +20,7 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { verifySignedState } from './state/route';
+import { verifySignedState } from './state/state-utils';
 
 const RequestSchema = z.object({
   code: z.string().min(1),

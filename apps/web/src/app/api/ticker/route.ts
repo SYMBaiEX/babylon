@@ -40,7 +40,7 @@ function parseStreams(value: string | null): Set<string> {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter((s) => VALID_STREAMS.has(s));
-  return new Set(requested.size > 0 ? requested : DEFAULT_STREAMS);
+  return new Set(requested.length > 0 ? requested : DEFAULT_STREAMS);
 }
 
 function parseLimit(value: string | null): number {
@@ -105,8 +105,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               const timestamp =
                 typeof ts === 'string'
                   ? ts
-                  : ((ts as { toISOString?: () => string })?.toISOString?.() ??
-                    new Date().toISOString());
+                  : (ts != null && typeof (ts as unknown as { toISOString?: () => string }).toISOString === 'function'
+                      ? (ts as { toISOString: () => string }).toISOString()
+                      : new Date().toISOString());
               return {
                 id: p.id,
                 title: p.articleTitle ?? p.content?.slice(0, 80) ?? 'Article',
