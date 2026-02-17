@@ -15,6 +15,10 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import {
+  type EmailNotificationCategory,
+  sendNotificationEmail,
+} from './notification-email-service';
 
 export type NotificationType =
   | 'comment'
@@ -28,7 +32,10 @@ export type NotificationType =
   | 'appeal_status'
   | 'points_received'
   | 'group_invite'
-  | 'nft_access_revoked';
+  | 'nft_access_revoked'
+  | 'daily_summary'
+  | 'weekly_summary'
+  | 'monthly_summary';
 
 interface CreateNotificationParams {
   userId: string; // Who receives the notification
@@ -48,6 +55,61 @@ interface CreateNotificationParams {
  * This prevents duplicate notifications from being created within this time window
  */
 const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+function getEmailNotificationCategory(
+  notificationType: NotificationType
+): EmailNotificationCategory {
+  switch (notificationType) {
+    case 'daily_summary':
+      return 'daily_summary';
+    case 'weekly_summary':
+      return 'weekly_summary';
+    case 'monthly_summary':
+      return 'monthly_summary';
+    default:
+      return 'realtime';
+  }
+}
+
+async function sendNotificationEmailIfEligible(params: {
+  notificationType: NotificationType;
+  user: {
+    id: string;
+    email: string | null;
+    emailVerified: boolean;
+    emailNotificationsEnabled: boolean;
+    emailNotificationsRealtime: boolean;
+    emailNotificationsDailySummary: boolean;
+    emailNotificationsWeeklySummary: boolean;
+    emailNotificationsMonthlySummary: boolean;
+  };
+  title: string;
+  message: string;
+}): Promise<void> {
+  const { user } = params;
+  if (!user.email || !user.emailVerified || !user.emailNotificationsEnabled) {
+    return;
+  }
+
+  const category = getEmailNotificationCategory(params.notificationType);
+  const categoryEnabled =
+    (category === 'realtime' && user.emailNotificationsRealtime) ||
+    (category === 'daily_summary' && user.emailNotificationsDailySummary) ||
+    (category === 'weekly_summary' && user.emailNotificationsWeeklySummary) ||
+    (category === 'monthly_summary' && user.emailNotificationsMonthlySummary);
+
+  if (!categoryEnabled) {
+    return;
+  }
+
+  await sendNotificationEmail({
+    userId: user.id,
+    userEmail: user.email,
+    title: params.title,
+    message: params.message,
+    category,
+  });
+}
 
 /**
  * Check if a similar notification already exists within the deduplication window
@@ -108,12 +170,22 @@ export async function createNotification(
   // Verify that the userId exists in the User table before creating notification
   // This prevents foreign key constraint errors
   const userExists = await db
-    .select({ id: users.id })
+    .select({
+      id: users.id,
+      email: users.email,
+      emailVerified: users.emailVerified,
+      emailNotificationsEnabled: users.emailNotificationsEnabled,
+      emailNotificationsRealtime: users.emailNotificationsRealtime,
+      emailNotificationsDailySummary: users.emailNotificationsDailySummary,
+      emailNotificationsWeeklySummary: users.emailNotificationsWeeklySummary,
+      emailNotificationsMonthlySummary: users.emailNotificationsMonthlySummary,
+    })
     .from(users)
     .where(eq(users.id, params.userId))
     .limit(1);
 
-  if (userExists.length === 0) {
+  const recipient = userExists[0];
+  if (!recipient) {
     logger.warn(
       `Skipping notification creation: userId ${params.userId} does not exist in User table (may be an Actor)`,
       undefined,
@@ -160,6 +232,13 @@ export async function createNotification(
     chatId: params.chatId,
     groupId: params.groupId,
     inviteId: params.inviteId,
+    title: params.title,
+    message: params.message,
+  });
+
+  await sendNotificationEmailIfEligible({
+    notificationType: params.type,
+    user: recipient,
     title: params.title,
     message: params.message,
   });

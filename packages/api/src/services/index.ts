@@ -31,6 +31,7 @@ export * from './nft-group-service';
 export * from './nft-indexer-service';
 export * from './nft-mint-service';
 export * from './nft-verification-service';
+export * from './notification-email-service';
 export * from './notification-service';
 // Onchain Service
 export * from './onchain-service';

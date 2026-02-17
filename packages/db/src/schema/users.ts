@@ -267,6 +267,27 @@ export const users = pgTable(
       .default(false),
     emailVerified: boolean('emailVerified').notNull().default(false),
     email: text('email'),
+    emailNotificationsEnabled: boolean('emailNotificationsEnabled')
+      .notNull()
+      .default(false),
+    emailNotificationsRealtime: boolean('emailNotificationsRealtime')
+      .notNull()
+      .default(true),
+    emailNotificationsDailySummary: boolean('emailNotificationsDailySummary')
+      .notNull()
+      .default(true),
+    emailNotificationsWeeklySummary: boolean('emailNotificationsWeeklySummary')
+      .notNull()
+      .default(true),
+    emailNotificationsMonthlySummary: boolean('emailNotificationsMonthlySummary')
+      .notNull()
+      .default(true),
+    emailNotificationsUnsubscribedAt: timestamp(
+      'emailNotificationsUnsubscribedAt',
+      {
+        mode: 'date',
+      }
+    ),
     waitlistGraduatedAt: timestamp('waitlistGraduatedAt', { mode: 'date' }),
     // Agent flags (config stored in UserAgentConfig table)
     isAgent: boolean('isAgent').notNull().default(false),
@@ -313,6 +334,9 @@ export const users = pgTable(
     index('User_reputationPoints_idx').on(table.reputationPoints),
     index('User_totalPoints_idx').on(table.totalPoints),
     index('User_username_idx').on(table.username),
+    index('User_emailNotificationsEnabled_idx').on(
+      table.emailNotificationsEnabled
+    ),
     index('User_waitlistJoinedAt_idx').on(table.waitlistJoinedAt),
     index('User_waitlistPosition_idx').on(table.waitlistPosition),
     index('User_walletAddress_idx').on(table.walletAddress),

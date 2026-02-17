@@ -260,7 +260,18 @@ export function useAuth(): UseAuthReturn {
               me.user.displayName && me.user.displayName.trim() !== ''
                 ? me.user.displayName
                 : privyUser.email?.address || wallet?.address || 'Anonymous',
-            email: privyUser.email?.address,
+            email: privyUser.email?.address ?? me.user.email ?? undefined,
+            emailVerified: me.user.emailVerified ?? undefined,
+            emailNotificationsEnabled:
+              me.user.emailNotificationsEnabled ?? undefined,
+            emailNotificationsRealtime:
+              me.user.emailNotificationsRealtime ?? undefined,
+            emailNotificationsDailySummary:
+              me.user.emailNotificationsDailySummary ?? undefined,
+            emailNotificationsWeeklySummary:
+              me.user.emailNotificationsWeeklySummary ?? undefined,
+            emailNotificationsMonthlySummary:
+              me.user.emailNotificationsMonthlySummary ?? undefined,
             username: me.user.username ?? undefined,
             bio: me.user.bio ?? undefined,
             profileImageUrl:
@@ -314,6 +325,17 @@ export function useAuth(): UseAuthReturn {
             currentUser.showFarcasterPublic !==
               hydratedUser.showFarcasterPublic ||
             currentUser.showWalletPublic !== hydratedUser.showWalletPublic ||
+            currentUser.emailVerified !== hydratedUser.emailVerified ||
+            currentUser.emailNotificationsEnabled !==
+              hydratedUser.emailNotificationsEnabled ||
+            currentUser.emailNotificationsRealtime !==
+              hydratedUser.emailNotificationsRealtime ||
+            currentUser.emailNotificationsDailySummary !==
+              hydratedUser.emailNotificationsDailySummary ||
+            currentUser.emailNotificationsWeeklySummary !==
+              hydratedUser.emailNotificationsWeeklySummary ||
+            currentUser.emailNotificationsMonthlySummary !==
+              hydratedUser.emailNotificationsMonthlySummary ||
             currentUser.reputationPoints !== hydratedUser.reputationPoints ||
             currentUser.hasFarcaster !== hydratedUser.hasFarcaster ||
             currentUser.hasTwitter !== hydratedUser.hasTwitter ||
