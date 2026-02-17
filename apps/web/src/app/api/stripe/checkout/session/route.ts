@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
     ],
     // Store purchase details in metadata for webhook processing
     metadata: {
+      app: 'babylon',
       userId,
       pointsAmount: pointsAmount.toString(),
       amountUSD: amountUSD.toString(),
