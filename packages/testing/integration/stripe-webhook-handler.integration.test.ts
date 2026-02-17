@@ -40,6 +40,20 @@ async function processWebhookEvent(
     paymentIntentId: string
   ) => Promise<string | null>
 ): Promise<{ handled: boolean; action?: string; error?: string }> {
+  // App metadata filter — only process events belonging to this app (babylon).
+  // Events without metadata.app are allowed for backward compatibility.
+  const eventObject = event.data.object as Record<string, unknown>;
+  const appMetadata =
+    (eventObject?.metadata as Record<string, string> | undefined)?.app ??
+    (
+      (eventObject?.subscription_details as Record<string, unknown> | undefined)
+        ?.metadata as Record<string, string> | undefined
+    )?.app;
+
+  if (appMetadata && appMetadata !== 'babylon') {
+    return { handled: true, action: 'ignored_other_app' };
+  }
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as MockCheckoutSession;
@@ -569,7 +583,7 @@ describe('Stripe Webhook Handler Integration', () => {
         object: 'event',
         type: 'customer.created',
         created: Date.now(),
-        data: { object: {} },
+        data: { object: { metadata: { app: 'babylon' } } },
       };
 
       const result = await processWebhookEvent(
@@ -579,6 +593,347 @@ describe('Stripe Webhook Handler Integration', () => {
 
       expect(result.handled).toBe(false);
       expect(result.action).toBe('unhandled_event_type');
+    });
+  });
+
+  describe('App Metadata Filtering', () => {
+    describe('Events tagged with babylon should be processed', () => {
+      it('should process checkout.session.completed with app=babylon', async () => {
+        const userId = await createDbUser();
+        const event = createCheckoutCompletedEvent(userId, 10, {
+          app: 'babylon',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('points_credited');
+
+        const balance = await getUserBalance(userId);
+        expect(balance).toBe(1000);
+      });
+
+      it('should process charge.dispute.created with app=babylon', async () => {
+        const userId = await createDbUser();
+        const paymentIntentId = `pi_filter_dispute_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        // Give user some points first
+        await PointsService.purchasePoints(
+          userId,
+          50,
+          `cs_test_${Date.now()}`,
+          paymentIntentId,
+          'stripe'
+        );
+
+        const event = createDisputeCreatedEvent(paymentIntentId, 50, {
+          app: 'babylon',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('points_deducted_dispute');
+      });
+
+      it('should process charge.dispute.closed (won) with app=babylon', async () => {
+        const userId = await createDbUser(0);
+        const paymentIntentId = `pi_filter_won_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        const event = createDisputeWonEvent(paymentIntentId, 25, {
+          app: 'babylon',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('points_recredited_dispute_won');
+      });
+
+      it('should process charge.dispute.closed (lost) with app=babylon', async () => {
+        const userId = await createDbUser(0);
+        const paymentIntentId = `pi_filter_lost_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        const event = createDisputeLostEvent(paymentIntentId, 25, {
+          app: 'babylon',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('dispute_lost_logged');
+      });
+
+      it('should process charge.refunded with app=babylon', async () => {
+        const userId = await createDbUser();
+        const paymentIntentId = `pi_filter_refund_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        await PointsService.purchasePoints(
+          userId,
+          30,
+          `cs_test_${Date.now()}`,
+          paymentIntentId,
+          'stripe'
+        );
+
+        const event = createChargeRefundedEvent(paymentIntentId, 30, 30, {
+          app: 'babylon',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('points_deducted_refund');
+      });
+    });
+
+    describe('Events tagged with eliza-cloud should be ignored', () => {
+      it('should ignore checkout.session.completed with app=eliza-cloud', async () => {
+        const userId = await createDbUser();
+        const event = createCheckoutCompletedEvent(userId, 10, {
+          app: 'eliza-cloud',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('ignored_other_app');
+
+        // Balance should remain 0 — event was filtered out
+        const balance = await getUserBalance(userId);
+        expect(balance).toBe(0);
+      });
+
+      it('should ignore charge.dispute.created with app=eliza-cloud', async () => {
+        const userId = await createDbUser(5000);
+        const paymentIntentId = `pi_ec_dispute_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        const event = createDisputeCreatedEvent(paymentIntentId, 50, {
+          app: 'eliza-cloud',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('ignored_other_app');
+
+        // Balance should remain unchanged
+        const balance = await getUserBalance(userId);
+        expect(balance).toBe(5000);
+      });
+
+      it('should ignore charge.dispute.closed (won) with app=eliza-cloud', async () => {
+        const userId = await createDbUser(0);
+        const paymentIntentId = `pi_ec_won_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        const event = createDisputeWonEvent(paymentIntentId, 50, {
+          app: 'eliza-cloud',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('ignored_other_app');
+
+        const balance = await getUserBalance(userId);
+        expect(balance).toBe(0);
+      });
+
+      it('should ignore charge.dispute.closed (lost) with app=eliza-cloud', async () => {
+        const userId = await createDbUser(0);
+        const paymentIntentId = `pi_ec_lost_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        const event = createDisputeLostEvent(paymentIntentId, 50, {
+          app: 'eliza-cloud',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('ignored_other_app');
+      });
+
+      it('should ignore charge.refunded with app=eliza-cloud', async () => {
+        const userId = await createDbUser(5000);
+        const paymentIntentId = `pi_ec_refund_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        const event = createChargeRefundedEvent(paymentIntentId, 25, 50, {
+          app: 'eliza-cloud',
+        });
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('ignored_other_app');
+
+        // Balance should remain unchanged
+        const balance = await getUserBalance(userId);
+        expect(balance).toBe(5000);
+      });
+    });
+
+    describe('Events without app metadata (backward compatibility)', () => {
+      it('should process checkout.session.completed without app tag', async () => {
+        const userId = await createDbUser();
+        const event = createCheckoutCompletedEvent(userId, 15);
+        // Remove app metadata to simulate legacy event
+        delete (event.data.object as MockCheckoutSession).metadata.app;
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('points_credited');
+
+        const balance = await getUserBalance(userId);
+        expect(balance).toBe(1500);
+      });
+
+      it('should process charge.dispute.created without app tag', async () => {
+        const userId = await createDbUser();
+        const paymentIntentId = `pi_noapp_dispute_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        await PointsService.purchasePoints(
+          userId,
+          40,
+          `cs_test_${Date.now()}`,
+          paymentIntentId,
+          'stripe'
+        );
+
+        const event = createDisputeCreatedEvent(paymentIntentId, 40);
+        // Remove app from metadata to simulate legacy
+        delete (event.data.object as MockDispute).metadata.app;
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('points_deducted_dispute');
+      });
+
+      it('should process charge.refunded without app tag', async () => {
+        const userId = await createDbUser();
+        const paymentIntentId = `pi_noapp_refund_${Date.now()}`;
+        paymentIntentToUser.set(paymentIntentId, userId);
+
+        await PointsService.purchasePoints(
+          userId,
+          20,
+          `cs_test_${Date.now()}`,
+          paymentIntentId,
+          'stripe'
+        );
+
+        const event = createChargeRefundedEvent(paymentIntentId, 20, 20);
+        // Remove app from metadata to simulate legacy
+        delete (event.data.object as MockCharge).metadata.app;
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('points_deducted_refund');
+      });
+    });
+
+    describe('subscription_details metadata fallback', () => {
+      it('should filter by subscription_details.metadata.app when top-level is empty', async () => {
+        // Simulate an event where app metadata is in subscription_details
+        const event: MockStripeEvent = {
+          id: `evt_sub_${Date.now()}`,
+          object: 'event',
+          type: 'invoice.payment_succeeded',
+          created: Date.now(),
+          data: {
+            object: {
+              metadata: {},
+              subscription_details: {
+                metadata: { app: 'eliza-cloud' },
+              },
+            },
+          },
+        };
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.action).toBe('ignored_other_app');
+      });
+
+      it('should allow subscription_details with app=babylon', async () => {
+        const event: MockStripeEvent = {
+          id: `evt_sub_bab_${Date.now()}`,
+          object: 'event',
+          type: 'invoice.payment_succeeded',
+          created: Date.now(),
+          data: {
+            object: {
+              metadata: {},
+              subscription_details: {
+                metadata: { app: 'babylon' },
+              },
+            },
+          },
+        };
+
+        const result = await processWebhookEvent(
+          event,
+          getUserIdFromPaymentIntent
+        );
+
+        // This unhandled event type passes the filter but is unhandled
+        expect(result.handled).toBe(false);
+        expect(result.action).toBe('unhandled_event_type');
+      });
     });
   });
 });
