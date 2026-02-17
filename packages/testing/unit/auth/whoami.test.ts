@@ -40,9 +40,6 @@ const mockValidateUserApiKey = mock(async (apiKey: string) => {
 // Track the userId being queried
 let lastQueriedUserId: string | null = null;
 
-// Expected headers for all auth responses
-const noCacheHeaders = { 'Cache-Control': 'no-store' };
-
 let GET: (request: NextRequest) => Promise<Response>;
 
 // Helper to create mock NextRequest
