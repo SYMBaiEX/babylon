@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
 import {
   calculateExpectedPayout,
   PredictionPricing,
-} from "@babylon/core/markets/prediction/client";
-import { FEE_CONFIG } from "@babylon/engine/config/fees";
-import { BABYLON_POINTS_SYMBOL, cn } from "@babylon/shared";
+} from '@babylon/core/markets/prediction/client';
+import { FEE_CONFIG } from '@babylon/engine/config/fees';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Check,
@@ -17,24 +17,24 @@ import {
   Star,
   Wallet,
   X,
-} from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { toast } from "sonner";
-import { AssetTradesFeed } from "@/components/markets/AssetTradesFeed";
-import { PerpPositionsList } from "@/components/markets/PerpPositionsList";
-import { PerpPriceChart } from "@/components/markets/PerpPriceChart";
-import { PredictionPositionsList } from "@/components/markets/PredictionPositionsList";
-import { PredictionProbabilityChart } from "@/components/markets/PredictionProbabilityChart";
+} from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { toast } from 'sonner';
+import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed';
+import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
+import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
+import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
+import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import {
   type BuyPredictionDetails,
   type SellPredictionDetails,
   TradeConfirmationDialog,
-} from "@/components/markets/TradeConfirmationDialog";
-import { Skeleton } from "@/components/shared/Skeleton";
-import { SpotlightTutorial } from "@/components/tutorial/SpotlightTutorial";
-import { TutorialHelpButton } from "@/components/tutorial/TutorialHelpButton";
+} from '@/components/markets/TradeConfirmationDialog';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { SpotlightTutorial } from '@/components/tutorial/SpotlightTutorial';
+import { TutorialHelpButton } from '@/components/tutorial/TutorialHelpButton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,57 +44,57 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useAuth } from "@/hooks/useAuth";
-import { usePerpHistory } from "@/hooks/usePerpHistory";
-import { usePortfolioPnL } from "@/hooks/usePortfolioPnL";
-import { usePredictionHistory } from "@/hooks/usePredictionHistory";
+} from '@/components/ui/alert-dialog';
+import { useAuth } from '@/hooks/useAuth';
+import { usePerpHistory } from '@/hooks/usePerpHistory';
+import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
+import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import type {
   PredictionResolutionSSE,
   PredictionTradeSSE,
-} from "@/hooks/usePredictionMarketStream";
-import { usePredictionMarketStream } from "@/hooks/usePredictionMarketStream";
+} from '@/hooks/usePredictionMarketStream';
+import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
 import {
   type MarketKey,
   useMarketWatchlistStore,
-} from "@/stores/marketWatchlistStore";
+} from '@/stores/marketWatchlistStore';
 import {
   usePerpMarkets,
   usePerpMarketsRealtime,
-} from "@/stores/perpMarketsStore";
+} from '@/stores/perpMarketsStore';
 import {
   usePredictionMarkets,
   usePredictionMarketsPolling,
-} from "@/stores/predictionMarketsStore";
+} from '@/stores/predictionMarketsStore';
 import {
   invalidateUserPositions,
   usePerpPositions,
   usePredictionPositions,
   useUserPositionsPolling,
-} from "@/stores/userPositionsStore";
+} from '@/stores/userPositionsStore';
 import {
   invalidateWalletBalance,
   useWalletBalance,
   useWalletBalancePolling,
-} from "@/stores/walletBalanceStore";
+} from '@/stores/walletBalanceStore';
 import type {
   MarketTimeRange,
   PerpMarket,
   PredictionMarket,
   TradeSide,
-} from "@/types/markets";
-import { MARKET_TIME_RANGES } from "@/types/markets";
-import { formatBalance } from "../../_lib/formatters";
-import { PerpsOrderEntryPanel } from "../perps-terminal/PerpsOrderEntryPanel";
-import { useMarketsTutorial } from "../tutorial/useMarketsTutorial";
-import { TerminalAgentsChat } from "./TerminalAgentsChat";
-import { TerminalPortfolio } from "./TerminalPortfolio";
-import { TerminalSocialFeed } from "./TerminalSocialFeed";
+} from '@/types/markets';
+import { MARKET_TIME_RANGES } from '@/types/markets';
+import { formatBalance } from '../../_lib/formatters';
+import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
+import { useMarketsTutorial } from '../tutorial/useMarketsTutorial';
+import { TerminalAgentsChat } from './TerminalAgentsChat';
+import { TerminalPortfolio } from './TerminalPortfolio';
+import { TerminalSocialFeed } from './TerminalSocialFeed';
 
-type MarketsFilter = "all" | "favorites" | "perp" | "prediction";
-type MarketsSort = "volume" | "change" | "openInterest" | "name";
-type BottomTab = "agent" | "social" | "portfolio" | "positions" | "trades";
-type MobileTab = "chart" | BottomTab;
+type MarketsFilter = 'all' | 'favorites' | 'perp' | 'prediction';
+type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
+type BottomTab = 'agent' | 'social' | 'portfolio' | 'positions' | 'trades';
+type MobileTab = 'chart' | BottomTab;
 
 /** Minimum shares threshold for sellable positions */
 const MIN_SELLABLE_SHARES = 0.01;
@@ -107,25 +107,25 @@ const REFRESH_COOLDOWN_MS = 5000;
  * Centralizing these ensures consistency between button labels and panel headers.
  */
 const BOTTOM_TAB_LABELS: Record<BottomTab, string> = {
-  agent: "Agents",
-  social: "Social",
-  portfolio: "Portfolio",
-  positions: "Positions",
-  trades: "Trades",
+  agent: 'Agents',
+  social: 'Social',
+  portfolio: 'Portfolio',
+  positions: 'Positions',
+  trades: 'Trades',
 };
 
 const MOBILE_TAB_LABELS: Record<MobileTab, string> = {
-  chart: "Chart",
+  chart: 'Chart',
   ...BOTTOM_TAB_LABELS,
 };
 
 const MOBILE_TABS: readonly MobileTab[] = [
-  "chart",
-  "agent",
-  "social",
-  "portfolio",
-  "positions",
-  "trades",
+  'chart',
+  'agent',
+  'social',
+  'portfolio',
+  'positions',
+  'trades',
 ];
 
 function MobileTabBar({
@@ -144,18 +144,18 @@ function MobileTabBar({
             type="button"
             onClick={() => onSelect(tab)}
             className={cn(
-              "relative flex h-9 shrink-0 items-center justify-center rounded-xl px-3 font-bold text-[11px] transition-colors duration-200",
+              'relative flex h-9 shrink-0 items-center justify-center rounded-xl px-3 font-bold text-[11px] transition-colors duration-200',
               activeTab === tab
-                ? "bg-muted/20 text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? 'bg-muted/20 text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
             )}
-            aria-current={activeTab === tab ? "page" : undefined}
+            aria-current={activeTab === tab ? 'page' : undefined}
           >
             {MOBILE_TAB_LABELS[tab]}
             <div
               className={cn(
-                "absolute right-2 bottom-0 left-2 h-0.5 origin-center rounded-full bg-foreground transition-transform duration-200",
-                activeTab === tab ? "scale-x-100" : "scale-x-0"
+                'absolute right-2 bottom-0 left-2 h-0.5 origin-center rounded-full bg-foreground transition-transform duration-200',
+                activeTab === tab ? 'scale-x-100' : 'scale-x-0'
               )}
             />
           </button>
@@ -187,7 +187,7 @@ interface PredictionMarketTerminalState extends PredictionMarket {
 
 interface UnifiedRow {
   key: MarketKey;
-  kind: "perp" | "prediction";
+  kind: 'perp' | 'prediction';
   title: string;
   subtitle: string;
   valuePrimary: string;
@@ -201,58 +201,58 @@ interface UnifiedRow {
 }
 
 function parseFilter(params: URLSearchParams): MarketsFilter {
-  const filter = params.get("filter");
+  const filter = params.get('filter');
   if (
-    filter === "perp" ||
-    filter === "prediction" ||
-    filter === "favorites" ||
-    filter === "all"
+    filter === 'perp' ||
+    filter === 'prediction' ||
+    filter === 'favorites' ||
+    filter === 'all'
   ) {
     return filter;
   }
-  const tab = params.get("tab") ?? params.get("tabs");
-  if (tab === "perps") return "perp";
-  if (tab === "predictions") return "prediction";
-  return "all";
+  const tab = params.get('tab') ?? params.get('tabs');
+  if (tab === 'perps') return 'perp';
+  if (tab === 'predictions') return 'prediction';
+  return 'all';
 }
 
 function parseSort(params: URLSearchParams): MarketsSort {
-  const sort = params.get("sort");
+  const sort = params.get('sort');
   if (
-    sort === "volume" ||
-    sort === "change" ||
-    sort === "openInterest" ||
-    sort === "name"
+    sort === 'volume' ||
+    sort === 'change' ||
+    sort === 'openInterest' ||
+    sort === 'name'
   ) {
     return sort;
   }
-  return "volume";
+  return 'volume';
 }
 
 function parseSortDesc(params: URLSearchParams): boolean {
-  const dir = params.get("sortDir");
-  if (dir === "asc") return false;
-  if (dir === "desc") return true;
+  const dir = params.get('sortDir');
+  if (dir === 'asc') return false;
+  if (dir === 'desc') return true;
   return true;
 }
 
 function parseSelected(params: URLSearchParams): MarketKey | null {
-  const kind = params.get("marketKind");
-  const id = params.get("marketId");
+  const kind = params.get('marketKind');
+  const id = params.get('marketId');
   if (!kind || !id) return null;
-  if (kind !== "perp" && kind !== "prediction") return null;
+  if (kind !== 'perp' && kind !== 'prediction') return null;
   return { kind, id };
 }
 
 function parsePerpSide(params: URLSearchParams): TradeSide | null {
-  const side = params.get("side");
-  if (side === "long" || side === "short") return side;
+  const side = params.get('side');
+  if (side === 'long' || side === 'short') return side;
   return null;
 }
 
-function parsePredictionSide(params: URLSearchParams): "yes" | "no" | null {
-  const side = params.get("side");
-  if (side === "yes" || side === "no") return side;
+function parsePredictionSide(params: URLSearchParams): 'yes' | 'no' | null {
+  const side = params.get('side');
+  if (side === 'yes' || side === 'no') return side;
   return null;
 }
 
@@ -264,9 +264,9 @@ function formatYesPct(raw: number): string {
 }
 
 function formatDate(dateStr: string | undefined | null): string {
-  if (!dateStr) return "";
+  if (!dateStr) return '';
   const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString();
 }
 
@@ -301,10 +301,10 @@ function TimeRangeSelector({
           type="button"
           onClick={() => onTimeRangeChange(range)}
           className={cn(
-            "rounded px-2 py-1 transition-colors",
+            'rounded px-2 py-1 transition-colors',
             timeRange === range
-              ? "bg-foreground text-background"
-              : "text-muted-foreground hover:text-foreground"
+              ? 'bg-foreground text-background'
+              : 'text-muted-foreground hover:text-foreground'
           )}
         >
           {range}
@@ -321,43 +321,43 @@ function PredictionMarketHeader({
   timeRange,
   onTimeRangeChange,
   onDetailsClick,
-  variant = "default",
+  variant = 'default',
 }: {
   predictionState: PredictionMarketTerminalState | null;
   yesPct: number;
   timeRange: MarketTimeRange;
   onTimeRangeChange: (range: MarketTimeRange) => void;
   onDetailsClick: () => void;
-  variant?: "default" | "compact";
+  variant?: 'default' | 'compact';
 }) {
-  const isCompact = variant === "compact";
+  const isCompact = variant === 'compact';
   const titleClass = isCompact
-    ? "whitespace-normal break-words font-bold text-sm leading-snug"
-    : "whitespace-normal break-words font-bold text-foreground text-lg leading-snug";
+    ? 'whitespace-normal break-words font-bold text-sm leading-snug'
+    : 'whitespace-normal break-words font-bold text-foreground text-lg leading-snug';
 
   return (
     <div
       className={cn(
-        "shrink-0 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md",
-        isCompact ? "space-y-2" : ""
+        'shrink-0 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md',
+        isCompact ? 'space-y-2' : ''
       )}
     >
       <div
         className={cn(
-          "flex gap-3",
+          'flex gap-3',
           isCompact
-            ? "items-start justify-between"
-            : "flex-col lg:flex-row lg:items-start lg:justify-between"
+            ? 'items-start justify-between'
+            : 'flex-col lg:flex-row lg:items-start lg:justify-between'
         )}
       >
         <div className="min-w-0">
           <div className={titleClass}>
-            {predictionState?.text ?? "Prediction market"}
+            {predictionState?.text ?? 'Prediction market'}
           </div>
           <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
             {predictionState?.resolutionDescription?.trim()
               ? predictionState.resolutionDescription
-              : `Scenario ${predictionState?.scenario ?? ""}`}
+              : `Scenario ${predictionState?.scenario ?? ''}`}
           </div>
         </div>
         {isCompact ? (
@@ -375,10 +375,10 @@ function PredictionMarketHeader({
 
       <div
         className={cn(
-          "flex items-center gap-2",
+          'flex items-center gap-2',
           isCompact
-            ? "flex-wrap justify-between"
-            : "flex-col gap-2 lg:items-end"
+            ? 'flex-wrap justify-between'
+            : 'flex-col gap-2 lg:items-end'
         )}
       >
         <div className="flex items-center gap-2">
@@ -414,17 +414,17 @@ function PerpMarketHeader({
   selectedPerp,
   timeRange,
   onTimeRangeChange,
-  variant = "default",
+  variant = 'default',
 }: {
   selectedPerp: PerpMarket;
   timeRange: MarketTimeRange;
   onTimeRangeChange: (range: MarketTimeRange) => void;
-  variant?: "default" | "compact";
+  variant?: 'default' | 'compact';
 }) {
-  const isCompact = variant === "compact";
+  const isCompact = variant === 'compact';
   const titleClass = isCompact
-    ? "font-bold text-foreground text-sm"
-    : "font-bold text-foreground text-lg";
+    ? 'font-bold text-foreground text-sm'
+    : 'font-bold text-foreground text-lg';
 
   return (
     <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
@@ -456,7 +456,7 @@ export function MarketsTradingTerminal({
   } | null>(null);
 
   const { user, authenticated, login, getAccessToken } = useAuth();
-  const userId = authenticated ? user?.id ?? null : null;
+  const userId = authenticated ? (user?.id ?? null) : null;
 
   const {
     markets: perpMarkets,
@@ -500,7 +500,7 @@ export function MarketsTradingTerminal({
     parseSort(searchParams)
   );
   const [sortDesc, setSortDesc] = useState(() => parseSortDesc(searchParams));
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<MarketKey | null>(() =>
     parseSelected(searchParams)
   );
@@ -508,26 +508,26 @@ export function MarketsTradingTerminal({
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const marketDropdownRef = useRef<HTMLDivElement | null>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
-  const [bottomTab, setBottomTab] = useState<BottomTab>("agent");
+  const [bottomTab, setBottomTab] = useState<BottomTab>('agent');
 
   const [showMarketsMenu, setShowMarketsMenu] = useState(false);
   const marketsMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const [predictionSide, setPredictionSide] = useState<"yes" | "no">(
-    () => parsePredictionSide(searchParams) ?? "yes"
+  const [predictionSide, setPredictionSide] = useState<'yes' | 'no'>(
+    () => parsePredictionSide(searchParams) ?? 'yes'
   );
-  const [predictionAmount, setPredictionAmount] = useState("10");
+  const [predictionAmount, setPredictionAmount] = useState('10');
   const [predictionTradeMode, setPredictionTradeMode] = useState<
-    "buy" | "sell"
-  >("buy");
-  const [predictionSellShares, setPredictionSellShares] = useState("");
+    'buy' | 'sell'
+  >('buy');
+  const [predictionSellShares, setPredictionSellShares] = useState('');
   const [predictionSubmitting, setPredictionSubmitting] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [predictionDetailsOpen, setPredictionDetailsOpen] = useState(false);
 
-  const [perpTimeRange, setPerpTimeRange] = useState<MarketTimeRange>("1D");
+  const [perpTimeRange, setPerpTimeRange] = useState<MarketTimeRange>('1D');
   const [predictionTimeRange, setPredictionTimeRange] =
-    useState<MarketTimeRange>("ALL");
+    useState<MarketTimeRange>('ALL');
   const [perpSideFromUrl, setPerpSideFromUrl] = useState<TradeSide | null>(() =>
     parsePerpSide(searchParams)
   );
@@ -560,11 +560,11 @@ export function MarketsTradingTerminal({
     setMarketDropdownOpen(step.target === '[data-tour="market-dropdown"]');
 
     // Auto-switch bottom tab based on step title
-    if (step.title === "Social Feed") {
-      setBottomTab("social");
+    if (step.title === 'Social Feed') {
+      setBottomTab('social');
       setBottomCollapsed(false);
-    } else if (step.title === "AI Agents") {
-      setBottomTab("agent");
+    } else if (step.title === 'AI Agents') {
+      setBottomTab('agent');
       setBottomCollapsed(false);
     }
   }, [tutorial.isActive, tutorial.currentStep, tutorial.steps]);
@@ -593,7 +593,7 @@ export function MarketsTradingTerminal({
     (tab: MobileTab) => {
       setIsMobileChartFullscreen(false);
 
-      if (tab === "chart") {
+      if (tab === 'chart') {
         // Only remount chart when returning from a non-chart surface
         const wasOnChart =
           !isMobilePanelOpen &&
@@ -681,11 +681,11 @@ export function MarketsTradingTerminal({
   // React tree, so we can't use props/context. The 'app-bottom-nav' ID is set in BottomNav.tsx.
   useEffect(() => {
     // SSR safety: ensure we're in browser environment
-    if (typeof window === "undefined") {
+    if (typeof window === 'undefined') {
       return () => {};
     }
 
-    const bottomNav = document.getElementById("app-bottom-nav");
+    const bottomNav = document.getElementById('app-bottom-nav');
 
     // Define update function outside conditional for consistent cleanup
     const updateHeight = () => {
@@ -706,16 +706,16 @@ export function MarketsTradingTerminal({
 
     // ResizeObserver may not exist in older browsers
     const resizeObserver =
-      typeof ResizeObserver !== "undefined"
+      typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => updateHeight())
         : null;
 
     resizeObserver?.observe(bottomNav);
-    window.addEventListener("resize", updateHeight, { passive: true });
+    window.addEventListener('resize', updateHeight, { passive: true });
 
     return () => {
       resizeObserver?.disconnect();
-      window.removeEventListener("resize", updateHeight);
+      window.removeEventListener('resize', updateHeight);
     };
   }, []);
 
@@ -726,13 +726,13 @@ export function MarketsTradingTerminal({
       body: document.body.style.overflow,
       html: document.documentElement.style.overflow,
     };
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
 
     return () => {
-      document.body.style.overflow = previousOverflowRef.current?.body ?? "";
+      document.body.style.overflow = previousOverflowRef.current?.body ?? '';
       document.documentElement.style.overflow =
-        previousOverflowRef.current?.html ?? "";
+        previousOverflowRef.current?.html ?? '';
       previousOverflowRef.current = null;
     };
   }, [isFullscreen]);
@@ -740,10 +740,10 @@ export function MarketsTradingTerminal({
   useEffect(() => {
     if (!isFullscreen) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsFullscreen(false);
+      if (event.key === 'Escape') setIsFullscreen(false);
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [isFullscreen]);
 
   const toggleFullscreen = useCallback(() => {
@@ -763,14 +763,14 @@ export function MarketsTradingTerminal({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setShowMarketsMenu(false);
+      if (event.key === 'Escape') setShowMarketsMenu(false);
     };
 
-    document.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [showMarketsMenu]);
 
@@ -781,7 +781,7 @@ export function MarketsTradingTerminal({
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       // Ignore clicks on the dropdown trigger buttons to avoid close-then-reopen
-      if (target.closest?.("[data-market-dropdown-trigger]")) return;
+      if (target.closest?.('[data-market-dropdown-trigger]')) return;
       if (
         marketDropdownRef.current &&
         !marketDropdownRef.current.contains(target)
@@ -791,14 +791,14 @@ export function MarketsTradingTerminal({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMarketDropdownOpen(false);
+      if (event.key === 'Escape') setMarketDropdownOpen(false);
     };
 
-    document.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [marketDropdownOpen]);
 
@@ -828,8 +828,8 @@ export function MarketsTradingTerminal({
     const q = query.trim().toLowerCase();
 
     const perps: UnifiedRow[] = perpMarkets.map((m) => ({
-      key: { kind: "perp", id: m.ticker },
-      kind: "perp",
+      key: { kind: 'perp', id: m.ticker },
+      kind: 'perp',
       title: m.ticker,
       subtitle: m.name,
       valuePrimary: `${BABYLON_POINTS_SYMBOL}${m.currentPrice.toFixed(2)}`,
@@ -847,17 +847,17 @@ export function MarketsTradingTerminal({
       );
       const vol = Number(m.yesShares ?? 0) + Number(m.noShares ?? 0);
       return {
-        key: { kind: "prediction", id: m.id.toString() },
-        kind: "prediction",
+        key: { kind: 'prediction', id: m.id.toString() },
+        kind: 'prediction',
         title: m.text,
         subtitle: `Scenario ${m.scenario}`,
         valuePrimary: `YES ${formatYesPct(yesPct)}`,
         valueSecondary:
-          m.status !== "active"
+          m.status !== 'active'
             ? m.status.toUpperCase()
             : vol > 0
-            ? `Vol ${Math.round(vol).toLocaleString()}`
-            : undefined,
+              ? `Vol ${Math.round(vol).toLocaleString()}`
+              : undefined,
         change24hPct: null,
         sortVolume: vol,
         sortOpenInterest: 0,
@@ -869,16 +869,16 @@ export function MarketsTradingTerminal({
     const combined = [...perps, ...preds];
 
     const filtered = combined.filter((row) => {
-      if (filter === "favorites") {
+      if (filter === 'favorites') {
         if (!isFavorite(row.key)) return false;
-      } else if (filter !== "all" && row.kind !== filter) {
+      } else if (filter !== 'all' && row.kind !== filter) {
         return false;
       }
       if (q.length === 0) return true;
       return (
         row.title.toLowerCase().includes(q) ||
         row.subtitle.toLowerCase().includes(q) ||
-        (row.kind === "perp" && row.perpMarket?.name.toLowerCase().includes(q))
+        (row.kind === 'perp' && row.perpMarket?.name.toLowerCase().includes(q))
       );
     });
 
@@ -886,12 +886,12 @@ export function MarketsTradingTerminal({
       const compareNumbers = (valA: number, valB: number) =>
         sortDesc ? valB - valA : valA - valB;
 
-      if (sortBy === "name") {
+      if (sortBy === 'name') {
         const byName = a.sortName.localeCompare(b.sortName);
         return sortDesc ? -byName : byName;
       }
 
-      if (sortBy === "change") {
+      if (sortBy === 'change') {
         // Use direction-aware sentinel so nulls always sort last
         const sentinel = sortDesc
           ? Number.NEGATIVE_INFINITY
@@ -900,7 +900,7 @@ export function MarketsTradingTerminal({
         const valB = b.change24hPct ?? sentinel;
         const byChange = compareNumbers(valA, valB);
         if (byChange !== 0) return byChange;
-      } else if (sortBy === "openInterest") {
+      } else if (sortBy === 'openInterest') {
         const byOI = compareNumbers(a.sortOpenInterest, b.sortOpenInterest);
         if (byOI !== 0) return byOI;
       } else {
@@ -930,12 +930,12 @@ export function MarketsTradingTerminal({
       setSelected(key);
       if (key) {
         const next = new URLSearchParams(searchParams.toString());
-        next.set("marketKind", key.kind);
-        next.set("marketId", key.id);
-        next.set("filter", filter);
-        next.delete("tab");
-        next.delete("tabs");
-        next.delete("side");
+        next.set('marketKind', key.kind);
+        next.set('marketId', key.id);
+        next.set('filter', filter);
+        next.delete('tab');
+        next.delete('tabs');
+        next.delete('side');
         router.replace(`/markets?${next.toString()}`, { scroll: false });
       }
     };
@@ -955,7 +955,7 @@ export function MarketsTradingTerminal({
   // Removed: auto-open dropdown — keep it closed by default
 
   const selectedPerp = useMemo(() => {
-    if (!selected || selected.kind !== "perp") return null;
+    if (!selected || selected.kind !== 'perp') return null;
     return (
       perpMarkets.find(
         (m) => m.ticker.toUpperCase() === selected.id.toUpperCase()
@@ -967,7 +967,7 @@ export function MarketsTradingTerminal({
     useState<PredictionMarketTerminalState | null>(null);
 
   useEffect(() => {
-    if (!selected || selected.kind !== "prediction") {
+    if (!selected || selected.kind !== 'prediction') {
       setPredictionState(null);
       return;
     }
@@ -1000,7 +1000,7 @@ export function MarketsTradingTerminal({
         return {
           ...prev,
           resolved: true,
-          resolution: event.winningSide === "yes",
+          resolution: event.winningSide === 'yes',
           yesShares: event.yesShares,
           noShares: event.noShares,
           liquidity: event.liquidity ?? prev.liquidity,
@@ -1013,7 +1013,7 @@ export function MarketsTradingTerminal({
   );
 
   usePredictionMarketStream(
-    selected?.kind === "prediction" ? selected.id : null,
+    selected?.kind === 'prediction' ? selected.id : null,
     {
       onTrade: handlePredictionTradeEvent,
       onResolution: handlePredictionResolutionEvent,
@@ -1061,7 +1061,7 @@ export function MarketsTradingTerminal({
   );
 
   const { history: predictionHistory, refresh: refreshPredictionHistory } =
-    usePredictionHistory(selected?.kind === "prediction" ? selected.id : null, {
+    usePredictionHistory(selected?.kind === 'prediction' ? selected.id : null, {
       limit: 1000,
       seed: predictionHistorySeed,
       range: predictionTimeRange,
@@ -1076,12 +1076,12 @@ export function MarketsTradingTerminal({
     (key: MarketKey) => {
       setSelected(key);
       const next = new URLSearchParams(searchParams.toString());
-      next.set("marketKind", key.kind);
-      next.set("marketId", key.id);
-      next.set("filter", filter);
-      next.delete("tab");
-      next.delete("tabs");
-      next.delete("side");
+      next.set('marketKind', key.kind);
+      next.set('marketId', key.id);
+      next.set('filter', filter);
+      next.delete('tab');
+      next.delete('tabs');
+      next.delete('side');
       router.replace(`/markets?${next.toString()}`, { scroll: false });
       setMarketDropdownOpen(false);
       setIsMobileMarketListOpen(false);
@@ -1093,10 +1093,10 @@ export function MarketsTradingTerminal({
     (nextFilter: MarketsFilter) => {
       setFilter(nextFilter);
       const next = new URLSearchParams(searchParams.toString());
-      next.set("filter", nextFilter);
-      next.delete("tab");
-      next.delete("tabs");
-      next.delete("side");
+      next.set('filter', nextFilter);
+      next.delete('tab');
+      next.delete('tabs');
+      next.delete('side');
       router.replace(`/markets?${next.toString()}`, { scroll: false });
     },
     [router, searchParams]
@@ -1108,13 +1108,13 @@ export function MarketsTradingTerminal({
       if (sortBy === nextSort) {
         const nextDesc = !sortDesc;
         setSortDesc(nextDesc);
-        next.set("sort", nextSort);
-        next.set("sortDir", nextDesc ? "desc" : "asc");
+        next.set('sort', nextSort);
+        next.set('sortDir', nextDesc ? 'desc' : 'asc');
       } else {
         setSortBy(nextSort);
         setSortDesc(true);
-        next.set("sort", nextSort);
-        next.set("sortDir", "desc");
+        next.set('sort', nextSort);
+        next.set('sortDir', 'desc');
       }
       router.replace(`/markets?${next.toString()}`, { scroll: false });
     },
@@ -1122,7 +1122,7 @@ export function MarketsTradingTerminal({
   );
 
   const selectedPredictionId =
-    selected?.kind === "prediction" ? selected.id : null;
+    selected?.kind === 'prediction' ? selected.id : null;
   const selectedPredictionPositions = useMemo(() => {
     if (!selectedPredictionId) return [];
     return predictionPositions.filter(
@@ -1135,10 +1135,10 @@ export function MarketsTradingTerminal({
   // a user might have multiple small positions that sum above threshold but none are sellable.
   const sellablePositions = useMemo(() => {
     const sellableYes = selectedPredictionPositions.filter(
-      (p) => p.side === "YES" && p.shares >= MIN_SELLABLE_SHARES
+      (p) => p.side === 'YES' && p.shares >= MIN_SELLABLE_SHARES
     );
     const sellableNo = selectedPredictionPositions.filter(
-      (p) => p.side === "NO" && p.shares >= MIN_SELLABLE_SHARES
+      (p) => p.side === 'NO' && p.shares >= MIN_SELLABLE_SHARES
     );
     return {
       hasSellableYes: sellableYes.length > 0,
@@ -1155,29 +1155,29 @@ export function MarketsTradingTerminal({
   // Consolidated sell mode effect - handles both mode switching and side switching
   // to prevent cascading state updates from separate effects
   useEffect(() => {
-    if (predictionTradeMode !== "sell") return;
+    if (predictionTradeMode !== 'sell') return;
 
     // If can't sell at all, switch to buy mode
     if (!canSellPrediction) {
-      setPredictionTradeMode("buy");
-      setPredictionSellShares("");
+      setPredictionTradeMode('buy');
+      setPredictionSellShares('');
       return;
     }
 
     // If can sell but not on current side, switch to the other side
     const canSellThisSide =
-      predictionSide === "yes"
+      predictionSide === 'yes'
         ? sellablePositions.hasSellableYes
         : sellablePositions.hasSellableNo;
 
     if (!canSellThisSide) {
       const canSellOtherSide =
-        predictionSide === "yes"
+        predictionSide === 'yes'
           ? sellablePositions.hasSellableNo
           : sellablePositions.hasSellableYes;
       if (canSellOtherSide) {
-        setPredictionSide((prev) => (prev === "yes" ? "no" : "yes"));
-        setPredictionSellShares("");
+        setPredictionSide((prev) => (prev === 'yes' ? 'no' : 'yes'));
+        setPredictionSellShares('');
       }
     }
   }, [
@@ -1198,7 +1198,7 @@ export function MarketsTradingTerminal({
 
   const otherPerpPositions = useMemo(() => {
     if (perpPositions.length === 0) return [];
-    if (selected?.kind !== "perp" || !selectedPerpTickerUpper) {
+    if (selected?.kind !== 'perp' || !selectedPerpTickerUpper) {
       return perpPositions;
     }
     return perpPositions.filter(
@@ -1208,7 +1208,7 @@ export function MarketsTradingTerminal({
 
   const otherPredictionPositions = useMemo(() => {
     if (predictionPositions.length === 0) return [];
-    if (selected?.kind !== "prediction" || !selectedPredictionId) {
+    if (selected?.kind !== 'prediction' || !selectedPredictionId) {
       return predictionPositions;
     }
     return predictionPositions.filter(
@@ -1236,7 +1236,7 @@ export function MarketsTradingTerminal({
   }, [predictionEffectiveShares, predictionSide, predictionAmountNum]);
 
   const sellPosition = useMemo(() => {
-    const wantedSide = predictionSide.toUpperCase() as "YES" | "NO";
+    const wantedSide = predictionSide.toUpperCase() as 'YES' | 'NO';
     const candidates = selectedPredictionPositions.filter(
       (p) => p.side === wantedSide && p.shares >= MIN_SELLABLE_SHARES
     );
@@ -1291,22 +1291,22 @@ export function MarketsTradingTerminal({
       return;
     }
     if (!predictionState) return;
-    if (predictionState.status !== "active" || predictionState.resolved) {
-      toast.error("This market is not active.");
+    if (predictionState.status !== 'active' || predictionState.resolved) {
+      toast.error('This market is not active.');
       return;
     }
-    if (predictionTradeMode === "buy") {
+    if (predictionTradeMode === 'buy') {
       if (predictionAmountNum < 1) {
         toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
         return;
       }
       if (!predictionBuyCalculation) {
-        toast.error("Unable to calculate buy quote.");
+        toast.error('Unable to calculate buy quote.');
         return;
       }
     } else {
       if (!sellPosition) {
-        toast.error("No sellable position for this side.");
+        toast.error('No sellable position for this side.');
         return;
       }
       if (clampedSellShares < MIN_SELLABLE_SHARES) {
@@ -1314,7 +1314,7 @@ export function MarketsTradingTerminal({
         return;
       }
       if (!predictionSellCalculation) {
-        toast.error("Unable to calculate sell quote.");
+        toast.error('Unable to calculate sell quote.');
         return;
       }
     }
@@ -1323,13 +1323,13 @@ export function MarketsTradingTerminal({
 
   const handleConfirmPredictionTrade = async () => {
     if (!predictionState) return;
-    if (predictionTradeMode === "buy" && !predictionBuyCalculation) {
-      toast.error("Invalid buy amount.");
+    if (predictionTradeMode === 'buy' && !predictionBuyCalculation) {
+      toast.error('Invalid buy amount.');
       return;
     }
-    if (predictionTradeMode === "sell") {
+    if (predictionTradeMode === 'sell') {
       if (!sellPosition) {
-        toast.error("No sellable position for this side.");
+        toast.error('No sellable position for this side.');
         return;
       }
       if (clampedSellShares < MIN_SELLABLE_SHARES) {
@@ -1337,7 +1337,7 @@ export function MarketsTradingTerminal({
         return;
       }
       if (!predictionSellCalculation) {
-        toast.error("Unable to calculate sell quote.");
+        toast.error('Unable to calculate sell quote.');
         return;
       }
     }
@@ -1348,12 +1348,12 @@ export function MarketsTradingTerminal({
     try {
       const token = await getAccessToken();
       if (!token) {
-        toast.error("Authentication required. Please log in.");
+        toast.error('Authentication required. Please log in.');
         return;
       }
 
       const url =
-        predictionTradeMode === "buy"
+        predictionTradeMode === 'buy'
           ? `/api/markets/predictions/${encodeURIComponent(
               predictionState.id.toString()
             )}/buy`
@@ -1363,14 +1363,14 @@ export function MarketsTradingTerminal({
 
       // Note: sellPosition is validated earlier in this function for sell mode
       const body =
-        predictionTradeMode === "buy"
+        predictionTradeMode === 'buy'
           ? { side: predictionSide, amount: predictionAmountNum }
           : { shares: clampedSellShares, positionId: sellPosition!.id };
 
       const response = await fetch(url, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(body),
@@ -1389,22 +1389,22 @@ export function MarketsTradingTerminal({
           message?: unknown;
         } | null;
         const errorMessage =
-          typeof maybeError?.error === "object"
+          typeof maybeError?.error === 'object'
             ? ((maybeError.error as { message?: unknown })
                 ?.message as string) ||
-              (predictionTradeMode === "sell"
-                ? "Failed to sell shares"
-                : "Failed to buy shares")
+              (predictionTradeMode === 'sell'
+                ? 'Failed to sell shares'
+                : 'Failed to buy shares')
             : (maybeError?.error as string) ||
               (maybeError?.message as string) ||
-              (predictionTradeMode === "sell"
-                ? "Failed to sell shares"
-                : "Failed to buy shares");
+              (predictionTradeMode === 'sell'
+                ? 'Failed to sell shares'
+                : 'Failed to buy shares');
         toast.error(errorMessage);
         return;
       }
 
-      if (predictionTradeMode === "buy") {
+      if (predictionTradeMode === 'buy') {
         toast.success(`Bought ${predictionSide.toUpperCase()} shares!`, {
           description: predictionBuyCalculation
             ? `${predictionBuyCalculation.sharesBought.toFixed(
@@ -1429,7 +1429,7 @@ export function MarketsTradingTerminal({
       ]);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to trade";
+        error instanceof Error ? error.message : 'Failed to trade';
       toast.error(message);
     } finally {
       setPredictionSubmitting(false);
@@ -1465,10 +1465,10 @@ export function MarketsTradingTerminal({
             aria-expanded={showMarketsMenu}
             aria-controls="markets-filter-sort"
             className={cn(
-              "shrink-0 rounded p-2 transition-colors hover:bg-muted/20",
-              showMarketsMenu || sortBy !== "volume" || sortDesc !== true
-                ? "bg-muted/20 text-primary"
-                : "text-muted-foreground"
+              'shrink-0 rounded p-2 transition-colors hover:bg-muted/20',
+              showMarketsMenu || sortBy !== 'volume' || sortDesc !== true
+                ? 'bg-muted/20 text-primary'
+                : 'text-muted-foreground'
             )}
             aria-label="Sort markets"
             title="Sort"
@@ -1487,27 +1487,27 @@ export function MarketsTradingTerminal({
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/20"
               onClick={() => {
                 handleFilterChange(
-                  filter === "favorites" ? "all" : "favorites"
+                  filter === 'favorites' ? 'all' : 'favorites'
                 );
               }}
             >
               <div
                 className={cn(
-                  "flex h-3.5 w-3.5 items-center justify-center rounded-sm border transition-colors",
-                  filter === "favorites"
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground/40"
+                  'flex h-3.5 w-3.5 items-center justify-center rounded-sm border transition-colors',
+                  filter === 'favorites'
+                    ? 'border-primary bg-primary'
+                    : 'border-muted-foreground/40'
                 )}
               >
-                {filter === "favorites" && (
+                {filter === 'favorites' && (
                   <Check size={10} className="text-primary-foreground" />
                 )}
               </div>
               <span
                 className={cn(
-                  filter === "favorites"
-                    ? "font-medium text-primary"
-                    : "text-foreground"
+                  filter === 'favorites'
+                    ? 'font-medium text-primary'
+                    : 'text-foreground'
                 )}
               >
                 Favorites only
@@ -1521,10 +1521,10 @@ export function MarketsTradingTerminal({
             </div>
             {(
               [
-                { id: "volume", label: "Volume" },
-                { id: "change", label: "24h Change" },
-                { id: "openInterest", label: "Open Interest" },
-                { id: "name", label: "Name" },
+                { id: 'volume', label: 'Volume' },
+                { id: 'change', label: '24h Change' },
+                { id: 'openInterest', label: 'Open Interest' },
+                { id: 'name', label: 'Name' },
               ] as const
             ).map((opt) => (
               <button
@@ -1536,8 +1536,8 @@ export function MarketsTradingTerminal({
                 <span
                   className={cn(
                     opt.id === sortBy
-                      ? "font-medium text-primary"
-                      : "text-foreground"
+                      ? 'font-medium text-primary'
+                      : 'text-foreground'
                   )}
                 >
                   {opt.label}
@@ -1546,8 +1546,8 @@ export function MarketsTradingTerminal({
                   <ArrowUpDown
                     size={12}
                     className={cn(
-                      "text-primary transition-transform",
-                      sortDesc ? "rotate-0" : "rotate-180"
+                      'text-primary transition-transform',
+                      sortDesc ? 'rotate-0' : 'rotate-180'
                     )}
                   />
                 )}
@@ -1560,23 +1560,23 @@ export function MarketsTradingTerminal({
       <div className="relative flex shrink-0">
         {(
           [
-            { id: "all", label: "All" },
-            { id: "perp", label: "Perps" },
-            { id: "prediction", label: "Prediction" },
+            { id: 'all', label: 'All' },
+            { id: 'perp', label: 'Perps' },
+            { id: 'prediction', label: 'Prediction' },
           ] as const
         ).map((tab) => {
           const isActive =
-            filter === tab.id || (tab.id === "all" && filter === "favorites");
+            filter === tab.id || (tab.id === 'all' && filter === 'favorites');
           return (
             <button
               key={tab.id}
               type="button"
               onClick={() => handleFilterChange(tab.id)}
               className={cn(
-                "relative flex-1 py-2.5 font-semibold text-xs transition-colors hover:bg-muted/20",
+                'relative flex-1 py-2.5 font-semibold text-xs transition-colors hover:bg-muted/20',
                 isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground"
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground'
               )}
             >
               {tab.label}
@@ -1630,8 +1630,8 @@ export function MarketsTradingTerminal({
                   <tr
                     key={`${row.key.kind}:${row.key.id}`}
                     className={cn(
-                      "cursor-pointer border-white/5 border-b transition-colors hover:bg-muted/20",
-                      active && "bg-muted/30"
+                      'cursor-pointer border-white/5 border-b transition-colors hover:bg-muted/20',
+                      active && 'bg-muted/30'
                     )}
                     onClick={() => handleSelect(row.key)}
                   >
@@ -1643,14 +1643,14 @@ export function MarketsTradingTerminal({
                           toggleFavorite(row.key);
                         }}
                         className={cn(
-                          "text-muted-foreground/60 transition-colors hover:text-yellow-400",
-                          isFavorite(row.key) && "text-yellow-400"
+                          'text-muted-foreground/60 transition-colors hover:text-yellow-400',
+                          isFavorite(row.key) && 'text-yellow-400'
                         )}
                         aria-label="Toggle favorite"
                       >
                         <Star
                           size={14}
-                          fill={isFavorite(row.key) ? "currentColor" : "none"}
+                          fill={isFavorite(row.key) ? 'currentColor' : 'none'}
                         />
                       </button>
                     </td>
@@ -1675,16 +1675,16 @@ export function MarketsTradingTerminal({
                       )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-right">
-                      {row.kind === "perp" && change != null ? (
+                      {row.kind === 'perp' && change != null ? (
                         <div
                           className={cn(
-                            "inline-flex items-center justify-end rounded-full px-2 py-0.5 font-bold text-[10px] tabular-nums",
+                            'inline-flex items-center justify-end rounded-full px-2 py-0.5 font-bold text-[10px] tabular-nums',
                             change >= 0
-                              ? "bg-green-500/10 text-green-500"
-                              : "bg-red-500/10 text-red-500"
+                              ? 'bg-green-500/10 text-green-500'
+                              : 'bg-red-500/10 text-red-500'
                           )}
                         >
-                          {change >= 0 ? "+" : ""}
+                          {change >= 0 ? '+' : ''}
                           {change.toFixed(2)}%
                         </div>
                       ) : (
@@ -1737,7 +1737,7 @@ export function MarketsTradingTerminal({
       data-tour="chart-area"
       className="flex h-full min-h-0 flex-col bg-background/10"
     >
-      {selected?.kind === "prediction" ? (
+      {selected?.kind === 'prediction' ? (
         <>
           <div className="relative shrink-0 border-white/5 border-b px-4 py-2.5">
             {/* Row 1: Title + action buttons */}
@@ -1753,13 +1753,13 @@ export function MarketsTradingTerminal({
                     <ChevronDown
                       size={14}
                       className={cn(
-                        "transition-transform",
-                        marketDropdownOpen && "rotate-180"
+                        'transition-transform',
+                        marketDropdownOpen && 'rotate-180'
                       )}
                     />
                   </span>
                   <span className="line-clamp-2 text-balance font-semibold text-foreground text-sm leading-snug">
-                    {predictionState?.text ?? "Prediction market"}
+                    {predictionState?.text ?? 'Prediction market'}
                   </span>
                 </button>
                 {marketDropdown}
@@ -1780,10 +1780,10 @@ export function MarketsTradingTerminal({
                   aria-pressed={isFullscreen}
                   aria-label={
                     isFullscreen
-                      ? "Exit fullscreen terminal view"
-                      : "Enter fullscreen terminal view"
+                      ? 'Exit fullscreen terminal view'
+                      : 'Enter fullscreen terminal view'
                   }
-                  title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
                   className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
                 >
                   {isFullscreen ? (
@@ -1802,7 +1802,7 @@ export function MarketsTradingTerminal({
                 <div className="truncate text-muted-foreground text-xs">
                   {predictionState?.resolutionDescription?.trim()
                     ? predictionState.resolutionDescription
-                    : `Scenario ${predictionState?.scenario ?? ""}${
+                    : `Scenario ${predictionState?.scenario ?? ''}${
                         formatDate(
                           predictionState?.endDate ??
                             predictionState?.resolutionDate
@@ -1811,7 +1811,7 @@ export function MarketsTradingTerminal({
                               predictionState?.endDate ??
                                 predictionState?.resolutionDate
                             )}`
-                          : ""
+                          : ''
                       }`}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
@@ -1831,10 +1831,10 @@ export function MarketsTradingTerminal({
                     type="button"
                     onClick={() => setPredictionTimeRange(range)}
                     className={cn(
-                      "rounded px-1.5 py-0.5 transition-colors",
+                      'rounded px-1.5 py-0.5 transition-colors',
                       predictionTimeRange === range
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? 'bg-foreground text-background'
+                        : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     {range}
@@ -1847,7 +1847,7 @@ export function MarketsTradingTerminal({
           <div className="min-h-0 flex-1 p-4">
             <PredictionProbabilityChart
               data={predictionHistory}
-              marketId={selectedPredictionId ?? "unknown"}
+              marketId={selectedPredictionId ?? 'unknown'}
               timeRange={predictionTimeRange}
               onTimeRangeChange={setPredictionTimeRange}
               showHeader={false}
@@ -1869,8 +1869,8 @@ export function MarketsTradingTerminal({
                   <ChevronDown
                     size={14}
                     className={cn(
-                      "transition-transform",
-                      marketDropdownOpen && "rotate-180"
+                      'transition-transform',
+                      marketDropdownOpen && 'rotate-180'
                     )}
                   />
                 </span>
@@ -1891,10 +1891,10 @@ export function MarketsTradingTerminal({
                     type="button"
                     onClick={() => setPerpTimeRange(range)}
                     className={cn(
-                      "rounded px-1.5 py-0.5 transition-colors",
+                      'rounded px-1.5 py-0.5 transition-colors',
                       perpTimeRange === range
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? 'bg-foreground text-background'
+                        : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     {range}
@@ -1907,10 +1907,10 @@ export function MarketsTradingTerminal({
                 aria-pressed={isFullscreen}
                 aria-label={
                   isFullscreen
-                    ? "Exit fullscreen terminal view"
-                    : "Enter fullscreen terminal view"
+                    ? 'Exit fullscreen terminal view'
+                    : 'Enter fullscreen terminal view'
                 }
-                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
                 className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
               >
                 {isFullscreen ? (
@@ -1960,7 +1960,7 @@ export function MarketsTradingTerminal({
       data-tour="order-entry"
       className="flex h-full min-h-0 flex-col bg-background"
     >
-      {selected?.kind === "prediction" ? (
+      {selected?.kind === 'prediction' ? (
         <div className="flex h-full min-h-0 flex-col">
           <div className="border-border border-b px-3 py-3">
             <div className="flex items-start justify-between gap-3">
@@ -1993,7 +1993,7 @@ export function MarketsTradingTerminal({
                       Open Position
                     </div>
                     <div className="text-xs">
-                      {(["YES", "NO"] as const)
+                      {(['YES', 'NO'] as const)
                         .map((side) => {
                           const total = selectedPredictionPositions
                             .filter((p) => p.side === side)
@@ -2003,7 +2003,7 @@ export function MarketsTradingTerminal({
                             : null;
                         })
                         .filter(Boolean)
-                        .join(" • ")}
+                        .join(' • ')}
                     </div>
                   </div>
                 )}
@@ -2022,42 +2022,42 @@ export function MarketsTradingTerminal({
             <div className="mt-3 flex gap-1 rounded bg-muted p-1">
               <button
                 type="button"
-                onClick={() => setPredictionSide("yes")}
+                onClick={() => setPredictionSide('yes')}
                 disabled={
-                  predictionTradeMode === "sell" &&
+                  predictionTradeMode === 'sell' &&
                   canSellPrediction &&
                   !sellablePositions.hasSellableYes
                 }
                 className={cn(
-                  "flex-1 rounded py-2 font-semibold text-xs transition-colors",
-                  predictionTradeMode === "sell" &&
+                  'flex-1 rounded py-2 font-semibold text-xs transition-colors',
+                  predictionTradeMode === 'sell' &&
                     canSellPrediction &&
                     !sellablePositions.hasSellableYes &&
-                    "cursor-not-allowed opacity-50 hover:text-muted-foreground",
-                  predictionSide === "yes"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    'cursor-not-allowed opacity-50 hover:text-muted-foreground',
+                  predictionSide === 'yes'
+                    ? 'bg-green-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                 )}
               >
                 YES
               </button>
               <button
                 type="button"
-                onClick={() => setPredictionSide("no")}
+                onClick={() => setPredictionSide('no')}
                 disabled={
-                  predictionTradeMode === "sell" &&
+                  predictionTradeMode === 'sell' &&
                   canSellPrediction &&
                   !sellablePositions.hasSellableNo
                 }
                 className={cn(
-                  "flex-1 rounded py-2 font-semibold text-xs transition-colors",
-                  predictionTradeMode === "sell" &&
+                  'flex-1 rounded py-2 font-semibold text-xs transition-colors',
+                  predictionTradeMode === 'sell' &&
                     canSellPrediction &&
                     !sellablePositions.hasSellableNo &&
-                    "cursor-not-allowed opacity-50 hover:text-muted-foreground",
-                  predictionSide === "no"
-                    ? "bg-red-600 text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    'cursor-not-allowed opacity-50 hover:text-muted-foreground',
+                  predictionSide === 'no'
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                 )}
               >
                 NO
@@ -2068,24 +2068,24 @@ export function MarketsTradingTerminal({
               <div className="mt-3 flex gap-1 rounded bg-muted p-1">
                 <button
                   type="button"
-                  onClick={() => setPredictionTradeMode("buy")}
+                  onClick={() => setPredictionTradeMode('buy')}
                   className={cn(
-                    "flex-1 rounded py-2 font-semibold text-xs transition-colors",
-                    predictionTradeMode === "buy"
-                      ? "bg-green-600 text-white shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    'flex-1 rounded py-2 font-semibold text-xs transition-colors',
+                    predictionTradeMode === 'buy'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   )}
                 >
                   BUY
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPredictionTradeMode("sell")}
+                  onClick={() => setPredictionTradeMode('sell')}
                   className={cn(
-                    "flex-1 rounded py-2 font-semibold text-xs transition-colors",
-                    predictionTradeMode === "sell"
-                      ? "bg-red-600 text-white shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    'flex-1 rounded py-2 font-semibold text-xs transition-colors',
+                    predictionTradeMode === 'sell'
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   )}
                 >
                   SELL
@@ -2093,8 +2093,8 @@ export function MarketsTradingTerminal({
               </div>
             )}
 
-            {predictionTradeMode === "buy" ? (
-              <div className={cn("mt-4", !canSellPrediction && "mt-3")}>
+            {predictionTradeMode === 'buy' ? (
+              <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="font-medium text-muted-foreground text-xs">
                     Amount
@@ -2114,7 +2114,7 @@ export function MarketsTradingTerminal({
                 />
               </div>
             ) : (
-              <div className={cn("mt-4", !canSellPrediction && "mt-3")}>
+              <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="font-medium text-muted-foreground text-xs">
                     Shares
@@ -2125,7 +2125,7 @@ export function MarketsTradingTerminal({
                       type="button"
                       onClick={() =>
                         setPredictionSellShares(
-                          maxSellShares > 0 ? maxSellShares.toFixed(2) : ""
+                          maxSellShares > 0 ? maxSellShares.toFixed(2) : ''
                         )
                       }
                       className="rounded bg-muted px-2 py-0.5 hover:bg-muted/80"
@@ -2143,7 +2143,7 @@ export function MarketsTradingTerminal({
                   step="0.01"
                   className="w-full rounded border border-border bg-input px-3 py-2.5 font-mono text-sm tabular-nums placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder={
-                    maxSellShares > 0 ? maxSellShares.toFixed(2) : "0.00"
+                    maxSellShares > 0 ? maxSellShares.toFixed(2) : '0.00'
                   }
                   disabled={maxSellShares <= 0}
                 />
@@ -2155,7 +2155,7 @@ export function MarketsTradingTerminal({
               </div>
             )}
 
-            {predictionTradeMode === "buy" && predictionBuyCalculation && (
+            {predictionTradeMode === 'buy' && predictionBuyCalculation && (
               <div className="mt-4 space-y-2 rounded bg-muted/50 p-3 text-xs">
                 <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Shares</span>
@@ -2173,7 +2173,7 @@ export function MarketsTradingTerminal({
                   <span className="text-muted-foreground">Fee</span>
                   <span className="font-mono text-foreground tabular-nums">
                     {BABYLON_POINTS_SYMBOL}
-                    {predictionBuyCalculation.fee?.toFixed(2) ?? "0.00"}
+                    {predictionBuyCalculation.fee?.toFixed(2) ?? '0.00'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-0.5">
@@ -2186,7 +2186,7 @@ export function MarketsTradingTerminal({
               </div>
             )}
 
-            {predictionTradeMode === "sell" && predictionSellCalculation && (
+            {predictionTradeMode === 'sell' && predictionSellCalculation && (
               <div className="mt-4 space-y-2 rounded bg-muted/50 p-3 text-xs">
                 <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Gross proceeds</span>
@@ -2199,7 +2199,7 @@ export function MarketsTradingTerminal({
                   <span className="text-muted-foreground">Fee</span>
                   <span className="font-mono text-foreground tabular-nums">
                     {BABYLON_POINTS_SYMBOL}
-                    {predictionSellCalculation.fee?.toFixed(2) ?? "0.00"}
+                    {predictionSellCalculation.fee?.toFixed(2) ?? '0.00'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-0.5 font-semibold">
@@ -2223,33 +2223,33 @@ export function MarketsTradingTerminal({
               onClick={handlePredictionSubmit}
               disabled={
                 predictionSubmitting ||
-                (predictionTradeMode === "buy" &&
+                (predictionTradeMode === 'buy' &&
                   authenticated &&
                   (predictionAmountNum < 1 || !predictionBuyCalculation)) ||
-                (predictionTradeMode === "sell" &&
+                (predictionTradeMode === 'sell' &&
                   authenticated &&
                   (maxSellShares <= 0 ||
                     clampedSellShares < MIN_SELLABLE_SHARES ||
                     !predictionSellCalculation))
               }
               className={cn(
-                "w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                predictionTradeMode === "buy" && predictionSide === "yes"
-                  ? "bg-green-600 hover:bg-green-700"
-                  : "bg-red-600 hover:bg-red-700"
+                'w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                predictionTradeMode === 'buy' && predictionSide === 'yes'
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-red-600 hover:bg-red-700'
               )}
             >
               {predictionSubmitting
-                ? "Processing…"
+                ? 'Processing…'
                 : !authenticated
-                ? "Log In to Trade"
-                : predictionTradeMode === "buy"
-                ? `BUY ${predictionSide.toUpperCase()} · ${BABYLON_POINTS_SYMBOL}${predictionAmountNum.toFixed(
-                    0
-                  )}`
-                : `SELL ${predictionSide.toUpperCase()} · ${clampedSellShares.toFixed(
-                    2
-                  )} shares`}
+                  ? 'Log In to Trade'
+                  : predictionTradeMode === 'buy'
+                    ? `BUY ${predictionSide.toUpperCase()} · ${BABYLON_POINTS_SYMBOL}${predictionAmountNum.toFixed(
+                        0
+                      )}`
+                    : `SELL ${predictionSide.toUpperCase()} · ${clampedSellShares.toFixed(
+                        2
+                      )} shares`}
             </button>
           </div>
         </div>
@@ -2277,32 +2277,32 @@ export function MarketsTradingTerminal({
       <div className="flex items-center justify-between border-border border-b bg-background px-2">
         <div className="flex min-w-0 flex-1">
           <TabButton
-            active={bottomTab === "agent"}
-            onClick={() => setBottomTab("agent")}
+            active={bottomTab === 'agent'}
+            onClick={() => setBottomTab('agent')}
           >
             Agents
           </TabButton>
           <TabButton
-            active={bottomTab === "social"}
-            onClick={() => setBottomTab("social")}
+            active={bottomTab === 'social'}
+            onClick={() => setBottomTab('social')}
           >
             Social
           </TabButton>
           <TabButton
-            active={bottomTab === "portfolio"}
-            onClick={() => setBottomTab("portfolio")}
+            active={bottomTab === 'portfolio'}
+            onClick={() => setBottomTab('portfolio')}
           >
             Portfolio
           </TabButton>
           <TabButton
-            active={bottomTab === "positions"}
-            onClick={() => setBottomTab("positions")}
+            active={bottomTab === 'positions'}
+            onClick={() => setBottomTab('positions')}
           >
             Positions
           </TabButton>
           <TabButton
-            active={bottomTab === "trades"}
-            onClick={() => setBottomTab("trades")}
+            active={bottomTab === 'trades'}
+            onClick={() => setBottomTab('trades')}
           >
             Trades
           </TabButton>
@@ -2318,15 +2318,15 @@ export function MarketsTradingTerminal({
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {bottomTab === "agent" ? (
+        {bottomTab === 'agent' ? (
           <TerminalAgentsChat />
-        ) : bottomTab === "social" ? (
+        ) : bottomTab === 'social' ? (
           <TerminalSocialFeed
             perpTicker={
-              selected?.kind === "perp" ? selectedPerp?.ticker ?? null : null
+              selected?.kind === 'perp' ? (selectedPerp?.ticker ?? null) : null
             }
           />
-        ) : bottomTab === "portfolio" ? (
+        ) : bottomTab === 'portfolio' ? (
           <TerminalPortfolio
             authenticated={authenticated}
             onRequestBuyPoints={onRequestBuyPoints ?? null}
@@ -2338,7 +2338,7 @@ export function MarketsTradingTerminal({
             onRefresh={handlePortfolioRefresh}
             refreshDisabled={refreshOnCooldown}
           />
-        ) : bottomTab === "positions" ? (
+        ) : bottomTab === 'positions' ? (
           !authenticated ? (
             <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
               Log in to view positions.
@@ -2349,7 +2349,7 @@ export function MarketsTradingTerminal({
             </div>
           ) : (
             <div className="h-full space-y-2 overflow-auto p-2">
-              {selected?.kind === "prediction" &&
+              {selected?.kind === 'prediction' &&
                 selectedPredictionPositions.length > 0 && (
                   <div className="rounded border border-primary/20 bg-primary/5 p-2">
                     <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
@@ -2362,7 +2362,7 @@ export function MarketsTradingTerminal({
                     />
                   </div>
                 )}
-              {selected?.kind === "perp" &&
+              {selected?.kind === 'perp' &&
                 selectedPerpPositions.length > 0 && (
                   <div className="rounded border border-primary/20 bg-primary/5 p-2">
                     <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
@@ -2385,7 +2385,7 @@ export function MarketsTradingTerminal({
                     density="compact"
                     onPositionClosed={handlePerpPositionClosed}
                     onPositionClick={(ticker) =>
-                      handleSelect({ kind: "perp", id: ticker })
+                      handleSelect({ kind: 'perp', id: ticker })
                     }
                   />
                 </div>
@@ -2400,15 +2400,15 @@ export function MarketsTradingTerminal({
                     density="compact"
                     onPositionSold={handlePredictionPositionSold}
                     onPositionClick={(marketId) =>
-                      handleSelect({ kind: "prediction", id: marketId })
+                      handleSelect({ kind: 'prediction', id: marketId })
                     }
                   />
                 </div>
               )}
             </div>
           )
-        ) : bottomTab === "trades" ? (
-          selected?.kind === "prediction" ? (
+        ) : bottomTab === 'trades' ? (
+          selected?.kind === 'prediction' ? (
             <div
               ref={desktopTradesContainerRef}
               className="h-full overflow-auto"
@@ -2446,8 +2446,8 @@ export function MarketsTradingTerminal({
     <div
       ref={terminalRootRef}
       className={cn(
-        "relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground",
-        isFullscreen && "fixed inset-0 z-[45] h-[100dvh] w-[100dvw] pt-safe"
+        'relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground',
+        isFullscreen && 'fixed inset-0 z-[45] h-[100dvh] w-[100dvw] pt-safe'
       )}
     >
       {/* Desktop */}
@@ -2496,20 +2496,20 @@ export function MarketsTradingTerminal({
                 type="button"
                 onClick={() => setBottomCollapsed(false)}
                 className={cn(
-                  "flex h-7 shrink-0 items-center justify-between border-border border-t bg-background px-4 text-muted-foreground",
-                  "transition-colors hover:bg-muted/20 hover:text-foreground"
+                  'flex h-7 shrink-0 items-center justify-between border-border border-t bg-background px-4 text-muted-foreground',
+                  'transition-colors hover:bg-muted/20 hover:text-foreground'
                 )}
               >
                 <span className="font-semibold text-[10px] tracking-widest">
-                  {bottomTab === "agent"
-                    ? "AGENTS"
-                    : bottomTab === "social"
-                    ? "SOCIAL"
-                    : bottomTab === "portfolio"
-                    ? "PORTFOLIO"
-                    : bottomTab === "positions"
-                    ? "POSITIONS"
-                    : "TRADES"}
+                  {bottomTab === 'agent'
+                    ? 'AGENTS'
+                    : bottomTab === 'social'
+                      ? 'SOCIAL'
+                      : bottomTab === 'portfolio'
+                        ? 'PORTFOLIO'
+                        : bottomTab === 'positions'
+                          ? 'POSITIONS'
+                          : 'TRADES'}
                 </span>
                 <span className="text-[10px]">▲</span>
               </button>
@@ -2532,13 +2532,13 @@ export function MarketsTradingTerminal({
                     activeTab={
                       isMobilePanelOpen
                         ? (bottomTab as MobileTab)
-                        : ("chart" as const)
+                        : ('chart' as const)
                     }
                     onSelect={handleMobileTabSelect}
                   />
                 </div>
 
-                {selected?.kind === "prediction" ? (
+                {selected?.kind === 'prediction' ? (
                   <PredictionMarketHeader
                     predictionState={predictionState}
                     yesPct={predictionYesPct}
@@ -2556,14 +2556,14 @@ export function MarketsTradingTerminal({
                   />
                 ) : null}
 
-                {selected?.kind === "prediction" ? (
+                {selected?.kind === 'prediction' ? (
                   <div
                     key={mobileChartAnimationKey}
                     className="fade-in min-h-0 flex-1 animate-in p-2 duration-200"
                   >
                     <PredictionProbabilityChart
                       data={predictionHistory}
-                      marketId={selectedPredictionId ?? "unknown"}
+                      marketId={selectedPredictionId ?? 'unknown'}
                       timeRange={predictionTimeRange}
                       onTimeRangeChange={setPredictionTimeRange}
                       showHeader={false}
@@ -2600,10 +2600,10 @@ export function MarketsTradingTerminal({
                     type="button"
                     onClick={() => setIsMobileChartFullscreen(true)}
                     className={cn(
-                      "absolute right-3 bottom-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full",
-                      "border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md",
-                      "transition-colors hover:bg-muted/40 hover:text-foreground",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                      'absolute right-3 bottom-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full',
+                      'border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md',
+                      'transition-colors hover:bg-muted/40 hover:text-foreground',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
                     )}
                     aria-label="Open chart fullscreen"
                     title="Fullscreen chart"
@@ -2643,10 +2643,10 @@ export function MarketsTradingTerminal({
                 }}
                 disabled={!selected}
                 className={cn(
-                  "mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all",
+                  'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
                   selected
-                    ? "bg-foreground text-background active:scale-95"
-                    : "cursor-not-allowed bg-muted/40 text-muted-foreground"
+                    ? 'bg-foreground text-background active:scale-95'
+                    : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
                 )}
               >
                 Trade
@@ -2660,11 +2660,11 @@ export function MarketsTradingTerminal({
                   <>
                     <span className="font-semibold">Balance</span>
                     <span className="font-mono text-[11px] tabular-nums">
-                      {balanceLoading ? "—" : formatBalance(balance)}
+                      {balanceLoading ? '—' : formatBalance(balance)}
                     </span>
                   </>
                 ) : (
-                  "Log in"
+                  'Log in'
                 )}
               </button>
             </div>
@@ -2683,17 +2683,17 @@ export function MarketsTradingTerminal({
                 key={bottomTab}
                 className="fade-in min-h-0 flex-1 animate-in overflow-hidden duration-150"
               >
-                {bottomTab === "agent" ? (
+                {bottomTab === 'agent' ? (
                   <TerminalAgentsChat />
-                ) : bottomTab === "social" ? (
+                ) : bottomTab === 'social' ? (
                   <TerminalSocialFeed
                     perpTicker={
-                      selected?.kind === "perp"
-                        ? selectedPerp?.ticker ?? null
+                      selected?.kind === 'perp'
+                        ? (selectedPerp?.ticker ?? null)
                         : null
                     }
                   />
-                ) : bottomTab === "portfolio" ? (
+                ) : bottomTab === 'portfolio' ? (
                   <TerminalPortfolio
                     authenticated={authenticated}
                     onRequestBuyPoints={onRequestBuyPoints ?? null}
@@ -2705,7 +2705,7 @@ export function MarketsTradingTerminal({
                     onRefresh={handlePortfolioRefresh}
                     refreshDisabled={refreshOnCooldown}
                   />
-                ) : bottomTab === "positions" ? (
+                ) : bottomTab === 'positions' ? (
                   !authenticated ? (
                     <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
                       Log in to view positions.
@@ -2717,7 +2717,7 @@ export function MarketsTradingTerminal({
                     </div>
                   ) : (
                     <div className="h-full space-y-2 overflow-auto overscroll-contain p-2">
-                      {selected?.kind === "prediction" &&
+                      {selected?.kind === 'prediction' &&
                         selectedPredictionPositions.length > 0 && (
                           <div className="rounded border border-primary/20 bg-primary/5 p-2">
                             <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
@@ -2730,7 +2730,7 @@ export function MarketsTradingTerminal({
                             />
                           </div>
                         )}
-                      {selected?.kind === "perp" &&
+                      {selected?.kind === 'perp' &&
                         selectedPerpPositions.length > 0 && (
                           <div className="rounded border border-primary/20 bg-primary/5 p-2">
                             <div className="px-1 pb-2 font-semibold text-primary text-xs uppercase tracking-wider">
@@ -2753,7 +2753,7 @@ export function MarketsTradingTerminal({
                             density="compact"
                             onPositionClosed={handlePerpPositionClosed}
                             onPositionClick={(ticker) =>
-                              handleSelect({ kind: "perp", id: ticker })
+                              handleSelect({ kind: 'perp', id: ticker })
                             }
                           />
                         </div>
@@ -2768,15 +2768,15 @@ export function MarketsTradingTerminal({
                             density="compact"
                             onPositionSold={handlePredictionPositionSold}
                             onPositionClick={(marketId) =>
-                              handleSelect({ kind: "prediction", id: marketId })
+                              handleSelect({ kind: 'prediction', id: marketId })
                             }
                           />
                         </div>
                       )}
                     </div>
                   )
-                ) : bottomTab === "trades" ? (
-                  selected?.kind === "prediction" ? (
+                ) : bottomTab === 'trades' ? (
+                  selected?.kind === 'prediction' ? (
                     <div
                       ref={mobileTradesContainerRef}
                       className="h-full overflow-auto overscroll-contain"
@@ -2861,17 +2861,17 @@ export function MarketsTradingTerminal({
                 aria-label="Close fullscreen chart"
                 onClick={() => setIsMobileChartFullscreen(false)}
                 className={cn(
-                  "absolute top-[calc(12px+env(safe-area-inset-top))] right-[calc(12px+env(safe-area-inset-right))] z-20 inline-flex h-10 w-10 items-center justify-center rounded-full",
-                  "border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md",
-                  "transition-colors hover:bg-muted/40 hover:text-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  'absolute top-[calc(12px+env(safe-area-inset-top))] right-[calc(12px+env(safe-area-inset-right))] z-20 inline-flex h-10 w-10 items-center justify-center rounded-full',
+                  'border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md',
+                  'transition-colors hover:bg-muted/40 hover:text-foreground',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
                 )}
               >
                 <X size={18} />
               </button>
 
               <div className="flex h-full flex-col pt-safe pb-safe">
-                {selected?.kind === "prediction" ? (
+                {selected?.kind === 'prediction' ? (
                   <>
                     <PredictionMarketHeader
                       predictionState={predictionState}
@@ -2884,7 +2884,7 @@ export function MarketsTradingTerminal({
                     <div className="min-h-0 flex-1 p-2">
                       <PredictionProbabilityChart
                         data={predictionHistory}
-                        marketId={selectedPredictionId ?? "unknown"}
+                        marketId={selectedPredictionId ?? 'unknown'}
                         timeRange={predictionTimeRange}
                         onTimeRangeChange={setPredictionTimeRange}
                         showHeader={false}
@@ -2935,7 +2935,7 @@ export function MarketsTradingTerminal({
           <AlertDialogHeader>
             <AlertDialogTitle>Market details</AlertDialogTitle>
             <AlertDialogDescription>
-              {predictionState?.text ?? "Prediction market"}
+              {predictionState?.text ?? 'Prediction market'}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -2955,7 +2955,7 @@ export function MarketsTradingTerminal({
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Scenario</span>
                 <span className="font-mono text-foreground tabular-nums">
-                  {predictionState?.scenario ?? "—"}
+                  {predictionState?.scenario ?? '—'}
                 </span>
               </div>
               {formatDate(
@@ -3003,17 +3003,17 @@ export function MarketsTradingTerminal({
         isSubmitting={predictionSubmitting}
         tradeDetails={
           predictionState &&
-          predictionTradeMode === "buy" &&
+          predictionTradeMode === 'buy' &&
           predictionBuyCalculation
             ? ({
-                type: "buy-prediction",
+                type: 'buy-prediction',
                 question: predictionState.text,
-                side: predictionSide.toUpperCase() as "YES" | "NO",
+                side: predictionSide.toUpperCase() as 'YES' | 'NO',
                 amount: predictionAmountNum,
                 sharesBought: predictionBuyCalculation.sharesBought,
                 avgPrice: predictionBuyCalculation.avgPrice,
                 newPrice:
-                  predictionSide === "yes"
+                  predictionSide === 'yes'
                     ? predictionBuyCalculation.newYesPrice
                     : predictionBuyCalculation.newNoPrice,
                 priceImpact: predictionBuyCalculation.priceImpact,
@@ -3021,42 +3021,42 @@ export function MarketsTradingTerminal({
                 expectedProfit,
               } satisfies BuyPredictionDetails)
             : predictionState &&
-              predictionTradeMode === "sell" &&
-              predictionSellCalculation &&
-              sellPosition
-            ? (() => {
-                const expectedValue =
-                  predictionSellCalculation.netProceeds ??
-                  predictionSellCalculation.netAmount ??
-                  predictionSellCalculation.totalCost;
-                const costBasis =
-                  typeof sellPosition.costBasis === "number" &&
-                  sellPosition.shares > 0
-                    ? sellPosition.costBasis *
-                      (clampedSellShares / sellPosition.shares)
-                    : clampedSellShares * sellPosition.avgPrice;
-                const unrealizedPnL = expectedValue - costBasis;
-                const unrealizedPnLPercent =
-                  costBasis !== 0 ? (unrealizedPnL / costBasis) * 100 : 0;
-                const currentPrice =
-                  sellPosition.currentPrice ??
-                  (clampedSellShares > 0
-                    ? expectedValue / clampedSellShares
-                    : 0);
+                predictionTradeMode === 'sell' &&
+                predictionSellCalculation &&
+                sellPosition
+              ? (() => {
+                  const expectedValue =
+                    predictionSellCalculation.netProceeds ??
+                    predictionSellCalculation.netAmount ??
+                    predictionSellCalculation.totalCost;
+                  const costBasis =
+                    typeof sellPosition.costBasis === 'number' &&
+                    sellPosition.shares > 0
+                      ? sellPosition.costBasis *
+                        (clampedSellShares / sellPosition.shares)
+                      : clampedSellShares * sellPosition.avgPrice;
+                  const unrealizedPnL = expectedValue - costBasis;
+                  const unrealizedPnLPercent =
+                    costBasis !== 0 ? (unrealizedPnL / costBasis) * 100 : 0;
+                  const currentPrice =
+                    sellPosition.currentPrice ??
+                    (clampedSellShares > 0
+                      ? expectedValue / clampedSellShares
+                      : 0);
 
-                return {
-                  type: "sell-prediction",
-                  question: predictionState.text,
-                  side: predictionSide.toUpperCase() as "YES" | "NO",
-                  shares: clampedSellShares,
-                  avgPrice: sellPosition.avgPrice,
-                  currentPrice,
-                  expectedValue,
-                  unrealizedPnL,
-                  unrealizedPnLPercent,
-                } satisfies SellPredictionDetails;
-              })()
-            : null
+                  return {
+                    type: 'sell-prediction',
+                    question: predictionState.text,
+                    side: predictionSide.toUpperCase() as 'YES' | 'NO',
+                    shares: clampedSellShares,
+                    avgPrice: sellPosition.avgPrice,
+                    currentPrice,
+                    expectedValue,
+                    unrealizedPnL,
+                    unrealizedPnLPercent,
+                  } satisfies SellPredictionDetails;
+                })()
+              : null
         }
       />
 
@@ -3091,11 +3091,11 @@ function TabButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-2 font-semibold text-xs transition-colors",
+        '-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-2 font-semibold text-xs transition-colors',
         active
-          ? "border-primary text-primary"
-          : "border-transparent text-muted-foreground hover:text-foreground",
-        disabled && "cursor-not-allowed opacity-60 hover:text-muted-foreground"
+          ? 'border-primary text-primary'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
+        disabled && 'cursor-not-allowed opacity-60 hover:text-muted-foreground'
       )}
     >
       {children}
