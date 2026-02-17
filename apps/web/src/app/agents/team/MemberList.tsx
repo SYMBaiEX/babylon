@@ -134,9 +134,7 @@ export function MemberList({
                           className={cn(
                             'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
                             'text-muted-foreground hover:bg-muted hover:text-foreground',
-                            // Mobile: always visible. Desktop: hidden until hover/focus/open.
-                            'opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus:opacity-100',
-                            'data-[state=open]:opacity-100 lg:data-[state=open]:opacity-100'
+                            'focus:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100 lg:opacity-0'
                           )}
                           aria-label={`More options for ${agentName}`}
                         >
