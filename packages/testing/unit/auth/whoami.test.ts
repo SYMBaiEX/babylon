@@ -14,6 +14,7 @@ import {
   it,
   mock,
 } from 'bun:test';
+import { NextRequest } from 'next/server';
 
 // Mock user data (minimal: only id and username)
 const mockUsers = new Map([
@@ -42,19 +43,15 @@ let lastQueriedUserId: string | null = null;
 // Expected headers for all auth responses
 const noCacheHeaders = { 'Cache-Control': 'no-store' };
 
-let GET: (request: Request) => Promise<Response>;
+let GET: (request: NextRequest) => Promise<Response>;
 
 // Helper to create mock NextRequest
-const createMockRequest = (apiKey: string | null): Request => {
+const createMockRequest = (apiKey: string | null): NextRequest => {
   const headers = new Headers();
   if (apiKey) {
     headers.set('x-babylon-api-key', apiKey);
   }
-  return {
-    headers: {
-      get: (name: string) => headers.get(name),
-    },
-  } as unknown as Request;
+  return new NextRequest('http://localhost/api/auth/whoami', { headers });
 };
 
 describe('/api/auth/whoami endpoint', () => {
@@ -111,7 +108,7 @@ describe('/api/auth/whoami endpoint', () => {
   describe('Valid API key scenarios', () => {
     it('should return correct user info for valid API key', async () => {
       const request = createMockRequest('bab_live_valid123');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       expect(mockValidateUserApiKey).toHaveBeenCalledWith('bab_live_valid123');
@@ -122,7 +119,7 @@ describe('/api/auth/whoami endpoint', () => {
 
     it('should return correct user info for different valid API key', async () => {
       const request = createMockRequest('bab_live_valid456');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       expect(mockValidateUserApiKey).toHaveBeenCalledWith('bab_live_valid456');
@@ -135,7 +132,7 @@ describe('/api/auth/whoami endpoint', () => {
   describe('Invalid API key scenarios', () => {
     it('should return 401 for invalid API key', async () => {
       const request = createMockRequest('bab_live_invalid_key');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       expect(mockValidateUserApiKey).toHaveBeenCalledWith(
@@ -148,7 +145,7 @@ describe('/api/auth/whoami endpoint', () => {
 
     it('should return 401 for expired API key', async () => {
       const request = createMockRequest('bab_live_expired_key_xyz');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       expect(response.status).toBe(401);
@@ -158,7 +155,7 @@ describe('/api/auth/whoami endpoint', () => {
 
     it('should return 401 for revoked API key', async () => {
       const request = createMockRequest('bab_live_revoked_key_abc');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       expect(response.status).toBe(401);
@@ -170,7 +167,7 @@ describe('/api/auth/whoami endpoint', () => {
   describe('Missing API key scenarios', () => {
     it('should return 401 when API key header is missing', async () => {
       const request = createMockRequest(null);
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       // Should not even call validateUserApiKey
@@ -182,7 +179,7 @@ describe('/api/auth/whoami endpoint', () => {
 
     it('should return 401 when API key header is empty string', async () => {
       const request = createMockRequest('');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       // Empty string is falsy, should not call validateUserApiKey
@@ -196,7 +193,7 @@ describe('/api/auth/whoami endpoint', () => {
   describe('User not found scenarios', () => {
     it('should return 404 when API key is valid but user does not exist', async () => {
       const request = createMockRequest('bab_live_deleted_user');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const body = await response.json();
 
       // API key validation passes
@@ -213,7 +210,7 @@ describe('/api/auth/whoami endpoint', () => {
   describe('Security considerations', () => {
     it('should only expose userId and username (minimal data)', async () => {
       const request = createMockRequest('bab_live_valid123');
-      const response = await GET(request as never);
+      const response = await GET(request);
       const responseBody = await response.json();
 
       // Should only contain these two fields (minimal for contextId use case)
@@ -233,7 +230,7 @@ describe('/api/auth/whoami endpoint', () => {
 
     it('should validate API key before any database queries', async () => {
       const request = createMockRequest('bab_live_invalid_key');
-      await GET(request as never);
+      await GET(request);
 
       // Should call validateUserApiKey first
       expect(mockValidateUserApiKey).toHaveBeenCalledTimes(1);
@@ -244,12 +241,12 @@ describe('/api/auth/whoami endpoint', () => {
     it('should set Cache-Control: no-store header on all responses', async () => {
       // Test success response
       const successRequest = createMockRequest('bab_live_valid123');
-      const successResponse = await GET(successRequest as never);
+      const successResponse = await GET(successRequest);
       expect(successResponse.headers.get('Cache-Control')).toBe('no-store');
 
       // Test error response
       const errorRequest = createMockRequest('bab_live_invalid');
-      const errorResponse = await GET(errorRequest as never);
+      const errorResponse = await GET(errorRequest);
       expect(errorResponse.headers.get('Cache-Control')).toBe('no-store');
     });
   });
