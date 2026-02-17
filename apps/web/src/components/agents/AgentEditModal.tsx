@@ -622,7 +622,12 @@ export function AgentEditModal({
     <div className="flex gap-3">
       {currentStep === Step.Profile && (
         <>
-          <div className="flex-1" />
+          <span
+            className="pointer-events-none flex-1 rounded-lg border border-transparent px-4 py-2.5 font-medium text-transparent sm:py-3"
+            aria-hidden="true"
+          >
+            Back
+          </span>
           <button
             onClick={() => setCurrentStep(Step.Prompts)}
             className={cn(
