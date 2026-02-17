@@ -13,17 +13,6 @@ import {
 } from '@/components/chats';
 import { CreateGroupModal } from '@/components/groups/CreateGroupModal';
 import { GroupManagementModal } from '@/components/groups/GroupManagementModal';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { buttonVariants } from '@/components/ui/button';
 import { useA2A } from '@/hooks/useA2A';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatParam } from '@/hooks/useChatParam';
@@ -75,14 +64,6 @@ export default function ChatsPage() {
     sendError,
     sendWarning,
     sendSuccess,
-
-    // Leave chat
-    isLeaveConfirmOpen,
-    setLeaveConfirmOpen,
-    isLeavingChat,
-    leaveChatError,
-    setLeaveChatError,
-    handleLeaveChat,
 
     // Group modals
     isCreateGroupModalOpen,
@@ -221,7 +202,6 @@ export default function ChatsPage() {
                 onBack={() => setSelectedChatId(null)}
                 onToggleReaction={toggleReaction}
                 onManageGroup={handleManageGroup}
-
                 onMessageChange={setMessageInput}
                 onSendMessage={sendMessage}
               />
@@ -229,43 +209,6 @@ export default function ChatsPage() {
           </div>
         </div>
       </div>
-
-      {/* Leave Chat Confirmation Dialog */}
-      <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Leave Chat?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <p className="text-muted-foreground text-sm">
-                Are you sure you want to leave this chat?
-              </p>
-              {leaveChatError && (
-                <p className="mt-2 text-red-500 text-sm">{leaveChatError}</p>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setLeaveConfirmOpen(false);
-                setLeaveChatError(null);
-              }}
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleLeaveChat}
-              className={buttonVariants()}
-              disabled={isLeavingChat}
-            >
-              {isLeavingChat && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Leave
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Group Modals */}
       <CreateGroupModal

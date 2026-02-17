@@ -1443,7 +1443,7 @@ export function MarketsTradingTerminal({
     <div className="flex h-full min-h-0 flex-col">
       <div
         ref={marketsMenuRef}
-        className="shrink-0 space-y-2 border-white/5 border-b px-3 p-3"
+        className="shrink-0 space-y-2 border-white/5 border-b p-3"
       >
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
