@@ -70,10 +70,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (streams.has('news')) {
     try {
-      const res = await fetch(
-        `${origin}/api/feed/widgets/breaking-news?limit=${limit}`,
-        { cache: 'no-store' }
-      );
+      const breakingNewsUrl = `${origin}/api/feed/widgets/breaking-news?limit=${limit}`;
+      const res = await fetch(breakingNewsUrl, { cache: 'no-store' });
       if (res.ok) {
         const data = (await res.json()) as {
           success?: boolean;
@@ -86,10 +84,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         };
         let news = data.news ?? [];
         if (news.length === 0) {
-          const postsRes = await fetch(
-            `${origin}/api/posts?type=article&limit=${limit}`,
-            { cache: 'no-store' }
-          );
+          const postsUrl = `${origin}/api/posts?type=article&limit=${limit}`;
+          const postsRes = await fetch(postsUrl, { cache: 'no-store' });
           if (postsRes.ok) {
             const postsData = (await postsRes.json()) as {
               posts?: Array<{
@@ -105,9 +101,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               const timestamp =
                 typeof ts === 'string'
                   ? ts
-                  : (ts != null && typeof (ts as unknown as { toISOString?: () => string }).toISOString === 'function'
-                      ? (ts as { toISOString: () => string }).toISOString()
-                      : new Date().toISOString());
+                  : ts != null &&
+                      typeof (ts as unknown as { toISOString?: () => string })
+                        .toISOString === 'function'
+                    ? (ts as { toISOString: () => string }).toISOString()
+                    : new Date().toISOString();
               return {
                 id: p.id,
                 title: p.articleTitle ?? p.content?.slice(0, 80) ?? 'Article',
@@ -126,8 +124,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             type: 'news',
           })
         );
+        logger.info(
+          'Ticker news',
+          {
+            origin,
+            breakingNewsStatus: res.status,
+            breakingNewsCount: (data.news ?? []).length,
+            usedPostsFallback: (data.news ?? []).length === 0,
+            finalNewsCount: result.news?.length ?? 0,
+          },
+          'GET /api/ticker'
+        );
       } else {
         result.news = [];
+        logger.warn(
+          'Ticker breaking-news not ok',
+          { origin, status: res.status, url: breakingNewsUrl },
+          'GET /api/ticker'
+        );
       }
     } catch (e) {
       logger.warn('Ticker news fetch failed', { error: e }, 'GET /api/ticker');
@@ -200,12 +214,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const markets = await service.getMarketsSnapshot();
       result.perps = markets.slice(0, limit).map((m): TickerPerpItem => {
         const storedChange = m.changePercent24h;
-        const changePercent24h =
+        const hasReference =
+          m.price24hAgo != null &&
+          m.price24hAgo !== 0 &&
+          m.price24hAgo !== m.currentPrice;
+        const changePercent24h: number | null =
           storedChange !== 0
             ? storedChange
-            : m.price24hAgo != null && m.price24hAgo !== 0
-              ? ((m.currentPrice - m.price24hAgo) / m.price24hAgo) * 100
-              : 0;
+            : hasReference
+              ? ((m.currentPrice - m.price24hAgo!) / m.price24hAgo!) * 100
+              : null;
         return {
           ticker: m.ticker,
           price: m.currentPrice,

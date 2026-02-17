@@ -23,7 +23,8 @@ export interface TickerPredictionItem {
 export interface TickerPerpItem {
   ticker: string;
   price: number;
-  changePercent24h: number;
+  /** 24h % change, or null when no 24h reference price (show as "—") */
+  changePercent24h: number | null;
   type: 'perp';
 }
 

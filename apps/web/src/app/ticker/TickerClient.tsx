@@ -71,11 +71,14 @@ function buildItems(
     });
   });
   (response.perps ?? []).forEach((p: TickerPerpItem) => {
-    const sign = p.changePercent24h >= 0 ? '+' : '';
+    const changeStr =
+      p.changePercent24h == null
+        ? '—'
+        : `${p.changePercent24h >= 0 ? '+' : ''}${p.changePercent24h.toFixed(2)}%`;
     items.push({
       key: `perp-${p.ticker}`,
       label: 'Perp',
-      text: `${p.ticker} $${p.price.toFixed(2)} (${sign}${p.changePercent24h.toFixed(2)}%)`,
+      text: `${p.ticker} $${p.price.toFixed(2)} (${changeStr})`,
       type: 'perp',
     });
   });
