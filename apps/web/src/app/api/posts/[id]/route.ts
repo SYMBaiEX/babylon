@@ -340,12 +340,12 @@ export const GET = withErrorHandling(
               createdAt: createdAtStr,
               likeCount,
               commentCount,
-            shareCount,
-            isLiked,
-            isShared,
-            source: 'game-store',
-            ...repostMetadata, // Add repost metadata if applicable
-          },
+              shareCount,
+              isLiked,
+              isShared,
+              source: 'game-store',
+              ...repostMetadata, // Add repost metadata if applicable
+            },
           })
         );
       }
@@ -513,7 +513,9 @@ export const GET = withErrorHandling(
             articleTitle: createdPost.articleTitle || null,
             byline: createdPost.byline || null,
             biasScore:
-              createdPost.biasScore !== undefined ? createdPost.biasScore : null,
+              createdPost.biasScore !== undefined
+                ? createdPost.biasScore
+                : null,
             sentiment: createdPost.sentiment || null,
             slant: createdPost.slant || null,
             category: createdPost.category || null,

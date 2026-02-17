@@ -585,8 +585,11 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
  * @returns Posts feed response with pagination cursor
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const { error, user: authUser, rateLimitInfo } =
-    await publicRateLimit(request);
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
   if (error) return error;
   const { searchParams } = new URL(request.url);
   const limit = Number.parseInt(searchParams.get('limit') || '100');

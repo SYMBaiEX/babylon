@@ -168,8 +168,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
   const filters = RegistryQuerySchema.parse(queryParams);
 
-  const { error, user: authUser, rateLimitInfo } =
-    await publicRateLimit(request);
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
   if (error) return error;
 
   // Build where clause

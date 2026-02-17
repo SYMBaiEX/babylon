@@ -92,10 +92,7 @@ interface RouteParams {
   }>;
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   const { error, rateLimitInfo } = await publicRateLimit(request);
   if (error) return error;
 

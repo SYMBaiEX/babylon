@@ -19,13 +19,13 @@ import {
 } from '@babylon/core/markets/prediction';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 import type {
   TickerNewsItem,
   TickerPerpItem,
   TickerPredictionItem,
   TickerResponse,
 } from '@/types/ticker';
-import type { NextRequest } from 'next/server';
 import { createPerpMarketService } from '../markets/perps/_adapters';
 
 const DEFAULT_STREAMS = ['news', 'predictions', 'perps'] as const;
@@ -61,7 +61,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const result: TickerResponse = {};
 
   const origin =
-    request.headers.get('x-forwarded-host') && request.headers.get('x-forwarded-proto')
+    request.headers.get('x-forwarded-host') &&
+    request.headers.get('x-forwarded-proto')
       ? `${request.headers.get('x-forwarded-proto')}://${request.headers.get('x-forwarded-host')}`
       : process.env.NEXT_PUBLIC_BASE_URL ||
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
@@ -74,7 +75,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         { cache: 'no-store' }
       );
       if (res.ok) {
-        const data = (await res.json()) as { success?: boolean; news?: Array<{ id: string; title: string; description?: string; timestamp: string }> };
+        const data = (await res.json()) as {
+          success?: boolean;
+          news?: Array<{
+            id: string;
+            title: string;
+            description?: string;
+            timestamp: string;
+          }>;
+        };
         let news = data.news ?? [];
         if (news.length === 0) {
           const postsRes = await fetch(
@@ -82,14 +91,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             { cache: 'no-store' }
           );
           if (postsRes.ok) {
-            const postsData = (await postsRes.json()) as { posts?: Array<{ id: string; articleTitle?: string; content?: string; timestamp?: string }> };
+            const postsData = (await postsRes.json()) as {
+              posts?: Array<{
+                id: string;
+                articleTitle?: string;
+                content?: string;
+                timestamp?: string;
+              }>;
+            };
             const posts = postsData.posts ?? [];
             news = posts.slice(0, limit).map((p) => {
               const ts = p.timestamp;
               const timestamp =
                 typeof ts === 'string'
                   ? ts
-                  : (ts as { toISOString?: () => string })?.toISOString?.() ?? new Date().toISOString();
+                  : ((ts as { toISOString?: () => string })?.toISOString?.() ??
+                    new Date().toISOString());
               return {
                 id: p.id,
                 title: p.articleTitle ?? p.content?.slice(0, 80) ?? 'Article',
@@ -124,9 +141,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         db: dbAdapter,
         wallet: {
           debit: ({ userId, amount, reason, description, relatedId }) =>
-            WalletService.debit(userId, amount, reason, description ?? '', relatedId),
+            WalletService.debit(
+              userId,
+              amount,
+              reason,
+              description ?? '',
+              relatedId
+            ),
           credit: ({ userId, amount, reason, description, relatedId }) =>
-            WalletService.credit(userId, amount, reason, description ?? '', relatedId),
+            WalletService.credit(
+              userId,
+              amount,
+              reason,
+              description ?? '',
+              relatedId
+            ),
           recordPnL: async ({ userId, pnl, reason, relatedId }) => {
             await WalletService.recordPnL(userId, pnl, reason, relatedId);
           },
@@ -142,7 +171,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const markets = await service.listMarkets();
       const yesPercent = (m: { yesShares: number; noShares: number }) =>
         Math.round(
-          PredictionPricing.getCurrentPrice(m.yesShares, m.noShares, 'yes') * 100
+          PredictionPricing.getCurrentPrice(m.yesShares, m.noShares, 'yes') *
+            100
         );
       result.predictions = markets.slice(0, limit).map(
         (m): TickerPredictionItem => ({
@@ -154,7 +184,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         })
       );
     } catch (e) {
-      logger.warn('Ticker predictions fetch failed', { error: e }, 'GET /api/ticker');
+      logger.warn(
+        'Ticker predictions fetch failed',
+        { error: e },
+        'GET /api/ticker'
+      );
       result.predictions = [];
     }
   }
@@ -168,8 +202,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const changePercent24h =
           storedChange !== 0
             ? storedChange
-            : m.price24hAgo != null &&
-                m.price24hAgo !== 0
+            : m.price24hAgo != null && m.price24hAgo !== 0
               ? ((m.currentPrice - m.price24hAgo) / m.price24hAgo) * 100
               : 0;
         return {
@@ -199,6 +232,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   const response = successResponse(result);
-  response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+  response.headers.set(
+    'Cache-Control',
+    'public, s-maxage=30, stale-while-revalidate=60'
+  );
   return response;
 });

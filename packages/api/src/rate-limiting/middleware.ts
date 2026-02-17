@@ -204,8 +204,14 @@ export function addPublicReadHeaders(
   }
 ): NextResponse {
   response.headers.set('X-RateLimit-Limit', rateLimitInfo.limit.toString());
-  response.headers.set('X-RateLimit-Remaining', rateLimitInfo.remaining.toString());
-  response.headers.set('X-RateLimit-Reset', rateLimitInfo.resetAt.toISOString());
+  response.headers.set(
+    'X-RateLimit-Remaining',
+    rateLimitInfo.remaining.toString()
+  );
+  response.headers.set(
+    'X-RateLimit-Reset',
+    rateLimitInfo.resetAt.toISOString()
+  );
   response.headers.set(
     'Cache-Control',
     'public, s-maxage=5, stale-while-revalidate=10'

@@ -66,8 +66,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ tag: string }> }
 ) {
-  const { error, user: authUser, rateLimitInfo } =
-    await publicRateLimit(request);
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
   if (error) return error;
 
   const { tag } = await params;

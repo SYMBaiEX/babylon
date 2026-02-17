@@ -102,10 +102,7 @@
  * @see {@link /src/app/reputation/page.tsx} Reputation UI
  */
 
-import {
-  addPublicReadHeaders,
-  publicRateLimit,
-} from '@babylon/api';
+import { addPublicReadHeaders, publicRateLimit } from '@babylon/api';
 import { getReputationLeaderboard } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

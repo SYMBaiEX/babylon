@@ -52,8 +52,11 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
-    const { error, user: authUser, rateLimitInfo } =
-      await publicRateLimit(request);
+    const {
+      error,
+      user: authUser,
+      rateLimitInfo,
+    } = await publicRateLimit(request);
     if (error) return error;
 
     const { id: marketId } = PredictionMarketIdSchema.parse(

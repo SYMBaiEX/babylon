@@ -26,10 +26,10 @@ export {
   applyRateLimit,
   checkRateLimitAndDuplicates,
   duplicateContentError,
-  rateLimitError,
-  publicRateLimit,
   type PublicRateLimitKind,
   type PublicRateLimitResult,
+  publicRateLimit,
+  rateLimitError,
 } from './middleware';
 // Rate limiting (moved from @babylon/shared)
 // Redis-backed for production serverless, with in-memory fallback

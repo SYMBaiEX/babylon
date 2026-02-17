@@ -1,6 +1,5 @@
 import {
   addPublicReadHeaders,
-  optionalAuth,
   publicRateLimit,
   successResponse,
   withErrorHandling,
@@ -33,8 +32,11 @@ type UserPositionSnapshot = {
 
 // GET /api/markets/predictions – list markets (optionally with user positions)
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const { error, user: authUser, rateLimitInfo } =
-    await publicRateLimit(request);
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
   if (error) return error;
 
   const { searchParams } = new URL(request.url);

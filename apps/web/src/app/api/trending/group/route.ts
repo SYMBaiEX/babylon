@@ -65,7 +65,6 @@
 
 import {
   addPublicReadHeaders,
-  type AuthenticatedUser,
   publicRateLimit,
   withErrorHandling,
 } from '@babylon/api';
@@ -92,8 +91,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const { error, user: authUser, rateLimitInfo } =
-    await publicRateLimit(request);
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
   if (error) return error;
 
   const { searchParams } = new URL(request.url);

@@ -1,12 +1,12 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import type {
   TickerNewsItem,
   TickerPerpItem,
   TickerPredictionItem,
   TickerResponse,
 } from '@/types/ticker';
-import { useCallback, useEffect, useState } from 'react';
 
 const DEFAULT_STREAMS = 'news,predictions,perps';
 const DEFAULT_THEME = 'dark';
@@ -26,15 +26,41 @@ function useTickerParams() {
   return {
     streams: params.get('streams')?.trim() || DEFAULT_STREAMS,
     theme: (params.get('theme') || DEFAULT_THEME).toLowerCase(),
-    speed: Math.min(2, Math.max(0.5, parseFloat(params.get('speed') || String(DEFAULT_SPEED)) || DEFAULT_SPEED)),
-    height: Math.min(120, Math.max(32, parseInt(params.get('height') || String(DEFAULT_HEIGHT), 10) || DEFAULT_HEIGHT)),
+    speed: Math.min(
+      2,
+      Math.max(
+        0.5,
+        parseFloat(params.get('speed') || String(DEFAULT_SPEED)) ||
+          DEFAULT_SPEED
+      )
+    ),
+    height: Math.min(
+      120,
+      Math.max(
+        32,
+        parseInt(params.get('height') || String(DEFAULT_HEIGHT), 10) ||
+          DEFAULT_HEIGHT
+      )
+    ),
   };
 }
 
-function buildItems(response: TickerResponse): Array<{ key: string; label: string; text: string; type: string }> {
-  const items: Array<{ key: string; label: string; text: string; type: string }> = [];
+function buildItems(
+  response: TickerResponse
+): Array<{ key: string; label: string; text: string; type: string }> {
+  const items: Array<{
+    key: string;
+    label: string;
+    text: string;
+    type: string;
+  }> = [];
   (response.news ?? []).forEach((n: TickerNewsItem) => {
-    items.push({ key: `news-${n.id}`, label: 'News', text: n.title, type: 'news' });
+    items.push({
+      key: `news-${n.id}`,
+      label: 'News',
+      text: n.title,
+      type: 'news',
+    });
   });
   (response.predictions ?? []).forEach((p: TickerPredictionItem) => {
     items.push({
@@ -65,7 +91,9 @@ export function TickerClient() {
   const fetchTicker = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch(`/api/ticker?streams=${encodeURIComponent(streams)}&limit=30`);
+      const res = await fetch(
+        `/api/ticker?streams=${encodeURIComponent(streams)}&limit=30`
+      );
       if (!res.ok) throw new Error(`Ticker API ${res.status}`);
       const json = (await res.json()) as { success?: boolean } & TickerResponse;
       setData({
@@ -148,9 +176,11 @@ export function TickerClient() {
             className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm"
           >
             <span
-              className="rounded px-1.5 py-0.5 text-xs font-medium"
+              className="rounded px-1.5 py-0.5 font-medium text-xs"
               style={{
-                background: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                background: isDark
+                  ? 'rgba(255,255,255,0.12)'
+                  : 'rgba(0,0,0,0.08)',
                 color: muted,
               }}
             >

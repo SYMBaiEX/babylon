@@ -60,9 +60,7 @@ export function buildRssXml(channel: RssChannel, items: RssItem[]): string {
     .map((item) => {
       const title = escapeXml(item.title);
       const link = item.link ? escapeXml(item.link) : channelLink;
-      const description = item.description
-        ? escapeXml(item.description)
-        : '';
+      const description = item.description ? escapeXml(item.description) : '';
       const pubDate = item.pubDate.includes(',')
         ? item.pubDate
         : toRfc1123(new Date(item.pubDate));

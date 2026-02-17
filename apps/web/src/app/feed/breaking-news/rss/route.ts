@@ -5,8 +5,13 @@
  * to RSS so all aggregation and RLS logic stays in one place. Limit 20 keeps the feed focused.
  */
 
-import { buildRssXml, getRssCacheHeaders, type RssChannel, type RssItem } from '@/lib/rss';
 import type { NextRequest } from 'next/server';
+import {
+  buildRssXml,
+  getRssCacheHeaders,
+  type RssChannel,
+  type RssItem,
+} from '@/lib/rss';
 
 /** WHY: Absolute origin needed for RSS item links (see feed/rss/route). */
 function getOrigin(request: NextRequest): string {

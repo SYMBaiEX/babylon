@@ -201,8 +201,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { error, user: authUser, rateLimitInfo } =
-    await publicRateLimit(request);
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
   if (error) return error;
 
   // Check username availability with RLS (public or user context)

@@ -6,8 +6,13 @@
  * Cookie forwarded so optional auth on the API still applies (e.g. RLS); limit 50 for a full page of items.
  */
 
-import { buildRssXml, getRssCacheHeaders, type RssChannel, type RssItem } from '@/lib/rss';
 import type { NextRequest } from 'next/server';
+import {
+  buildRssXml,
+  getRssCacheHeaders,
+  type RssChannel,
+  type RssItem,
+} from '@/lib/rss';
 
 /** WHY: Behind a proxy we need x-forwarded-* to build absolute URLs for RSS <link> and <item> elements. */
 function getOrigin(request: NextRequest): string {
@@ -48,7 +53,8 @@ export async function GET(request: NextRequest) {
   const items: RssItem[] = posts.map((post) => ({
     title: `${post.authorName}: ${post.content.slice(0, 80)}${post.content.length > 80 ? '…' : ''}`,
     link: `${origin}/post/${post.id}`,
-    description: post.content.slice(0, 500) + (post.content.length > 500 ? '…' : ''),
+    description:
+      post.content.slice(0, 500) + (post.content.length > 500 ? '…' : ''),
     pubDate: post.timestamp,
   }));
 
