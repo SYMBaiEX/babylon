@@ -8,7 +8,7 @@
  * This eliminates double LLM calls and makes execution faster.
  */
 
-import { actorState, chats, db, eq, users } from '@babylon/db';
+import { actorState, agentLogs, and, chats, db, desc, eq, users } from '@babylon/db';
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -207,6 +207,9 @@ export class MultiStepExecutor {
       }
     }
 
+    const contextRefreshSummary =
+      await this.getLatestContextRefreshSummary(agentUserId);
+
     // Main iteration loop
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
       const iterationStartTime = Date.now();
@@ -232,7 +235,8 @@ export class MultiStepExecutor {
       const context = await this.gatherContext(
         agentUserId,
         effectiveFeatures,
-        isNpc
+        isNpc,
+        contextRefreshSummary
       );
       iterationTimings.gatherContext = Date.now() - contextStartTime;
 
@@ -360,7 +364,8 @@ export class MultiStepExecutor {
   private async gatherContext(
     agentUserId: string,
     enabledFeatures: string[],
-    isNpc: boolean
+    isNpc: boolean,
+    contextRefreshSummary?: string
   ): Promise<AgentTickContext> {
     const contextStartTime = Date.now();
     const timings: Record<string, number> = {};
@@ -522,6 +527,7 @@ export class MultiStepExecutor {
           pendingChatMessagesRaw: pendingChatMessagesRaw.length,
           groupChats: agentGroupChats.length,
           ownPosts: agentOwnPosts.length,
+          hasContextRefreshSummary: Boolean(contextRefreshSummary),
         },
       },
       'MultiStepExecutor'
@@ -546,6 +552,7 @@ export class MultiStepExecutor {
       postStyle: assignment?.postStyle,
       agentOwnPosts,
       creator,
+      contextRefreshSummary,
     };
   }
 
@@ -559,6 +566,43 @@ export class MultiStepExecutor {
     const start = Date.now();
     const data = await operation();
     return { data, duration: Date.now() - start };
+  }
+
+  private async getLatestContextRefreshSummary(
+    agentUserId: string
+  ): Promise<string | undefined> {
+    const recentSystemLogs = await db
+      .select({
+        createdAt: agentLogs.createdAt,
+        metadata: agentLogs.metadata,
+      })
+      .from(agentLogs)
+      .where(
+        and(eq(agentLogs.agentUserId, agentUserId), eq(agentLogs.type, 'system'))
+      )
+      .orderBy(desc(agentLogs.createdAt))
+      .limit(10);
+
+    for (const log of recentSystemLogs) {
+      const metadata =
+        log.metadata && typeof log.metadata === 'object' ? log.metadata : null;
+      const event =
+        metadata && 'event' in metadata ? metadata.event : undefined;
+      const summary =
+        metadata && 'summary' in metadata ? metadata.summary : undefined;
+
+      if (event !== 'context_refresh' || typeof summary !== 'string') {
+        continue;
+      }
+
+      if (!(log.createdAt instanceof Date)) {
+        return summary;
+      }
+
+      return `${summary} [recorded ${log.createdAt.toISOString()}]`;
+    }
+
+    return undefined;
   }
 
   private getActionabilitySummary(context: AgentTickContext): {

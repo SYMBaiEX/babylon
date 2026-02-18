@@ -348,6 +348,8 @@ export interface AgentTickContext {
   agentOwnPosts?: AgentOwnPostContext[];
   // Creator/owner info (for user-controlled agents)
   creator?: CreatorInfo;
+  // Continuity note persisted before runtime context refresh
+  contextRefreshSummary?: string;
 }
 
 export interface MultiStepDecision {
@@ -722,6 +724,13 @@ You were created by **${context.creator.name}**${context.creator.username ? ` (@
 `
       : '';
 
+  const continuitySection = context.contextRefreshSummary
+    ? `
+# Continuity Notes (Previous Runtime)
+${context.contextRefreshSummary}
+`
+    : '';
+
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
 ${creatorSection}${npcContextSection}${tradePostEncouragement}# Current Execution Context
 **Step**: ${iterationCount}/${maxIterations}
@@ -734,6 +743,7 @@ ${creatorSection}${npcContextSection}${tradePostEncouragement}# Current Executio
 - Pending Comments: ${context.pendingCommentReplies.length}
 - Pending Chats: ${context.pendingChatMessages.length}
 ${actionabilitySection}
+${continuitySection}
 
 # Your Open Positions
 ${formatAgentPositions(context.agentPositions)}
