@@ -211,11 +211,7 @@ export function useAuth(): UseAuthReturn {
           ? `/api/users/me?ref=${encodeURIComponent(referralCode)}`
           : '/api/users/me';
 
-        const response = await apiFetch(url, {
-          headers: wallet?.address
-            ? { 'x-embedded-wallet-address': wallet.address.toLowerCase() }
-            : undefined,
-        });
+        const response = await apiFetch(url);
 
         // 401 is expected when not authenticated - exit early without error
         if (response.status === 401) {

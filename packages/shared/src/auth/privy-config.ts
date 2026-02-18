@@ -64,7 +64,7 @@ const loginMethodsAndOrder: NonNullable<
 };
 
 const embeddedWallets: NonNullable<BabylonPrivyConfig['embeddedWallets']> = {
-  ethereum: { createOnLogin: 'users-without-wallets' },
+  ethereum: { createOnLogin: 'off' },
 };
 
 const externalWallets: BabylonPrivyConfig['externalWallets'] = (() => {
