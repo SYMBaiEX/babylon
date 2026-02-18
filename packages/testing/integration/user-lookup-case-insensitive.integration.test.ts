@@ -109,6 +109,15 @@ describe('Case-Insensitive Username Lookup', () => {
       expect(user?.id).toBe(testUserId);
     });
 
+    it('should honor select projection when provided', async () => {
+      const user = (await findUserByIdentifier(testUsername, {
+        id: true,
+      })) as { id: string } | null;
+      expect(user).not.toBeNull();
+      expect(user?.id).toBe(testUserId);
+      expect(Object.keys(user ?? {})).toEqual(['id']);
+    });
+
     it('should return null for non-existent username', async () => {
       const user = await findUserByIdentifier('nonexistent-user-12345');
       expect(user).toBeNull();

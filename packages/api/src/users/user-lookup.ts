@@ -20,7 +20,7 @@ type User = InferSelectModel<typeof users>;
  * Returns null if no user is found. Username matching is case-insensitive.
  *
  * @param {string} identifier - The user ID, privyId, or username
- * @param {Record<string, boolean>} [_select] - Optional select fields (for compatibility, currently ignored)
+ * @param {Record<string, boolean>} [_select] - Optional select fields projection
  * @returns {Promise<User | null>} User object or null if not found
  *
  * @example
@@ -35,19 +35,34 @@ export async function findUserByIdentifier(
   identifier: string,
   _select?: Record<string, boolean>
 ): Promise<User | null> {
-  // Try to find by ID, privyId, or username (case-insensitive for username)
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(
-      or(
-        eq(users.id, identifier),
-        eq(users.privyId, identifier),
-        sql`lower(${users.username}) = lower(${identifier})`
-      )
-    )
-    .limit(1);
+  const selectedFields: Record<string, unknown> = {};
+  if (_select) {
+    for (const [field, enabled] of Object.entries(_select)) {
+      if (!enabled) continue;
+      const column = (users as unknown as Record<string, unknown>)[field];
+      if (column) {
+        selectedFields[field] = column;
+      }
+    }
+  }
+  const condition = or(
+    eq(users.id, identifier),
+    eq(users.privyId, identifier),
+    sql`lower(${users.username}) = lower(${identifier})`
+  );
 
+  if (Object.keys(selectedFields).length > 0) {
+    // Respect explicit field projection to avoid unnecessary column reads.
+    const [user] = await db
+      .select(selectedFields as SelectedFields)
+      .from(users)
+      .where(condition)
+      .limit(1);
+    return (user as User | undefined) ?? null;
+  }
+
+  // Try to find by ID, privyId, or username (case-insensitive for username)
+  const [user] = await db.select().from(users).where(condition).limit(1);
   return user ?? null;
 }
 

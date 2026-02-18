@@ -53,25 +53,62 @@ function getRetryConfig(): { maxAttempts: number; delayMs: number } {
   };
 }
 
+function findNewWalletCandidates(
+  wallets: Array<{ walletId: string; address: `0x${string}` }>,
+  initialWalletIds: Set<string>
+): Array<{ walletId: string; address: `0x${string}` }> {
+  return wallets.filter((wallet) => !initialWalletIds.has(wallet.walletId));
+}
+
 async function resolveCandidateWalletsAfterCreateWithRetry(
   privyId: string,
   initialWalletIds: Set<string>,
-  privyServer: ReturnType<typeof getPrivyClient>
+  privyServer: ReturnType<typeof getPrivyClient>,
+  immediateWallets: Array<{ walletId: string; address: `0x${string}` }>
 ): Promise<Array<{ walletId: string; address: `0x${string}` }>> {
+  const immediateCandidates = findNewWalletCandidates(
+    immediateWallets,
+    initialWalletIds
+  );
+  if (immediateCandidates.length > 0) {
+    logger.info(
+      'Detected new embedded wallet(s) immediately after createWallets',
+      {
+        privyId,
+        candidateWalletIds: immediateCandidates.map((w) => w.walletId),
+        observedWalletIds: immediateWallets.map((w) => w.walletId),
+      },
+      'ensureOfflineWalletReady'
+    );
+    return immediateCandidates;
+  }
+
   const { maxAttempts, delayMs } = getRetryConfig();
-  let fallbackWallets: Array<{ walletId: string; address: `0x${string}` }> = [];
+  let lastObservedWalletIds: string[] = immediateWallets.map((w) => w.walletId);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const refreshedPrivyUser = (await privyServer.getUser(
       privyId
     )) as PrivyUserWithWallets;
     const refreshedWallets = listEmbeddedEvmWallets(refreshedPrivyUser);
-    fallbackWallets = refreshedWallets;
+    lastObservedWalletIds = refreshedWallets.map((w) => w.walletId);
 
-    const newWalletCandidates = refreshedWallets.filter(
-      (wallet) => !initialWalletIds.has(wallet.walletId)
+    const newWalletCandidates = findNewWalletCandidates(
+      refreshedWallets,
+      initialWalletIds
     );
     if (newWalletCandidates.length > 0) {
+      logger.info(
+        'Detected new embedded wallet(s) after retry',
+        {
+          privyId,
+          attempt: attempt + 1,
+          maxAttempts,
+          candidateWalletIds: newWalletCandidates.map((w) => w.walletId),
+          observedWalletIds: lastObservedWalletIds,
+        },
+        'ensureOfflineWalletReady'
+      );
       return newWalletCandidates;
     }
 
@@ -80,10 +117,22 @@ async function resolveCandidateWalletsAfterCreateWithRetry(
     }
   }
 
-  return fallbackWallets;
+  logger.warn(
+    'No new embedded wallet detected after createWallets retries',
+    {
+      privyId,
+      maxAttempts,
+      initialWalletIds: Array.from(initialWalletIds),
+      observedWalletIds: lastObservedWalletIds,
+    },
+    'ensureOfflineWalletReady'
+  );
+
+  return [];
 }
 
 async function findReadyWalletWithRetry(
+  privyId: string,
   walletIds: string[],
   privyNode: ReturnType<typeof getPrivyNodeClient>,
   signerId: string,
@@ -94,15 +143,44 @@ async function findReadyWalletWithRetry(
   const { maxAttempts, delayMs } = getRetryConfig();
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const notReadyWalletIds: string[] = [];
+
     for (const walletId of walletIds) {
       const wallet = await privyNode.wallets().get(walletId);
       if (hasOfflineSignerPolicy(wallet, signerId, policyId)) {
+        if (attempt > 0) {
+          logger.info(
+            'Offline signer policy detected after retry',
+            {
+              privyId,
+              walletId,
+              attempt: attempt + 1,
+              maxAttempts,
+            },
+            'ensureOfflineWalletReady'
+          );
+        }
         return walletId;
       }
+      notReadyWalletIds.push(walletId);
     }
 
     if (attempt < maxAttempts - 1 && delayMs > 0) {
       await sleep(delayMs);
+    }
+
+    if (attempt === maxAttempts - 1) {
+      logger.warn(
+        'Offline signer policy missing after retries on candidate wallet(s)',
+        {
+          privyId,
+          walletIds: notReadyWalletIds,
+          signerId,
+          policyId,
+          maxAttempts,
+        },
+        'ensureOfflineWalletReady'
+      );
     }
   }
 
@@ -123,8 +201,18 @@ export async function ensureOfflineWalletReady({
     privyId
   )) as PrivyUserWithWallets;
   const initialWallets = listEmbeddedEvmWallets(initialPrivyUser);
+  logger.info(
+    'Checking embedded wallet readiness',
+    {
+      privyId,
+      initialEmbeddedWalletCount: initialWallets.length,
+      initialEmbeddedWalletIds: initialWallets.map((w) => w.walletId),
+    },
+    'ensureOfflineWalletReady'
+  );
   let embedded: (typeof initialWallets)[number] | null =
     initialWallets[0] ?? null;
+  const initialUnreadyWalletIds: string[] = [];
 
   for (const candidate of initialWallets) {
     const wallet = await privyNode.wallets().get(candidate.walletId);
@@ -134,7 +222,10 @@ export async function ensureOfflineWalletReady({
       offlineConfig.offlinePolicyId
     );
 
-    if (!isReady) continue;
+    if (!isReady) {
+      initialUnreadyWalletIds.push(candidate.walletId);
+      continue;
+    }
 
     logger.info(
       'Offline wallet is ready for delegated transactions',
@@ -160,8 +251,19 @@ export async function ensureOfflineWalletReady({
   // No embedded wallet or incompatible embedded wallet:
   // create a fresh wallet with signer+policy attached instead of mutating existing wallet.
   {
+    if (initialUnreadyWalletIds.length > 0) {
+      logger.info(
+        'Existing embedded wallet(s) are not offline-ready; creating a new wallet',
+        {
+          privyId,
+          unreadyWalletIds: initialUnreadyWalletIds,
+        },
+        'ensureOfflineWalletReady'
+      );
+    }
+
     createdWallet = true;
-    await privyServer.createWallets({
+    const createdUser = (await privyServer.createWallets({
       userId: privyId,
       wallets: [
         {
@@ -175,28 +277,59 @@ export async function ensureOfflineWalletReady({
           policyIds: [],
         },
       ],
-    });
+    })) as PrivyUserWithWallets;
 
     const initialWalletIds = new Set(initialWallets.map((w) => w.walletId));
+    const immediateWallets = createdUser
+      ? listEmbeddedEvmWallets(createdUser)
+      : [];
+    logger.info(
+      'createWallets completed for offline provisioning',
+      {
+        privyId,
+        initialWalletIds: Array.from(initialWalletIds),
+        observedWalletIdsAfterCreate: immediateWallets.map((w) => w.walletId),
+      },
+      'ensureOfflineWalletReady'
+    );
     const candidateWallets = await resolveCandidateWalletsAfterCreateWithRetry(
       privyId,
       initialWalletIds,
-      privyServer
+      privyServer,
+      immediateWallets
     );
 
     if (candidateWallets.length === 0) {
+      logger.warn(
+        'Unable to resolve a newly created embedded wallet candidate',
+        {
+          privyId,
+          initialWalletIds: Array.from(initialWalletIds),
+          observedWalletIdsAfterCreate: immediateWallets.map((w) => w.walletId),
+        },
+        'ensureOfflineWalletReady'
+      );
       throw new Error(
         'Failed to resolve offline-ready embedded wallet after provisioning step'
       );
     }
 
     const readyWalletId = await findReadyWalletWithRetry(
+      privyId,
       candidateWallets.map((wallet) => wallet.walletId),
       privyNode,
       offlineConfig.offlineSignerId,
       offlineConfig.offlinePolicyId
     );
     if (!readyWalletId) {
+      logger.warn(
+        'New wallet candidate(s) found but signer/policy still missing',
+        {
+          privyId,
+          candidateWalletIds: candidateWallets.map((w) => w.walletId),
+        },
+        'ensureOfflineWalletReady'
+      );
       throw new Error(
         'Offline wallet provisioning failed: signer/policy not attached on newly created wallet'
       );
