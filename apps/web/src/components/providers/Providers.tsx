@@ -15,6 +15,7 @@ import { DiscordActivityProvider } from './DiscordActivityProvider';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
+import { OnboardingProvider } from './OnboardingProvider';
 import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 import { SolanaMobileProvider } from './SolanaMobileProvider';
@@ -305,21 +306,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
                             <ReferralCaptureProvider />
                           </Suspense>
                           {/* Onboarding provider for username setup */}
-                          {/* <OnboardingProvider> */}
-                          {/* Session heartbeat for engagement metrics */}
-                          <SessionHeartbeatProvider>
-                            {/* Game guide provider for first-time tutorial */}
-                            <GameGuideProvider>
-                              <WidgetRefreshProvider>
-                                {mounted ? (
-                                  <Fragment>{children}</Fragment>
-                                ) : (
-                                  <div className="min-h-screen bg-sidebar" />
-                                )}
-                              </WidgetRefreshProvider>
-                            </GameGuideProvider>
-                          </SessionHeartbeatProvider>
-                          {/* </OnboardingProvider> */}
+                          <OnboardingProvider>
+                            {/* Session heartbeat for engagement metrics */}
+                            <SessionHeartbeatProvider>
+                              {/* Game guide provider for first-time tutorial */}
+                              <GameGuideProvider>
+                                <WidgetRefreshProvider>
+                                  {mounted ? (
+                                    <Fragment>{children}</Fragment>
+                                  ) : (
+                                    <div className="min-h-screen bg-sidebar" />
+                                  )}
+                                </WidgetRefreshProvider>
+                              </GameGuideProvider>
+                            </SessionHeartbeatProvider>
+                          </OnboardingProvider>
                         </DiscordActivityProvider>
                       </TelegramMiniAppProvider>
                     </FarcasterMiniAppProvider>
