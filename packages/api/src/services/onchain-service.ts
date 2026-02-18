@@ -747,20 +747,25 @@ export async function processOnchainRegistration({
     if (log.topics.length === 0) {
       return false;
     }
-    const decodedLog = decodeEventLog({
-      abi: usesAgent0MainnetRegistry
-        ? agent0IdentityRegistryAbi
-        : identityRegistryAbi,
-      data: log.data,
-      topics: log.topics,
-      strict: false,
-    });
-    logger.info(
-      'Decoded log event',
-      { eventName: decodedLog.eventName },
-      'processOnchainRegistration'
-    );
-    return decodedLog.eventName === targetRegistrationEvent;
+    try {
+      const decodedLog = decodeEventLog({
+        abi: usesAgent0MainnetRegistry
+          ? agent0IdentityRegistryAbi
+          : identityRegistryAbi,
+        data: log.data,
+        topics: log.topics,
+        strict: false,
+      });
+      logger.info(
+        'Decoded log event',
+        { eventName: decodedLog.eventName },
+        'processOnchainRegistration'
+      );
+      return decodedLog.eventName === targetRegistrationEvent;
+    } catch {
+      // Ignore logs for events not present in the selected ABI (e.g. ERC-721 Transfer).
+      return false;
+    }
   });
 
   if (!agentRegisteredLog) {
