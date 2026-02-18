@@ -5,6 +5,8 @@
  */
 
 import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import * as actualDbModule from '../../db/src/index';
+import * as actualFsPromises from 'node:fs/promises';
 
 // Tests use mocked db module
 const describeTests = describe;
@@ -130,105 +132,21 @@ const mockLogger = {
   error: mock(),
 };
 
-// Mock modules - using @babylon/db since AutomationPipeline imports from there
-// Include all exports that may be imported by AutomationPipeline and its dependencies
-mock.module('@babylon/db', () => ({
-  db: mockDb,
-  // Tables (as empty objects since we're mocking db methods)
-  // Core tables
-  users: {},
-  actors: {},
-  posts: {},
-  comments: {},
-  reactions: {},
-  shares: {},
-  messages: {},
-  chats: {},
-  chatParticipants: {},
-  notifications: {},
-  // Agent-related tables
-  agentLogs: {},
-  agentMessages: {},
-  agentPerformanceMetrics: {},
-  agentGoals: {},
-  agentGoalActions: {},
-  agentPointsTransactions: {},
-  agentTrades: {},
-  agentRegistries: {},
-  agentCapabilities: {},
-  externalAgentConnections: {},
-  npcInteractions: {},
-  npcTrades: {},
-  // Training tables
-  trajectories: {},
-  trainingBatches: {},
-  trainedModels: {},
-  benchmarkResults: {},
-  llmCallLogs: {},
-  marketOutcomes: {},
-  rewardJudgments: {},
-  // Other tables
-  worldFacts: {},
-  worldEvents: {},
-  referrals: {},
-  pointsTransactions: {},
-  balanceTransactions: {},
-  markets: {},
-  positions: {},
-  perpPositions: {},
-  pools: {},
-  poolPositions: {},
-  poolDeposits: {},
-  organizations: {},
-  stockPrices: {},
-  questions: {},
-  predictionPriceHistories: {},
-  favorites: {},
-  follows: {},
-  followStatuses: {},
-  tags: {},
-  postTags: {},
-  trendingTags: {},
-  actorFollows: {},
-  actorRelationships: {},
-  userActorFollows: {},
-  userInteractions: {},
-  tradingFees: {},
-  feedbacks: {},
-  reports: {},
-  moderationEscrows: {},
-  // Operators (as no-op functions)
-  eq: () => ({}),
-  and: () => ({}),
-  or: () => ({}),
-  sql: () => ({}),
-  desc: () => ({}),
-  asc: () => ({}),
-  gte: () => ({}),
-  lte: () => ({}),
-  gt: () => ({}),
-  lt: () => ({}),
-  ne: () => ({}),
-  isNull: () => ({}),
-  isNotNull: () => ({}),
-  not: () => ({}),
-  count: () => ({}),
-  inArray: () => ({}),
-  notInArray: () => ({}),
-  like: () => ({}),
-  ilike: () => ({}),
-  between: () => ({}),
-  exists: () => ({}),
-  notExists: () => ({}),
-  sum: () => ({}),
-  avg: () => ({}),
-  min: () => ({}),
-  max: () => ({}),
-  // Types (for satisfying type imports)
-  Trajectory: {},
-  TrainingBatch: {},
-  TrainedModel: {},
-}));
+// Mock modules - keep full @babylon/db export surface and only override db.
+// This prevents cross-file module cache collisions from missing named exports.
+mock.module('@babylon/db', async () => {
+  return {
+    ...actualDbModule,
+    db: mockDb,
+    getDbInstance: () => mockDb,
+    getJsonStoragePath: () => '/tmp/mock-db.json',
+    getStorageMode: () => 'postgres',
+    isSimulationMode: () => false,
+    asSystem: async <T>(
+      operation: (database: typeof mockDb) => T | Promise<T>
+    ) => operation(mockDb),
+  };
+});
 
 // Note: @babylon/shared is NOT mocked - let real logger run to avoid
 // polluting module cache and breaking other tests that use formatCurrency, etc.
@@ -245,7 +163,9 @@ const mockMkdir = mock(() => Promise.resolve(undefined));
 const mockAccess = mock(() => Promise.resolve(undefined));
 const mockStat = mock(() => Promise.resolve({ size: 1000000 }));
 mock.module('node:fs/promises', () => ({
+  ...actualFsPromises,
   default: {
+    ...actualFsPromises,
     mkdir: mockMkdir,
     access: mockAccess,
     stat: mockStat,
