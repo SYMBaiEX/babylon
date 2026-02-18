@@ -12,8 +12,6 @@ on:
 
 jobs:
   claude-review:
-    # Fork PRs do not expose the Claude token/OIDC context required by this action.
-    if: ${{ github.event.pull_request.head.repo.fork == false }}
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
@@ -56,3 +54,4 @@ jobs:
           # Use Claude Opus 4.5 for better code review quality
           # See https://code.claude.com/docs/en/github-actions for available options
           claude_args: '--model claude-opus-4-5-20251101 --allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+

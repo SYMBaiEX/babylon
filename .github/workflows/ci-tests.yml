@@ -117,10 +117,9 @@ jobs:
           # Use CI test database directly
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          # For fork PRs, GitHub does not expose secrets; use a CI-only dummy app id.
-          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || secrets.NEXT_PUBLIC_PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
+          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
           PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
           PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
           PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
@@ -151,7 +150,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           # CRITICAL: NEXT_PUBLIC_* variables must be set at BUILD TIME (not runtime)
           # Next.js embeds these values into the JavaScript bundle during build
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
         run: |
           set -euo pipefail
           echo "🏗️ Building production..."
@@ -247,10 +246,9 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           # NEXT_PUBLIC_* variables are embedded at build time, but ensure they're available
           # at runtime for any server-side rendering or API routes that might need them
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
 
       - name: Run Synpress Tests (Wallet E2E)
-        if: ${{ secrets.WALLET_SEED_PHRASE != '' && secrets.WALLET_PASSWORD != '' && secrets.PRIVY_TEST_EMAIL != '' && secrets.PRIVY_TEST_PASSWORD != '' && (secrets.NEXT_PUBLIC_PRIVY_APP_ID != '' || secrets.PRIVY_APP_ID != '') }}
         run: cd packages/testing && bunx playwright test --config=synpress.config.ts --reporter=list,json
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
@@ -265,7 +263,7 @@ jobs:
           NODE_ENV: test
 
       - name: Run E2E Tests (Standard)
-        if: ${{ (success() || failure()) && secrets.PRIVY_TEST_EMAIL != '' && secrets.PRIVY_TEST_PASSWORD != '' && (secrets.NEXT_PUBLIC_PRIVY_APP_ID != '' || secrets.PRIVY_APP_ID != '') }}
+        if: success() || failure()
         run: cd packages/testing && bunx playwright test e2e --reporter=list,json
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
