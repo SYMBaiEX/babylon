@@ -31,6 +31,7 @@ import {
 import {
   type Account,
   type Address,
+  type Chain,
   createPublicClient,
   createWalletClient,
   decodeEventLog,
@@ -40,7 +41,24 @@ import {
   type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { baseSepolia, foundry } from 'viem/chains';
+import { baseSepolia, foundry, mainnet } from 'viem/chains';
+
+/**
+ * Resolve the viem Chain object from a numeric chain ID.
+ * Used to ensure publicClient and walletClient use the correct chain configuration.
+ */
+function resolveViemChain(chainId: number): Chain {
+  switch (chainId) {
+    case 1:
+      return mainnet;
+    case 84532:
+      return baseSepolia;
+    case 31337:
+      return foundry;
+    default:
+      return baseSepolia;
+  }
+}
 import { sendSponsoredEvmTransaction } from './privy/evm-send-transaction';
 
 /**
@@ -351,7 +369,7 @@ export async function processOnchainRegistration({
 
   // Create publicClient at function scope for use throughout registration flow
   const publicClient = createPublicClient({
-    chain: isLocalNetwork ? foundry : baseSepolia,
+    chain: resolveViemChain(chainId),
     transport: http(getRpcUrl()),
   });
 
@@ -373,13 +391,17 @@ export async function processOnchainRegistration({
       contractCode && contractCode !== '0x' && contractCode.length > 2;
 
     if (!contractExists) {
-      // Contract not deployed yet - use database state
-      logger.warn(
-        'Identity registry contract not deployed yet, using database state',
+      // Contract not deployed at this address on this chain — abort registration
+      // This prevents sending transactions to a non-existent contract
+      logger.error(
+        'Identity registry contract not deployed — cannot register on-chain',
         { contractAddress: IDENTITY_REGISTRY, chainId },
         'processOnchainRegistration'
       );
-      isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null;
+      throw new BusinessLogicError(
+        `Identity registry contract is not deployed at ${IDENTITY_REGISTRY} on chain ${chainId}. On-chain registration is unavailable.`,
+        'CONTRACT_NOT_DEPLOYED'
+      );
     } else {
       // Contract exists - check blockchain for registration status
       isRegistered = await publicClient.readContract({
@@ -460,7 +482,7 @@ export async function processOnchainRegistration({
     deployerAccount = privateKeyToAccount(DEPLOYER_PRIVATE_KEY!);
     deployerWalletClient = createWalletClient({
       account: deployerAccount,
-      chain: isLocalNetwork ? foundry : baseSepolia,
+      chain: resolveViemChain(chainId),
       transport: http(getRpcUrl()),
     });
   }
@@ -1043,7 +1065,7 @@ export async function confirmOnchainProfileUpdate({
   const lowerWallet = walletAddress.toLowerCase();
   const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
   const publicClient = createPublicClient({
-    chain: chainId === 31337 ? foundry : baseSepolia,
+    chain: resolveViemChain(chainId),
     transport: http(getRpcUrl()),
   });
 
@@ -1213,7 +1235,7 @@ export async function getOnchainRegistrationStatus(
   // On testnets/mainnet, verify against the chain
   if (!user.isAgent && userRecord.walletAddress && chainId !== 31337) {
     const publicClient = createPublicClient({
-      chain: baseSepolia,
+      chain: resolveViemChain(chainId),
       transport: http(getRpcUrl()),
     });
 

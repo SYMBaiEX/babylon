@@ -10,7 +10,11 @@
  * @remarks Base mainnet support will be added when contracts are deployed.
  */
 
-import { getCurrentChainId, getCurrentRpcUrl } from '@babylon/shared';
+import {
+  getCurrentChainId,
+  getCurrentRpcUrl,
+  PUBLIC_CONFIG,
+} from '@babylon/shared';
 import type { Address } from 'viem';
 import baseSepoliaDeployment from '../../deployments/base-sepolia';
 import localDeployment from '../../deployments/local';
@@ -91,13 +95,37 @@ export function getContractAddresses(): DeployedContracts {
     };
   }
 
+  if (chainId === 1) {
+    // Ethereum Mainnet - identity & reputation contracts deployed, others not applicable
+    const ethContracts = PUBLIC_CONFIG.networks.ethereum.contracts;
+    return {
+      diamond: '0x0000000000000000000000000000000000000000' as Address,
+      babylonOracle: '0x0000000000000000000000000000000000000000' as Address,
+      predictionMarketFacet:
+        '0x0000000000000000000000000000000000000000' as Address,
+      identityRegistry: ethContracts.identityRegistry as Address,
+      reputationSystem: ethContracts.reputationSystem as Address,
+      chainId: 1,
+      network: 'ethereum',
+    };
+  }
+
   if (chainId === 8453) {
     throw new Error(
       'Base mainnet contracts are not yet deployed. Use localnet or base-sepolia.'
     );
   }
 
-  // Default to localnet for unknown chains
+  // Default to localnet for unknown chains (development only)
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.DEPLOYMENT_ENV === 'mainnet'
+  ) {
+    throw new Error(
+      `Unsupported chain ID ${chainId} in production. Supported: 1 (Ethereum), 84532 (Base Sepolia), 31337 (local).`
+    );
+  }
+
   return {
     diamond: localDeployment.contracts.diamond as Address,
     babylonOracle: localDeployment.contracts.babylonOracle as Address,

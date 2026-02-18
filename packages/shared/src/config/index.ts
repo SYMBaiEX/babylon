@@ -65,12 +65,13 @@ export interface PublicConfig {
 
 export const PUBLIC_CONFIG = configData as PublicConfig;
 
-type NetworkId = 'local' | 'baseSepolia' | 'base';
+type NetworkId = 'local' | 'baseSepolia' | 'base' | 'ethereum';
 
 const CHAIN_ID_TO_NETWORK: Record<number, NetworkId> = {
   31337: 'local',
   84532: 'baseSepolia',
   8453: 'base',
+  1: 'ethereum',
 };
 
 export function getCurrentChainId(): number {
@@ -83,7 +84,7 @@ export function getCurrentChainId(): number {
   return 31337;
 }
 
-function getCurrentNetwork(): NetworkConfig {
+function getCurrentNetwork(): NetworkConfig | EthereumNetworkConfig {
   const networkId = CHAIN_ID_TO_NETWORK[getCurrentChainId()] || 'local';
   return PUBLIC_CONFIG.networks[networkId];
 }
@@ -94,15 +95,17 @@ function getCurrentNetwork(): NetworkConfig {
 
 export function getCurrentContractAddresses():
   | CoreContractAddresses
-  | LocalContractAddresses {
+  | LocalContractAddresses
+  | EthereumContractAddresses {
   return getCurrentNetwork().contracts;
 }
 
 export function areContractsDeployed(chainId: number): boolean {
   const networkId = CHAIN_ID_TO_NETWORK[chainId] || 'local';
-  const contracts = PUBLIC_CONFIG.networks[networkId].contracts;
+  const network = PUBLIC_CONFIG.networks[networkId];
   return (
-    contracts.identityRegistry !== '0x0000000000000000000000000000000000000000'
+    network.contracts.identityRegistry !==
+    '0x0000000000000000000000000000000000000000'
   );
 }
 
