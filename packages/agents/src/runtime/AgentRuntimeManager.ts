@@ -12,7 +12,17 @@
  * @packageDocumentation
  */
 
-import { db, eq, users } from '@babylon/db';
+import {
+  actorState,
+  agentLogs,
+  agentTrades,
+  and,
+  db,
+  desc,
+  eq,
+  gte,
+  users,
+} from '@babylon/db';
 import {
   type ActorData,
   loadActorById,
@@ -67,6 +77,26 @@ const globalRuntimes = new Map<string, AgentRuntime>();
 
 /** Global trajectory logger instances per agent */
 const trajectoryLoggers = new Map<string, TrajectoryLoggerService>();
+
+interface RuntimeLifecycleMetadata {
+  createdAtMs: number;
+  refreshCount: number;
+}
+
+/** Runtime lifecycle metadata used for periodic refresh decisions */
+const runtimeLifecycleMetadata = new Map<string, RuntimeLifecycleMetadata>();
+
+const DEFAULT_CONTEXT_REFRESH_HOURS = 48;
+const MS_PER_HOUR = 60 * 60 * 1000;
+const MAX_REFRESH_WINDOW_LOGS = 250;
+const MAX_REFRESH_WINDOW_TRADES = 250;
+const CONTEXT_REFRESH_INTERVAL_MS = (() => {
+  const configured = Number(process.env.AGENT_CONTEXT_REFRESH_HOURS ?? '');
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.floor(configured * MS_PER_HOUR);
+  }
+  return DEFAULT_CONTEXT_REFRESH_HOURS * MS_PER_HOUR;
+})();
 
 /** Pending runtime creation promises to prevent race conditions */
 const pendingRuntimePromises = new Map<string, Promise<AgentRuntime>>();
@@ -187,6 +217,184 @@ export class AgentRuntimeManager {
     return AgentRuntimeManager.instance;
   }
 
+  private shouldRefreshRuntime(createdAtMs: number): boolean {
+    return Date.now() - createdAtMs >= CONTEXT_REFRESH_INTERVAL_MS;
+  }
+
+  private async persistContextRefreshSummary(
+    agentUserId: string,
+    lifecycle: RuntimeLifecycleMetadata
+  ): Promise<void> {
+    const refreshEndedAt = new Date();
+    const refreshStartedAt = new Date(lifecycle.createdAtMs);
+
+    const [windowLogs, windowTrades, userSnapshot, npcSnapshot] =
+      await Promise.all([
+        db
+          .select({
+            type: agentLogs.type,
+            level: agentLogs.level,
+            createdAt: agentLogs.createdAt,
+          })
+          .from(agentLogs)
+          .where(
+            and(
+              eq(agentLogs.agentUserId, agentUserId),
+              gte(agentLogs.createdAt, refreshStartedAt)
+            )
+          )
+          .orderBy(desc(agentLogs.createdAt))
+          .limit(MAX_REFRESH_WINDOW_LOGS),
+        db
+          .select({
+            marketType: agentTrades.marketType,
+            action: agentTrades.action,
+            pnl: agentTrades.pnl,
+            executedAt: agentTrades.executedAt,
+          })
+          .from(agentTrades)
+          .where(
+            and(
+              eq(agentTrades.agentUserId, agentUserId),
+              gte(agentTrades.executedAt, refreshStartedAt)
+            )
+          )
+          .orderBy(desc(agentTrades.executedAt))
+          .limit(MAX_REFRESH_WINDOW_TRADES),
+        db
+          .select({
+            displayName: users.displayName,
+            virtualBalance: users.virtualBalance,
+            lifetimePnL: users.lifetimePnL,
+          })
+          .from(users)
+          .where(eq(users.id, agentUserId))
+          .limit(1),
+        db
+          .select({ tradingBalance: actorState.tradingBalance })
+          .from(actorState)
+          .where(eq(actorState.id, agentUserId))
+          .limit(1),
+      ]);
+
+    const actionCounts = {
+      ticks: 0,
+      trades: 0,
+      posts: 0,
+      comments: 0,
+      dms: 0,
+      likes: 0,
+      reposts: 0,
+      errors: 0,
+    };
+
+    for (const entry of windowLogs) {
+      if (entry.level === 'error') {
+        actionCounts.errors++;
+      }
+
+      switch (entry.type) {
+        case 'tick':
+          actionCounts.ticks++;
+          break;
+        case 'trade':
+          actionCounts.trades++;
+          break;
+        case 'post':
+          actionCounts.posts++;
+          break;
+        case 'comment':
+          actionCounts.comments++;
+          break;
+        case 'dm':
+          actionCounts.dms++;
+          break;
+        case 'like':
+          actionCounts.likes++;
+          break;
+        case 'repost':
+          actionCounts.reposts++;
+          break;
+        default:
+          break;
+      }
+    }
+
+    const closedTrades = windowTrades.filter((trade) => trade.pnl !== null);
+    const winningTrades = closedTrades.filter(
+      (trade) => Number(trade.pnl ?? 0) > 0
+    ).length;
+    const realizedPnl = Number(
+      closedTrades
+        .reduce((acc, trade) => acc + Number(trade.pnl ?? 0), 0)
+        .toFixed(2)
+    );
+    const runtimeAgeHours = Number(
+      ((refreshEndedAt.getTime() - lifecycle.createdAtMs) / MS_PER_HOUR).toFixed(
+        2
+      )
+    );
+
+    const user = userSnapshot[0];
+    const npc = npcSnapshot[0];
+    const balanceText = user
+      ? `$${Number(user.virtualBalance ?? 0).toFixed(2)} balance, lifetime PnL ${Number(user.lifetimePnL ?? 0) >= 0 ? '+' : ''}$${Number(user.lifetimePnL ?? 0).toFixed(2)}`
+      : npc
+        ? `$${Number(npc.tradingBalance ?? 0).toFixed(2)} NPC trading balance`
+        : 'balance unavailable';
+
+    const summary =
+      `Runtime refreshed after ${runtimeAgeHours}h. ` +
+      `Window activity: ${actionCounts.ticks} ticks, ${actionCounts.trades} logged trades, ` +
+      `${actionCounts.posts} posts, ${actionCounts.comments} comments, ${actionCounts.dms} DMs, ` +
+      `${actionCounts.likes + actionCounts.reposts} engagements. ` +
+      `Trade outcomes: ${windowTrades.length} trades, ${closedTrades.length} closed, ${winningTrades} wins, realized PnL ${realizedPnl >= 0 ? '+' : ''}$${Math.abs(realizedPnl).toFixed(2)}. ` +
+      `Current state: ${balanceText}.`;
+
+    const metadata: Record<string, JsonValue> = {
+      event: 'context_refresh',
+      summary,
+      refreshCount: lifecycle.refreshCount + 1,
+      refreshIntervalHours: Number(
+        (CONTEXT_REFRESH_INTERVAL_MS / MS_PER_HOUR).toFixed(2)
+      ),
+      runtimeAgeHours,
+      windowStart: refreshStartedAt.toISOString(),
+      windowEnd: refreshEndedAt.toISOString(),
+      actionCounts,
+      tradeStats: {
+        total: windowTrades.length,
+        closed: closedTrades.length,
+        wins: winningTrades,
+        realizedPnl,
+      },
+      accountState: {
+        displayName: user?.displayName ?? null,
+        balance: user
+          ? Number(user.virtualBalance ?? 0)
+          : npc
+            ? Number(npc.tradingBalance ?? 0)
+            : null,
+        lifetimePnl: user ? Number(user.lifetimePnL ?? 0) : null,
+      },
+      lastActionAt:
+        windowLogs[0]?.createdAt instanceof Date
+          ? windowLogs[0].createdAt.toISOString()
+          : null,
+      logsSampled: windowLogs.length,
+      tradesSampled: windowTrades.length,
+    };
+
+    await db.insert(agentLogs).values({
+      id: await generateSnowflakeId(),
+      agentUserId,
+      type: 'system',
+      level: 'info',
+      message: 'Context refresh checkpoint',
+      metadata,
+    });
+  }
+
   /**
    * Gets or creates a runtime for any agent type
    *
@@ -197,14 +405,64 @@ export class AgentRuntimeManager {
    * @returns Agent runtime instance
    */
   public async getRuntime(agentUserId: string): Promise<AgentRuntime> {
+    let refreshCount = 0;
+
     if (globalRuntimes.has(agentUserId)) {
-      const runtime = globalRuntimes.get(agentUserId)!;
+      const lifecycle = runtimeLifecycleMetadata.get(agentUserId);
+
+      if (!lifecycle) {
+        runtimeLifecycleMetadata.set(agentUserId, {
+          createdAtMs: Date.now(),
+          refreshCount: 0,
+        });
+        const runtime = globalRuntimes.get(agentUserId)!;
+        logger.info(
+          `Using cached runtime for agent ${agentUserId} (lifecycle initialized)`,
+          undefined,
+          'AgentRuntimeManager'
+        );
+        return runtime;
+      }
+
+      if (!this.shouldRefreshRuntime(lifecycle.createdAtMs)) {
+        const runtime = globalRuntimes.get(agentUserId)!;
+        logger.info(
+          `Using cached runtime for agent ${agentUserId}`,
+          undefined,
+          'AgentRuntimeManager'
+        );
+        return runtime;
+      }
+
+      refreshCount = lifecycle.refreshCount + 1;
+      const runtimeAgeHours = (
+        (Date.now() - lifecycle.createdAtMs) /
+        MS_PER_HOUR
+      ).toFixed(2);
+
       logger.info(
-        `Using cached runtime for agent ${agentUserId}`,
-        undefined,
+        `Refreshing runtime for agent ${agentUserId} after ${runtimeAgeHours}h`,
+        {
+          refreshIntervalHours: CONTEXT_REFRESH_INTERVAL_MS / MS_PER_HOUR,
+          refreshCount,
+        },
         'AgentRuntimeManager'
       );
-      return runtime;
+
+      try {
+        await this.persistContextRefreshSummary(agentUserId, lifecycle);
+      } catch (error) {
+        logger.warn(
+          'Failed to persist context refresh summary before runtime reset',
+          {
+            agentId: agentUserId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'AgentRuntimeManager'
+        );
+      }
+
+      await this.clearRuntime(agentUserId);
     }
 
     const registration = await agentRegistry.getAgentById(agentUserId);
@@ -232,6 +490,10 @@ export class AgentRuntimeManager {
 
       // Cache runtime
       globalRuntimes.set(agentUserId, runtime);
+      runtimeLifecycleMetadata.set(agentUserId, {
+        createdAtMs: Date.now(),
+        refreshCount,
+      });
 
       // Use debug level for per-agent runtime creation to reduce startup noise
       logger.debug(
@@ -432,6 +694,10 @@ export class AgentRuntimeManager {
 
     // Cache runtime
     globalRuntimes.set(agentUserId, runtime);
+    runtimeLifecycleMetadata.set(agentUserId, {
+      createdAtMs: Date.now(),
+      refreshCount,
+    });
 
     // Use debug level for per-agent runtime creation to reduce startup noise
     logger.debug(
@@ -935,6 +1201,7 @@ export class AgentRuntimeManager {
     if (globalRuntimes.has(agentUserId)) {
       globalRuntimes.delete(agentUserId);
       trajectoryLoggers.delete(agentUserId);
+      runtimeLifecycleMetadata.delete(agentUserId);
 
       // Update registry status if agent exists in registry
       await agentRegistry.clearRuntimeInstance(agentUserId);
@@ -950,6 +1217,7 @@ export class AgentRuntimeManager {
   public clearAllRuntimes(): void {
     globalRuntimes.clear();
     trajectoryLoggers.clear();
+    runtimeLifecycleMetadata.clear();
     logger.info('All runtimes cleared', undefined, 'AgentRuntimeManager');
   }
 

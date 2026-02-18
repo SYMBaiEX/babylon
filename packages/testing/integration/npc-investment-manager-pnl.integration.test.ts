@@ -1,8 +1,9 @@
 /**
- * Test for NPCInvestmentManager.getPortfolioMetrics() realized PnL calculation
+ * Integration test for NPCInvestmentManager.getPortfolioMetrics() realized PnL
+ * calculation.
  *
- * This test verifies the fix for the bug where realizedPnL was always returning 0
- * instead of calculating the sum of realized PnL from closed positions.
+ * This test performs real database writes/reads and belongs in the integration
+ * suite (not unit).
  */
 
 import {
