@@ -59,6 +59,7 @@ function resolveViemChain(chainId: number): Chain {
       return baseSepolia;
   }
 }
+
 import { sendSponsoredEvmTransaction } from './privy/evm-send-transaction';
 
 /**
