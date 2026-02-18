@@ -56,7 +56,10 @@ function resolveViemChain(chainId: number): Chain {
     case 31337:
       return foundry;
     default:
-      return baseSepolia;
+      throw new BusinessLogicError(
+        `Unsupported chain ID for on-chain registration: ${chainId}`,
+        'UNSUPPORTED_CHAIN'
+      );
   }
 }
 
