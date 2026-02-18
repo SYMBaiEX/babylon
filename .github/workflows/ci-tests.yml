@@ -19,9 +19,6 @@ jobs:
     name: Run All Tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      HAS_PRIVY_E2E_SECRETS: ${{ (secrets.PRIVY_TEST_EMAIL != '' && secrets.PRIVY_TEST_PASSWORD != '' && (secrets.NEXT_PUBLIC_PRIVY_APP_ID != '' || secrets.PRIVY_APP_ID != '')) && 'true' || 'false' }}
-      HAS_SYNPRESS_SECRETS: ${{ (secrets.WALLET_SEED_PHRASE != '' && secrets.WALLET_PASSWORD != '' && secrets.PRIVY_TEST_EMAIL != '' && secrets.PRIVY_TEST_PASSWORD != '' && (secrets.NEXT_PUBLIC_PRIVY_APP_ID != '' || secrets.PRIVY_APP_ID != '')) && 'true' || 'false' }}
 
     services:
       postgres:
@@ -253,7 +250,7 @@ jobs:
           NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
 
       - name: Run Synpress Tests (Wallet E2E)
-        if: ${{ env.HAS_SYNPRESS_SECRETS == 'true' }}
+        if: ${{ secrets.WALLET_SEED_PHRASE != '' && secrets.WALLET_PASSWORD != '' && secrets.PRIVY_TEST_EMAIL != '' && secrets.PRIVY_TEST_PASSWORD != '' && (secrets.NEXT_PUBLIC_PRIVY_APP_ID != '' || secrets.PRIVY_APP_ID != '') }}
         run: cd packages/testing && bunx playwright test --config=synpress.config.ts --reporter=list,json
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
@@ -268,7 +265,7 @@ jobs:
           NODE_ENV: test
 
       - name: Run E2E Tests (Standard)
-        if: ${{ (success() || failure()) && env.HAS_PRIVY_E2E_SECRETS == 'true' }}
+        if: ${{ (success() || failure()) && secrets.PRIVY_TEST_EMAIL != '' && secrets.PRIVY_TEST_PASSWORD != '' && (secrets.NEXT_PUBLIC_PRIVY_APP_ID != '' || secrets.PRIVY_APP_ID != '') }}
         run: cd packages/testing && bunx playwright test e2e --reporter=list,json
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
