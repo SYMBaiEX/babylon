@@ -837,7 +837,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     !!clientEmbeddedWalletAddress &&
     clientEmbeddedWalletAddress !== dbWalletLower;
   const shouldEnsureOfflineWallet =
-    !dbWalletLower || !dbUser.privyWalletId || shouldResyncWallet;
+    !dbWalletLower ||
+    !dbUser.privyWalletId ||
+    !dbUser.offlineWalletReady ||
+    shouldResyncWallet;
 
   if (shouldEnsureOfflineWallet) {
     try {
