@@ -1,6 +1,6 @@
+import { verifyNotificationUnsubscribeToken } from '@babylon/api';
 import { and, db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { verifyNotificationUnsubscribeToken } from '@babylon/api';
 import type { NextRequest } from 'next/server';
 
 function htmlResponse(content: string, status = 200): Response {
@@ -33,6 +33,61 @@ function htmlResponse(content: string, status = 200): Response {
   );
 }
 
+/**
+ * Shared unsubscribe logic used by both GET (browser click) and POST (RFC 8058 one-click).
+ */
+async function processUnsubscribe(
+  token: string,
+  source: string
+): Promise<Response> {
+  const payload = verifyNotificationUnsubscribeToken(token);
+  if (!payload) {
+    return htmlResponse(
+      '<h1>Invalid link</h1><p>This unsubscribe link is invalid or expired.</p>',
+      400
+    );
+  }
+
+  const [updatedUser] = await db
+    .update(users)
+    .set({
+      emailNotificationsEnabled: false,
+      emailNotificationsRealtime: false,
+      emailNotificationsDailySummary: false,
+      emailNotificationsWeeklySummary: false,
+      emailNotificationsMonthlySummary: false,
+      emailNotificationsUnsubscribedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(users.id, payload.userId),
+        eq(users.email, payload.email.toLowerCase())
+      )
+    )
+    .returning({ id: users.id });
+
+  if (!updatedUser) {
+    return htmlResponse(
+      '<h1>Unable to unsubscribe</h1><p>This link does not match an active user email.</p>',
+      404
+    );
+  }
+
+  logger.info(
+    'User unsubscribed from notification emails via signed link',
+    { userId: updatedUser.id, source },
+    `${source} /api/notifications/email/unsubscribe`
+  );
+
+  return htmlResponse(
+    '<h1>You are unsubscribed</h1><p>You will no longer receive notification emails from Babylon.</p>'
+  );
+}
+
+/**
+ * GET handler — browser link click from email.
+ */
 export async function GET(request: NextRequest): Promise<Response> {
   try {
     const token = new URL(request.url).searchParams.get('token');
@@ -43,49 +98,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       );
     }
 
-    const payload = verifyNotificationUnsubscribeToken(token);
-    if (!payload) {
-      return htmlResponse(
-        '<h1>Invalid link</h1><p>This unsubscribe link is invalid or expired.</p>',
-        400
-      );
-    }
-
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        emailNotificationsEnabled: false,
-        emailNotificationsRealtime: false,
-        emailNotificationsDailySummary: false,
-        emailNotificationsWeeklySummary: false,
-        emailNotificationsMonthlySummary: false,
-        emailNotificationsUnsubscribedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(users.id, payload.userId),
-          eq(users.email, payload.email.toLowerCase())
-        )
-      )
-      .returning({ id: users.id });
-
-    if (!updatedUser) {
-      return htmlResponse(
-        '<h1>Unable to unsubscribe</h1><p>This link does not match an active user email.</p>',
-        404
-      );
-    }
-
-    logger.info(
-      'User unsubscribed from notification emails via signed link',
-      { userId: updatedUser.id },
-      'GET /api/notifications/email/unsubscribe'
-    );
-
-    return htmlResponse(
-      '<h1>You are unsubscribed</h1><p>You will no longer receive notification emails from Babylon.</p>'
-    );
+    return await processUnsubscribe(token, 'GET');
   } catch (error) {
     logger.error(
       'Email unsubscribe endpoint failed',
@@ -96,5 +109,27 @@ export async function GET(request: NextRequest): Promise<Response> {
       '<h1>Unexpected error</h1><p>We could not process your unsubscribe request. Please try again.</p>',
       500
     );
+  }
+}
+
+/**
+ * POST handler — RFC 8058 one-click unsubscribe (used by Gmail, Apple Mail, etc.).
+ * Email clients POST with body `List-Unsubscribe=One-Click` to the List-Unsubscribe URL.
+ */
+export async function POST(request: NextRequest): Promise<Response> {
+  try {
+    const token = new URL(request.url).searchParams.get('token');
+    if (!token) {
+      return new Response('Missing token', { status: 400 });
+    }
+
+    return await processUnsubscribe(token, 'POST');
+  } catch (error) {
+    logger.error(
+      'Email unsubscribe endpoint failed (one-click POST)',
+      { error },
+      'POST /api/notifications/email/unsubscribe'
+    );
+    return new Response('Internal server error', { status: 500 });
   }
 }

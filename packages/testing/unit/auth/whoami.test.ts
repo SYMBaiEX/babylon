@@ -89,7 +89,9 @@ describe('/api/auth/whoami endpoint', () => {
       },
     }));
 
-    ({ GET } = await import('../../../../apps/web/src/app/api/auth/whoami/route'));
+    ({ GET } = await import(
+      '../../../../apps/web/src/app/api/auth/whoami/route'
+    ));
   });
 
   beforeEach(() => {

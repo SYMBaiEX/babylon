@@ -279,7 +279,9 @@ export const users = pgTable(
     emailNotificationsWeeklySummary: boolean('emailNotificationsWeeklySummary')
       .notNull()
       .default(true),
-    emailNotificationsMonthlySummary: boolean('emailNotificationsMonthlySummary')
+    emailNotificationsMonthlySummary: boolean(
+      'emailNotificationsMonthlySummary'
+    )
       .notNull()
       .default(true),
     emailNotificationsUnsubscribedAt: timestamp(

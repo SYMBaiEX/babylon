@@ -8,8 +8,8 @@
 
 import {
   AuthorizationError,
-  BadRequestError,
   authenticate,
+  BadRequestError,
   getPrivyClient,
   requireUserByIdentifier,
   successResponse,
@@ -151,7 +151,10 @@ export const POST = withErrorHandling(
     let effectiveEmail = existingUser.email;
     let effectiveEmailVerified = existingUser.emailVerified;
 
-    if (isEnablingEmailNotifications && (!effectiveEmail || !effectiveEmailVerified)) {
+    if (
+      isEnablingEmailNotifications &&
+      (!effectiveEmail || !effectiveEmailVerified)
+    ) {
       const privyId = authUser.privyId ?? authUser.userId;
       const verifiedEmail = await getVerifiedEmailFromPrivy(privyId);
 

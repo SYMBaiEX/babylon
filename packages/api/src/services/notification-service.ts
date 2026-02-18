@@ -236,12 +236,21 @@ export async function createNotification(
     message: params.message,
   });
 
-  await sendNotificationEmailIfEligible({
-    notificationType: params.type,
-    user: recipient,
-    title: params.title,
-    message: params.message,
-  });
+  try {
+    await sendNotificationEmailIfEligible({
+      notificationType: params.type,
+      user: recipient,
+      title: params.title,
+      message: params.message,
+    });
+  } catch (emailError) {
+    // Email delivery must never break in-app notification creation
+    logger.error(
+      'Failed to send notification email (non-fatal)',
+      { userId: params.userId, type: params.type, error: emailError },
+      'NotificationService'
+    );
+  }
 }
 
 /**

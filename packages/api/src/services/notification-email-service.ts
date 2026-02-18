@@ -64,7 +64,9 @@ export function createNotificationUnsubscribeToken(params: {
   const payload: UnsubscribeTokenPayload = {
     userId: params.userId,
     email: params.email.toLowerCase(),
-    exp: nowInSeconds + (params.ttlSeconds ?? DEFAULT_UNSUBSCRIBE_TOKEN_TTL_SECONDS),
+    exp:
+      nowInSeconds +
+      (params.ttlSeconds ?? DEFAULT_UNSUBSCRIBE_TOKEN_TTL_SECONDS),
   };
 
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
@@ -136,6 +138,15 @@ export function buildNotificationUnsubscribeUrl(params: {
   return `${baseUrl}/api/notifications/email/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getCategoryLabel(category: EmailNotificationCategory): string {
   switch (category) {
     case 'daily_summary':
@@ -164,12 +175,12 @@ function createEmailHtml(params: {
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-      <h1 style="font-size:20px;margin:0 0 8px;">${params.title}</h1>
+      <h1 style="font-size:20px;margin:0 0 8px;">${escapeHtml(params.title)}</h1>
       <p style="margin:0 0 16px;color:#555;font-size:13px;">
         ${getCategoryLabel(params.category)}
       </p>
       <p style="font-size:15px;line-height:1.6;color:#222;margin:0;">
-        ${params.message}
+        ${escapeHtml(params.message)}
       </p>
       ${unsubscribeSection}
     </div>

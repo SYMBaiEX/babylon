@@ -349,7 +349,8 @@ export default function SettingsPage() {
     }
 
     setEmailNotificationPreferences({
-      enabled: payload.preferences.enabled ?? emailNotificationPreferences.enabled,
+      enabled:
+        payload.preferences.enabled ?? emailNotificationPreferences.enabled,
       realtime:
         payload.preferences.realtime ?? emailNotificationPreferences.realtime,
       dailySummary:
@@ -373,8 +374,7 @@ export default function SettingsPage() {
       emailNotificationsRealtime:
         payload.preferences.realtime ?? user.emailNotificationsRealtime,
       emailNotificationsDailySummary:
-        payload.preferences.dailySummary ??
-        user.emailNotificationsDailySummary,
+        payload.preferences.dailySummary ?? user.emailNotificationsDailySummary,
       emailNotificationsWeeklySummary:
         payload.preferences.weeklySummary ??
         user.emailNotificationsWeeklySummary,
@@ -829,8 +829,9 @@ export default function SettingsPage() {
                     <div className="mt-2 text-muted-foreground text-xs">
                       {user?.email ? (
                         <>
-                          Email: <span className="font-medium">{user.email}</span>{' '}
-                          ({user.emailVerified ? 'verified' : 'unverified'})
+                          Email:{' '}
+                          <span className="font-medium">{user.email}</span> (
+                          {user.emailVerified ? 'verified' : 'unverified'})
                         </>
                       ) : (
                         'No email linked yet. Enabling email notifications will try to sync a verified email from Privy.'
