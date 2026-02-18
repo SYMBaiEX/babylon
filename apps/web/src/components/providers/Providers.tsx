@@ -19,6 +19,7 @@ import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 import { SolanaMobileProvider } from './SolanaMobileProvider';
 import { TelegramMiniAppProvider } from './TelegramMiniAppProvider';
+import { OnboardingProvider } from './OnboardingProvider';
 
 /**
  * Wrapper component to fix clip-path DOM property issue in Privy.
@@ -305,7 +306,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                             <ReferralCaptureProvider />
                           </Suspense>
                           {/* Onboarding provider for username setup */}
-                          {/* <OnboardingProvider> */}
+                          <OnboardingProvider>
                           {/* Session heartbeat for engagement metrics */}
                           <SessionHeartbeatProvider>
                             {/* Game guide provider for first-time tutorial */}
@@ -319,7 +320,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                               </WidgetRefreshProvider>
                             </GameGuideProvider>
                           </SessionHeartbeatProvider>
-                          {/* </OnboardingProvider> */}
+                          </OnboardingProvider>
                         </DiscordActivityProvider>
                       </TelegramMiniAppProvider>
                     </FarcasterMiniAppProvider>
