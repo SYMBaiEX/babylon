@@ -79,24 +79,16 @@ describe('ensureOfflineWalletReady', () => {
   });
 
   it('creates wallet when embedded wallet is missing', async () => {
-    mockGetUser
-      .mockResolvedValueOnce({
-        id: 'did:privy:user-2',
-        wallet: null,
-        linkedAccounts: [],
-      })
-      .mockResolvedValueOnce({
-        id: 'did:privy:user-2',
-        wallet: null,
-        linkedAccounts: [
-          {
-            ...EMBEDDED_WALLET,
-            id: 'wallet-2',
-            address: EMBEDDED_WALLET.address,
-            type: 'wallet',
-          },
-        ],
-      });
+    mockGetUser.mockResolvedValueOnce({
+      id: 'did:privy:user-2',
+      wallet: null,
+      linkedAccounts: [],
+    });
+    mockCreateWallets.mockResolvedValueOnce({
+      id: 'did:privy:user-2',
+      wallet: { ...EMBEDDED_WALLET, id: 'wallet-2' },
+      linkedAccounts: [],
+    });
     mockWalletGet.mockResolvedValue({
       additional_signers: [
         {
@@ -113,7 +105,23 @@ describe('ensureOfflineWalletReady', () => {
     expect(result.createdWallet).toBe(true);
     expect(result.updatedSigner).toBe(false);
     expect(result.privyWalletId).toBe('wallet-2');
+    expect(mockGetUser).toHaveBeenCalledTimes(1);
     expect(mockCreateWallets).toHaveBeenCalledTimes(1);
+    expect(mockCreateWallets).toHaveBeenCalledWith({
+      userId: 'did:privy:user-2',
+      wallets: [
+        {
+          chainType: 'ethereum',
+          additionalSigners: [
+            {
+              signerId: 'offline-signer-id',
+              policyIds: ['offline-policy-id'],
+            },
+          ],
+          policyIds: [],
+        },
+      ],
+    });
   });
 
   it('retries wallet discovery after create when Privy user read is eventually consistent', async () => {
@@ -232,7 +240,7 @@ describe('ensureOfflineWalletReady', () => {
         privyId: 'did:privy:user-4',
       })
     ).rejects.toThrow(
-      'Offline wallet provisioning failed: signer/policy not attached on newly created wallet'
+      'Failed to resolve offline-ready embedded wallet after provisioning step'
     );
   });
 });

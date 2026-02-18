@@ -837,44 +837,56 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     !!clientEmbeddedWalletAddress &&
     clientEmbeddedWalletAddress !== dbWalletLower;
   const shouldEnsureOfflineWallet =
-    !dbWalletLower ||
-    !dbUser.privyWalletId ||
-    !dbUser.offlineWalletReady ||
-    shouldResyncWallet;
+    !dbWalletLower || !dbUser.privyWalletId || shouldResyncWallet;
 
   if (shouldEnsureOfflineWallet) {
-    const offlineWallet = await ensureOfflineWalletReady({ privyId });
-    const resolvedAddress = offlineWallet.walletAddress.toLowerCase();
+    try {
+      const offlineWallet = await ensureOfflineWalletReady({ privyId });
+      const resolvedAddress = offlineWallet.walletAddress.toLowerCase();
 
-    if (
-      shouldResyncWallet &&
-      resolvedAddress &&
-      resolvedAddress !== clientEmbeddedWalletAddress
-    ) {
+      if (
+        shouldResyncWallet &&
+        resolvedAddress &&
+        resolvedAddress !== clientEmbeddedWalletAddress
+      ) {
+        logger.warn(
+          'Client embedded wallet address mismatch; using Privy embedded wallet address',
+          {
+            userId: dbUser.id,
+            dbWalletAddress: dbUser.walletAddress,
+            clientEmbeddedWalletAddress,
+            privyEmbeddedWalletAddress: resolvedAddress,
+          },
+          'GET /api/users/me'
+        );
+      }
+
+      const [updated] = await db
+        .update(users)
+        .set({
+          privyWalletId: offlineWallet.privyWalletId,
+          walletAddress: resolvedAddress,
+          offlineWalletReady: true,
+          offlineWalletReadyAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, dbUser.id))
+        .returning(userSelectFields);
+      if (updated) dbUser = updated;
+    } catch (error) {
       logger.warn(
-        'Client embedded wallet address mismatch; using Privy embedded wallet address',
+        'Offline wallet provisioning failed during profile fetch; returning profile without blocking',
         {
           userId: dbUser.id,
-          dbWalletAddress: dbUser.walletAddress,
-          clientEmbeddedWalletAddress,
-          privyEmbeddedWalletAddress: resolvedAddress,
+          privyId,
+          hasPrivyWalletId: !!dbUser.privyWalletId,
+          hasWalletAddress: !!dbUser.walletAddress,
+          shouldResyncWallet,
+          error: error instanceof Error ? error.message : String(error),
         },
         'GET /api/users/me'
       );
     }
-
-    const [updated] = await db
-      .update(users)
-      .set({
-        privyWalletId: offlineWallet.privyWalletId,
-        walletAddress: resolvedAddress,
-        offlineWalletReady: true,
-        offlineWalletReadyAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, dbUser.id))
-      .returning(userSelectFields);
-    if (updated) dbUser = updated;
   }
 
   // Auto-promote existing users to admin if they have a verified admin domain email
