@@ -179,6 +179,12 @@ const userSelectFields = {
   coverImageUrl: users.coverImageUrl,
   walletAddress: users.walletAddress,
   email: users.email, // For displaying pending referrals
+  emailVerified: users.emailVerified,
+  emailNotificationsEnabled: users.emailNotificationsEnabled,
+  emailNotificationsRealtime: users.emailNotificationsRealtime,
+  emailNotificationsDailySummary: users.emailNotificationsDailySummary,
+  emailNotificationsWeeklySummary: users.emailNotificationsWeeklySummary,
+  emailNotificationsMonthlySummary: users.emailNotificationsMonthlySummary,
   profileComplete: users.profileComplete,
   hasUsername: users.hasUsername,
   hasBio: users.hasBio,
@@ -224,6 +230,12 @@ type UserSelectResult = {
   coverImageUrl: string | null;
   walletAddress: string | null;
   email: string | null;
+  emailVerified: boolean;
+  emailNotificationsEnabled: boolean;
+  emailNotificationsRealtime: boolean;
+  emailNotificationsDailySummary: boolean;
+  emailNotificationsWeeklySummary: boolean;
+  emailNotificationsMonthlySummary: boolean;
   profileComplete: boolean;
   hasUsername: boolean;
   hasBio: boolean;
@@ -272,6 +284,13 @@ function buildUserResponse(
     profileImageUrl: dbUser.profileImageUrl,
     coverImageUrl: dbUser.coverImageUrl,
     walletAddress: dbUser.walletAddress,
+    email: dbUser.email,
+    emailVerified: dbUser.emailVerified,
+    emailNotificationsEnabled: dbUser.emailNotificationsEnabled,
+    emailNotificationsRealtime: dbUser.emailNotificationsRealtime,
+    emailNotificationsDailySummary: dbUser.emailNotificationsDailySummary,
+    emailNotificationsWeeklySummary: dbUser.emailNotificationsWeeklySummary,
+    emailNotificationsMonthlySummary: dbUser.emailNotificationsMonthlySummary,
     profileComplete: dbUser.profileComplete,
     hasUsername: dbUser.hasUsername,
     hasBio: dbUser.hasBio,
@@ -705,6 +724,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         walletAddress: authUser.walletAddress,
         referredBy: resolvedReferrerId,
         email,
+        emailVerified: !!email,
         farcasterUsername,
         twitterUsername,
       },
