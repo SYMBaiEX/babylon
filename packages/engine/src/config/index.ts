@@ -50,7 +50,11 @@ export {
   type NPCActivityConfig,
   type NPCActivityPresetName,
 } from './npc-activity';
-
+// RSS Sources: default feed URLs for bootstrap. WHY exported: same pattern as other engine config; allows tests or tooling to read the list without importing the bootstrap service.
+export {
+  DEFAULT_RSS_SOURCES,
+  type RssSourceConfig,
+} from './rss-sources';
 // Runtime Configuration (environment variables)
 export {
   BLOCKCHAIN_CONFIG,

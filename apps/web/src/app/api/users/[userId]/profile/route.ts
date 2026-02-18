@@ -113,9 +113,10 @@
  */
 
 import {
+  addPublicReadHeaders,
   cachedDb,
   findUserByIdentifier,
-  optionalAuth,
+  publicRateLimit,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -162,11 +163,11 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ userId: string }> }
   ) => {
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+
     const params = await context.params;
     const { userId } = UserIdParamSchema.parse(params);
-
-    // Optional authentication
-    await optionalAuth(request);
 
     // Get user profile - use findUserByIdentifier to handle new Privy users gracefully
     const dbUser = await findUserByIdentifier(userId, {
@@ -224,7 +225,7 @@ export const GET = withErrorHandling(
       'GET /api/users/[userId]/profile'
     );
 
-    return successResponse({
+    const res = successResponse({
       user: {
         id: dbUser.id,
         walletAddress: dbUser.walletAddress,
@@ -267,5 +268,7 @@ export const GET = withErrorHandling(
         },
       },
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

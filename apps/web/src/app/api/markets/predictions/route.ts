@@ -1,4 +1,9 @@
-import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   PredictionDbAdapter,
   PredictionMarketService,
@@ -27,6 +32,13 @@ type UserPositionSnapshot = {
 
 // GET /api/markets/predictions – list markets (optionally with user positions)
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
   const queryParse = MarketQuerySchema.merge(
     z.object({ userId: z.string().optional() })
@@ -45,7 +57,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   const { userId } = queryParse.data;
-  const authUser = await optionalAuth(request).catch(() => null);
 
   const dbAdapter = new PredictionDbAdapter();
   const service = new PredictionMarketService({
@@ -199,9 +210,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/markets/predictions'
   );
 
-  return successResponse({
+  const res = successResponse({
     success: true,
     questions: questionsData,
     count: questionsData.length,
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

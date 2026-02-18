@@ -227,6 +227,7 @@
  */
 
 import {
+  addPublicReadHeaders,
   authenticate,
   broadcastToChannel,
   cachedDb,
@@ -235,6 +236,7 @@ import {
   ensureUserForAuth,
   getCacheOrFetch,
   notifyMention,
+  publicRateLimit,
   RATE_LIMIT_CONFIGS,
   successResponse,
   withErrorHandling,
@@ -583,6 +585,12 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
  * @returns Posts feed response with pagination cursor
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
+  if (error) return error;
   const { searchParams } = new URL(request.url);
   const limit = Number.parseInt(searchParams.get('limit') || '100');
   const cursor = searchParams.get('cursor') || undefined; // Cursor-based pagination
@@ -591,8 +599,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const userId = searchParams.get('userId') || undefined;
   const type = searchParams.get('type') || undefined;
 
-  // If following feed is requested, filter by followed users/actors
-  if (following && userId) {
+  // Following feed: only allow when authenticated and query userId matches authenticated user
+  if (following && userId && authUser && authUser.userId === userId) {
     // Cache key for user's follows
     const followsCacheKey = `follows:${userId}`;
 
@@ -802,12 +810,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       };
     });
 
-    return NextResponse.json({
+    const followingRes = NextResponse.json({
       success: true,
       posts: formattedFollowingPosts,
       limit,
       source: 'following',
     });
+    if (rateLimitInfo) addPublicReadHeaders(followingRes, rateLimitInfo);
+    return followingRes;
   }
 
   // Get posts from database with cursor-based pagination
@@ -887,12 +897,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  // Apply moderation filters if user is authenticated
-  if (userId) {
+  // Apply moderation filters only for authenticated user (use auth identity, not query param)
+  const filterUserId = authUser?.userId;
+  if (filterUserId) {
     const [blockedIds, mutedIds, blockedByIds] = await Promise.all([
-      getBlockedUserIds(userId),
-      getMutedUserIds(userId),
-      getBlockedByUserIds(userId),
+      getBlockedUserIds(filterUserId),
+      getMutedUserIds(filterUserId),
+      getBlockedByUserIds(filterUserId),
     ]);
 
     const excludedUserIds = new Set([
@@ -1286,13 +1297,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     hasMore: formattedPosts.length === limit,
   });
 
-  // PERFORMANCE FIX: Use short cache with stale-while-revalidate for high-traffic endpoint
-  // This reduces database load by 90%+ while keeping data fresh
-  // 10s fresh, serve stale for 60s while revalidating in background
-  response.headers.set(
-    'Cache-Control',
-    's-maxage=10, stale-while-revalidate=60, must-revalidate'
-  );
+  if (rateLimitInfo) {
+    addPublicReadHeaders(response, rateLimitInfo);
+  } else {
+    response.headers.set(
+      'Cache-Control',
+      's-maxage=10, stale-while-revalidate=60, must-revalidate'
+    );
+  }
 
   return response;
 });

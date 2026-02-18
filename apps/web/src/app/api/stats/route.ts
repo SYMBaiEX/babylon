@@ -54,12 +54,20 @@
  * @see {@link /lib/game-service} Game service implementation
  */
 
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { gameService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
-export const GET = withErrorHandling(async (_request: NextRequest) => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const stats = await gameService.getStats();
   const status = await gameService.getStatus();
 
@@ -69,9 +77,11 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
     'GET /api/stats'
   );
 
-  return successResponse({
+  const res = successResponse({
     success: true,
     stats,
     engineStatus: status,
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

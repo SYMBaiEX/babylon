@@ -108,7 +108,13 @@
  * @see {@link /src/components/MentionAutocomplete} Autocomplete UI
  */
 
-import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  authenticate,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   asUser,
   getBlockedByUserIds,
@@ -123,6 +129,9 @@ import type { NextRequest } from 'next/server';
  * Search for users by username or display name
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const user = await authenticate(request);
 
   // Get query parameters
@@ -131,7 +140,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const includeAgents = searchParams.get('includeAgents') === 'true';
 
   if (!query || query.trim().length < 2) {
-    return successResponse({ users: [] });
+    const res = successResponse({ users: [] });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 
   const searchTerm = query.trim().toLowerCase();
@@ -215,7 +226,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/users/search'
   );
 
-  return successResponse({
+  const res = successResponse({
     users,
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

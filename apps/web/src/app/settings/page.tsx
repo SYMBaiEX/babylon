@@ -3,6 +3,7 @@
 import { cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
+  Bell,
   Camera,
   CheckCircle2,
   Key,
@@ -113,6 +114,20 @@ export default function SettingsPage() {
     farcaster: user?.showFarcasterPublic ?? true,
     wallet: user?.showWalletPublic ?? true,
   });
+  const [emailNotificationPreferences, setEmailNotificationPreferences] =
+    useState<{
+      enabled: boolean;
+      realtime: boolean;
+      dailySummary: boolean;
+      weeklySummary: boolean;
+      monthlySummary: boolean;
+    }>({
+      enabled: user?.emailNotificationsEnabled ?? false,
+      realtime: user?.emailNotificationsRealtime ?? true,
+      dailySummary: user?.emailNotificationsDailySummary ?? true,
+      weeklySummary: user?.emailNotificationsWeeklySummary ?? true,
+      monthlySummary: user?.emailNotificationsMonthlySummary ?? true,
+    });
 
   // Theme settings - connected to next-themes
   const { theme, setTheme } = useTheme();
@@ -187,6 +202,13 @@ export default function SettingsPage() {
       farcaster: user?.showFarcasterPublic ?? true,
       wallet: user?.showWalletPublic ?? true,
     });
+    setEmailNotificationPreferences({
+      enabled: user?.emailNotificationsEnabled ?? false,
+      realtime: user?.emailNotificationsRealtime ?? true,
+      dailySummary: user?.emailNotificationsDailySummary ?? true,
+      weeklySummary: user?.emailNotificationsWeeklySummary ?? true,
+      monthlySummary: user?.emailNotificationsMonthlySummary ?? true,
+    });
   }, [
     user?.displayName,
     user?.username,
@@ -194,6 +216,11 @@ export default function SettingsPage() {
     user?.showTwitterPublic,
     user?.showFarcasterPublic,
     user?.showWalletPublic,
+    user?.emailNotificationsEnabled,
+    user?.emailNotificationsRealtime,
+    user?.emailNotificationsDailySummary,
+    user?.emailNotificationsWeeklySummary,
+    user?.emailNotificationsMonthlySummary,
   ]);
 
   const currentProfileImageUrl =
@@ -266,6 +293,94 @@ export default function SettingsPage() {
       showFarcasterPublic:
         payload.visibility.farcaster ?? user.showFarcasterPublic,
       showWalletPublic: payload.visibility.wallet ?? user.showWalletPublic,
+    });
+  };
+
+  const updateEmailNotificationPreferences = async (
+    patch: Partial<{
+      enabled: boolean;
+      realtime: boolean;
+      dailySummary: boolean;
+      weeklySummary: boolean;
+      monthlySummary: boolean;
+    }>
+  ) => {
+    if (!user?.id) return;
+
+    const token = await getAccessToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/notification-email-preferences`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(patch),
+      }
+    );
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      preferences?: {
+        enabled?: boolean;
+        realtime?: boolean;
+        dailySummary?: boolean;
+        weeklySummary?: boolean;
+        monthlySummary?: boolean;
+      };
+      email?: string | null;
+      emailVerified?: boolean;
+      error?: { message?: string } | string;
+    };
+
+    if (!response.ok || !payload.preferences) {
+      const fallbackMessage =
+        typeof payload.error === 'string'
+          ? payload.error
+          : payload.error?.message;
+      setErrorMessage(
+        fallbackMessage || 'Unable to update notification email preferences.'
+      );
+      return;
+    }
+
+    setEmailNotificationPreferences({
+      enabled:
+        payload.preferences.enabled ?? emailNotificationPreferences.enabled,
+      realtime:
+        payload.preferences.realtime ?? emailNotificationPreferences.realtime,
+      dailySummary:
+        payload.preferences.dailySummary ??
+        emailNotificationPreferences.dailySummary,
+      weeklySummary:
+        payload.preferences.weeklySummary ??
+        emailNotificationPreferences.weeklySummary,
+      monthlySummary:
+        payload.preferences.monthlySummary ??
+        emailNotificationPreferences.monthlySummary,
+    });
+    setErrorMessage(null);
+
+    setUser({
+      ...user,
+      email: payload.email ?? user.email,
+      emailVerified: payload.emailVerified ?? user.emailVerified,
+      emailNotificationsEnabled:
+        payload.preferences.enabled ?? user.emailNotificationsEnabled,
+      emailNotificationsRealtime:
+        payload.preferences.realtime ?? user.emailNotificationsRealtime,
+      emailNotificationsDailySummary:
+        payload.preferences.dailySummary ?? user.emailNotificationsDailySummary,
+      emailNotificationsWeeklySummary:
+        payload.preferences.weeklySummary ??
+        user.emailNotificationsWeeklySummary,
+      emailNotificationsMonthlySummary:
+        payload.preferences.monthlySummary ??
+        user.emailNotificationsMonthlySummary,
     });
   };
 
@@ -700,6 +815,128 @@ export default function SettingsPage() {
                           disabled={!user?.walletAddress}
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border p-4">
+                    <div className="mb-1 flex items-center gap-2 font-semibold text-sm">
+                      <Bell className="h-4 w-4" />
+                      Notification Emails
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      Choose which notifications you receive by email.
+                    </div>
+                    <div className="mt-2 text-muted-foreground text-xs">
+                      {user?.email ? (
+                        <>
+                          Email:{' '}
+                          <span className="font-medium">{user.email}</span> (
+                          {user.emailVerified ? 'verified' : 'unverified'})
+                        </>
+                      ) : (
+                        'No email linked yet. Enabling email notifications will try to sync a verified email from Privy.'
+                      )}
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">
+                            Enable notification emails
+                          </div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            Master toggle for all email notifications.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={emailNotificationPreferences.enabled}
+                          onCheckedChange={(checked) =>
+                            void updateEmailNotificationPreferences({
+                              enabled: checked,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">Real-time</div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            Immediate event-based notifications.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={emailNotificationPreferences.realtime}
+                          onCheckedChange={(checked) =>
+                            void updateEmailNotificationPreferences({
+                              realtime: checked,
+                            })
+                          }
+                          disabled={!emailNotificationPreferences.enabled}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">
+                            Daily summary
+                          </div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            One summary email per day.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={emailNotificationPreferences.dailySummary}
+                          onCheckedChange={(checked) =>
+                            void updateEmailNotificationPreferences({
+                              dailySummary: checked,
+                            })
+                          }
+                          disabled={!emailNotificationPreferences.enabled}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">
+                            Weekly summary
+                          </div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            One summary email per week.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={emailNotificationPreferences.weeklySummary}
+                          onCheckedChange={(checked) =>
+                            void updateEmailNotificationPreferences({
+                              weeklySummary: checked,
+                            })
+                          }
+                          disabled={!emailNotificationPreferences.enabled}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">
+                            Monthly summary
+                          </div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            One summary email per month.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={emailNotificationPreferences.monthlySummary}
+                          onCheckedChange={(checked) =>
+                            void updateEmailNotificationPreferences({
+                              monthlySummary: checked,
+                            })
+                          }
+                          disabled={!emailNotificationPreferences.enabled}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3 text-muted-foreground text-xs">
+                      All notification emails include an unsubscribe link.
                     </div>
                   </div>
                 </div>

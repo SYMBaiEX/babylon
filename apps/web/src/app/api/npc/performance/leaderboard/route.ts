@@ -53,6 +53,7 @@
  * ```
  */
 
+import { addPublicReadHeaders, publicRateLimit } from '@babylon/api';
 import {
   and,
   db,
@@ -65,9 +66,13 @@ import {
   pools,
 } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
 
   const limitParam = searchParams.get('limit');
@@ -165,7 +170,7 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     success: true,
     leaderboard,
     metadata: {
@@ -174,4 +179,6 @@ export async function GET(request: Request) {
       minValue,
     },
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 }

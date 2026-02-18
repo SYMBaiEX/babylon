@@ -1,4 +1,9 @@
-import { BadRequestError, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  BadRequestError,
+  publicRateLimit,
+  withErrorHandling,
+} from '@babylon/api';
 import { getTokenMetadata } from '@babylon/api/services/nft-mint-service';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -11,9 +16,12 @@ import { type NextRequest, NextResponse } from 'next/server';
  */
 export const GET = withErrorHandling(
   async (
-    _request: NextRequest,
+    request: NextRequest,
     { params }: { params: Promise<{ tokenId: string }> }
   ) => {
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+
     const { tokenId: tokenIdParam } = await params;
     if (!/^\d+$/.test(tokenIdParam)) {
       throw new BadRequestError('Token ID must be between 1 and 100');
@@ -25,10 +33,12 @@ export const GET = withErrorHandling(
       throw new BadRequestError('Token ID must be between 1 and 100');
     }
 
-    return NextResponse.json(await getTokenMetadata(tokenId), {
+    const res = NextResponse.json(await getTokenMetadata(tokenId), {
       headers: {
         'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
       },
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

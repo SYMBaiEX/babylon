@@ -17,6 +17,12 @@ export interface User {
   walletAddress?: string;
   displayName: string;
   email?: string;
+  emailVerified?: boolean;
+  emailNotificationsEnabled?: boolean;
+  emailNotificationsRealtime?: boolean;
+  emailNotificationsDailySummary?: boolean;
+  emailNotificationsWeeklySummary?: boolean;
+  emailNotificationsMonthlySummary?: boolean;
   username?: string;
   bio?: string;
   profileImageUrl?: string;

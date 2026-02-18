@@ -298,10 +298,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           );
         }
 
+        const normalizedProfileEmail =
+          parsedProfile.email?.trim().toLowerCase() || null;
+        const profileEmailVerified = normalizedProfileEmail
+          ? adminEmailResult.allVerifiedEmails.some(
+              (verifiedEmail) =>
+                verifiedEmail.toLowerCase() === normalizedProfileEmail
+            )
+          : false;
+
         const baseUserData: Partial<typeof users.$inferInsert> = {
           username: parsedProfile.username,
           displayName: parsedProfile.displayName,
-          email: parsedProfile.email || null,
+          email: normalizedProfileEmail,
+          emailVerified: profileEmailVerified,
           bio: parsedProfile.bio ?? '',
           profileImageUrl: parsedProfile.profileImageUrl ?? null,
           coverImageUrl: parsedProfile.coverImageUrl ?? null,

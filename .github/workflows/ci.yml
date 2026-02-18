@@ -61,10 +61,10 @@ jobs:
           # Use CI test database for build
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          # Pass secrets with correct names (not _VAR suffix)
-          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || secrets.NEXT_PUBLIC_PRIVY_APP_ID || '' }}
+          # For fork PRs, GitHub does not expose secrets; use a CI-only dummy app id.
+          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || secrets.NEXT_PUBLIC_PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
           PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
           PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
           PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
           PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}

@@ -102,11 +102,15 @@
  * @see {@link /src/app/reputation/page.tsx} Reputation UI
  */
 
+import { addPublicReadHeaders, publicRateLimit } from '@babylon/api';
 import { getReputationLeaderboard } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
 
   const limitParam = searchParams.get('limit');
@@ -117,7 +121,7 @@ export async function GET(request: NextRequest) {
 
   const leaderboard = await getReputationLeaderboard(limit, minGames);
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     success: true,
     leaderboard,
     metadata: {
@@ -126,4 +130,6 @@ export async function GET(request: NextRequest) {
       minGames,
     },
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 }

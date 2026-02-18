@@ -296,6 +296,7 @@ See [`docs/nft-drop-implementation-plan.md`](docs/nft-drop-implementation-plan.m
 - Smart Contracts: `bun run deploy:local|testnet`
 - RL Training: See `packages/training/README.md`
 - Game Control: `babylon game start|pause|status` (via CLI)
+- RSS feeds (outbound + inbound): See [docs/feeds-rss.md](docs/feeds-rss.md)
 
 ---
 

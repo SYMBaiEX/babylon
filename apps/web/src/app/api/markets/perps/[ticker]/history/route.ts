@@ -49,7 +49,12 @@
  * ```
  */
 
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   and,
   db,
@@ -209,6 +214,9 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ ticker: string }> }
   ) => {
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+
     const { ticker } = ParamsSchema.parse(await context.params);
     const { searchParams } = new URL(request.url);
     const { limit, range } = QuerySchema.parse({
@@ -286,7 +294,7 @@ export const GET = withErrorHandling(
         }))
       : ascending;
 
-    return successResponse({
+    const res = successResponse({
       ticker,
       organizationId: marketSnapshot.organizationId,
       history: history.map((point) => ({
@@ -301,5 +309,7 @@ export const GET = withErrorHandling(
         volume: point.volume,
       })),
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );
