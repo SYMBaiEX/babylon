@@ -21,6 +21,11 @@ export interface SendNotificationEmailInput {
   category: EmailNotificationCategory;
 }
 
+interface ParsedEmailAddress {
+  email: string;
+  name?: string;
+}
+
 const DEFAULT_UNSUBSCRIBE_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 function getBaseUrl(): string {
@@ -184,13 +189,37 @@ function createEmailText(params: {
   return `${params.title}\n\nType: ${getCategoryLabel(params.category)}\n\n${params.message}${unsubscribeSection}`;
 }
 
+function parseEmailAddress(rawValue: string): ParsedEmailAddress | null {
+  const trimmed = rawValue.trim();
+
+  const namedMatch = trimmed.match(
+    /^(?<name>[^<>]+?)\s*<(?<email>[^<>\s@]+@[^<>\s@]+)>$/
+  );
+
+  const namedEmail = namedMatch?.groups?.email?.trim().toLowerCase();
+  if (namedEmail) {
+    const rawName = namedMatch?.groups?.name?.trim();
+    const normalizedName = rawName?.replace(/^"|"$/g, '');
+    return normalizedName
+      ? { email: namedEmail, name: normalizedName }
+      : { email: namedEmail };
+  }
+
+  const isPlainEmail = /^[^<>\s@]+@[^<>\s@]+$/.test(trimmed);
+  if (isPlainEmail) {
+    return { email: trimmed.toLowerCase() };
+  }
+
+  return null;
+}
+
 export async function sendNotificationEmail(
   input: SendNotificationEmailInput
 ): Promise<{ sent: boolean; reason?: string }> {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  if (!resendApiKey) {
+  const sendgridApiKey = process.env.SENDGRID_API_KEY?.trim();
+  if (!sendgridApiKey) {
     logger.debug(
-      'Skipping notification email: RESEND_API_KEY is not configured',
+      'Skipping notification email: SENDGRID_API_KEY is not configured',
       { userId: input.userId, category: input.category },
       'NotificationEmailService'
     );
@@ -204,6 +233,16 @@ export async function sendNotificationEmail(
     logger.warn(
       'Skipping notification email: sender address is not configured',
       { userId: input.userId, category: input.category },
+      'NotificationEmailService'
+    );
+    return { sent: false, reason: 'sender_not_configured' };
+  }
+
+  const parsedFromAddress = parseEmailAddress(fromAddress);
+  if (!parsedFromAddress) {
+    logger.warn(
+      'Skipping notification email: sender address format is invalid',
+      { userId: input.userId, category: input.category, fromAddress },
       'NotificationEmailService'
     );
     return { sent: false, reason: 'sender_not_configured' };
@@ -229,18 +268,20 @@ export async function sendNotificationEmail(
   });
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${resendApiKey}`,
+        Authorization: `Bearer ${sendgridApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: fromAddress,
-        to: [input.userEmail],
+        from: parsedFromAddress,
+        personalizations: [{ to: [{ email: input.userEmail }] }],
         subject,
-        html,
-        text,
+        content: [
+          { type: 'text/plain', value: text },
+          { type: 'text/html', value: html },
+        ],
         headers: unsubscribeUrl
           ? {
               'List-Unsubscribe': `<${unsubscribeUrl}>`,
