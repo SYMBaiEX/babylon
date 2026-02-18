@@ -5,8 +5,8 @@
  */
 
 import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import * as actualDbModule from '../../db/src/index';
 import * as actualFsPromises from 'node:fs/promises';
+import * as actualDbModule from '../../db/src/index';
 
 // Tests use mocked db module
 const describeTests = describe;
