@@ -288,6 +288,7 @@ export const POST = withErrorHandling(
         const [user] = await db
           .select({
             twitterAccessToken: users.twitterAccessToken,
+            twitterTokenExpiresAt: users.twitterTokenExpiresAt,
             twitterId: users.twitterId,
             twitterUsername: users.twitterUsername,
           })
@@ -317,11 +318,25 @@ export const POST = withErrorHandling(
             });
           }
 
-          if (user.twitterAccessToken) {
+          const isUserTokenExpired =
+            !!user.twitterTokenExpiresAt &&
+            user.twitterTokenExpiresAt.getTime() < Date.now();
+
+          if (user.twitterAccessToken && !isUserTokenExpired) {
             twitterAuthAttempts.push({
               authType: 'user_access_token',
               token: user.twitterAccessToken,
             });
+          } else if (user.twitterAccessToken && isUserTokenExpired) {
+            logger.warn(
+              `User Twitter access token expired, skipping fallback: ${shareId}`,
+              {
+                shareId,
+                userId: canonicalUserId,
+                expiredAt: user.twitterTokenExpiresAt?.toISOString(),
+              },
+              'POST /api/users/[userId]/verify-share'
+            );
           }
 
           if (twitterAuthAttempts.length === 0) {
@@ -333,12 +348,11 @@ export const POST = withErrorHandling(
               'POST /api/users/[userId]/verify-share'
             );
           } else {
-            let twitterResponse: Response | null = null;
-            let twitterAuthTypeUsed: 'app_bearer' | 'user_access_token' | null =
-              null;
+            let twitterResponse!: Response;
+            let twitterAuthTypeUsed!: 'app_bearer' | 'user_access_token';
 
             for (const [index, authAttempt] of twitterAuthAttempts.entries()) {
-              const response = await fetch(
+              twitterResponse = await fetch(
                 `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=author_id,created_at,text,entities&expansions=author_id&user.fields=username`,
                 {
                   headers: {
@@ -347,13 +361,13 @@ export const POST = withErrorHandling(
                   signal: AbortSignal.timeout(10000),
                 }
               );
-
-              twitterResponse = response;
               twitterAuthTypeUsed = authAttempt.authType;
 
               // Retry with another token only for explicit auth failures.
               const hasFallback = index < twitterAuthAttempts.length - 1;
-              if (response.status === 401 && hasFallback) {
+              if (twitterResponse.status === 401 && hasFallback) {
+                // Drain the response body to release the connection.
+                await twitterResponse.text().catch(() => {});
                 logger.warn(
                   `Twitter API auth failed, retrying with fallback token: ${shareId}`,
                   {
@@ -370,15 +384,7 @@ export const POST = withErrorHandling(
               break;
             }
 
-            if (!twitterResponse) {
-              verificationError =
-                'Twitter verification failed. Please try again later.';
-              logger.error(
-                `Twitter verification response missing: ${shareId}`,
-                { shareId, tweetId },
-                'POST /api/users/[userId]/verify-share'
-              );
-            } else if (twitterResponse.ok) {
+            if (twitterResponse.ok) {
               const tweetData =
                 (await twitterResponse.json()) as TwitterLookupResponse;
 
@@ -496,7 +502,7 @@ export const POST = withErrorHandling(
                           : 'text',
                         expandedUrls: expandedUrls.join(', '),
                         authorMatch: true,
-                        authMethodUsed: twitterAuthTypeUsed || '',
+                        authMethodUsed: twitterAuthTypeUsed,
                       };
 
                       logger.info(
