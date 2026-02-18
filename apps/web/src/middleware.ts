@@ -36,11 +36,13 @@ const APP_PUBLIC_EXACT_ALLOWLIST = new Set([
   '/api-docs',
   '/mcp',
   '/.well-known',
+  '/ticker',
 ]);
 
 const APP_PUBLIC_PREFIX_ALLOWLIST = [
   '/nft/',
   '/share/',
+  '/ticker/',
   '/api-docs/',
   '/mcp/',
   '/.well-known/',
@@ -302,6 +304,13 @@ export function middleware(request: NextRequest) {
     // (e.g. app routes rendering without the app shell when visited via waitlist host).
     const appOrigin = getAppOrigin(hostname, request.nextUrl.protocol);
     return NextResponse.redirect(`${appOrigin}${pathname}${search}`);
+  }
+
+  // Ticker embed: minimal layout (no sidebar/nav) for iframe. Run before NFT gating so it always applies.
+  if (pathname === '/ticker' || pathname.startsWith('/ticker/')) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-minimal-layout', '1');
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // App host behavior: enforce gating via /api/nft/access for non-public pages.

@@ -81,8 +81,9 @@
  */
 
 import {
+  addPublicReadHeaders,
   findUserByIdentifier,
-  optionalAuth,
+  publicRateLimit,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -118,6 +119,9 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ userId: string }> }
   ) => {
+    const { error, user, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+
     const params = await context.params;
     const { userId } = UserIdParamSchema.parse(params);
     const targetUser = await findUserByIdentifier(userId, { id: true });
@@ -129,11 +133,13 @@ export const GET = withErrorHandling(
         { userId },
         'GET /api/users/[userId]/posts'
       );
-      return successResponse({
+      const emptyRes = successResponse({
         items: [],
         total: 0,
         type: 'posts',
       });
+      if (rateLimitInfo) addPublicReadHeaders(emptyRes, rateLimitInfo);
+      return emptyRes;
     }
 
     const canonicalUserId = targetUser.id;
@@ -146,9 +152,6 @@ export const GET = withErrorHandling(
       limit: searchParams.get('limit') ?? undefined,
     };
     const { type } = UserPostsQuerySchema.parse(queryParams);
-
-    // Optional authentication
-    const user = await optionalAuth(request);
 
     if (type === 'replies') {
       // Get user's comments (replies)
@@ -934,10 +937,12 @@ export const GET = withErrorHandling(
       'GET /api/users/[userId]/posts'
     );
 
-    return successResponse({
+    const res = successResponse({
       type: 'posts',
       items: allItems,
       total: allItems.length,
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

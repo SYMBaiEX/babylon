@@ -1,4 +1,9 @@
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { and, db, desc, eq, gte, predictionPriceHistories } from '@babylon/db';
 import { PredictionMarketIdSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -104,6 +109,9 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+
     const { id: marketId } = PredictionMarketIdSchema.parse(
       await context.params
     );
@@ -147,7 +155,7 @@ export const GET = withErrorHandling(
       ? downsamplePredictionHistory(ascending, limit)
       : ascending;
 
-    return successResponse({
+    const res = successResponse({
       marketId,
       history: history.map((point) => ({
         id: point.id,
@@ -161,5 +169,7 @@ export const GET = withErrorHandling(
         timestamp: point.createdAt.toISOString(),
       })),
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

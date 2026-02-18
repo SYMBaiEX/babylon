@@ -66,8 +66,9 @@
 
 import type { JsonValue } from '@babylon/api';
 import {
+  addPublicReadHeaders,
   getCache,
-  optionalAuth,
+  publicRateLimit,
   setCache,
   successResponse,
   withErrorHandling,
@@ -89,8 +90,8 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ ticker: string }> }
   ) => {
-    // Optional auth - trades are public
-    await optionalAuth(request).catch(() => null);
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
 
     const { ticker: tickerParam } = await context.params;
 
@@ -372,6 +373,8 @@ export const GET = withErrorHandling(
       'PerpTrades'
     );
 
-    return successResponse(result);
+    const res = successResponse(result);
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

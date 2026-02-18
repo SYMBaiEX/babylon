@@ -73,6 +73,7 @@
  */
 
 import {
+  addPublicReadHeaders,
   authenticate,
   BusinessLogicError,
   checkRateLimitAndDuplicates,
@@ -83,7 +84,7 @@ import {
   notifyCommentOnPost,
   notifyMention,
   notifyReplyToComment,
-  optionalAuth,
+  publicRateLimit,
   RATE_LIMIT_CONFIGS,
   successResponse,
   withErrorHandling,
@@ -195,10 +196,10 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
-    const { id: postId } = await context.params;
+    const { error, user, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
 
-    // Optional authentication (to show liked status for logged-in users)
-    const user = await optionalAuth(request);
+    const { id: postId } = await context.params;
 
     // Validate post ID
     if (!postId) {
@@ -323,12 +324,14 @@ export const GET = withErrorHandling(
       'GET /api/posts/[id]/comments'
     );
 
-    return successResponse({
+    const res = successResponse({
       data: {
         comments: threadedComments,
         total: totalComments,
       },
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );
 

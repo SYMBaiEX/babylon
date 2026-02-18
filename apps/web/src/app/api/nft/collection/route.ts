@@ -1,4 +1,9 @@
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   getNftTokenOwnersFromIndexer,
   getOwnerUsersByWalletAddresses,
@@ -26,6 +31,9 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
 
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
@@ -142,7 +150,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           ? unclaimedCount
           : totalNfts;
 
-    return successResponse(
+    const res = successResponse(
       {
         success: true,
         data: {
@@ -162,6 +170,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
       }
     );
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   } catch (error) {
     if (
       error instanceof NftIndexerUnavailableError ||
@@ -271,7 +281,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         ? unclaimedCount
         : totalNfts;
 
-  return successResponse(
+  const res = successResponse(
     {
       success: true,
       data: {
@@ -291,4 +301,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
     }
   );
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

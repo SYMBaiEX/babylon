@@ -192,6 +192,55 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'a2a_transfer_ops',
   }, // 10 transfers per minute (configurable via env)
 
+  /**
+   * Public read endpoints (GETs that allow unauthenticated access).
+   * WHY tiered: Anonymous callers are keyed by IP (or shared "anonymous" when IP
+   * is unknown) so we can limit abuse without requiring sign-in. Authenticated users
+   * and API keys get higher limits because they are accountable and we want to avoid
+   * blocking legitimate apps. WHY 20/60/10: 20/min per IP allows normal browsing
+   * while curbing scrapers; 60/min per user supports power users and API clients;
+   * 10/min anonymous is a strict fallback when we cannot distinguish callers (e.g.
+   * behind some proxies) so we still limit total load.
+   */
+  PUBLIC_READ: {
+    maxRequests: 20,
+    windowMs: 60000,
+    actionType: 'public_read',
+  },
+  PUBLIC_READ_AUTHED: {
+    maxRequests: 60,
+    windowMs: 60000,
+    actionType: 'public_read_authed',
+  },
+  PUBLIC_READ_ANONYMOUS: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'public_read_anonymous',
+  },
+
+  /**
+   * SSE/firehose token or connection rate (long-lived connections).
+   * WHY stricter than read: Each "request" is a new connection or token that may
+   * stay open for minutes, so we allow fewer per minute (5 per IP, 20 per user,
+   * 2 anonymous). Prevents a single actor from opening many firehose connections
+   * without auth.
+   */
+  PUBLIC_FIREHOSE: {
+    maxRequests: 5,
+    windowMs: 60000,
+    actionType: 'public_firehose',
+  },
+  PUBLIC_FIREHOSE_AUTHED: {
+    maxRequests: 20,
+    windowMs: 60000,
+    actionType: 'public_firehose_authed',
+  },
+  PUBLIC_FIREHOSE_ANONYMOUS: {
+    maxRequests: 2,
+    windowMs: 60000,
+    actionType: 'public_firehose_anonymous',
+  },
+
   // Default fallback
   DEFAULT: { maxRequests: 30, windowMs: 60000, actionType: 'default' }, // 30 requests per minute
 } as const;

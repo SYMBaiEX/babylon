@@ -70,8 +70,9 @@
  */
 
 import {
+  addPublicReadHeaders,
   NotFoundError,
-  optionalAuth,
+  publicRateLimit,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -101,8 +102,8 @@ export const GET = withErrorHandling(
     const params = await context.params;
     const { username } = UsernameParamSchema.parse(params);
 
-    // Optional authentication
-    await optionalAuth(request);
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
 
     // Get user profile by username (case-insensitive)
     const [dbUser] = await db
@@ -179,7 +180,7 @@ export const GET = withErrorHandling(
       'GET /api/users/by-username/[username]'
     );
 
-    return successResponse({
+    const res = successResponse({
       user: {
         id: dbUser.id,
         walletAddress: dbUser.walletAddress,
@@ -216,5 +217,7 @@ export const GET = withErrorHandling(
         },
       },
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

@@ -11,7 +11,9 @@
  */
 
 import {
+  addPublicReadHeaders,
   NotFoundError,
+  publicRateLimit,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -37,7 +39,10 @@ interface RouteParams {
 }
 
 export const GET = withErrorHandling(
-  async (_request: NextRequest, context: RouteParams) => {
+  async (request: NextRequest, context: RouteParams) => {
+    const { error, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+
     const { tokenId: tokenIdParam } = await context.params;
     const tokenId = parseInt(tokenIdParam, 10);
 
@@ -209,6 +214,8 @@ export const GET = withErrorHandling(
       'GET /api/nft/[tokenId]'
     );
 
-    return successResponse(response);
+    const res = successResponse(response);
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

@@ -52,7 +52,12 @@ import {
   getAgent0SDK,
   type SearchFilters,
 } from '@babylon/agents';
-import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
 import { asPublic } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
@@ -106,8 +111,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const search = searchParams.get('search') || '';
   const onChainOnly = searchParams.get('onChainOnly') === 'true';
 
-  // Optional auth - registry is public
-  await optionalAuth(request).catch(() => null);
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
 
   // Fetch users from database
   const fetchUsers = async () => {
@@ -390,5 +395,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/registry/all'
   );
 
-  return successResponse(result);
+  const res = successResponse(result);
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

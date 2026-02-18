@@ -1,4 +1,9 @@
-import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   PredictionDbAdapter,
   PredictionMarketService,
@@ -47,6 +52,13 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
+    const {
+      error,
+      user: authUser,
+      rateLimitInfo,
+    } = await publicRateLimit(request);
+    if (error) return error;
+
     const { id: marketId } = PredictionMarketIdSchema.parse(
       await context.params
     );
@@ -68,7 +80,6 @@ export const GET = withErrorHandling(
     }
 
     const { userId } = queryParse.data;
-    const authUser = await optionalAuth(request).catch(() => null);
 
     const service = new PredictionMarketService({
       db: new PredictionDbAdapter(),
@@ -233,6 +244,8 @@ export const GET = withErrorHandling(
       'GET /api/markets/predictions/[id]'
     );
 
-    return successResponse({ success: true, market: payload });
+    const res = successResponse({ success: true, market: payload });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );

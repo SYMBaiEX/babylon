@@ -141,7 +141,8 @@
  */
 
 import {
-  optionalAuth,
+  addPublicReadHeaders,
+  publicRateLimit,
   ReputationService,
   successResponse,
   withErrorHandling,
@@ -167,8 +168,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
   const filters = RegistryQuerySchema.parse(queryParams);
 
-  // Optional auth - registry is public but RLS still applies
-  const authUser = await optionalAuth(request).catch(() => null);
+  const {
+    error,
+    user: authUser,
+    rateLimitInfo,
+  } = await publicRateLimit(request);
+  if (error) return error;
 
   // Build where clause
   const where = filters.onChainOnly ? { onChainRegistered: true } : {};
@@ -264,13 +269,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/registry'
   );
 
-  return successResponse({
+  const res = successResponse({
     users: usersWithReputation,
     pagination: {
       total: totalCount,
       limit: filters.limit || 100,
       offset: filters.offset || 0,
-      hasMore: (filters.offset || 0) + users.length < totalCount,
+      hasMore: (filters.offset || 0) + usersWithReputation.length < totalCount,
     },
   });
+  if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+  return res;
 });

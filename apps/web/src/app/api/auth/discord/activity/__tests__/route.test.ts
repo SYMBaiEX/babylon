@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { generateSignedState, verifySignedState } from '../state/route';
+import { generateSignedState, verifySignedState } from '../state/state-utils';
 
 const TEST_SECRET = 'test-discord-client-secret-for-unit-tests';
 

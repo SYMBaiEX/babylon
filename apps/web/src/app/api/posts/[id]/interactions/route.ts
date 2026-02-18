@@ -79,9 +79,10 @@
  */
 
 import {
+  addPublicReadHeaders,
   CACHE_KEYS,
   getCacheOrFetch,
-  optionalAuth,
+  publicRateLimit,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -113,6 +114,9 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
+    const { error, user, rateLimitInfo } = await publicRateLimit(request);
+    if (error) return error;
+
     const { id: postId } = PostIdParamSchema.parse(await context.params);
 
     // Validate query parameters
@@ -124,9 +128,6 @@ export const GET = withErrorHandling(
       limit: searchParams.get('limit'),
     };
     PostInteractionsQuerySchema.parse(queryParams);
-
-    // Optional authentication
-    const user = await optionalAuth(request);
 
     // OPTIMIZED: Cache post interactions (called for every post in feed!)
     const cacheKey = user
@@ -245,7 +246,7 @@ export const GET = withErrorHandling(
         { postId },
         'GET /api/posts/[id]/interactions'
       );
-      return successResponse({
+      const res = successResponse({
         postId,
         likeCount: 0,
         commentCount: 0,
@@ -254,6 +255,8 @@ export const GET = withErrorHandling(
         isShared: false,
         fetchedAt: new Date().toISOString(),
       });
+      if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+      return res;
     }
 
     logger.info(
@@ -267,7 +270,7 @@ export const GET = withErrorHandling(
       'GET /api/posts/[id]/interactions'
     );
 
-    return successResponse({
+    const res = successResponse({
       postId,
       likeCount: result.likeCount,
       commentCount: result.commentCount,
@@ -277,5 +280,7 @@ export const GET = withErrorHandling(
       // Include timestamp for cache invalidation
       fetchedAt: new Date().toISOString(),
     });
+    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    return res;
   }
 );
