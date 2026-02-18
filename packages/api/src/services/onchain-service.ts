@@ -38,6 +38,7 @@ import {
   encodeFunctionData,
   http,
   type Log,
+  parseAbi,
   type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -64,6 +65,12 @@ function resolveViemChain(chainId: number): Chain {
 }
 
 import { sendSponsoredEvmTransaction } from './privy/evm-send-transaction';
+
+const agent0IdentityRegistryAbi = parseAbi([
+  'function balanceOf(address owner) external view returns (uint256)',
+  'function register(string tokenUri) external returns (uint256 agentId)',
+  'event Registered(uint256 indexed agentId, string tokenURI, address indexed owner)',
+]);
 
 /**
  * OnboardingServices interface for dependency injection
@@ -237,6 +244,7 @@ export async function processOnchainRegistration({
     walletAddress: string | null;
     onChainRegistered: boolean;
     nftTokenId: number | null;
+    agent0TokenId: number | null;
     referredBy: string | null;
   } | null = null;
 
@@ -250,6 +258,7 @@ export async function processOnchainRegistration({
         walletAddress: users.walletAddress,
         onChainRegistered: users.onChainRegistered,
         nftTokenId: users.nftTokenId,
+        agent0TokenId: users.agent0TokenId,
         referredBy: users.referredBy,
       })
       .from(users)
@@ -281,6 +290,7 @@ export async function processOnchainRegistration({
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
+          agent0TokenId: users.agent0TokenId,
           referredBy: users.referredBy,
         });
       dbUser = createdUser ?? null;
@@ -294,6 +304,7 @@ export async function processOnchainRegistration({
         walletAddress: users.walletAddress,
         onChainRegistered: users.onChainRegistered,
         nftTokenId: users.nftTokenId,
+        agent0TokenId: users.agent0TokenId,
         referredBy: users.referredBy,
       })
       .from(users)
@@ -326,6 +337,7 @@ export async function processOnchainRegistration({
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
+          agent0TokenId: users.agent0TokenId,
           referredBy: users.referredBy,
         });
       dbUser = createdUser ?? null;
@@ -354,6 +366,7 @@ export async function processOnchainRegistration({
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
+          agent0TokenId: users.agent0TokenId,
           referredBy: users.referredBy,
         });
       dbUser = updatedUser ?? null;
@@ -370,6 +383,7 @@ export async function processOnchainRegistration({
 
   const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
   const isLocalNetwork = chainId === 31337;
+  const usesAgent0MainnetRegistry = chainId === 1;
 
   // Create publicClient at function scope for use throughout registration flow
   const publicClient = createPublicClient({
@@ -378,7 +392,9 @@ export async function processOnchainRegistration({
   });
 
   let isRegistered = false;
-  let tokenId: number | null = dbUser.nftTokenId;
+  let tokenId: number | null =
+    dbUser.nftTokenId ??
+    (usesAgent0MainnetRegistry ? dbUser.agent0TokenId : null);
 
   if (user.isAgent) {
     // Agents use database state
@@ -407,35 +423,56 @@ export async function processOnchainRegistration({
         'CONTRACT_NOT_DEPLOYED'
       );
     } else {
-      // Contract exists - check blockchain for registration status
-      isRegistered = await publicClient.readContract({
-        address: IDENTITY_REGISTRY,
-        abi: identityRegistryAbi,
-        functionName: 'isRegistered',
-        args: [address],
-      });
+      if (usesAgent0MainnetRegistry) {
+        // Agent0 identity registry does not expose isRegistered/getTokenId.
+        const balance = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: agent0IdentityRegistryAbi,
+          functionName: 'balanceOf',
+          args: [address],
+        });
+        isRegistered = balance > 0n;
+      } else {
+        // Babylon ERC-8004 registry (registerAgent/isRegistered/getTokenId flow).
+        isRegistered = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: identityRegistryAbi,
+          functionName: 'isRegistered',
+          args: [address],
+        });
 
-      if (isRegistered && !tokenId) {
-        tokenId = Number(
-          await publicClient.readContract({
-            address: IDENTITY_REGISTRY,
-            abi: identityRegistryAbi,
-            functionName: 'getTokenId',
-            args: [address],
-          })
-        );
+        if (isRegistered && !tokenId) {
+          tokenId = Number(
+            await publicClient.readContract({
+              address: IDENTITY_REGISTRY,
+              abi: identityRegistryAbi,
+              functionName: 'getTokenId',
+              args: [address],
+            })
+          );
+        }
       }
     }
   }
 
-  if (isRegistered && tokenId) {
+  if (isRegistered) {
     // User is already registered on-chain, sync the DB if needed
-    if (!dbUser.onChainRegistered || dbUser.nftTokenId !== tokenId) {
+    const shouldSyncTokenId = tokenId !== null && dbUser.nftTokenId !== tokenId;
+    const shouldSyncAgent0TokenId =
+      usesAgent0MainnetRegistry &&
+      tokenId !== null &&
+      dbUser.agent0TokenId !== tokenId;
+    if (
+      !dbUser.onChainRegistered ||
+      shouldSyncTokenId ||
+      shouldSyncAgent0TokenId
+    ) {
       await db
         .update(users)
         .set({
           onChainRegistered: true,
-          nftTokenId: tokenId,
+          ...(tokenId !== null ? { nftTokenId: tokenId } : {}),
+          ...(shouldSyncAgent0TokenId ? { agent0TokenId: tokenId } : {}),
         })
         .where(eq(users.id, dbUser.id));
       logger.info(
@@ -464,11 +501,39 @@ export async function processOnchainRegistration({
 
     return {
       message: 'Already registered on-chain',
-      tokenId,
+      tokenId: tokenId ?? undefined,
       alreadyRegistered: true,
       userId: dbUser.id,
       pointsAwarded: hasWelcomeBonus ? 1000 : 0,
     };
+  }
+
+  // DB can contain stale "registered" data from a previous registry/source.
+  // If target registry says "not registered", clear stale state before retrying registration.
+  if (
+    dbUser.onChainRegistered ||
+    dbUser.nftTokenId !== null ||
+    (usesAgent0MainnetRegistry && dbUser.agent0TokenId !== null)
+  ) {
+    await db
+      .update(users)
+      .set({
+        onChainRegistered: false,
+        nftTokenId: null,
+        ...(usesAgent0MainnetRegistry ? { agent0TokenId: null } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, dbUser.id));
+
+    logger.warn(
+      'Cleared stale registration state because target registry reports unregistered',
+      {
+        userId: dbUser.id,
+        chainId,
+        identityRegistry: IDENTITY_REGISTRY,
+      },
+      'processOnchainRegistration'
+    );
   }
 
   // Deployer wallet is only required for:
@@ -545,12 +610,21 @@ export async function processOnchainRegistration({
       });
     }
 
-    registrationTxHash = await deployerWalletClient.writeContract({
-      address: IDENTITY_REGISTRY,
-      abi: identityRegistryAbi,
-      functionName: 'registerAgent',
-      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-    } as unknown as Parameters<typeof deployerWalletClient.writeContract>[0]);
+    if (usesAgent0MainnetRegistry) {
+      registrationTxHash = await deployerWalletClient.writeContract({
+        address: IDENTITY_REGISTRY,
+        abi: agent0IdentityRegistryAbi,
+        functionName: 'register',
+        args: [metadataURI],
+      } as unknown as Parameters<typeof deployerWalletClient.writeContract>[0]);
+    } else {
+      registrationTxHash = await deployerWalletClient.writeContract({
+        address: IDENTITY_REGISTRY,
+        abi: identityRegistryAbi,
+        functionName: 'registerAgent',
+        args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+      } as unknown as Parameters<typeof deployerWalletClient.writeContract>[0]);
+    }
 
     logger.info(
       'Registration transaction sent',
@@ -587,11 +661,17 @@ export async function processOnchainRegistration({
       });
     }
 
-    const data = encodeFunctionData({
-      abi: identityRegistryAbi,
-      functionName: 'registerAgent',
-      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-    });
+    const data = usesAgent0MainnetRegistry
+      ? encodeFunctionData({
+          abi: agent0IdentityRegistryAbi,
+          functionName: 'register',
+          args: [metadataURI],
+        })
+      : encodeFunctionData({
+          abi: identityRegistryAbi,
+          functionName: 'registerAgent',
+          args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+        });
 
     const { hash } = await sendSponsoredEvmTransaction({
       walletId: dbUser.privyWalletId,
@@ -659,12 +739,18 @@ export async function processOnchainRegistration({
     'processOnchainRegistration'
   );
 
+  const targetRegistrationEvent = usesAgent0MainnetRegistry
+    ? 'Registered'
+    : 'AgentRegistered';
+
   const agentRegisteredLog = contractLogs.find((log: Log) => {
     if (log.topics.length === 0) {
       return false;
     }
     const decodedLog = decodeEventLog({
-      abi: identityRegistryAbi,
+      abi: usesAgent0MainnetRegistry
+        ? agent0IdentityRegistryAbi
+        : identityRegistryAbi,
       data: log.data,
       topics: log.topics,
       strict: false,
@@ -674,12 +760,12 @@ export async function processOnchainRegistration({
       { eventName: decodedLog.eventName },
       'processOnchainRegistration'
     );
-    return decodedLog.eventName === 'AgentRegistered';
+    return decodedLog.eventName === targetRegistrationEvent;
   });
 
   if (!agentRegisteredLog) {
     throw new InternalServerError(
-      'AgentRegistered event not found in receipt',
+      `${targetRegistrationEvent} event not found in receipt`,
       {
         txHash: registrationTxHash,
         totalLogs: finalizedReceipt.logs.length,
@@ -692,14 +778,26 @@ export async function processOnchainRegistration({
     );
   }
 
-  const decodedLog = decodeEventLog({
-    abi: IDENTITY_REGISTRY_ABI,
-    data: agentRegisteredLog.data,
-    topics: agentRegisteredLog.topics,
-  });
+  let decodedTokenId = 0;
+  if (usesAgent0MainnetRegistry) {
+    const decodedLog = decodeEventLog({
+      abi: agent0IdentityRegistryAbi,
+      data: agentRegisteredLog.data,
+      topics: agentRegisteredLog.topics,
+    });
+    const args = decodedLog.args as { agentId?: bigint } | undefined;
+    decodedTokenId = args?.agentId ? Number(args.agentId) : 0;
+  } else {
+    const decodedLog = decodeEventLog({
+      abi: IDENTITY_REGISTRY_ABI,
+      data: agentRegisteredLog.data,
+      topics: agentRegisteredLog.topics,
+    });
+    const args = decodedLog.args as { tokenId?: bigint } | undefined;
+    decodedTokenId = args?.tokenId ? Number(args.tokenId) : 0;
+  }
 
-  const args = decodedLog.args as { tokenId?: bigint } | undefined;
-  tokenId = args?.tokenId ? Number(args.tokenId) : 0;
+  tokenId = decodedTokenId;
   logger.info('Registered with token ID', { tokenId }, 'OnboardingOnchain');
   if (deployerWalletClient) {
     logger.info(
@@ -735,6 +833,13 @@ export async function processOnchainRegistration({
     .set({
       onChainRegistered: true,
       nftTokenId: tokenId,
+      ...(usesAgent0MainnetRegistry
+        ? {
+            agent0TokenId: tokenId,
+            agent0MetadataCID: metadataURI,
+            agent0RegisteredAt: new Date(),
+          }
+        : {}),
       registrationTxHash: registrationTxHash ?? null,
       // Store registration blockchain metadata
       registrationBlockNumber: BigInt(finalizedReceipt.blockNumber),
@@ -1199,6 +1304,7 @@ export async function getOnchainRegistrationStatus(
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
+          agent0TokenId: users.agent0TokenId,
           registrationTxHash: users.registrationTxHash,
         })
         .from(users)
@@ -1209,6 +1315,7 @@ export async function getOnchainRegistrationStatus(
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
+          agent0TokenId: users.agent0TokenId,
           registrationTxHash: users.registrationTxHash,
         })
         .from(users)
@@ -1230,10 +1337,11 @@ export async function getOnchainRegistrationStatus(
     };
   }
 
-  let tokenId = userRecord.nftTokenId;
-  let isRegistered = Boolean(userRecord.onChainRegistered && tokenId !== null);
-
   const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+  let tokenId =
+    userRecord.nftTokenId ??
+    (chainId === 1 ? (userRecord.agent0TokenId ?? null) : null);
+  let isRegistered = Boolean(userRecord.onChainRegistered && tokenId !== null);
 
   // Local development - skip blockchain calls, use database state
   // On testnets/mainnet, verify against the chain
@@ -1243,21 +1351,32 @@ export async function getOnchainRegistrationStatus(
       transport: http(getRpcUrl()),
     });
 
-    const onchainRegistered = await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi: identityRegistryAbi,
-      functionName: 'isRegistered',
-      args: [userRecord.walletAddress as Address],
-    });
-
-    if (onchainRegistered && !tokenId) {
-      const queriedTokenId = await publicClient.readContract({
+    let onchainRegistered = false;
+    if (chainId === 1) {
+      const balance = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
-        abi: identityRegistryAbi,
-        functionName: 'getTokenId',
+        abi: agent0IdentityRegistryAbi,
+        functionName: 'balanceOf',
         args: [userRecord.walletAddress as Address],
       });
-      tokenId = Number(queriedTokenId);
+      onchainRegistered = balance > 0n;
+    } else {
+      onchainRegistered = await publicClient.readContract({
+        address: IDENTITY_REGISTRY,
+        abi: identityRegistryAbi,
+        functionName: 'isRegistered',
+        args: [userRecord.walletAddress as Address],
+      });
+
+      if (onchainRegistered && !tokenId) {
+        const queriedTokenId = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: identityRegistryAbi,
+          functionName: 'getTokenId',
+          args: [userRecord.walletAddress as Address],
+        });
+        tokenId = Number(queriedTokenId);
+      }
     }
 
     isRegistered = onchainRegistered;
