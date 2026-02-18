@@ -92,6 +92,95 @@ const VerifyShareRequestSchema = z.object({
   postUrl: z.string().url().optional(), // URL to the actual post for verification
 });
 
+const SUPPORTED_TWITTER_HOSTS = new Set([
+  'twitter.com',
+  'www.twitter.com',
+  'mobile.twitter.com',
+  'x.com',
+  'www.x.com',
+  'mobile.x.com',
+]);
+
+interface ParsedTwitterPostUrl {
+  tweetId: string;
+  tweetUsername: string | null;
+}
+
+interface TwitterLookupResponse {
+  data?: {
+    author_id?: string;
+    entities?: {
+      urls?: Array<{ expanded_url?: string }>;
+    };
+    text?: string;
+  };
+  includes?: {
+    users?: Array<{
+      id?: string;
+      username?: string;
+    }>;
+  };
+}
+
+function normalizeUsername(username: string): string {
+  return username.toLowerCase().replace(/^@/, '');
+}
+
+function parseTwitterPostUrl(postUrl: string): ParsedTwitterPostUrl | null {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(postUrl);
+  } catch {
+    return null;
+  }
+
+  if (!SUPPORTED_TWITTER_HOSTS.has(parsedUrl.hostname.toLowerCase())) {
+    return null;
+  }
+
+  const segments = parsedUrl.pathname.split('/').filter(Boolean);
+
+  // Supports: /username/status/:tweetId (common copy-link format)
+  if (
+    segments.length >= 3 &&
+    segments[1] === 'status' &&
+    /^\d+$/.test(segments[2] || '')
+  ) {
+    return {
+      tweetId: segments[2] || '',
+      tweetUsername: segments[0] || null,
+    };
+  }
+
+  // Supports mobile/app links like /i/web/status/:tweetId and /i/status/:tweetId
+  if (
+    segments.length >= 4 &&
+    segments[0] === 'i' &&
+    segments[1] === 'web' &&
+    segments[2] === 'status' &&
+    /^\d+$/.test(segments[3] || '')
+  ) {
+    return {
+      tweetId: segments[3] || '',
+      tweetUsername: null,
+    };
+  }
+
+  if (
+    segments.length >= 3 &&
+    segments[0] === 'i' &&
+    segments[1] === 'status' &&
+    /^\d+$/.test(segments[2] || '')
+  ) {
+    return {
+      tweetId: segments[2] || '',
+      tweetUsername: null,
+    };
+  }
+
+  return null;
+}
+
 /**
  * POST /api/users/[userId]/verify-share
  * Verify that a share action was completed (user actually posted)
@@ -180,12 +269,11 @@ export const POST = withErrorHandling(
 
     if (platform === 'twitter') {
       // Twitter verification - STRICT MODE
-      // Extract tweet ID and username from URL (e.g., https://twitter.com/user/status/1234567890 or https://x.com/user/status/1234567890)
-      const tweetMatch = postUrl.match(
-        /(?:twitter\.com|x\.com)\/([^/]+)\/status\/(\d+)/
-      );
+      // Extract tweet ID and optional username from URL.
+      // Supports desktop and mobile copy-link formats.
+      const parsedTweetUrl = parseTwitterPostUrl(postUrl);
 
-      if (!tweetMatch || !tweetMatch[1] || !tweetMatch[2]) {
+      if (!parsedTweetUrl) {
         verificationError =
           'Invalid X URL format. Expected: https://x.com/username/status/123456789';
         logger.warn(
@@ -194,151 +282,252 @@ export const POST = withErrorHandling(
           'POST /api/users/[userId]/verify-share'
         );
       } else {
-        const tweetUsername = tweetMatch[1]; // Username from URL
-        const tweetId = tweetMatch[2]; // Tweet ID
+        const { tweetId, tweetUsername } = parsedTweetUrl;
 
-        // Check if Twitter API is configured
-        if (!process.env.TWITTER_BEARER_TOKEN) {
+        // Verify tweet exists using Twitter API v2
+        const [user] = await db
+          .select({
+            twitterAccessToken: users.twitterAccessToken,
+            twitterTokenExpiresAt: users.twitterTokenExpiresAt,
+            twitterId: users.twitterId,
+            twitterUsername: users.twitterUsername,
+          })
+          .from(users)
+          .where(eq(users.id, canonicalUserId))
+          .limit(1);
+
+        // VALIDATION 1: Check if user has linked Twitter account
+        if (!user?.twitterUsername) {
           verificationError =
-            'Twitter verification is not configured. Please contact support.';
-          logger.error(
-            'TWITTER_BEARER_TOKEN not configured',
-            { shareId, tweetId },
+            'Please link your Twitter/X account first to verify posts.';
+          logger.warn(
+            `User has no linked Twitter account: ${shareId}`,
+            { shareId, userId: canonicalUserId },
             'POST /api/users/[userId]/verify-share'
           );
         } else {
-          // Verify tweet exists using Twitter API v2
-          const [user] = await db
-            .select({
-              twitterUsername: users.twitterUsername,
-            })
-            .from(users)
-            .where(eq(users.id, canonicalUserId))
-            .limit(1);
+          const twitterAuthAttempts: Array<{
+            authType: 'app_bearer' | 'user_access_token';
+            token: string;
+          }> = [];
 
-          // VALIDATION 1: Check if user has linked Twitter account
-          if (!user?.twitterUsername) {
-            verificationError =
-              'Please link your Twitter/X account first to verify posts.';
+          if (process.env.TWITTER_BEARER_TOKEN) {
+            twitterAuthAttempts.push({
+              authType: 'app_bearer',
+              token: process.env.TWITTER_BEARER_TOKEN,
+            });
+          }
+
+          const isUserTokenExpired =
+            !!user.twitterTokenExpiresAt &&
+            user.twitterTokenExpiresAt.getTime() < Date.now();
+
+          if (user.twitterAccessToken && !isUserTokenExpired) {
+            twitterAuthAttempts.push({
+              authType: 'user_access_token',
+              token: user.twitterAccessToken,
+            });
+          } else if (user.twitterAccessToken && isUserTokenExpired) {
             logger.warn(
-              `User has no linked Twitter account: ${shareId}`,
-              { shareId, userId: canonicalUserId },
+              `User Twitter access token expired, skipping fallback: ${shareId}`,
+              {
+                shareId,
+                userId: canonicalUserId,
+                expiredAt: user.twitterTokenExpiresAt?.toISOString(),
+              },
+              'POST /api/users/[userId]/verify-share'
+            );
+          }
+
+          if (twitterAuthAttempts.length === 0) {
+            verificationError =
+              'Twitter verification is not configured. Please contact support.';
+            logger.error(
+              'No Twitter auth token available for verification',
+              { shareId, tweetId, userId: canonicalUserId },
               'POST /api/users/[userId]/verify-share'
             );
           } else {
-            const twitterResponse = await fetch(
-              `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=author_id,created_at,text,entities`,
-              {
-                headers: {
-                  Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
-                },
+            let twitterResponse!: Response;
+            let twitterAuthTypeUsed!: 'app_bearer' | 'user_access_token';
+
+            for (const [index, authAttempt] of twitterAuthAttempts.entries()) {
+              twitterResponse = await fetch(
+                `https://api.twitter.com/2/tweets/${tweetId}?tweet.fields=author_id,created_at,text,entities&expansions=author_id&user.fields=username`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${authAttempt.token}`,
+                  },
+                  signal: AbortSignal.timeout(10000),
+                }
+              );
+              twitterAuthTypeUsed = authAttempt.authType;
+
+              // Retry with another token only for explicit auth failures.
+              const hasFallback = index < twitterAuthAttempts.length - 1;
+              if (twitterResponse.status === 401 && hasFallback) {
+                // Drain the response body to release the connection.
+                await twitterResponse.text().catch(() => {});
+                logger.warn(
+                  `Twitter API auth failed, retrying with fallback token: ${shareId}`,
+                  {
+                    shareId,
+                    tweetId,
+                    attemptedAuthType: authAttempt.authType,
+                    fallbackAuthType: twitterAuthAttempts[index + 1]?.authType,
+                  },
+                  'POST /api/users/[userId]/verify-share'
+                );
+                continue;
               }
-            );
+
+              break;
+            }
 
             if (twitterResponse.ok) {
-              const tweetData = await twitterResponse.json();
+              const tweetData =
+                (await twitterResponse.json()) as TwitterLookupResponse;
 
               if (tweetData.data) {
-                // VALIDATION 2: Verify tweet author matches user's Twitter account
-                const userTwitterUsername = user.twitterUsername
-                  .toLowerCase()
-                  .replace('@', '');
-                const urlTwitterUsername = tweetUsername.toLowerCase();
+                const userTwitterUsername = normalizeUsername(
+                  user.twitterUsername
+                );
+                const userTwitterId = user.twitterId || '';
+                const urlTwitterUsername = tweetUsername
+                  ? normalizeUsername(tweetUsername)
+                  : null;
+                const tweetAuthorId = tweetData.data.author_id || '';
+                const tweetAuthorUsername =
+                  tweetData.includes?.users?.find(
+                    (tweetUser) => tweetUser.id === tweetAuthorId
+                  )?.username || '';
+                const normalizedTweetAuthorUsername = tweetAuthorUsername
+                  ? normalizeUsername(tweetAuthorUsername)
+                  : '';
 
-                if (userTwitterUsername !== urlTwitterUsername) {
-                  verificationError = `This tweet is from @${tweetUsername}, but your linked account is @${user.twitterUsername}. You can only verify your own posts.`;
+                // VALIDATION 2: URL username (when present) must match linked username.
+                if (
+                  urlTwitterUsername &&
+                  userTwitterUsername !== urlTwitterUsername
+                ) {
+                  verificationError = `This tweet URL is from @${tweetUsername}, but your linked account is @${user.twitterUsername}. You can only verify your own posts.`;
                   logger.warn(
-                    `Tweet author mismatch: ${shareId}`,
+                    `Tweet URL username mismatch: ${shareId}`,
                     {
                       shareId,
                       expectedUsername: userTwitterUsername,
-                      actualUsername: urlTwitterUsername,
+                      actualUrlUsername: urlTwitterUsername,
                     },
                     'POST /api/users/[userId]/verify-share'
                   );
                 } else {
-                  // VALIDATION 3: Verify tweet contains the shared URL
-                  // Twitter converts URLs to t.co links, so we need to check expanded URLs from entities
-                  const tweetText = (tweetData.data.text || '').toLowerCase();
-                  const sharedUrl = shareAction.url?.toLowerCase() || '';
+                  // VALIDATION 3: Tweet author must match the linked account.
+                  const isAuthorMatchById =
+                    !!userTwitterId &&
+                    !!tweetAuthorId &&
+                    userTwitterId === tweetAuthorId;
+                  const isAuthorMatchByUsername =
+                    !!normalizedTweetAuthorUsername &&
+                    userTwitterUsername === normalizedTweetAuthorUsername;
 
-                  // Extract expanded URLs from tweet entities (Twitter automatically shortens URLs to t.co)
-                  const urlEntities = tweetData.data.entities?.urls as
-                    | Array<{ expanded_url?: string }>
-                    | undefined;
-                  const expandedUrls = (urlEntities || [])
-                    .map(
-                      (urlEntity) => urlEntity.expanded_url?.toLowerCase() || ''
-                    )
-                    .filter((url) => url);
-
-                  // Check if the tweet contains the shared URL (in text or expanded URLs)
-                  const containsUrlInText =
-                    sharedUrl && tweetText.includes(sharedUrl);
-                  const containsUrlInEntities =
-                    sharedUrl &&
-                    expandedUrls.some(
-                      (expandedUrl) =>
-                        expandedUrl.includes(sharedUrl) ||
-                        sharedUrl.includes(expandedUrl)
-                    );
-
-                  const containsUrl =
-                    containsUrlInText || containsUrlInEntities;
-
-                  if (!containsUrl && sharedUrl) {
-                    verificationError = `This tweet does not contain the shared link (${sharedUrl}). Please paste the tweet where you actually shared the link.`;
+                  if (!isAuthorMatchById && !isAuthorMatchByUsername) {
+                    verificationError =
+                      'This tweet was not posted by your linked X account. Please paste a tweet from your own account.';
                     logger.warn(
-                      `Tweet does not contain shared URL: ${shareId}`,
+                      `Tweet author mismatch: ${shareId}`,
                       {
                         shareId,
-                        tweetText: tweetText.substring(0, 100),
-                        expectedUrl: sharedUrl,
-                        expandedUrls,
+                        userTwitterId,
+                        tweetAuthorId,
+                        userTwitterUsername,
+                        tweetAuthorUsername: normalizedTweetAuthorUsername,
                       },
                       'POST /api/users/[userId]/verify-share'
                     );
                   } else {
-                    // All validations passed!
-                    verified = true;
-                    verificationDetails = {
-                      tweetId,
-                      tweetUrl: postUrl,
-                      tweetUsername,
-                      verificationMethod:
-                        'twitter_api_v2_with_url_verification',
-                      verified: true,
-                      tweetText: tweetData.data.text || '',
-                      tweetAuthorId: tweetData.data.author_id || '',
-                      verifiedAt: new Date().toISOString(),
-                      urlMatch: containsUrl,
-                      urlMatchMethod: containsUrlInEntities
-                        ? 'expanded_urls'
-                        : 'text',
-                      expandedUrls: expandedUrls.join(', '),
-                      authorMatch: true,
-                    };
+                    // VALIDATION 4: Verify tweet contains the shared URL.
+                    // Twitter converts URLs to t.co links, so we also check expanded URLs.
+                    const tweetText = (tweetData.data.text || '').toLowerCase();
+                    const sharedUrl = shareAction.url?.toLowerCase() || '';
 
-                    logger.info(
-                      `Twitter share verified via API: ${shareId}`,
-                      {
-                        shareId,
+                    const expandedUrls = (tweetData.data.entities?.urls || [])
+                      .map((urlEntity) => urlEntity.expanded_url?.toLowerCase())
+                      .filter((url): url is string => Boolean(url));
+
+                    const containsUrlInText =
+                      !!sharedUrl && tweetText.includes(sharedUrl);
+                    const containsUrlInEntities =
+                      !!sharedUrl &&
+                      expandedUrls.some(
+                        (expandedUrl) =>
+                          expandedUrl.includes(sharedUrl) ||
+                          sharedUrl.includes(expandedUrl)
+                      );
+
+                    const containsUrl =
+                      containsUrlInText || containsUrlInEntities;
+
+                    if (!containsUrl && sharedUrl) {
+                      verificationError = `This tweet does not contain the shared link (${sharedUrl}). Please paste the tweet where you actually shared the link.`;
+                      logger.warn(
+                        `Tweet does not contain shared URL: ${shareId}`,
+                        {
+                          shareId,
+                          tweetText: tweetText.substring(0, 100),
+                          expectedUrl: sharedUrl,
+                          expandedUrls,
+                        },
+                        'POST /api/users/[userId]/verify-share'
+                      );
+                    } else {
+                      // All validations passed.
+                      verified = true;
+                      verificationDetails = {
                         tweetId,
-                        tweetUsername,
-                        userId: canonicalUserId,
+                        tweetUrl: postUrl,
+                        tweetUsername: tweetUsername || user.twitterUsername,
+                        verificationMethod:
+                          'twitter_api_v2_with_author_and_url_verification',
+                        verified: true,
+                        tweetText: tweetData.data.text || '',
+                        tweetAuthorId,
+                        tweetAuthorUsername:
+                          normalizedTweetAuthorUsername ||
+                          userTwitterUsername ||
+                          '',
+                        verifiedAt: new Date().toISOString(),
+                        urlMatch: containsUrl,
                         urlMatchMethod: containsUrlInEntities
                           ? 'expanded_urls'
                           : 'text',
-                      },
-                      'POST /api/users/[userId]/verify-share'
-                    );
+                        expandedUrls: expandedUrls.join(', '),
+                        authorMatch: true,
+                        authMethodUsed: twitterAuthTypeUsed,
+                      };
+
+                      logger.info(
+                        `Twitter share verified via API: ${shareId}`,
+                        {
+                          shareId,
+                          tweetId,
+                          tweetUsername:
+                            tweetUsername || normalizedTweetAuthorUsername,
+                          userId: canonicalUserId,
+                          urlMatchMethod: containsUrlInEntities
+                            ? 'expanded_urls'
+                            : 'text',
+                          authMethodUsed: twitterAuthTypeUsed,
+                        },
+                        'POST /api/users/[userId]/verify-share'
+                      );
+                    }
                   }
                 }
               } else {
                 verificationError = 'Tweet not found or has been deleted';
                 logger.warn(
                   `Tweet not found in API response: ${shareId}`,
-                  { shareId, tweetId },
+                  { shareId, tweetId, authMethodUsed: twitterAuthTypeUsed },
                   'POST /api/users/[userId]/verify-share'
                 );
               }
@@ -347,14 +536,35 @@ export const POST = withErrorHandling(
                 'Tweet not found. Please check the URL and try again.';
               logger.warn(
                 `Tweet not found (404): ${shareId}`,
-                { shareId, tweetId },
+                { shareId, tweetId, authMethodUsed: twitterAuthTypeUsed },
+                'POST /api/users/[userId]/verify-share'
+              );
+            } else if (twitterResponse.status === 401) {
+              verificationError =
+                'Twitter authentication failed during verification. Please reconnect your X account and try again.';
+              logger.error(
+                `Twitter API auth error: ${shareId}`,
+                {
+                  shareId,
+                  tweetId,
+                  status: twitterResponse.status,
+                  authMethodUsed: twitterAuthTypeUsed,
+                  attemptedAuthMethods: twitterAuthAttempts.map(
+                    (attempt) => attempt.authType
+                  ),
+                },
                 'POST /api/users/[userId]/verify-share'
               );
             } else {
               verificationError = `Twitter API error (${twitterResponse.status}). Please try again later.`;
               logger.error(
                 `Twitter API error: ${shareId}`,
-                { shareId, tweetId, status: twitterResponse.status },
+                {
+                  shareId,
+                  tweetId,
+                  status: twitterResponse.status,
+                  authMethodUsed: twitterAuthTypeUsed,
+                },
                 'POST /api/users/[userId]/verify-share'
               );
             }
