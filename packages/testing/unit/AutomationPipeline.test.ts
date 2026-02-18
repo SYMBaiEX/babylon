@@ -6,6 +6,7 @@
 
 import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import * as actualDbModule from '../../db/src/index';
+import * as actualFsPromises from 'node:fs/promises';
 
 // Tests use mocked db module
 const describeTests = describe;
@@ -162,7 +163,9 @@ const mockMkdir = mock(() => Promise.resolve(undefined));
 const mockAccess = mock(() => Promise.resolve(undefined));
 const mockStat = mock(() => Promise.resolve({ size: 1000000 }));
 mock.module('node:fs/promises', () => ({
+  ...actualFsPromises,
   default: {
+    ...actualFsPromises,
     mkdir: mockMkdir,
     access: mockAccess,
     stat: mockStat,
