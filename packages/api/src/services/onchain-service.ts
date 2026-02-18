@@ -72,6 +72,10 @@ const agent0IdentityRegistryAbi = parseAbi([
   'event Registered(uint256 indexed agentId, string tokenURI, address indexed owner)',
 ]);
 
+const erc721OwnershipAbi = parseAbi([
+  'function ownerOf(uint256 tokenId) external view returns (address)',
+]);
+
 /**
  * OnboardingServices interface for dependency injection
  *
@@ -831,6 +835,73 @@ export async function processOnchainRegistration({
       { userId: dbUser.id },
       'OnboardingOnchain'
     );
+  }
+
+  if (tokenId > 0) {
+    const [conflictingUser] = await db
+      .select({
+        id: users.id,
+        walletAddress: users.walletAddress,
+        onChainRegistered: users.onChainRegistered,
+        agent0TokenId: users.agent0TokenId,
+      })
+      .from(users)
+      .where(
+        and(eq(users.nftTokenId, tokenId), sql`${users.id} <> ${dbUser.id}`)
+      )
+      .limit(1);
+
+    if (conflictingUser) {
+      const onchainOwner = (
+        await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: erc721OwnershipAbi,
+          functionName: 'ownerOf',
+          args: [BigInt(tokenId)],
+        })
+      ).toLowerCase();
+      const expectedOwner = registrationAddress.toLowerCase();
+
+      if (onchainOwner !== expectedOwner) {
+        throw new BusinessLogicError(
+          'On-chain token ownership mismatch during registration sync',
+          'TOKEN_OWNERSHIP_MISMATCH',
+          {
+            tokenId,
+            expectedOwner,
+            onchainOwner,
+            conflictingUserId: conflictingUser.id,
+            conflictingWalletAddress: conflictingUser.walletAddress,
+          }
+        );
+      }
+
+      await db
+        .update(users)
+        .set({
+          nftTokenId: null,
+          ...(usesAgent0MainnetRegistry &&
+          conflictingUser.agent0TokenId === tokenId
+            ? { agent0TokenId: null }
+            : {}),
+          onChainRegistered: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, conflictingUser.id));
+
+      logger.warn(
+        'Cleared stale nftTokenId assignment before syncing registration',
+        {
+          tokenId,
+          currentUserId: dbUser.id,
+          currentWalletAddress: registrationAddress,
+          conflictingUserId: conflictingUser.id,
+          conflictingWalletAddress: conflictingUser.walletAddress,
+          conflictingWasRegistered: conflictingUser.onChainRegistered,
+        },
+        'OnboardingOnchain'
+      );
+    }
   }
 
   await db
