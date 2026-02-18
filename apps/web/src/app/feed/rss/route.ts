@@ -6,6 +6,7 @@
  * Cookie forwarded so optional auth on the API still applies (e.g. RLS); limit 50 for a full page of items.
  */
 
+import { publicRateLimit } from '@babylon/api';
 import type { NextRequest } from 'next/server';
 import {
   buildRssXml,
@@ -25,6 +26,9 @@ function getOrigin(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
+  const { error } = await publicRateLimit(request);
+  if (error) return error;
+
   const origin = getOrigin(request);
   const limit = 50;
 

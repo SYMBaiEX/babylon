@@ -5,6 +5,7 @@
  * to RSS so all aggregation and RLS logic stays in one place. Limit 20 keeps the feed focused.
  */
 
+import { publicRateLimit } from '@babylon/api';
 import type { NextRequest } from 'next/server';
 import {
   buildRssXml,
@@ -35,6 +36,9 @@ interface BreakingNewsItem {
 }
 
 export async function GET(request: NextRequest) {
+  const { error } = await publicRateLimit(request);
+  if (error) return error;
+
   const origin = getOrigin(request);
   const limit = 20;
 

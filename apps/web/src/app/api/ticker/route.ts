@@ -11,7 +11,12 @@
  * @query limit - Max items per stream (default: 20)
  */
 
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   PredictionDbAdapter,
   PredictionMarketService,
@@ -54,6 +59,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 60;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { error, rateLimitInfo } = await publicRateLimit(request);
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
   const streams = parseStreams(searchParams.get('streams'));
   const limit = parseLimit(searchParams.get('limit'));
@@ -251,9 +259,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   const response = successResponse(result);
-  response.headers.set(
-    'Cache-Control',
-    'public, s-maxage=30, stale-while-revalidate=60'
-  );
+  if (rateLimitInfo) addPublicReadHeaders(response, rateLimitInfo);
   return response;
 });
