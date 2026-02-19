@@ -64,7 +64,10 @@ function resolveViemChain(chainId: number): Chain {
   }
 }
 
+import { notifyNewAccount } from './notification-service';
+import { PointsService } from './points-service';
 import { sendSponsoredEvmTransaction } from './privy/evm-send-transaction';
+import { getOrCreateReferralCode } from './referral-service';
 
 const agent0IdentityRegistryAbi = parseAbi([
   'function balanceOf(address owner) external view returns (uint256)',
@@ -109,17 +112,35 @@ type OnboardingServices = {
 };
 
 let onboardingServicesInstance: OnboardingServices | null = null;
+let onboardingServicesFallbackLogged = false;
 
 export function setOnboardingServices(services: OnboardingServices): void {
   onboardingServicesInstance = services;
 }
 
 function getOnboardingServices(): OnboardingServices {
-  if (!onboardingServicesInstance) {
-    throw new Error(
-      'OnboardingServices not initialized. Call setOnboardingServices() first.'
-    );
+  if (onboardingServicesInstance) {
+    return onboardingServicesInstance;
   }
+
+  if (!onboardingServicesFallbackLogged) {
+    logger.warn(
+      'OnboardingServices not explicitly initialized, using default service bindings',
+      undefined,
+      'OnboardingOnchain'
+    );
+    onboardingServicesFallbackLogged = true;
+  }
+
+  onboardingServicesInstance = {
+    notifyNewAccount,
+    pointsService: {
+      awardReferralSignup: PointsService.awardReferralSignup,
+      awardPoints: PointsService.awardPoints,
+    },
+    getOrCreateReferralCode,
+  };
+
   return onboardingServicesInstance;
 }
 
