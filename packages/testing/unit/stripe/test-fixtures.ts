@@ -17,6 +17,7 @@ export interface MockCheckoutSession {
   amount_total: number;
   currency: string;
   metadata: {
+    app?: string;
     userId: string;
     pointsAmount: string;
     amountUSD: string;
@@ -81,6 +82,7 @@ export function createCheckoutCompletedEvent(
     sessionId?: string;
     paymentIntentId?: string;
     eventId?: string;
+    app?: string;
   } = {}
 ): MockStripeEvent<MockCheckoutSession> {
   const pointsAmount = Math.floor(amountUSD * 100);
@@ -103,6 +105,9 @@ export function createCheckoutCompletedEvent(
         amount_total: amountUSD * 100, // cents
         currency: 'usd',
         metadata: {
+          ...(options.app !== undefined
+            ? { app: options.app }
+            : { app: 'babylon' }),
           userId,
           pointsAmount: pointsAmount.toString(),
           amountUSD: amountUSD.toString(),
@@ -117,7 +122,8 @@ export function createCheckoutCompletedEvent(
  */
 export function createCheckoutExpiredEvent(
   sessionId?: string,
-  eventId?: string
+  eventId?: string,
+  options: { app?: string } = {}
 ): MockStripeEvent<MockCheckoutSession> {
   return {
     id: eventId ?? `evt_test_${Date.now()}`,
@@ -134,6 +140,9 @@ export function createCheckoutExpiredEvent(
         amount_total: 0,
         currency: 'usd',
         metadata: {
+          ...(options.app !== undefined
+            ? { app: options.app }
+            : { app: 'babylon' }),
           userId: '',
           pointsAmount: '',
           amountUSD: '',
@@ -153,6 +162,7 @@ export function createDisputeCreatedEvent(
     disputeId?: string;
     chargeId?: string;
     eventId?: string;
+    app?: string;
   } = {}
 ): MockStripeEvent<MockDispute> {
   const disputeId = options.disputeId ?? `dp_test_${Date.now()}`;
@@ -173,7 +183,8 @@ export function createDisputeCreatedEvent(
         status: 'needs_response',
         payment_intent: paymentIntentId,
         charge: chargeId,
-        metadata: {},
+        metadata:
+          options.app !== undefined ? { app: options.app } : { app: 'babylon' },
       },
     },
   };
@@ -189,6 +200,7 @@ export function createDisputeWonEvent(
     disputeId?: string;
     chargeId?: string;
     eventId?: string;
+    app?: string;
   } = {}
 ): MockStripeEvent<MockDispute> {
   const disputeId = options.disputeId ?? `dp_test_${Date.now()}`;
@@ -209,7 +221,8 @@ export function createDisputeWonEvent(
         status: 'won',
         payment_intent: paymentIntentId,
         charge: chargeId,
-        metadata: {},
+        metadata:
+          options.app !== undefined ? { app: options.app } : { app: 'babylon' },
       },
     },
   };
@@ -225,6 +238,7 @@ export function createDisputeLostEvent(
     disputeId?: string;
     chargeId?: string;
     eventId?: string;
+    app?: string;
   } = {}
 ): MockStripeEvent<MockDispute> {
   const event = createDisputeWonEvent(paymentIntentId, amountUSD, options);
@@ -243,6 +257,7 @@ export function createChargeRefundedEvent(
   options: {
     chargeId?: string;
     eventId?: string;
+    app?: string;
   } = {}
 ): MockStripeEvent<MockCharge> {
   const chargeId = options.chargeId ?? `ch_test_${Date.now()}`;
@@ -262,7 +277,8 @@ export function createChargeRefundedEvent(
         currency: 'usd',
         payment_intent: paymentIntentId,
         refunded: amountRefundedUSD === originalAmountUSD,
-        metadata: {},
+        metadata:
+          options.app !== undefined ? { app: options.app } : { app: 'babylon' },
       },
     },
   };
