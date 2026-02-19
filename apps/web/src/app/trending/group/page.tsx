@@ -100,7 +100,7 @@ export default function GroupedTrendingPage() {
   const feedContent = (
     <>
       {loading ? (
-        <div className="space-y-4 px-4 py-6">
+        <div className="space-y-4 sm:px-4 sm:py-6">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />

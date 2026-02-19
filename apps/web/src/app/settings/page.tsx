@@ -509,7 +509,7 @@ export default function SettingsPage() {
 
   if (!ready) {
     return (
-      <PageContainer noPadding className="flex w-full flex-col">
+      <PageContainer noPadding className="flex w-full flex-col pt-14 md:pt-0">
         <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
           {/* Header skeleton */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background/95 backdrop-blur-sm">
@@ -548,7 +548,7 @@ export default function SettingsPage() {
 
   if (!authenticated) {
     return (
-      <PageContainer noPadding className="flex w-full flex-col">
+      <PageContainer noPadding className="flex w-full flex-col pt-14 md:pt-0">
         <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background/95 backdrop-blur-sm">
             <div className="mx-auto w-full max-w-4xl px-4 py-3 md:px-6">
@@ -567,7 +567,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <PageContainer noPadding className="flex w-full flex-col">
+    <PageContainer noPadding className="flex w-full flex-col pt-14 md:pt-0">
       <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
         {/* Sticky Header + Tab Navigation */}
         <div className="sticky top-0 z-10 flex-shrink-0 bg-background/95 backdrop-blur-sm">
@@ -598,11 +598,11 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-4xl px-4 pb-24 md:px-6">
+        <div className="mx-auto w-full max-w-4xl px-4 pb-8 md:px-6 md:pb-24">
           {/* Tab Content */}
           <div className="pt-6">
             {activeTab === 'profile' && (
-              <div className="rounded-lg border border-border p-5">
+              <div>
                 <div className="space-y-5">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">

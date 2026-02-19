@@ -143,28 +143,26 @@ function OriginalPostCard({ post }: { post: PostData }) {
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={getProfileUrl(post.authorId, null)}
-                className="truncate font-semibold text-sm hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {post.authorName}
               </Link>
-              {showVerifiedBadge && (
-                <VerifiedBadge size="sm" className="-ml-1" />
-              )}
+              {showVerifiedBadge && <VerifiedBadge size="sm" />}
               <Link
                 href={getProfileUrl(post.authorId, null)}
-                className="truncate text-muted-foreground text-xs hover:underline"
+                className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 @{post.authorUsername || post.authorName}
               </Link>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-muted-foreground text-xs">
+            <div className="flex items-start gap-2 sm:items-center">
+              <span className="text-[15px] text-muted-foreground leading-tight">
                 {formatTimeAgo(post.createdAt)}
               </span>
               {/* Moderation menu for other users' posts */}
@@ -262,28 +260,26 @@ function ParentCommentCard({
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={getProfileUrl(parent.authorId, parent.authorUsername)}
-                className="truncate font-semibold text-sm hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {parent.authorName}
               </Link>
-              {showVerifiedBadge && (
-                <VerifiedBadge size="sm" className="-ml-1" />
-              )}
+              {showVerifiedBadge && <VerifiedBadge size="sm" />}
               <Link
                 href={getProfileUrl(parent.authorId, parent.authorUsername)}
-                className="truncate text-muted-foreground text-xs hover:underline"
+                className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 @{parent.authorUsername || parent.authorName}
               </Link>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-muted-foreground text-xs">
+            <div className="flex items-start gap-2 sm:items-center">
+              <span className="text-[15px] text-muted-foreground leading-tight">
                 {formatTimeAgo(parent.createdAt)}
               </span>
               {/* Moderation menu for other users' comments */}
@@ -362,28 +358,26 @@ function ReplyCard({
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={getProfileUrl(reply.authorId, reply.authorUsername)}
-                className="truncate font-semibold text-sm hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {reply.authorName}
               </Link>
-              {showVerifiedBadge && (
-                <VerifiedBadge size="sm" className="-ml-1" />
-              )}
+              {showVerifiedBadge && <VerifiedBadge size="sm" />}
               <Link
                 href={getProfileUrl(reply.authorId, reply.authorUsername)}
-                className="truncate text-muted-foreground text-xs hover:underline"
+                className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 @{reply.authorUsername || reply.authorName}
               </Link>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-muted-foreground text-xs">
+            <div className="flex items-start gap-2 sm:items-center">
+              <span className="text-[15px] text-muted-foreground leading-tight">
                 {formatTimeAgo(reply.createdAt)}
               </span>
               {/* Moderation menu for other users' comments */}
@@ -582,7 +576,7 @@ export default function CommentPage({ params }: CommentPageProps) {
             </div>
             <div className="flex-1 bg-background">
               <div className="w-full lg:mx-auto lg:max-w-[700px]">
-                <div className="space-y-4 px-4 py-6">
+                <div className="space-y-4 sm:px-4 sm:py-6">
                   <Skeleton className="h-8 w-3/4" />
                   <Skeleton className="h-32 w-full" />
                   <Skeleton className="h-20 w-full" />
@@ -599,7 +593,7 @@ export default function CommentPage({ params }: CommentPageProps) {
                 <Skeleton className="h-6 w-20" />
               </div>
             </div>
-            <div className="space-y-4 px-4 py-6">
+            <div className="space-y-4 sm:px-4 sm:py-6">
               <Skeleton className="h-8 w-3/4" />
               <Skeleton className="h-32 w-full" />
               <Skeleton className="h-20 w-full" />
@@ -705,26 +699,24 @@ export default function CommentPage({ params }: CommentPageProps) {
           {/* Content */}
           <div className="min-w-0 flex-1">
             {/* Author info */}
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
                 <Link
                   href={getProfileUrl(comment.authorId, comment.authorUsername)}
-                  className="font-semibold hover:underline"
+                  className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 >
                   {comment.authorName}
                 </Link>
-                {showVerifiedBadge && (
-                  <VerifiedBadge size="sm" className="-ml-1" />
-                )}
+                {showVerifiedBadge && <VerifiedBadge size="sm" />}
                 <Link
                   href={getProfileUrl(comment.authorId, comment.authorUsername)}
-                  className="text-muted-foreground text-sm hover:underline"
+                  className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                 >
                   @{comment.authorUsername || comment.authorName}
                 </Link>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-muted-foreground text-xs">
+              <div className="flex items-start gap-2 sm:items-center">
+                <span className="text-[15px] text-muted-foreground leading-tight">
                   {formatTimeAgo(comment.createdAt)}
                 </span>
                 {/* Moderation menu for other users' comments */}

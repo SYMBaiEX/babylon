@@ -192,26 +192,46 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {tagMode && (
+      {tag && (
         <div className="shrink-0 px-2 pt-3">
           <div
             className={cn(
               'flex items-center justify-between rounded-md border border-white/5 bg-background/40 px-3 py-2 text-muted-foreground text-xs'
             )}
           >
-            <span className="min-w-0 truncate">
-              Showing posts for{' '}
-              <span className="font-semibold text-foreground">
-                {tagInfo?.displayName ?? perpTicker}
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setTagNotFound(true)}
-              className="shrink-0 rounded px-2 py-1 font-semibold text-foreground/80 hover:bg-muted/20 hover:text-foreground"
-            >
-              Show all
-            </button>
+            {tagMode ? (
+              <>
+                <span className="min-w-0 truncate">
+                  Showing posts for{' '}
+                  <span className="font-semibold text-foreground">
+                    {tagInfo?.displayName ?? perpTicker}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTagNotFound(true)}
+                  className="shrink-0 rounded px-2 py-1 font-semibold text-foreground/80 hover:bg-muted/20 hover:text-foreground"
+                >
+                  Show all
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="min-w-0 truncate">Showing all posts</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTagNotFound(false);
+                    setTagPosts([]);
+                    setTagOffset(0);
+                    setTagHasMore(true);
+                  }}
+                  className="shrink-0 rounded px-2 py-1 font-semibold text-foreground/80 hover:bg-muted/20 hover:text-foreground"
+                >
+                  {perpTicker ?? 'Filtered'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

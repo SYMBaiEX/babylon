@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { cn, getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
-import { Check, Copy, Gift, LogOut, Trophy, User, X } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { GameFeedbackModal } from '@/components/feedback/GameFeedbackModal';
-import { Avatar } from '@/components/shared/Avatar';
-import { useAuth } from '@/hooks/useAuth';
-import { getAuthToken } from '@/lib/auth';
-import { useAuthStore } from '@/stores/authStore';
+import { cn, getDisplayReferralUrl, getReferralUrl } from "@babylon/shared";
+import { Check, Copy, Gift, LogOut, Settings, Trophy, User, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { GameFeedbackModal } from "@/components/feedback/GameFeedbackModal";
+import { Avatar } from "@/components/shared/Avatar";
+import { BabylonIcon } from "@/components/shared/icons/BabylonIcon";
+import { useAuth } from "@/hooks/useAuth";
+import { getAuthToken } from "@/lib/auth";
+import { useAuthStore } from "@/stores/authStore";
 
 /**
  * Mobile header content component for mobile devices.
@@ -35,8 +35,8 @@ function MobileHeaderContent() {
   const pathname = usePathname();
 
   // Hide mobile header when WAITLIST_MODE is enabled on home page
-  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
-  const isHomePage = pathname === '/';
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === "true";
+  const isHomePage = pathname === "/";
   const shouldHide = isWaitlistMode && isHomePage;
 
   // All hooks must be called before any conditional returns
@@ -54,7 +54,7 @@ function MobileHeaderContent() {
           signal: controller.signal,
         }
       ).catch((error: Error) => {
-        if (error.name === 'AbortError') return null;
+        if (error.name === "AbortError") return null;
         throw error;
       });
 
@@ -97,7 +97,7 @@ function MobileHeaderContent() {
       }
 
       const headers: HeadersInit = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       };
 
@@ -160,22 +160,28 @@ function MobileHeaderContent() {
 
   const menuItems = [
     {
-      name: 'Profile',
-      href: '/profile',
+      name: "Profile",
+      href: "/profile",
       icon: User,
-      active: pathname === '/profile',
+      active: pathname === "/profile",
     },
     {
-      name: 'Leaderboards',
-      href: '/leaderboard',
+      name: "Leaderboards",
+      href: "/leaderboard",
       icon: Trophy,
-      active: pathname === '/leaderboard',
+      active: pathname === "/leaderboard",
     },
     {
-      name: 'Rewards',
-      href: '/rewards',
+      name: "Rewards",
+      href: "/rewards",
       icon: Gift,
-      active: pathname === '/rewards',
+      active: pathname === "/rewards",
+    },
+    {
+      name: "Settings",
+      href: "/settings",
+      icon: Settings,
+      active: pathname?.startsWith("/settings"),
     },
   ];
 
@@ -183,9 +189,9 @@ function MobileHeaderContent() {
     <>
       <header
         className={cn(
-          'md:hidden',
-          'fixed top-0 right-0 left-0 z-40',
-          'bg-sidebar/95'
+          "md:hidden",
+          "fixed top-0 right-0 left-0 z-40",
+          "bg-sidebar/95"
         )}
       >
         <div className="flex h-14 items-center justify-between px-4">
@@ -199,7 +205,7 @@ function MobileHeaderContent() {
               >
                 <Avatar
                   id={user.id}
-                  name={user.displayName || user.email || 'User'}
+                  name={user.displayName || user.email || "User"}
                   type="user"
                   size="sm"
                   src={user.profileImageUrl || undefined}
@@ -217,13 +223,7 @@ function MobileHeaderContent() {
               href="/feed"
               className="transition-transform duration-300 hover:scale-105"
             >
-              <Image
-                src="/assets/logos/logo.svg"
-                alt="Babylon Logo"
-                width={28}
-                height={28}
-                className="h-7 w-7"
-              />
+              <BabylonIcon className="h-7 w-7 text-primary" />
             </Link>
           </div>
 
@@ -247,7 +247,7 @@ function MobileHeaderContent() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-50 bg-neutral-300/70 backdrop-blur-[3px] dark:bg-neutral-900/70 md:hidden"
             onClick={() => setShowSideMenu(false)}
           />
 
@@ -262,7 +262,7 @@ function MobileHeaderContent() {
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar
                   id={user?.id}
-                  name={user?.displayName || user?.email || 'User'}
+                  name={user?.displayName || user?.email || "User"}
                   type="user"
                   size="md"
                   src={user?.profileImageUrl || undefined}
@@ -271,7 +271,7 @@ function MobileHeaderContent() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-bold text-foreground text-sm">
-                    {user?.displayName || user?.email || 'User'}
+                    {user?.displayName || user?.email || "User"}
                   </div>
                   <div className="truncate text-muted-foreground text-xs">
                     @{user?.username || `user${user?.id.slice(0, 8)}`}
@@ -285,7 +285,7 @@ function MobileHeaderContent() {
                 }}
                 className="shrink-0 p-2 transition-colors hover:bg-muted"
               >
-                <X size={20} style={{ color: '#0066FF' }} />
+                <X size={20} style={{ color: "#0066FF" }} />
               </button>
             </Link>
 
@@ -317,10 +317,10 @@ function MobileHeaderContent() {
                     href={item.href}
                     onClick={() => setShowSideMenu(false)}
                     className={cn(
-                      'relative flex items-center gap-4 px-4 py-2.5 transition-colors',
+                      "relative flex items-center gap-4 px-4 py-2.5 transition-colors",
                       item.active
-                        ? 'bg-[#0066FF] font-bold text-primary-foreground'
-                        : 'font-semibold text-sidebar-foreground hover:bg-sidebar-accent'
+                        ? "bg-[#0066FF] font-bold text-primary-foreground"
+                        : "font-semibold text-sidebar-foreground hover:bg-sidebar-accent"
                     )}
                   >
                     <Icon className="h-5 w-5" />
@@ -352,7 +352,7 @@ function MobileHeaderContent() {
                     </>
                   ) : (
                     <>
-                      <Copy className="h-5 w-5" style={{ color: '#0066FF' }} />
+                      <Copy className="h-5 w-5" style={{ color: "#0066FF" }} />
                       <div className="min-w-0 flex-1">
                         <div className="text-base text-foreground">
                           Copy Referral Link

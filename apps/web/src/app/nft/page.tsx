@@ -163,7 +163,7 @@ export default function NftGalleryPage() {
       : 'Waiting for network confirmation...';
 
   return (
-    <PageContainer noPadding className="flex h-full flex-col">
+    <PageContainer noPadding className="flex h-full flex-col pt-14 md:pt-0">
       {/* Header */}
       <div className="border-border border-b bg-card px-4 py-5">
         <div className="mx-auto max-w-5xl">
@@ -173,7 +173,7 @@ export default function NftGalleryPage() {
                 ProtoMonkeys
               </h1>
               <p className="text-muted-foreground text-sm">
-                Exclusive NFTs for top 100 players on leaderboard
+                Exclusive NFTs for top 100 players
               </p>
             </div>
 
@@ -183,7 +183,7 @@ export default function NftGalleryPage() {
                 disabled={isMinting || isCheckingEligibility}
                 className="rounded-full bg-[#0066FF] px-5 py-2.5 font-semibold text-sm text-white shadow-md transition-all hover:scale-105 hover:bg-[#2952d9] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
               >
-                {isCheckingEligibility ? 'Checking...' : 'Claim My NFT'}
+                {isCheckingEligibility ? 'Checking...' : 'Claim'}
               </button>
             )}
 
@@ -244,7 +244,8 @@ export default function NftGalleryPage() {
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
-              All NFTs
+              <span className="sm:hidden">All</span>
+              <span className="hidden sm:inline">All NFTs</span>
             </button>
             {authenticated && (
               <button
@@ -255,7 +256,12 @@ export default function NftGalleryPage() {
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
-                My NFT{myNftCount > 0 && ` (${myNftCount})`}
+                <span className="sm:hidden">
+                  Mine{myNftCount > 0 && ` (${myNftCount})`}
+                </span>
+                <span className="hidden sm:inline">
+                  My NFT{myNftCount > 0 && ` (${myNftCount})`}
+                </span>
               </button>
             )}
           </div>

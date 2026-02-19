@@ -105,14 +105,14 @@ export const ArticleCard = memo(function ArticleCard({
           {/* Author row: Name · @handle · Category | timeAgo right-aligned */}
           <div
             className={cn(
-              'flex items-center justify-between gap-1.5 leading-tight',
-              compact ? 'mb-1 text-[15px] md:text-[13px]' : 'mb-2 text-[15px]'
+              'flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5',
+              compact ? 'mb-1' : ''
             )}
           >
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={`/profile/${post.authorId}`}
-                className="truncate font-semibold text-foreground hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {post.authorName}
@@ -120,7 +120,7 @@ export const ArticleCard = memo(function ArticleCard({
               {post.authorUsername && (
                 <Link
                   href={`/profile/${post.authorId}`}
-                  className="truncate text-muted-foreground hover:underline"
+                  className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
                   @{post.authorUsername}
@@ -136,10 +136,7 @@ export const ArticleCard = memo(function ArticleCard({
               )}
             </div>
             <time
-              className={cn(
-                'shrink-0 text-muted-foreground',
-                compact ? 'text-[15px] md:text-[13px]' : 'text-[15px]'
-              )}
+              className="text-[15px] text-muted-foreground leading-tight"
               title={publishedDate.toLocaleString()}
             >
               {timeAgo}
