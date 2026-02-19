@@ -8,7 +8,13 @@ export function NftPromoBanner() {
   const pathname = usePathname();
 
   // Hide banner on pages where it doesn't belong
-  const hiddenPaths = ['/nft', '/markets', '/chats', '/agents/team', '/settings'];
+  const hiddenPaths = [
+    '/nft',
+    '/markets',
+    '/chats',
+    '/agents/team',
+    '/settings',
+  ];
   if (hiddenPaths.some((p) => pathname?.startsWith(p))) return null;
 
   return (

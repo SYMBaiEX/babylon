@@ -447,9 +447,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={
-                isSubmitting || (retryAfter !== null && retryAfter > 0)
-              }
+              disabled={isSubmitting || (retryAfter !== null && retryAfter > 0)}
               className={cn(
                 'flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold transition-colors',
                 'bg-[#1c9cf0] text-primary-foreground hover:bg-[#1c9cf0]/90',

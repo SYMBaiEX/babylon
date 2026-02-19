@@ -8,7 +8,16 @@
  * This eliminates double LLM calls and makes execution faster.
  */
 
-import { actorState, agentLogs, and, chats, db, desc, eq, users } from '@babylon/db';
+import {
+  actorState,
+  agentLogs,
+  and,
+  chats,
+  db,
+  desc,
+  eq,
+  users,
+} from '@babylon/db';
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -578,7 +587,10 @@ export class MultiStepExecutor {
       })
       .from(agentLogs)
       .where(
-        and(eq(agentLogs.agentUserId, agentUserId), eq(agentLogs.type, 'system'))
+        and(
+          eq(agentLogs.agentUserId, agentUserId),
+          eq(agentLogs.type, 'system')
+        )
       )
       .orderBy(desc(agentLogs.createdAt))
       .limit(10);

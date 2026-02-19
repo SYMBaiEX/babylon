@@ -213,7 +213,7 @@ export function RepostButton({
           {/* Modal - Mobile (Full Screen) */}
           <div className="fixed inset-0 z-[110] flex flex-col bg-sidebar md:hidden">
             {/* Header - Fixed */}
-            <div className="shrink-0 flex items-center justify-between border-border border-b px-6 py-4">
+            <div className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
