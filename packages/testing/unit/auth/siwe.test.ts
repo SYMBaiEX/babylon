@@ -5,6 +5,8 @@
  */
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import * as actualRedisClientModule from '../../../api/src/redis/client';
+import * as actualSharedModule from '../../../shared/src/index';
 
 // Mock Redis before importing siwe module
 const mockRedis = {
@@ -12,12 +14,23 @@ const mockRedis = {
   del: mock(() => Promise.resolve(1)),
 };
 
+let mockSnowflakeCounter = 0;
+
+const nextMockSnowflakeId = (): string => {
+  mockSnowflakeCounter += 1;
+  return `mock-snowflake-${Date.now()}-${mockSnowflakeCounter}`;
+};
+
 mock.module('../../../api/src/redis/client', () => ({
+  ...actualRedisClientModule,
   getRedis: () => mockRedis,
+  getRedisClient: () => mockRedis,
 }));
 
-// Mock logger
+// Keep full shared export surface and override only test-specific pieces.
 mock.module('@babylon/shared', () => ({
+  ...actualSharedModule,
+  generateSnowflakeId: async () => nextMockSnowflakeId(),
   logger: {
     debug: () => {},
     info: () => {},

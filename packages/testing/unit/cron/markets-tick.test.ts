@@ -1,4 +1,15 @@
-import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  test,
+} from 'bun:test';
+import * as actualApiModule from '../../../api/src/index';
+import * as actualDbModule from '../../../db/src/index';
+import * as actualEngineModule from '../../../engine/src/index';
 import { NextRequest } from 'next/server';
 
 /**
@@ -75,6 +86,13 @@ const cronMockState =
     marketsAcquireLockResult: true,
   });
 
+let mockSnowflakeCounter = 0;
+
+const nextMockSnowflakeId = (): string => {
+  mockSnowflakeCounter += 1;
+  return `mock-snowflake-${Date.now()}-${mockSnowflakeCounter}`;
+};
+
 // Track which table is being queried for table-aware mocking
 let currentQueryTable: string | null = null;
 
@@ -91,6 +109,20 @@ const TABLE_REFS = {
   timeframedMarkets: { _tableName: 'timeframedMarkets' },
   worldEvents: { _tableName: 'worldEvents', timestamp: 'timestamp' },
   posts: { _tableName: 'posts' },
+  userAgentConfigs: { _tableName: 'userAgentConfigs' },
+  users: { _tableName: 'users' },
+  actors: { _tableName: 'actors' },
+  comments: { _tableName: 'comments' },
+  organizations: { _tableName: 'organizations' },
+  balanceTransactions: { _tableName: 'balanceTransactions' },
+  pointsTransactions: { _tableName: 'pointsTransactions' },
+  perpPositions: { _tableName: 'perpPositions' },
+  poolPositions: { _tableName: 'poolPositions' },
+  markets: { _tableName: 'markets' },
+  generationLocks: { _tableName: 'generationLocks' },
+  agentPerformanceMetrics: { _tableName: 'agentPerformanceMetrics' },
+  agentTrades: { _tableName: 'agentTrades' },
+  npcTrades: { _tableName: 'npcTrades' },
 };
 
 // Get mock data based on the current query table
@@ -173,6 +205,7 @@ const createMutationBuilder = (operation: 'insert' | 'update' | 'delete') => {
 const registerMocks = () => {
   // Mock @babylon/db - table-aware query handling
   mock.module('@babylon/db', () => ({
+    ...actualDbModule,
     db: {
       select: mock((columns?: Record<string, unknown>) => {
         // Reset table tracking for new query
@@ -208,14 +241,35 @@ const registerMocks = () => {
     },
     games: TABLE_REFS.games,
     questions: TABLE_REFS.questions,
+    userAgentConfigs: TABLE_REFS.userAgentConfigs,
+    users: TABLE_REFS.users,
+    actors: TABLE_REFS.actors,
+    comments: TABLE_REFS.comments,
+    organizations: TABLE_REFS.organizations,
+    balanceTransactions: TABLE_REFS.balanceTransactions,
+    pointsTransactions: TABLE_REFS.pointsTransactions,
+    perpPositions: TABLE_REFS.perpPositions,
+    poolPositions: TABLE_REFS.poolPositions,
+    markets: TABLE_REFS.markets,
+    generationLocks: TABLE_REFS.generationLocks,
+    agentPerformanceMetrics: TABLE_REFS.agentPerformanceMetrics,
+    agentTrades: TABLE_REFS.agentTrades,
+    npcTrades: TABLE_REFS.npcTrades,
     timeframedMarkets: TABLE_REFS.timeframedMarkets,
     worldEvents: TABLE_REFS.worldEvents,
     posts: TABLE_REFS.posts,
     eq: (): SqlCondition => ({}),
+    ne: (): SqlCondition => ({}),
+    gt: (): SqlCondition => ({}),
     gte: (): SqlCondition => ({}),
+    lt: (): SqlCondition => ({}),
     lte: (): SqlCondition => ({}),
     and: (): SqlCondition => ({}),
+    or: (): SqlCondition => ({}),
+    not: (): SqlCondition => ({}),
+    inArray: (): SqlCondition => ({}),
     desc: (): SqlCondition => ({}),
+    asc: (): SqlCondition => ({}),
     isNull: (): SqlCondition => ({}),
     isNotNull: (): SqlCondition => ({}),
     sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
@@ -223,15 +277,17 @@ const registerMocks = () => {
       values,
     }),
     max: (col: unknown) => ({ _aggregation: 'max', column: col }),
-    // Use real generateSnowflakeId from @babylon/shared to avoid polluting other tests
-    generateSnowflakeId: async () => {
-      const { generateSnowflakeId } = await import('@babylon/shared');
-      return generateSnowflakeId();
-    },
+    generateSnowflakeId: async () => nextMockSnowflakeId(),
+    withTransaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn({}),
+    asUser: async <T>(_userId: string, fn: (db: unknown) => Promise<T>) =>
+      fn({}),
+    asSystem: async <T>(fn: (db: unknown) => Promise<T>) => fn({}),
+    asPublic: async <T>(fn: (db: unknown) => Promise<T>) => fn({}),
   }));
 
   // Mock @babylon/api - uses mutable state for auth/lock results
   mock.module('@babylon/api', () => ({
+    ...actualApiModule,
     CACHE_KEYS: {
       gameState: (_gameId: string) => 'game-state',
     },
@@ -245,6 +301,14 @@ const registerMocks = () => {
         : cronMockState.marketsCronAuthResult;
     },
     relayCronToStaging: async () => ({ forwarded: false }),
+    broadcastAgentActivity: async () => {},
+    broadcastToChannel: async () => {},
+    notifyGroupChatInvite: async () => {},
+    checkRateLimit: async () => ({ allowed: true, remaining: 1 }),
+    checkRateLimitAsync: async () => ({ allowed: true, remaining: 1 }),
+    clearAllRateLimits: async () => {},
+    getRateLimitStatus: async () => ({ remaining: 1, resetAt: Date.now() }),
+    resetRateLimit: async () => {},
     invalidateCache: async () => {},
     getCacheOrFetch: async <T>(_key: string, fn: () => Promise<T>) => {
       if (_key === 'continuous-game') {
@@ -282,6 +346,7 @@ const registerMocks = () => {
 
   // Mock @babylon/engine
   mock.module('@babylon/engine', () => ({
+    ...actualEngineModule,
     articleRateLimiter: {
       canGenerateArticle: async () => ({
         allowed: cronMockState.articleCount < 2,
@@ -364,6 +429,13 @@ const registerMocks = () => {
     }),
     publishOracleCommitments: async () => ({ committed: 1 }),
     publishOracleReveals: async () => ({ revealed: 1 }),
+    getReputationBreakdown: () => ({
+      total: 0,
+      level: 'neutral',
+      trend: 0,
+      factors: {},
+    }),
+    recalculateReputation: async () => {},
     resolveQuestionPayouts: async () => {},
     SignalExtractionService: {
       extractMarketSignal: async () => ({
@@ -408,6 +480,13 @@ const registerMocks = () => {
     },
     secureRandom: () => Math.random(),
     weightedPick: <T>(items: T[]) => items[0] ?? null,
+    gameService: {
+      getCurrentGame: async () => null,
+    },
+    setBroadcastToChannel: () => {},
+    setDistributedLockProvider: () => {},
+    setNotifyGroupChatInvite: () => {},
+    setRateLimitProvider: () => {},
     timeframeArcPlanner: {
       planTimeframeArc: () => ({
         questionId: 'q-1',
@@ -430,8 +509,7 @@ const registerMocks = () => {
   }));
 };
 
-// Note: @babylon/shared is NOT mocked - let real logger run to avoid
-// polluting module cache and breaking other tests that use formatCurrency, etc.
+// @babylon/shared is intentionally not mocked here.
 
 // Route handlers are loaded dynamically after mock registration.
 let GET: (req: NextRequest) => Promise<Response>;
@@ -443,6 +521,10 @@ describe('Markets Tick Cron', () => {
     const routeModule = await import('@/app/api/cron/markets-tick/route');
     GET = routeModule.GET;
     POST = routeModule.POST;
+  });
+
+  afterAll(() => {
+    mock.restore();
   });
 
   beforeEach(() => {
