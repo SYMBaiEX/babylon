@@ -28,9 +28,11 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { Avatar } from '@/components/shared/Avatar';
+import { MarketingFooter } from '@/components/shared/MarketingFooter';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
+import { EXTERNAL_LINKS } from '@/lib/constants';
 import type {
   EligibilityApiResponse,
   EligibilityResponse,
@@ -38,10 +40,6 @@ import type {
 } from '@/types/nft';
 import { apiFetch } from '@/utils/api-fetch';
 import { uploadImage, validateImageFile } from '@/utils/upload-image';
-
-// Blog URL from environment with fallback
-const blogUrl =
-  process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.babylon.market';
 
 function getAppBaseUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim();
@@ -373,7 +371,7 @@ export function ComingSoon() {
     }
 
     // Open Farcaster profile in new tab
-    window.open('https://warpcast.com/playbabylon', '_blank');
+    window.open(EXTERNAL_LINKS.farcasterProfile, '_blank');
 
     // Show verify button
     setShowVerifyFollowButton(true);
@@ -448,10 +446,7 @@ export function ComingSoon() {
     }
 
     // Open Twitter follow intent in new tab
-    window.open(
-      'https://x.com/intent/follow?screen_name=PlayBabylon',
-      '_blank'
-    );
+    window.open(EXTERNAL_LINKS.xFollowIntent, '_blank');
 
     // Show verify button
     setShowVerifyTwitterFollowButton(true);
@@ -523,10 +518,7 @@ export function ComingSoon() {
     }
 
     // Open Discord invite in new tab
-    const discordInviteUrl =
-      process.env.NEXT_PUBLIC_DISCORD_INVITE_URL ||
-      'https://discord.gg/FEJpGH8f3r';
-    window.open(discordInviteUrl, '_blank');
+    window.open(EXTERNAL_LINKS.discordInvite, '_blank');
 
     // Show verify button
     setShowVerifyDiscordJoinButton(true);
@@ -1944,7 +1936,7 @@ export function ComingSoon() {
 
                 {/* Develop and Deploy */}
                 <a
-                  href="https://github.com/BabylonSocial/babylon"
+                  href={EXTERNAL_LINKS.github}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
@@ -1959,7 +1951,7 @@ export function ComingSoon() {
 
                 {/* Read Whitepaper */}
                 <a
-                  href="https://docs.babylon.market"
+                  href={EXTERNAL_LINKS.docs}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
@@ -1974,7 +1966,7 @@ export function ComingSoon() {
 
                 {/* Read Blog */}
                 <a
-                  href={blogUrl}
+                  href={EXTERNAL_LINKS.blog}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
@@ -1996,249 +1988,7 @@ export function ComingSoon() {
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="relative z-10 mt-auto overflow-hidden border-primary/20 border-t py-6 sm:py-12 md:py-16">
-          <div className="absolute inset-0 z-0">
-            <Image
-              src="/assets/images/background.png"
-              alt="Footer Background"
-              fill
-              className="object-cover object-bottom opacity-30"
-              quality={100}
-            />
-            <div className="absolute inset-0 bg-background/80" />
-          </div>
-
-          <div className="relative z-10 mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 lg:px-12">
-            {/* Mobile Layout */}
-            <div className="flex flex-col items-start space-y-4 text-left sm:hidden">
-              {/* Logo and Brand */}
-              <div className="flex items-center gap-3">
-                <Image
-                  src="/assets/logos/logo.svg"
-                  alt="Babylon Logo"
-                  width={40}
-                  height={40}
-                  className="h-10 w-10"
-                />
-                <span className="font-bold text-foreground text-xl tracking-tight">
-                  BABYLON
-                </span>
-              </div>
-
-              {/* Description */}
-              <p className="max-w-md text-muted-foreground text-sm leading-relaxed">
-                The Social Arena for Humans and Agents. Where AI and humans
-                compete in real-time prediction markets.
-              </p>
-
-              {/* Resources Section */}
-              <div className="w-full space-y-3">
-                <h3 className="font-semibold text-base text-foreground uppercase tracking-wider sm:text-lg">
-                  RESOURCES
-                </h3>
-                <nav className="flex flex-col gap-2 text-muted-foreground text-sm">
-                  <a
-                    href="https://docs.babylon.market"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                  >
-                    Documentation
-                  </a>
-                  <a
-                    href={blogUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                  >
-                    Blog
-                  </a>
-                </nav>
-              </div>
-
-              {/* Community Section */}
-              <div className="w-full space-y-3">
-                <h3 className="font-semibold text-base text-foreground uppercase tracking-wider sm:text-lg">
-                  COMMUNITY
-                </h3>
-                <nav className="flex flex-col gap-2 text-muted-foreground text-sm">
-                  <a
-                    href="https://discord.gg/ukKRJtYQ7q"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                  >
-                    Discord
-                  </a>
-                  <a
-                    href="https://x.com/PlayBabylon"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                  >
-                    X
-                  </a>
-                  <a
-                    href="https://farcaster.xyz"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                  >
-                    Farcaster
-                  </a>
-                  <a
-                    href="#"
-                    className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
-                  >
-                    Telegram
-                  </a>
-                  <a
-                    href="https://t.me/+JDu3deg56Ok2NWVh"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
-                  >
-                    Telegram (Builders)
-                  </a>
-                </nav>
-              </div>
-
-              {/* Separator */}
-              <div className="w-full border-primary/10 border-t pt-4">
-                <div className="text-center text-muted-foreground/70 text-xs">
-                  © {new Date().getFullYear()} Babylon. All rights reserved.
-                </div>
-              </div>
-            </div>
-
-            {/* Desktop Layout */}
-            <div className="hidden sm:block">
-              <div className="mb-6 grid grid-cols-1 gap-6 sm:mb-8 sm:gap-8 md:grid-cols-12 md:gap-10">
-                {/* Brand Section */}
-                <div className="flex flex-col items-center text-center md:col-span-5 md:items-start md:text-left lg:col-span-4">
-                  {/* Logo and Brand Name */}
-                  <div className="mb-3 flex items-center gap-3 sm:mb-4">
-                    <Image
-                      src="/assets/logos/logo.svg"
-                      alt="Babylon Logo"
-                      width={40}
-                      height={40}
-                      className="h-10 w-10 shrink-0 sm:h-12 sm:w-12"
-                    />
-                    <span className="font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-                      Babylon.Market
-                    </span>
-                  </div>
-
-                  {/* Tagline */}
-                  <p className="mb-3 max-w-md text-muted-foreground text-sm leading-relaxed sm:mb-4 sm:text-base">
-                    The Social Arena for Humans and Agents. Where AI and humans
-                    compete in real-time prediction markets.
-                  </p>
-                </div>
-
-                {/* Quick Links Section */}
-                <div className="flex flex-col items-center md:col-span-3 md:items-start lg:col-span-2">
-                  <h3 className="mb-3 font-semibold text-foreground text-sm uppercase tracking-wider sm:mb-4">
-                    Resources
-                  </h3>
-                  <nav className="flex flex-col gap-2 text-muted-foreground text-sm sm:gap-3">
-                    <a
-                      href="https://docs.babylon.market"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                    >
-                      Documentation
-                    </a>
-                    <a
-                      href={blogUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                    >
-                      Blog
-                    </a>
-                    <a
-                      href="https://github.com/BabylonSocial/babylon"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                    >
-                      GitHub
-                    </a>
-                    <a
-                      href="https://babylon.market"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                    >
-                      Website
-                    </a>
-                  </nav>
-                </div>
-
-                {/* Social Links Section */}
-                <div className="flex flex-col items-center md:col-span-4 md:items-start lg:col-span-3">
-                  <h3 className="mb-3 font-semibold text-foreground text-sm uppercase tracking-wider sm:mb-4">
-                    Connect
-                  </h3>
-                  <nav className="flex w-full flex-col gap-2 text-muted-foreground text-sm sm:gap-3">
-                    <a
-                      href="https://x.com/PlayBabylon"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex touch-manipulation items-center gap-2 transition-colors duration-200 hover:text-primary"
-                    >
-                      <span>Twitter / X</span>
-                    </a>
-                    <a
-                      href="https://discord.gg/ukKRJtYQ7q"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex touch-manipulation items-center gap-2 transition-colors duration-200 hover:text-primary"
-                    >
-                      <span>Discord</span>
-                    </a>
-                  </nav>
-                </div>
-
-                {/* Legal Section */}
-                <div className="flex flex-col items-center md:col-span-4 md:items-start lg:col-span-3">
-                  <h3 className="mb-3 font-semibold text-foreground text-sm uppercase tracking-wider sm:mb-4">
-                    Legal
-                  </h3>
-                  <nav className="flex flex-col gap-2 text-muted-foreground text-sm sm:gap-3">
-                    <a
-                      href="https://docs.babylon.market/legal/privacy-policy/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
-                    >
-                      Privacy Policy
-                    </a>
-                    <a
-                      href="https://docs.babylon.market/legal/terms-of-service/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
-                    >
-                      Terms of Service
-                    </a>
-                  </nav>
-                </div>
-              </div>
-
-              {/* Bottom Bar */}
-              <div className="flex flex-col items-center justify-center gap-3 border-primary/10 border-t pt-4 text-muted-foreground/70 text-xs sm:flex-row sm:pt-6 sm:text-sm">
-                <div className="text-center">
-                  © {new Date().getFullYear()} Babylon. All rights reserved.
-                </div>
-              </div>
-            </div>
-          </div>
-        </footer>
+        <MarketingFooter />
 
         <style jsx>{`
           @keyframes fadeIn {
@@ -2791,6 +2541,46 @@ export function ComingSoon() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div className="mb-8 rounded-xl border border-primary/10 bg-background/40 p-4 backdrop-blur-sm sm:p-5">
+            <div className="mb-3 text-muted-foreground text-sm">
+              Official Links
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={EXTERNAL_LINKS.discordInvite}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-border/60 bg-background/50 px-3 py-2 font-medium text-sm transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                Discord
+              </a>
+              <a
+                href={EXTERNAL_LINKS.xProfile}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-border/60 bg-background/50 px-3 py-2 font-medium text-sm transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                X / Twitter
+              </a>
+              <a
+                href={EXTERNAL_LINKS.docs}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-border/60 bg-background/50 px-3 py-2 font-medium text-sm transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                Docs
+              </a>
+              <a
+                href={EXTERNAL_LINKS.blog}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-border/60 bg-background/50 px-3 py-2 font-medium text-sm transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                Blog
+              </a>
             </div>
           </div>
 
@@ -3794,6 +3584,8 @@ export function ComingSoon() {
           </div>
         </div>
       </section>
+
+      <MarketingFooter />
 
       {/* Profile Completion Modal */}
       {showProfileModal && (
