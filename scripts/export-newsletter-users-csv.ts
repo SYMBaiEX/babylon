@@ -1,10 +1,14 @@
 #!/usr/bin/env bun
 
-import { and, closeDatabase, db, eq, isNotNull, users } from '@babylon/db';
-import { getAllVerifiedEmails, type PrivyLinkedAccount } from '@babylon/shared';
-import { PrivyClient, type LinkedAccount, type User as PrivyUser } from '@privy-io/node';
 import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { and, closeDatabase, db, eq, isNotNull, users } from '@babylon/db';
+import { getAllVerifiedEmails, type PrivyLinkedAccount } from '@babylon/shared';
+import {
+  type LinkedAccount,
+  PrivyClient,
+  type User as PrivyUser,
+} from '@privy-io/node';
 
 type CliOptions = {
   databaseUrl: string;
@@ -147,7 +151,8 @@ function parseCliOptions(): CliOptions {
 
   const outputPathArg = readArgValue(args, '--output');
   const outputPath = resolve(
-    outputPathArg ?? `./debug/newsletter-users-${formatTimestampForFile(new Date())}.csv`
+    outputPathArg ??
+      `./debug/newsletter-users-${formatTimestampForFile(new Date())}.csv`
   );
 
   const privyLimitRaw = readArgValue(args, '--privy-limit');
@@ -164,7 +169,8 @@ function parseCliOptions(): CliOptions {
     : null;
 
   const missing: string[] = [];
-  if (!databaseUrl) missing.push('database URL (--database-url or DATABASE_URL)');
+  if (!databaseUrl)
+    missing.push('database URL (--database-url or DATABASE_URL)');
   if (!privyAppId) {
     missing.push(
       'Privy app ID (--privy-app-id or PRIVY_APP_ID/NEXT_PUBLIC_PRIVY_APP_ID)'
@@ -188,7 +194,10 @@ function parseCliOptions(): CliOptions {
   };
 }
 
-function pickFirstString(record: Record<string, unknown>, keys: string[]): string | null {
+function pickFirstString(
+  record: Record<string, unknown>,
+  keys: string[]
+): string | null {
   for (const key of keys) {
     const value = record[key];
     if (typeof value === 'string') {
@@ -199,7 +208,9 @@ function pickFirstString(record: Record<string, unknown>, keys: string[]): strin
   return null;
 }
 
-function extractNameFromLinkedAccounts(accounts: LinkedAccount[]): string | null {
+function extractNameFromLinkedAccounts(
+  accounts: LinkedAccount[]
+): string | null {
   for (const account of accounts) {
     const accountRecord = account as unknown as Record<string, unknown>;
 
@@ -247,9 +258,15 @@ function getPrivyVerifiedEmails(user: PrivyUser): string[] {
   return getAllVerifiedEmails({ linkedAccounts });
 }
 
-function chooseBetterName(current: string, incoming: string, email: string): string {
-  const normalizedCurrent = normalizeName(current) ?? fallbackNameFromEmail(email);
-  const normalizedIncoming = normalizeName(incoming) ?? fallbackNameFromEmail(email);
+function chooseBetterName(
+  current: string,
+  incoming: string,
+  email: string
+): string {
+  const normalizedCurrent =
+    normalizeName(current) ?? fallbackNameFromEmail(email);
+  const normalizedIncoming =
+    normalizeName(incoming) ?? fallbackNameFromEmail(email);
 
   const fallback = fallbackNameFromEmail(email);
 
@@ -377,9 +394,7 @@ async function loadPrivyContacts(
         if (!email) continue;
 
         const name =
-          nameFromDb ??
-          nameFromPrivy ??
-          fallbackNameFromEmail(email);
+          nameFromDb ?? nameFromPrivy ?? fallbackNameFromEmail(email);
 
         stats.privyCandidates += 1;
 
