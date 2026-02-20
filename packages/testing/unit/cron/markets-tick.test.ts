@@ -1,4 +1,15 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  test,
+} from 'bun:test';
+import * as actualApiModule from '../../../api/src/index';
+import * as actualDbModule from '../../../db/src/index';
+import * as actualEngineModule from '../../../engine/src/index';
 import { NextRequest } from 'next/server';
 
 /**
@@ -35,18 +46,52 @@ interface SqlCondition {
   sql?: string;
 }
 
-// Mock db with a mutable state we can control in tests
-let mockGame: MockGame | null = null;
-let mockActiveQuestions: MockQuestion[] = [];
-let mockWorldEvents: Array<{
+interface MockWorldEvent {
   id: string;
   timestamp: Date;
   description: string;
-}> = [];
+}
 
-// Mock auth and lock states for negative-path testing
-let mockCronAuthResult = true;
-let mockAcquireLockResult = true;
+interface CronMockState {
+  articleGame: MockGame | null;
+  articleCount: number;
+  articleCronAuthResult: boolean;
+  articleCoveredEventIds: Set<string>;
+  marketsGame: MockGame | null;
+  marketsActiveQuestions: MockQuestion[];
+  marketsWorldEvents: MockWorldEvent[];
+  marketsCronAuthResult: boolean;
+  marketsAcquireLockResult: boolean;
+}
+
+const CRON_MOCK_STATE_KEY = '__babylonCronMockState';
+
+type GlobalWithCronMockState = typeof globalThis & {
+  [CRON_MOCK_STATE_KEY]?: CronMockState;
+};
+
+const globalWithCronMockState = globalThis as GlobalWithCronMockState;
+
+const cronMockState =
+  globalWithCronMockState[CRON_MOCK_STATE_KEY] ??
+  (globalWithCronMockState[CRON_MOCK_STATE_KEY] = {
+    articleGame: null,
+    articleCount: 0,
+    articleCronAuthResult: true,
+    articleCoveredEventIds: new Set<string>(),
+    marketsGame: null,
+    marketsActiveQuestions: [],
+    marketsWorldEvents: [],
+    marketsCronAuthResult: true,
+    marketsAcquireLockResult: true,
+  });
+
+let mockSnowflakeCounter = 0;
+
+const nextMockSnowflakeId = (): string => {
+  mockSnowflakeCounter += 1;
+  return `mock-snowflake-${Date.now()}-${mockSnowflakeCounter}`;
+};
 
 // Track which table is being queried for table-aware mocking
 let currentQueryTable: string | null = null;
@@ -64,18 +109,32 @@ const TABLE_REFS = {
   timeframedMarkets: { _tableName: 'timeframedMarkets' },
   worldEvents: { _tableName: 'worldEvents', timestamp: 'timestamp' },
   posts: { _tableName: 'posts' },
+  userAgentConfigs: { _tableName: 'userAgentConfigs' },
+  users: { _tableName: 'users' },
+  actors: { _tableName: 'actors' },
+  comments: { _tableName: 'comments' },
+  organizations: { _tableName: 'organizations' },
+  balanceTransactions: { _tableName: 'balanceTransactions' },
+  pointsTransactions: { _tableName: 'pointsTransactions' },
+  perpPositions: { _tableName: 'perpPositions' },
+  poolPositions: { _tableName: 'poolPositions' },
+  markets: { _tableName: 'markets' },
+  generationLocks: { _tableName: 'generationLocks' },
+  agentPerformanceMetrics: { _tableName: 'agentPerformanceMetrics' },
+  agentTrades: { _tableName: 'agentTrades' },
+  npcTrades: { _tableName: 'npcTrades' },
 };
 
 // Get mock data based on the current query table
 const getTableData = (): unknown => {
   switch (currentQueryTable) {
     case 'games':
-      return mockGame ? [mockGame] : [];
+      return cronMockState.marketsGame ? [cronMockState.marketsGame] : [];
     case 'questions':
       // Return active questions by default; mature questions handled via where clause
-      return mockActiveQuestions;
+      return cronMockState.marketsActiveQuestions;
     case 'worldEvents':
-      return mockWorldEvents;
+      return cronMockState.marketsWorldEvents;
     case 'timeframedMarkets':
       return [];
     case 'posts':
@@ -143,189 +202,344 @@ const createMutationBuilder = (operation: 'insert' | 'update' | 'delete') => {
   });
 };
 
-// Mock @babylon/db - table-aware query handling
-mock.module('@babylon/db', () => ({
-  db: {
-    select: mock((columns?: Record<string, unknown>) => {
-      // Reset table tracking for new query
-      currentQueryTable = null;
-      // If selecting specific columns (like MAX), handle specially
-      if (columns && 'maxNumber' in columns) {
-        // This is the getNextQuestionNumber query
-        return createQueryBuilder(() => {
-          const maxNum = mockActiveQuestions.reduce(
-            (max, q) => Math.max(max, q.questionNumber),
-            0
-          );
-          return [{ maxNumber: maxNum > 0 ? maxNum : null }];
-        });
-      }
-      return createQueryBuilder(() => getTableData());
+const registerMocks = () => {
+  // Mock @babylon/db - table-aware query handling
+  mock.module('@babylon/db', () => ({
+    ...actualDbModule,
+    db: {
+      select: mock((columns?: Record<string, unknown>) => {
+        // Reset table tracking for new query
+        currentQueryTable = null;
+        // If selecting specific columns (like MAX), handle specially
+        if (columns && 'maxNumber' in columns) {
+          // This is the getNextQuestionNumber query
+          return createQueryBuilder(() => {
+            const maxNum = cronMockState.marketsActiveQuestions.reduce(
+              (max, q) => Math.max(max, q.questionNumber),
+              0
+            );
+            return [{ maxNumber: maxNum > 0 ? maxNum : null }];
+          });
+        }
+        return createQueryBuilder(() => getTableData());
+      }),
+      insert: createMutationBuilder('insert'),
+      update: createMutationBuilder('update'),
+      delete: createMutationBuilder('delete'),
+      transaction: mock(
+        async <T>(callback: (tx: unknown) => Promise<T>): Promise<T> => {
+          // Create a transaction context that mirrors the db interface
+          const tx = {
+            select: mock(() => createQueryBuilder(() => getTableData())),
+            insert: createMutationBuilder('insert'),
+            update: createMutationBuilder('update'),
+            delete: createMutationBuilder('delete'),
+          };
+          return callback(tx);
+        }
+      ),
+    },
+    games: TABLE_REFS.games,
+    questions: TABLE_REFS.questions,
+    userAgentConfigs: TABLE_REFS.userAgentConfigs,
+    users: TABLE_REFS.users,
+    actors: TABLE_REFS.actors,
+    comments: TABLE_REFS.comments,
+    organizations: TABLE_REFS.organizations,
+    balanceTransactions: TABLE_REFS.balanceTransactions,
+    pointsTransactions: TABLE_REFS.pointsTransactions,
+    perpPositions: TABLE_REFS.perpPositions,
+    poolPositions: TABLE_REFS.poolPositions,
+    markets: TABLE_REFS.markets,
+    generationLocks: TABLE_REFS.generationLocks,
+    agentPerformanceMetrics: TABLE_REFS.agentPerformanceMetrics,
+    agentTrades: TABLE_REFS.agentTrades,
+    npcTrades: TABLE_REFS.npcTrades,
+    timeframedMarkets: TABLE_REFS.timeframedMarkets,
+    worldEvents: TABLE_REFS.worldEvents,
+    posts: TABLE_REFS.posts,
+    eq: (): SqlCondition => ({}),
+    ne: (): SqlCondition => ({}),
+    gt: (): SqlCondition => ({}),
+    gte: (): SqlCondition => ({}),
+    lt: (): SqlCondition => ({}),
+    lte: (): SqlCondition => ({}),
+    and: (): SqlCondition => ({}),
+    or: (): SqlCondition => ({}),
+    not: (): SqlCondition => ({}),
+    inArray: (): SqlCondition => ({}),
+    desc: (): SqlCondition => ({}),
+    asc: (): SqlCondition => ({}),
+    isNull: (): SqlCondition => ({}),
+    isNotNull: (): SqlCondition => ({}),
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+      sql: strings.join('?'),
+      values,
     }),
-    insert: createMutationBuilder('insert'),
-    update: createMutationBuilder('update'),
-    delete: createMutationBuilder('delete'),
-    transaction: mock(
-      async <T>(callback: (tx: unknown) => Promise<T>): Promise<T> => {
-        // Create a transaction context that mirrors the db interface
-        const tx = {
-          select: mock(() => createQueryBuilder(() => getTableData())),
-          insert: createMutationBuilder('insert'),
-          update: createMutationBuilder('update'),
-          delete: createMutationBuilder('delete'),
+    max: (col: unknown) => ({ _aggregation: 'max', column: col }),
+    generateSnowflakeId: async () => nextMockSnowflakeId(),
+    withTransaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn({}),
+    asUser: async <T>(_userId: string, fn: (db: unknown) => Promise<T>) =>
+      fn({}),
+    asSystem: async <T>(fn: (db: unknown) => Promise<T>) => fn({}),
+    asPublic: async <T>(fn: (db: unknown) => Promise<T>) => fn({}),
+  }));
+
+  // Mock @babylon/api - uses mutable state for auth/lock results
+  mock.module('@babylon/api', () => ({
+    ...actualApiModule,
+    CACHE_KEYS: {
+      gameState: (_gameId: string) => 'game-state',
+    },
+    DEFAULT_TTLS: {
+      gameState: 60,
+    },
+    verifyCronAuth: (req: Request | NextRequest) => {
+      const pathname = new URL(req.url).pathname;
+      return pathname.includes('/article-tick')
+        ? cronMockState.articleCronAuthResult
+        : cronMockState.marketsCronAuthResult;
+    },
+    relayCronToStaging: async () => ({ forwarded: false }),
+    broadcastAgentActivity: async () => {},
+    broadcastToChannel: async () => {},
+    notifyGroupChatInvite: async () => {},
+    checkRateLimit: async () => ({ allowed: true, remaining: 1 }),
+    checkRateLimitAsync: async () => ({ allowed: true, remaining: 1 }),
+    clearAllRateLimits: async () => {},
+    getRateLimitStatus: async () => ({ remaining: 1, resetAt: Date.now() }),
+    resetRateLimit: async () => {},
+    invalidateCache: async () => {},
+    getCacheOrFetch: async <T>(_key: string, fn: () => Promise<T>) => {
+      if (_key === 'continuous-game') {
+        return cronMockState.articleGame as T;
+      }
+      if (_key.includes('game-state')) {
+        return (cronMockState.marketsGame || {
+          id: 'continuous',
+          isRunning: false,
+          isContinuous: true,
+          currentDay: 1,
+        }) as T;
+      }
+      return fn();
+    },
+    recordCronExecution: () => {},
+    DistributedLockService: {
+      acquireLock: async (options?: { lockId?: string }) => {
+        if (options?.lockId?.includes('markets-tick')) {
+          return cronMockState.marketsAcquireLockResult;
+        }
+        return true;
+      },
+      releaseLock: async () => {},
+    },
+  }));
+
+  // Mock @babylon/core/markets/prediction
+  mock.module('@babylon/core/markets/prediction', () => ({
+    PredictionDbAdapter: class {},
+    PredictionMarketService: class {
+      ensureMarketExists = async () => ({ id: 'mock-market-id' });
+    },
+  }));
+
+  // Mock @babylon/engine
+  mock.module('@babylon/engine', () => ({
+    ...actualEngineModule,
+    articleRateLimiter: {
+      canGenerateArticle: async () => ({
+        allowed: cronMockState.articleCount < 2,
+        currentCount: cronMockState.articleCount,
+        maxAllowed: 2,
+        remaining: Math.max(0, 2 - cronMockState.articleCount),
+      }),
+    },
+    ArticleGenerator: class {
+      generateArticleForQuestion = async () => ({
+        id: `mock-article-${Date.now()}`,
+        title: 'Test Article',
+        summary: 'Test summary',
+        content: 'Test content that is long enough to pass validation. '.repeat(
+          20
+        ),
+        authorOrgId: 'org-1',
+        authorOrgName: 'Test News',
+        byline: 'Test Author',
+        bylineActorId: 'actor-1',
+        biasScore: 0,
+        sentiment: 'neutral' as const,
+        slant: 'Neutral coverage',
+        relatedEventId: 'event-1',
+        relatedActorIds: [],
+        relatedOrgIds: ['org-1'],
+        category: 'news',
+        tags: ['test', 'article'],
+        publishedAt: new Date(),
+      });
+    },
+    isEligibleActor: () => true,
+    mapGranularToDbTimeframe: (timeframe: string) => timeframe,
+    BabylonLLMClient: class MockBabylonLLMClient {
+      static forGameTick() {
+        return new MockBabylonLLMClient();
+      }
+      async generateJSON() {
+        return {
+          text: 'Will AIlon Musk launch a new product?',
+          expectedOutcome: true,
+          resolutionCriteria: 'Product launch announcement',
+          affiliatedActorIds: [],
+          affiliatedOrgIds: [],
         };
-        return callback(tx);
       }
-    ),
-  },
-  games: TABLE_REFS.games,
-  questions: TABLE_REFS.questions,
-  timeframedMarkets: TABLE_REFS.timeframedMarkets,
-  worldEvents: TABLE_REFS.worldEvents,
-  posts: TABLE_REFS.posts,
-  eq: (): SqlCondition => ({}),
-  gte: (): SqlCondition => ({}),
-  lte: (): SqlCondition => ({}),
-  and: (): SqlCondition => ({}),
-  desc: (): SqlCondition => ({}),
-  isNull: (): SqlCondition => ({}),
-  isNotNull: (): SqlCondition => ({}),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
-    sql: strings.join('?'),
-    values,
-  }),
-  max: (col: unknown) => ({ _aggregation: 'max', column: col }),
-  // Use real generateSnowflakeId from @babylon/shared to avoid polluting other tests
-  generateSnowflakeId: async () => {
-    const { generateSnowflakeId } = await import('@babylon/shared');
-    return generateSnowflakeId();
-  },
-}));
-
-// Mock @babylon/api - uses mutable state for auth/lock results
-mock.module('@babylon/api', () => ({
-  verifyCronAuth: () => mockCronAuthResult,
-  relayCronToStaging: async () => ({ forwarded: false }),
-  getCacheOrFetch: async <T>(_key: string, fn: () => Promise<T>) => {
-    // For game state cache, return our mockGame or a default non-running game
-    if (_key.includes('game-state')) {
-      return (mockGame || {
-        id: 'continuous',
-        isRunning: false,
-        isContinuous: true,
-        currentDay: 1,
-      }) as T;
-    }
-    return fn();
-  },
-  recordCronExecution: () => {},
-  DistributedLockService: {
-    acquireLock: async () => mockAcquireLockResult,
-    releaseLock: async () => {},
-  },
-}));
-
-// Mock @babylon/core/markets/prediction
-mock.module('@babylon/core/markets/prediction', () => ({
-  PredictionDbAdapter: class {},
-  PredictionMarketService: class {
-    ensureMarketExists = async () => ({ id: 'mock-market-id' });
-  },
-}));
-
-// Mock @babylon/engine
-mock.module('@babylon/engine', () => ({
-  BabylonLLMClient: class MockBabylonLLMClient {
-    static forGameTick() {
-      return new MockBabylonLLMClient();
-    }
-    async generateJSON() {
-      return {
-        text: 'Will AIlon Musk launch a new product?',
-        expectedOutcome: true,
-        resolutionCriteria: 'Product launch announcement',
-        affiliatedActorIds: [],
-        affiliatedOrgIds: [],
-      };
-    }
-  },
-  QuestionManager: class MockQuestionManager {
-    constructor(_llmClient: unknown) {}
-    async generateTimeframeQuestion(_timeframe: string, _durationMs: number) {
-      return {
-        text: 'Will AIlon Musk launch a new product?',
-        expectedOutcome: true,
-        resolutionCriteria: 'Product launch announcement',
-        affiliatedActorIds: [],
-        affiliatedOrgIds: [],
-      };
-    }
-    async generateResolutionWithProof() {
-      return {
-        description: 'The product was launched',
-        confidence: 0.95,
-        requiresManualReview: false,
-        proof: null,
-      };
-    }
-  },
-  publishOracleCommitments: async () => ({ committed: 1 }),
-  publishOracleReveals: async () => ({ revealed: 1 }),
-  resolveQuestionPayouts: async () => {},
-  SignalExtractionService: {
-    extractMarketSignal: async () => ({
-      suggestedOutcome: 'YES',
-      confidence: 0.8,
-      yesSignal: 0.7,
-      noSignal: 0.3,
-      signalStrength: 0.6,
-      totalPosts: 10,
+    },
+    QuestionManager: class MockQuestionManager {
+      constructor(_llmClient: unknown) {}
+      async generateTimeframeQuestion(
+        _timeframe: string,
+        _durationMs: number
+      ) {
+        return {
+          text: 'Will AIlon Musk launch a new product?',
+          expectedOutcome: true,
+          resolutionCriteria: 'Product launch announcement',
+          affiliatedActorIds: [],
+          affiliatedOrgIds: [],
+        };
+      }
+      async generateResolutionWithProof() {
+        return {
+          description: 'The product was launched',
+          confidence: 0.95,
+          requiresManualReview: false,
+          proof: null,
+        };
+      }
+    },
+    getActiveEventsForPosting: async () => ({ activeEvents: [] }),
+    hasEventBeenCovered: (eventId: string) =>
+      cronMockState.articleCoveredEventIds.has(eventId),
+    markEventAsCovered: (eventId: string) => {
+      cronMockState.articleCoveredEventIds.add(eventId);
+    },
+    persistArticle: async (input: { id: string }) => ({
+      success: true,
+      articleId: input.id,
     }),
-  },
-  StaticDataRegistry: {
-    getAllActors: () => [],
-    getAllOrganizations: () => [],
-    getActor: () => null,
-    getOrganization: () => null,
-  },
-  timeframeArcPlanner: {
-    planTimeframeArc: () => ({
-      questionId: 'q-1',
-      timeframe: '1d',
-      category: 'daily',
-      outcome: true,
-      durationMs: 86400000,
-      phases: {},
-      phaseOrder: ['setup', 'peak', 'resolution'],
-      insiders: [],
-      deceivers: [],
-      affiliatedOrgIds: [],
-      affiliatedActorIds: [],
-      createdAt: new Date(),
+    publishOracleCommitments: async () => ({ committed: 1 }),
+    publishOracleReveals: async () => ({ revealed: 1 }),
+    getReputationBreakdown: () => ({
+      total: 0,
+      level: 'neutral',
+      trend: 0,
+      factors: {},
     }),
-  },
-}));
+    recalculateReputation: async () => {},
+    resolveQuestionPayouts: async () => {},
+    SignalExtractionService: {
+      extractMarketSignal: async () => ({
+        suggestedOutcome: 'YES',
+        confidence: 0.8,
+        yesSignal: 0.7,
+        noSignal: 0.3,
+        signalStrength: 0.6,
+        totalPosts: 10,
+      }),
+    },
+    StaticDataRegistry: {
+      getOrganizationsByType: () => [
+        {
+          id: 'org-1',
+          name: 'Test News',
+          description: 'A news org',
+          type: 'media',
+          canBeInvolved: true,
+        },
+      ],
+      getTopActors: () => [
+        {
+          id: 'actor-1',
+          name: 'Test Actor',
+          description: 'A test actor',
+          domain: ['tech'],
+          personality: 'Analytical and cautious',
+          tier: 'mid',
+          affiliations: [],
+          postStyle: 'Neutral analysis',
+          postExample: [],
+          role: 'Analyst',
+          initialLuck: 'medium',
+          initialMood: 0,
+        },
+      ],
+      getAllActors: () => [],
+      getAllOrganizations: () => [],
+      getActor: () => null,
+      getOrganization: () => null,
+    },
+    secureRandom: () => Math.random(),
+    weightedPick: <T>(items: T[]) => items[0] ?? null,
+    gameService: {
+      getCurrentGame: async () => null,
+    },
+    setBroadcastToChannel: () => {},
+    setDistributedLockProvider: () => {},
+    setNotifyGroupChatInvite: () => {},
+    setRateLimitProvider: () => {},
+    timeframeArcPlanner: {
+      planTimeframeArc: () => ({
+        questionId: 'q-1',
+        timeframe: '1d',
+        category: 'daily',
+        outcome: true,
+        durationMs: 86400000,
+        phases: {},
+        phaseOrder: ['setup', 'peak', 'resolution'],
+        insiders: [],
+        deceivers: [],
+        affiliatedOrgIds: [],
+        affiliatedActorIds: [],
+        createdAt: new Date(),
+      }),
+    },
+    worldFactsService: {
+      generatePromptContext: async () => 'Test world facts context',
+    },
+  }));
+};
 
-// Note: @babylon/shared is NOT mocked - let real logger run to avoid
-// polluting module cache and breaking other tests that use formatCurrency, etc.
+// @babylon/shared is intentionally not mocked here.
 
-// Import the route handler after mocks are set up
-import { GET, POST } from '@/app/api/cron/markets-tick/route';
+// Route handlers are loaded dynamically after mock registration.
+let GET: (req: NextRequest) => Promise<Response>;
+let POST: (req: NextRequest) => Promise<Response>;
 
 describe('Markets Tick Cron', () => {
+  beforeAll(async () => {
+    registerMocks();
+    const routeModule = await import('@/app/api/cron/markets-tick/route');
+    GET = routeModule.GET;
+    POST = routeModule.POST;
+  });
+
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
-    mockGame = null;
-    mockActiveQuestions = [];
-    mockWorldEvents = [];
-    mockCronAuthResult = true;
-    mockAcquireLockResult = true;
+    cronMockState.marketsGame = null;
+    cronMockState.marketsActiveQuestions = [];
+    cronMockState.marketsWorldEvents = [];
+    cronMockState.marketsCronAuthResult = true;
+    cronMockState.marketsAcquireLockResult = true;
     currentQueryTable = null;
   });
 
   describe('Authorization', () => {
     test('GET should delegate to POST and return equivalent response', async () => {
       // Set up identical conditions for both requests
-      mockGame = null; // No game = predictable skipped state
+      cronMockState.marketsGame = null; // No game = predictable skipped state
 
       const getReq = new NextRequest('http://localhost/api/cron/markets-tick', {
         method: 'GET',
@@ -352,7 +566,7 @@ describe('Markets Tick Cron', () => {
     });
 
     test('should reject unauthorized requests when verifyCronAuth returns false', async () => {
-      mockCronAuthResult = false;
+      cronMockState.marketsCronAuthResult = false;
 
       const req = new NextRequest('http://localhost/api/cron/markets-tick', {
         method: 'POST',
@@ -364,7 +578,7 @@ describe('Markets Tick Cron', () => {
     });
 
     test('GET should also reject unauthorized requests', async () => {
-      mockCronAuthResult = false;
+      cronMockState.marketsCronAuthResult = false;
 
       const req = new NextRequest('http://localhost/api/cron/markets-tick', {
         method: 'GET',
@@ -378,13 +592,13 @@ describe('Markets Tick Cron', () => {
 
   describe('Distributed Lock', () => {
     test('should skip when lock cannot be acquired', async () => {
-      mockGame = {
+      cronMockState.marketsGame = {
         id: 'game-123',
         isContinuous: true,
         isRunning: true,
         currentDay: 1,
       };
-      mockAcquireLockResult = false;
+      cronMockState.marketsAcquireLockResult = false;
 
       const req = new NextRequest('http://localhost/api/cron/markets-tick', {
         method: 'POST',
@@ -402,7 +616,7 @@ describe('Markets Tick Cron', () => {
 
   describe('Game State Checks', () => {
     test('should skip when game is not running', async () => {
-      mockGame = {
+      cronMockState.marketsGame = {
         id: 'game-123',
         isContinuous: true,
         isRunning: false,
