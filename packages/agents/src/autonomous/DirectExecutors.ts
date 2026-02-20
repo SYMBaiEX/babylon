@@ -11,6 +11,7 @@ import {
   broadcastChatMessage,
   broadcastToChannel,
   type CommentActivityData,
+  cachedDb,
   type JsonValue,
   type MessageActivityData,
   type PostActivityData,
@@ -32,6 +33,7 @@ import {
   db,
   dmAcceptances,
   eq,
+  follows,
   gte,
   isNull,
   messages,
@@ -469,6 +471,21 @@ export interface DirectRepostResult {
   success: boolean;
   repostId?: string;
   quotePostId?: string;
+  error?: string;
+}
+
+export interface DirectFollowParams {
+  agentUserId: string;
+  targetUserId: string;
+}
+
+export interface DirectFollowResult {
+  success: boolean;
+  followed?: boolean;
+  alreadyFollowing?: boolean;
+  unfollowed?: boolean;
+  wasFollowing?: boolean;
+  targetUserId?: string;
   error?: string;
 }
 
@@ -1607,6 +1624,157 @@ export async function executeDirectMessage(
   return {
     success: true,
     messageId,
+  };
+}
+
+// =============================================================================
+// Direct Follow / Unfollow Executors
+// =============================================================================
+
+/**
+ * Follow a user/agent directly without LLM decision-making.
+ * This action is restricted to real users/agents (not static NPC actors).
+ */
+export async function executeDirectFollow(
+  params: DirectFollowParams
+): Promise<DirectFollowResult> {
+  const { agentUserId, targetUserId } = params;
+  const cleanTargetUserId = targetUserId?.trim();
+
+  if (!cleanTargetUserId) {
+    return { success: false, error: 'Target user ID is required' };
+  }
+
+  if (cleanTargetUserId === agentUserId) {
+    return { success: false, error: 'Cannot follow yourself' };
+  }
+
+  const [targetUser] = await db
+    .select({ id: users.id, isActor: users.isActor })
+    .from(users)
+    .where(eq(users.id, cleanTargetUserId))
+    .limit(1);
+
+  if (!targetUser) {
+    return { success: false, error: `User not found: ${cleanTargetUserId}` };
+  }
+
+  if (targetUser.isActor) {
+    return {
+      success: false,
+      error:
+        'FOLLOW supports users/agents only. NPC actors are not supported here',
+    };
+  }
+
+  logger.info(
+    `[DirectExecutor] Following user ${cleanTargetUserId}`,
+    { agentUserId },
+    'DirectExecutors'
+  );
+
+  const followId = await generateSnowflakeId();
+  const insertResult = await db
+    .insert(follows)
+    .values({
+      id: followId,
+      followerId: agentUserId,
+      followingId: cleanTargetUserId,
+    })
+    .onConflictDoNothing()
+    .returning({ id: follows.id });
+
+  const followed = insertResult.length > 0;
+
+  if (followed) {
+    await Promise.all([
+      cachedDb.invalidateUserCache(agentUserId),
+      cachedDb.invalidateUserCache(cleanTargetUserId),
+    ]).catch((error: unknown) => {
+      logger.warn('Failed to invalidate user cache after direct follow', {
+        error,
+      });
+    });
+  }
+
+  return {
+    success: true,
+    followed,
+    alreadyFollowing: !followed,
+    targetUserId: cleanTargetUserId,
+  };
+}
+
+/**
+ * Unfollow a user/agent directly without LLM decision-making.
+ * Returns success even if there was no active follow relationship (idempotent).
+ */
+export async function executeDirectUnfollow(
+  params: DirectFollowParams
+): Promise<DirectFollowResult> {
+  const { agentUserId, targetUserId } = params;
+  const cleanTargetUserId = targetUserId?.trim();
+
+  if (!cleanTargetUserId) {
+    return { success: false, error: 'Target user ID is required' };
+  }
+
+  if (cleanTargetUserId === agentUserId) {
+    return { success: false, error: 'Cannot unfollow yourself' };
+  }
+
+  const [targetUser] = await db
+    .select({ id: users.id, isActor: users.isActor })
+    .from(users)
+    .where(eq(users.id, cleanTargetUserId))
+    .limit(1);
+
+  if (!targetUser) {
+    return { success: false, error: `User not found: ${cleanTargetUserId}` };
+  }
+
+  if (targetUser.isActor) {
+    return {
+      success: false,
+      error:
+        'UNFOLLOW supports users/agents only. NPC actors are not supported here',
+    };
+  }
+
+  logger.info(
+    `[DirectExecutor] Unfollowing user ${cleanTargetUserId}`,
+    { agentUserId },
+    'DirectExecutors'
+  );
+
+  const deletedRows = await db
+    .delete(follows)
+    .where(
+      and(
+        eq(follows.followerId, agentUserId),
+        eq(follows.followingId, cleanTargetUserId)
+      )
+    )
+    .returning({ id: follows.id });
+
+  const wasFollowing = deletedRows.length > 0;
+
+  if (wasFollowing) {
+    await Promise.all([
+      cachedDb.invalidateUserCache(agentUserId),
+      cachedDb.invalidateUserCache(cleanTargetUserId),
+    ]).catch((error: unknown) => {
+      logger.warn('Failed to invalidate user cache after direct unfollow', {
+        error,
+      });
+    });
+  }
+
+  return {
+    success: true,
+    unfollowed: wasFollowing,
+    wasFollowing,
+    targetUserId: cleanTargetUserId,
   };
 }
 

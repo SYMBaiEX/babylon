@@ -173,6 +173,9 @@ mock.module('@babylon/api', () => ({
       broadcastedMarketsEvents.push(payload);
     }
   ),
+  cachedDb: {
+    invalidateUserCache: mock(async () => undefined),
+  },
 }));
 
 mock.module('@babylon/core/markets/perps', () => ({
@@ -200,6 +203,7 @@ mock.module('@babylon/engine', () => ({
   PredictionPricing: {
     getCurrentPrice: mock(() => 0.5),
   },
+  createPerpPriceImpactPort: mock(() => ({})),
   StaticDataRegistry: {
     getActor: () => null,
     getAllOrganizations: () => [],
@@ -233,6 +237,7 @@ mock.module('@babylon/db', () => ({
   db: mockDb,
   dmAcceptances: {},
   eq: (a: unknown, b: unknown) => ({ a, b }),
+  follows: { id: 'id', followerId: 'followerId', followingId: 'followingId' },
   gte: (a: unknown, b: unknown) => ({ a, b }),
   isNull: (a: unknown) => ({ a }),
   markets,

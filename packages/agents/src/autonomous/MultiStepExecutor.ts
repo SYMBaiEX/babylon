@@ -8,7 +8,16 @@
  * This eliminates double LLM calls and makes execution faster.
  */
 
-import { actorState, agentLogs, and, chats, db, desc, eq, users } from '@babylon/db';
+import {
+  actorState,
+  agentLogs,
+  and,
+  chats,
+  db,
+  desc,
+  eq,
+  users,
+} from '@babylon/db';
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -18,11 +27,13 @@ import { getAgentConfig, getAutonomousFeatures } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import {
   executeDirectComment,
+  executeDirectFollow,
   executeDirectLike,
   executeDirectMessage,
   executeDirectPost,
   executeDirectRepost,
   executeDirectTrade,
+  executeDirectUnfollow,
 } from './DirectExecutors';
 import { topicDiversityService } from './TopicDiversityService';
 
@@ -578,7 +589,10 @@ export class MultiStepExecutor {
       })
       .from(agentLogs)
       .where(
-        and(eq(agentLogs.agentUserId, agentUserId), eq(agentLogs.type, 'system'))
+        and(
+          eq(agentLogs.agentUserId, agentUserId),
+          eq(agentLogs.type, 'system')
+        )
       )
       .orderBy(desc(agentLogs.createdAt))
       .limit(10);
@@ -763,6 +777,12 @@ export class MultiStepExecutor {
 
       case Actions.REPOST:
         return this.executeRepost(agentUserId, parameters);
+
+      case Actions.FOLLOW:
+        return this.executeFollow(agentUserId, parameters);
+
+      case Actions.UNFOLLOW:
+        return this.executeUnfollow(agentUserId, parameters);
 
       case Actions.REPLY_COMMENT:
         return this.executeReplyComment(agentUserId, parameters, logContext);
@@ -1098,6 +1118,124 @@ export class MultiStepExecutor {
         repostId: repostResult.repostId,
         quotePostId: repostResult.quotePostId,
         error: repostResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeFollow(
+    agentUserId: string,
+    parameters: Record<string, unknown>
+  ): Promise<ActionTraceResult> {
+    const targetUserId = (parameters.userId ||
+      parameters.targetUserId) as string;
+
+    if (!targetUserId) {
+      return {
+        actionType: Actions.FOLLOW,
+        success: false,
+        summary: 'Missing required parameter (userId)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const followResult = await executeDirectFollow({
+      agentUserId,
+      targetUserId,
+    });
+
+    await agentService.createLog(agentUserId, {
+      type: 'follow',
+      level: followResult.success ? 'info' : 'warn',
+      message: followResult.success
+        ? followResult.followed
+          ? `Now following ${targetUserId}`
+          : `Already following ${targetUserId}`
+        : `Follow failed: ${followResult.error}`,
+      metadata: {
+        targetUserId,
+        success: followResult.success,
+        followed: followResult.followed ?? false,
+        alreadyFollowing: followResult.alreadyFollowing ?? false,
+        error: followResult.error ?? null,
+      },
+    });
+
+    return {
+      actionType: Actions.FOLLOW,
+      success: followResult.success,
+      summary: followResult.success
+        ? followResult.followed
+          ? `Now following ${targetUserId}`
+          : `Already following ${targetUserId}`
+        : `Follow failed: ${followResult.error}`,
+      result: {
+        success: followResult.success,
+        followed: followResult.followed,
+        alreadyFollowing: followResult.alreadyFollowing,
+        error: followResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeUnfollow(
+    agentUserId: string,
+    parameters: Record<string, unknown>
+  ): Promise<ActionTraceResult> {
+    const targetUserId = (parameters.userId ||
+      parameters.targetUserId) as string;
+
+    if (!targetUserId) {
+      return {
+        actionType: Actions.UNFOLLOW,
+        success: false,
+        summary: 'Missing required parameter (userId)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const unfollowResult = await executeDirectUnfollow({
+      agentUserId,
+      targetUserId,
+    });
+
+    await agentService.createLog(agentUserId, {
+      type: 'follow',
+      level: unfollowResult.success ? 'info' : 'warn',
+      message: unfollowResult.success
+        ? unfollowResult.unfollowed
+          ? `Unfollowed ${targetUserId}`
+          : `Was not following ${targetUserId}`
+        : `Unfollow failed: ${unfollowResult.error}`,
+      metadata: {
+        targetUserId,
+        success: unfollowResult.success,
+        unfollowed: unfollowResult.unfollowed ?? false,
+        wasFollowing: unfollowResult.wasFollowing ?? false,
+        error: unfollowResult.error ?? null,
+      },
+    });
+
+    return {
+      actionType: Actions.UNFOLLOW,
+      success: unfollowResult.success,
+      summary: unfollowResult.success
+        ? unfollowResult.unfollowed
+          ? `Unfollowed ${targetUserId}`
+          : `Was not following ${targetUserId}`
+        : `Unfollow failed: ${unfollowResult.error}`,
+      result: {
+        success: unfollowResult.success,
+        unfollowed: unfollowResult.unfollowed,
+        wasFollowing: unfollowResult.wasFollowing,
+        error: unfollowResult.error,
       },
       parameters,
       timestamp: Date.now(),
@@ -1455,6 +1593,8 @@ export class MultiStepExecutor {
           break;
         case Actions.LIKE:
         case Actions.REPOST:
+        case Actions.FOLLOW:
+        case Actions.UNFOLLOW:
           counts.engagements++;
           break;
       }

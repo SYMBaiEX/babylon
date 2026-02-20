@@ -111,6 +111,8 @@ export const Actions = {
   REPLY_COMMENT: 'REPLY_COMMENT',
   LIKE: 'LIKE',
   REPOST: 'REPOST',
+  FOLLOW: 'FOLLOW',
+  UNFOLLOW: 'UNFOLLOW',
   REPLY_CHAT: 'REPLY_CHAT',
   DM: 'DM',
   GROUP_MESSAGE: 'GROUP_MESSAGE',
@@ -205,6 +207,24 @@ export const ACTION_DEFINITIONS: Record<ActionName, ActionDefinition> = {
     parameterSchema: `{
   "postId": "exact_post_id_from_list",
   "comment": "optional quote comment (your take)"
+}`,
+  },
+  [Actions.FOLLOW]: {
+    name: Actions.FOLLOW,
+    description: 'Follow a user or agent',
+    requiredFeature: Features.ENGAGING,
+    parameters: ['userId'],
+    parameterSchema: `{
+  "userId": "exact_user_id_from_recent_posts_or_context"
+}`,
+  },
+  [Actions.UNFOLLOW]: {
+    name: Actions.UNFOLLOW,
+    description: 'Unfollow a user or agent',
+    requiredFeature: Features.ENGAGING,
+    parameters: ['userId'],
+    parameterSchema: `{
+  "userId": "exact_user_id_you_currently_follow"
 }`,
   },
   [Actions.REPLY_CHAT]: {
@@ -494,6 +514,9 @@ ${NPC_POST_QUALITY_RULES}
   const canEngage = context.enabledFeatures.includes(Features.ENGAGING);
   const canPost = context.enabledFeatures.includes(Features.POSTING);
   const canGroupChat = context.enabledFeatures.includes(Features.GROUP_CHATS);
+  const justCoordinatedInGroup = traceActionResults.some(
+    (r) => r.actionType === Actions.GROUP_MESSAGE && r.success
+  );
 
   // Check if already posted this tick (for prompt messaging, not feature filtering)
   const hasPostedThisTick = traceActionResults.some(
@@ -551,6 +574,16 @@ ${
     : ''
 }`
       : '';
+  const groupChatCoordinationEncouragement =
+    justCoordinatedInGroup && canPost
+      ? `
+# 👀 Surface Group Coordination
+You just coordinated in a group chat. Make this visible in the public feed:
+- Share a public-safe takeaway (no private details)
+- Turn private discussion into a clear market angle
+- Keep it short and concrete
+`
+      : '';
 
   // Action priority guidance - differs between NPCs and player agents
   // NPCs: Balanced priorities (trading, posting, engagement)
@@ -592,6 +625,12 @@ ${
   if (canEngage) {
     priorityActions.push('LIKE posts you find interesting');
     priorityActions.push('REPOST valuable content');
+    priorityActions.push(
+      'FOLLOW users/agents you consistently agree with or engage with'
+    );
+    priorityActions.push(
+      'UNFOLLOW users/agents when they are no longer relevant to your strategy'
+    );
   }
   if (canGroupChat) {
     priorityActions.push('GROUP_MESSAGE to discuss with your community');
@@ -680,11 +719,13 @@ ${formatPredictionMarkets(context.predictionMarkets)}
 ${formatPerpMarkets(context.perpMarkets)}`
     : '';
 
-  // Show recent posts if commenting OR DMs enabled (need posts to discover users for DMs)
-  const showRecentPosts = canComment || canRespondDMs;
+  // Show recent posts if commenting, engaging, or DMs enabled (used to discover users)
+  const showRecentPosts = canComment || canRespondDMs || canEngage;
   const recentPostsHeader = canComment
-    ? '# Recent Posts (can comment on or DM authors)'
-    : '# Recent Posts (can DM authors)';
+    ? '# Recent Posts (can comment on, follow, or DM authors)'
+    : canRespondDMs
+      ? '# Recent Posts (can follow or DM authors)'
+      : '# Recent Posts (can follow authors)';
   const commentingSection = showRecentPosts
     ? `
 ${recentPostsHeader}
@@ -732,7 +773,7 @@ ${context.contextRefreshSummary}
     : '';
 
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
-${creatorSection}${npcContextSection}${tradePostEncouragement}# Current Execution Context
+${creatorSection}${npcContextSection}${tradePostEncouragement}${groupChatCoordinationEncouragement}# Current Execution Context
 **Step**: ${iterationCount}/${maxIterations}
 **Actions Completed This Tick**: ${traceActionResults.length}
 
@@ -780,7 +821,7 @@ ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assigne
 ${canTrade && !isNpc ? '7. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
 ${canTrade && isNpc ? '7. **BALANCED ACTIONS**: Trading, posting, and engaging are all valuable. Follow your intuitions.' : ''}
 ${canComment && !isNpc ? '8. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
-${hasPostedThisTick ? `9. **NO MORE POSTS**: You already posted. Choose ${[canTrade ? 'TRADE' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
+${hasPostedThisTick ? `9. **NO MORE POSTS**: You already posted. Choose ${[canTrade ? 'TRADE' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canEngage ? 'FOLLOW' : '', canEngage ? 'UNFOLLOW' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
 ${!isNpc && canPost && !hasPostedThisTick ? '10. **AVOID POSTING**: As a player agent, you should almost NEVER post. Trade, comment, like, or repost instead!' : ''}
 
 # Action Ideas (in order of priority)
@@ -789,6 +830,8 @@ ${canTrade && isNpc ? '- **TRADE**: Take a position based on your intuitions' : 
 ${canComment ? "- ✅ **COMMENT**: Reply to someone's post from the feed above (RECOMMENDED)" : ''}
 ${canEngage ? '- ✅ **LIKE**: Show appreciation for a post you find interesting' : ''}
 ${canEngage ? "- ✅ **REPOST**: Share someone else's post with your take" : ''}
+${canEngage ? '- ✅ **FOLLOW**: Follow users/agents you want in your social graph (use userId from Recent Posts)' : ''}
+${canEngage ? '- ✅ **UNFOLLOW**: Unfollow users/agents that are no longer relevant' : ''}
 ${canComment ? '- 🔥 **REPLY_COMMENT**: Reply to a pending comment (use commentId + postId from Pending Interactions)' : ''}
 ${canRespondDMs || canGroupChat ? '- 🔥 **REPLY_CHAT**: Reply to a pending DM/group message (use chatId from Pending Interactions)' : ''}
 ${canRespondDMs ? '- **DM**: Start a NEW conversation with someone (use their userId from Recent Posts)' : ''}
@@ -825,7 +868,7 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canComment ? 'REPLY_COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canRespondDMs || canGroupChat ? 'REPLY_CHAT' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
+  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canComment ? 'REPLY_COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canEngage ? 'FOLLOW' : '', canEngage ? 'UNFOLLOW' : '', canRespondDMs || canGroupChat ? 'REPLY_CHAT' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }
