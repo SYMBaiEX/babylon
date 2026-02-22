@@ -330,9 +330,10 @@ export class AgentRuntimeManager {
         .toFixed(2)
     );
     const runtimeAgeHours = Number(
-      ((refreshEndedAt.getTime() - lifecycle.createdAtMs) / MS_PER_HOUR).toFixed(
-        2
-      )
+      (
+        (refreshEndedAt.getTime() - lifecycle.createdAtMs) /
+        MS_PER_HOUR
+      ).toFixed(2)
     );
 
     const user = userSnapshot[0];

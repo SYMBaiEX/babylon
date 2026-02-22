@@ -15,6 +15,10 @@ import { UserAlphaGroupAssignmentService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import { PointsService } from './points-service';
+import {
+  sendWhitelistWelcomeEmailsToUsers,
+  sendWhitelistWelcomeEmailToUser,
+} from './whitelist-email-service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -193,6 +197,14 @@ export async function addToWhitelist({
           'addToWhitelist'
         );
       });
+
+    sendWhitelistWelcomeEmailToUser(userId).catch((error) => {
+      logger.error(
+        'Failed to send whitelist welcome email (non-fatal)',
+        { userId, source, error: String(error) },
+        'addToWhitelist'
+      );
+    });
   }
 
   return { id: result.id, alreadyExists };
@@ -459,6 +471,18 @@ export async function autoWhitelistCurrentTopN(): Promise<{
     .values(rows)
     .onConflictDoNothing({ target: whitelist.userId })
     .returning({ userId: whitelist.userId });
+
+  try {
+    await sendWhitelistWelcomeEmailsToUsers(
+      insertedRows.map((row) => row.userId)
+    );
+  } catch (error) {
+    logger.error(
+      'Failed to send whitelist welcome emails after auto-whitelist (non-fatal)',
+      { insertedCount: insertedRows.length, error: String(error) },
+      'autoWhitelistCurrentTopN'
+    );
+  }
 
   return {
     topN,
