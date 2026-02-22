@@ -175,6 +175,74 @@ describe('executeDirectFollow / executeDirectUnfollow', () => {
     expect(result.error).toContain('users/agents only');
   });
 
+  test('rejects FOLLOW when targetUserId is empty', async () => {
+    const result = await executeDirectFollow({
+      agentUserId: 'agent-1',
+      targetUserId: '  ',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Target user ID is required');
+  });
+
+  test('rejects FOLLOW on self', async () => {
+    const result = await executeDirectFollow({
+      agentUserId: 'agent-1',
+      targetUserId: 'agent-1',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Cannot follow yourself');
+  });
+
+  test('rejects FOLLOW when target user does not exist', async () => {
+    mockTargetUser = null;
+
+    const result = await executeDirectFollow({
+      agentUserId: 'agent-1',
+      targetUserId: 'nonexistent',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('User not found');
+  });
+
+  test('rejects UNFOLLOW on self', async () => {
+    const result = await executeDirectUnfollow({
+      agentUserId: 'agent-1',
+      targetUserId: 'agent-1',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Cannot unfollow yourself');
+  });
+
+  test('rejects UNFOLLOW for actor targets', async () => {
+    mockTargetUser = { id: 'npc-1', isActor: true };
+
+    const result = await executeDirectUnfollow({
+      agentUserId: 'agent-1',
+      targetUserId: 'npc-1',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('users/agents only');
+  });
+
+  test('unfollows an existing relationship and invalidates caches', async () => {
+    deleteReturningRows = [{ id: 'follow-1' }];
+
+    const result = await executeDirectUnfollow({
+      agentUserId: 'agent-1',
+      targetUserId: 'target-user',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.unfollowed).toBe(true);
+    expect(result.wasFollowing).toBe(true);
+    expect(invalidateUserCacheMock).toHaveBeenCalledTimes(2);
+  });
+
   test('unfollow is idempotent when no relationship exists', async () => {
     deleteReturningRows = [];
 
