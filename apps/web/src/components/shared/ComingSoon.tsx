@@ -30,6 +30,11 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { MarketingFooter } from '@/components/shared/MarketingFooter';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
+import {
+  getPrimaryAccessLabel,
+  shouldAutoRedirectWhitelistedUser,
+  type NftAccessState,
+} from '@/components/shared/comingSoonAccess';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
 import { EXTERNAL_LINKS } from '@/lib/constants';
@@ -144,9 +149,7 @@ export function ComingSoon() {
   const [waitlistSetupError, setWaitlistSetupError] = useState<string | null>(
     null
   );
-  const [nftAccess, setNftAccess] = useState<{ hasAccess: boolean } | null>(
-    null
-  );
+  const [nftAccess, setNftAccess] = useState<NftAccessState>(null);
   const [nftEligibility, setNftEligibility] =
     useState<EligibilityResponse | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -181,6 +184,7 @@ export function ComingSoon() {
   const [isVerifyingDiscordJoin, setIsVerifyingDiscordJoin] = useState(false);
   const [showVerifyDiscordJoinButton, setShowVerifyDiscordJoinButton] =
     useState(false);
+  const hasAutoRedirectedRef = useRef(false);
 
   // Profile dropdown state
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -1291,7 +1295,10 @@ export function ComingSoon() {
 
         if (!controller.signal.aborted && accessRes.ok) {
           const json = (await accessRes.json()) as NftAccessResponse;
-          setNftAccess({ hasAccess: json.data.hasAccess });
+          setNftAccess({
+            hasAccess: json.data.hasAccess,
+            reason: json.data.reason,
+          });
         }
       } catch {
         // best-effort only (do not block waitlist UI)
@@ -1309,6 +1316,18 @@ export function ComingSoon() {
   const canClaimNft =
     nftEligibility?.eligible === true && nftEligibility.hasMinted === false;
   const hasNft = Boolean(nftAccess?.hasAccess) && !canClaimNft;
+
+  useEffect(() => {
+    if (
+      !shouldAutoRedirectWhitelistedUser(authenticated, dbUser?.id, nftAccess)
+    ) {
+      return;
+    }
+    if (hasAutoRedirectedRef.current) return;
+
+    hasAutoRedirectedRef.current = true;
+    window.location.replace(appBaseUrl);
+  }, [authenticated, appBaseUrl, dbUser?.id, nftAccess]);
 
   // Unauthenticated state - Show landing page
   if (!authenticated || !dbUser) {
@@ -1382,12 +1401,12 @@ export function ComingSoon() {
                 className="group hover:-translate-y-1 relative w-full skew-x-[-10deg] overflow-hidden rounded-none bg-primary px-10 py-5 font-bold text-primary-foreground text-xl shadow-[0_0_20px_rgba(var(--primary),0.4)] transition-all duration-300 hover:bg-primary/90 hover:shadow-[0_0_40px_rgba(var(--primary),0.6)] disabled:opacity-50 sm:w-auto sm:px-12 sm:py-6 sm:text-2xl"
               >
                 <span className="relative z-10 inline-block skew-x-[10deg]">
-                  Join Waitlist
+                  Play
                 </span>
                 <div className="absolute inset-0 translate-y-full bg-white/20 transition-transform duration-300 group-hover:translate-y-0" />
               </button>
               <p className="mt-4 animate-pulse text-muted-foreground/80 text-sm">
-                Sign in with X, Farcaster, Gmail, or Wallet
+                Daily opening new open slots
               </p>
             </div>
 
@@ -1920,14 +1939,14 @@ export function ComingSoon() {
                 Choose your path into the Social Arena for Humans and Agents.
               </h3>
 
-              <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:gap-8 lg:grid-cols-4">
+              <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:grid-cols-3 md:gap-8 lg:grid-cols-5">
                 {/* Join Waitlist */}
                 <button
                   onClick={handleJoinWaitlist}
                   className="group touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center shadow-[0_0_20px_rgba(var(--primary),0.2)] backdrop-blur-md transition-all duration-300 hover:bg-primary/90 hover:shadow-[0_0_40px_rgba(var(--primary),0.4)] active:scale-95 disabled:opacity-50 sm:p-8 md:p-10"
                 >
                   <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
-                    Join Waitlist
+                    Play
                   </h3>
                   <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
                     Start competing now
@@ -1946,6 +1965,21 @@ export function ComingSoon() {
                   </h3>
                   <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
                     Build your own Agent
+                  </p>
+                </a>
+
+                {/* Apply for Agent Developer Access */}
+                <a
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSeYkR5dGc_tgEtelwldohhwSKcpq30o8SJVq78oMSJD4qsWYA/viewform?usp=publish-editor"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
+                >
+                  <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
+                    Apply for agent developer access
+                  </h3>
+                  <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
+                    Request builder access
                   </p>
                 </a>
 
@@ -2445,7 +2479,7 @@ export function ComingSoon() {
                 </div>
                 <div>
                   <h1 className="font-bold text-2xl text-foreground tracking-tight sm:text-3xl md:text-4xl">
-                    You're on the List!
+                    Click play to access the game
                   </h1>
                   <p className="mt-1 text-muted-foreground text-sm">
                     Welcome to Babylon
@@ -2460,7 +2494,7 @@ export function ComingSoon() {
                     className="flex min-h-[48px] items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 font-semibold text-primary backdrop-blur-sm transition-all duration-200 hover:bg-primary/15"
                   >
                     {canClaimNft && <Wallet className="h-4 w-4" />}
-                    {canClaimNft ? 'Claim your NFT' : 'Open the app'}
+                    {getPrimaryAccessLabel(canClaimNft)}
                   </a>
                 )}
 
