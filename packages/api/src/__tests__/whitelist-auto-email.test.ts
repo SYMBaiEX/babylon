@@ -24,9 +24,10 @@ const usersTable = {
   isAgent: 'isAgent',
 };
 
-let mockWhitelistConfigRow: { leaderboardRankThreshold: number | null } | null = {
-  leaderboardRankThreshold: 100,
-};
+let mockWhitelistConfigRow: { leaderboardRankThreshold: number | null } | null =
+  {
+    leaderboardRankThreshold: 100,
+  };
 let mockTopUsers: Array<{ id: string }> = [];
 let mockSnapshotRows: Array<{ userId: string }> = [];
 let mockExistingRows: Array<{ userId: string; revokedAt: Date | null }> = [];
@@ -37,7 +38,10 @@ const mockDbSelect = mock(() => ({
     if (table === whitelistConfigTable) {
       return {
         where: () => ({
-          limit: () => Promise.resolve(mockWhitelistConfigRow ? [mockWhitelistConfigRow] : []),
+          limit: () =>
+            Promise.resolve(
+              mockWhitelistConfigRow ? [mockWhitelistConfigRow] : []
+            ),
         }),
       };
     }
@@ -87,7 +91,10 @@ mock.module('@babylon/db', () => ({
   eq: (a: unknown, b: unknown) => [a, b],
   inArray: (a: unknown, b: unknown) => [a, b],
   isNull: (a: unknown) => a,
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+    strings,
+    values,
+  }),
   users: usersTable,
   whitelist: whitelistTable,
   whitelistConfig: whitelistConfigTable,
@@ -124,7 +131,9 @@ mock.module('../services/whitelist-email-service', () => ({
   sendWhitelistWelcomeEmailsToUsers: mockSendWhitelistWelcomeEmailsToUsers,
 }));
 
-const { autoWhitelistCurrentTopN } = await import('../services/whitelist-service');
+const { autoWhitelistCurrentTopN } = await import(
+  '../services/whitelist-service'
+);
 
 describe('autoWhitelistCurrentTopN → whitelist welcome emails', () => {
   beforeEach(() => {

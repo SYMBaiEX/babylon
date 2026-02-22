@@ -16,8 +16,8 @@ import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import { PointsService } from './points-service';
 import {
-  sendWhitelistWelcomeEmailToUser,
   sendWhitelistWelcomeEmailsToUsers,
+  sendWhitelistWelcomeEmailToUser,
 } from './whitelist-email-service';
 
 // ---------------------------------------------------------------------------
@@ -198,15 +198,13 @@ export async function addToWhitelist({
         );
       });
 
-    try {
-      await sendWhitelistWelcomeEmailToUser(userId);
-    } catch (error) {
+    sendWhitelistWelcomeEmailToUser(userId).catch((error) => {
       logger.error(
         'Failed to send whitelist welcome email (non-fatal)',
         { userId, source, error: String(error) },
         'addToWhitelist'
       );
-    }
+    });
   }
 
   return { id: result.id, alreadyExists };
