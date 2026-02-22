@@ -408,7 +408,7 @@ export default function NotificationsPage() {
                 <div className="space-y-0">
                   {/* Group Invites Section */}
                   {groupInvites.length > 0 && (
-                    <div className="space-y-3 px-4 py-4 lg:px-6">
+                    <div className="space-y-3 sm:px-4 sm:py-4 lg:px-6">
                       <h3 className="font-semibold text-muted-foreground text-sm">
                         Pending Group Invites
                       </h3>
@@ -452,10 +452,10 @@ export default function NotificationsPage() {
                         !notification.read && 'bg-primary/5'
                       )}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-center gap-3">
                         {/* Unread Indicator */}
                         {!notification.read && (
-                          <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                          <div className="h-2 w-2 shrink-0 rounded-full bg-primary" />
                         )}
 
                         {/* Actor Avatar */}
@@ -491,12 +491,11 @@ export default function NotificationsPage() {
                                 </p>
                               ) : (
                                 <p className="text-foreground leading-relaxed">
-                                  <span className="font-semibold">
+                                  <span className="block font-semibold md:inline">
                                     {notification.actor?.displayName ||
                                       'Someone'}
                                   </span>{' '}
                                   <span className="text-muted-foreground">
-                                    {getNotificationIcon(notification.type)}{' '}
                                     {notification.message
                                       .replace(
                                         notification.actor?.displayName || '',

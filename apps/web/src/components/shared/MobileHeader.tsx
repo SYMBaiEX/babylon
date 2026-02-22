@@ -1,13 +1,22 @@
 'use client';
 
 import { cn, getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
-import { Check, Copy, Gift, LogOut, Trophy, User, X } from 'lucide-react';
-import Image from 'next/image';
+import {
+  Check,
+  Copy,
+  Gift,
+  LogOut,
+  Settings,
+  Trophy,
+  User,
+  X,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { GameFeedbackModal } from '@/components/feedback/GameFeedbackModal';
 import { Avatar } from '@/components/shared/Avatar';
+import { BabylonIcon } from '@/components/shared/icons/BabylonIcon';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
@@ -177,6 +186,12 @@ function MobileHeaderContent() {
       icon: Gift,
       active: pathname === '/rewards',
     },
+    {
+      name: 'Settings',
+      href: '/settings',
+      icon: Settings,
+      active: pathname?.startsWith('/settings'),
+    },
   ];
 
   return (
@@ -217,13 +232,7 @@ function MobileHeaderContent() {
               href="/feed"
               className="transition-transform duration-300 hover:scale-105"
             >
-              <Image
-                src="/assets/logos/logo.svg"
-                alt="Babylon Logo"
-                width={28}
-                height={28}
-                className="h-7 w-7"
-              />
+              <BabylonIcon className="h-7 w-7 text-primary" />
             </Link>
           </div>
 
@@ -247,7 +256,7 @@ function MobileHeaderContent() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-50 bg-neutral-300/70 backdrop-blur-[3px] md:hidden dark:bg-neutral-900/70"
             onClick={() => setShowSideMenu(false)}
           />
 

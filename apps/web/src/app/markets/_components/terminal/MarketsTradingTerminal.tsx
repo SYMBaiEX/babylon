@@ -263,6 +263,12 @@ function formatYesPct(raw: number): string {
   return `${rounded.toFixed(clamped >= 10 ? 0 : 1)}%`;
 }
 
+function formatCompactNumber(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return Math.round(n).toLocaleString();
+}
+
 function formatDate(dateStr: string | undefined | null): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -321,6 +327,7 @@ function PredictionMarketHeader({
   timeRange,
   onTimeRangeChange,
   onDetailsClick,
+  onFullscreen,
   variant = 'default',
 }: {
   predictionState: PredictionMarketTerminalState | null;
@@ -328,6 +335,7 @@ function PredictionMarketHeader({
   timeRange: MarketTimeRange;
   onTimeRangeChange: (range: MarketTimeRange) => void;
   onDetailsClick: () => void;
+  onFullscreen?: () => void;
   variant?: 'default' | 'compact';
 }) {
   const isCompact = variant === 'compact';
@@ -400,10 +408,23 @@ function PredictionMarketHeader({
             </button>
           )}
         </div>
-        <TimeRangeSelector
-          timeRange={timeRange}
-          onTimeRangeChange={onTimeRangeChange}
-        />
+        <div className="flex items-center gap-2">
+          <TimeRangeSelector
+            timeRange={timeRange}
+            onTimeRangeChange={onTimeRangeChange}
+          />
+          {onFullscreen && (
+            <button
+              type="button"
+              onClick={onFullscreen}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
+              aria-label="Open chart fullscreen"
+              title="Fullscreen"
+            >
+              <Maximize2 size={14} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -414,11 +435,13 @@ function PerpMarketHeader({
   selectedPerp,
   timeRange,
   onTimeRangeChange,
+  onFullscreen,
   variant = 'default',
 }: {
   selectedPerp: PerpMarket;
   timeRange: MarketTimeRange;
   onTimeRangeChange: (range: MarketTimeRange) => void;
+  onFullscreen?: () => void;
   variant?: 'default' | 'compact';
 }) {
   const isCompact = variant === 'compact';
@@ -434,10 +457,23 @@ function PerpMarketHeader({
           {selectedPerp.name}
         </div>
       </div>
-      <TimeRangeSelector
-        timeRange={timeRange}
-        onTimeRangeChange={onTimeRangeChange}
-      />
+      <div className="flex items-center gap-2">
+        <TimeRangeSelector
+          timeRange={timeRange}
+          onTimeRangeChange={onTimeRangeChange}
+        />
+        {onFullscreen && (
+          <button
+            type="button"
+            onClick={onFullscreen}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
+            aria-label="Open chart fullscreen"
+            title="Fullscreen"
+          >
+            <Maximize2 size={14} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -833,7 +869,7 @@ export function MarketsTradingTerminal({
       title: m.ticker,
       subtitle: m.name,
       valuePrimary: `${BABYLON_POINTS_SYMBOL}${m.currentPrice.toFixed(2)}`,
-      valueSecondary: `Vol ${Math.round(m.volume24h).toLocaleString()}`,
+      valueSecondary: `Vol ${formatCompactNumber(m.volume24h)}`,
       change24hPct: m.changePercent24h,
       sortVolume: m.volume24h ?? 0,
       sortOpenInterest: m.openInterest ?? 0,
@@ -856,7 +892,7 @@ export function MarketsTradingTerminal({
           m.status !== 'active'
             ? m.status.toUpperCase()
             : vol > 0
-              ? `Vol ${Math.round(vol).toLocaleString()}`
+              ? `Vol ${formatCompactNumber(vol)}`
               : undefined,
         change24hPct: null,
         sortVolume: vol,
@@ -1589,7 +1625,7 @@ export function MarketsTradingTerminal({
         <div className="absolute right-0 bottom-0 left-0 h-px bg-white/5" />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {(perpLoading || predictionLoading) && rows.length === 0 ? (
           <div className="divide-y divide-white/5">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -1611,10 +1647,16 @@ export function MarketsTradingTerminal({
             Failed to load markets.
           </div>
         ) : (
-          <table className="w-full text-left text-xs">
+          <table className="w-full table-fixed text-left text-xs">
+            <colgroup>
+              <col className="w-10" />
+              <col />
+              <col className="w-24" />
+              <col className="w-16" />
+            </colgroup>
             <thead className="sr-only">
               <tr className="border-white/5 border-b">
-                <th className="w-10 px-3 py-2">Favorite</th>
+                <th className="px-3 py-2">Favorite</th>
                 <th className="px-2 py-2">Market</th>
                 <th className="px-2 py-2 text-right">Value</th>
                 <th className="px-3 py-2 text-right">24h</th>
@@ -1664,17 +1706,17 @@ export function MarketsTradingTerminal({
                         </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-right">
-                      <div className="font-mono font-semibold text-foreground text-xs tabular-nums">
+                    <td className="overflow-hidden px-2 py-2 text-right">
+                      <div className="truncate text-right font-mono font-semibold text-foreground text-xs tabular-nums">
                         {row.valuePrimary}
                       </div>
                       {row.valueSecondary && (
-                        <div className="font-mono font-semibold text-[11px] text-foreground/80 tabular-nums">
+                        <div className="truncate text-right font-mono font-semibold text-[11px] text-foreground/80 tabular-nums">
                           {row.valueSecondary}
                         </div>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                    <td className="whitespace-nowrap py-2 pr-4 pl-2 text-right">
                       {row.kind === 'perp' && change != null ? (
                         <div
                           className={cn(
@@ -2545,6 +2587,7 @@ export function MarketsTradingTerminal({
                     timeRange={predictionTimeRange}
                     onTimeRangeChange={setPredictionTimeRange}
                     onDetailsClick={() => setPredictionDetailsOpen(true)}
+                    onFullscreen={() => setIsMobileChartFullscreen(true)}
                     variant="compact"
                   />
                 ) : selectedPerp ? (
@@ -2552,6 +2595,7 @@ export function MarketsTradingTerminal({
                     selectedPerp={selectedPerp}
                     timeRange={perpTimeRange}
                     onTimeRangeChange={setPerpTimeRange}
+                    onFullscreen={() => setIsMobileChartFullscreen(true)}
                     variant="compact"
                   />
                 ) : null}
@@ -2593,23 +2637,6 @@ export function MarketsTradingTerminal({
                   <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
                     Select a market
                   </div>
-                )}
-
-                {selected && (
-                  <button
-                    type="button"
-                    onClick={() => setIsMobileChartFullscreen(true)}
-                    className={cn(
-                      'absolute right-3 bottom-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full',
-                      'border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md',
-                      'transition-colors hover:bg-muted/40 hover:text-foreground',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
-                    )}
-                    aria-label="Open chart fullscreen"
-                    title="Fullscreen chart"
-                  >
-                    <Maximize2 size={18} />
-                  </button>
                 )}
               </div>
             </div>

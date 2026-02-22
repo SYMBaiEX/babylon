@@ -496,7 +496,7 @@ export async function notifyMention(
  */
 export async function notifyNewAccount(userId: string): Promise<void> {
   const message =
-    '🎉 Welcome to Babylon! Edit your profile details to earn free points and unlock rewards.';
+    'Welcome to Babylon! Edit your profile details to earn free points and unlock rewards.';
 
   await createNotification({
     userId,
@@ -513,7 +513,7 @@ export async function notifyProfileComplete(
   userId: string,
   pointsAwarded: number
 ): Promise<void> {
-  const message = `🎊 Congratulations! You've completed your profile and earned ${pointsAwarded} points!`;
+  const message = `Congratulations! You've completed your profile and earned ${pointsAwarded} points!`;
 
   await createNotification({
     userId,

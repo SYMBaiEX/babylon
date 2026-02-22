@@ -121,7 +121,7 @@ export default function ModerationSettingsPage() {
 
   if (!authenticated) {
     return (
-      <PageContainer>
+      <PageContainer className="pt-14 md:pt-0">
         <div className="py-12 text-center">
           <p className="text-muted-foreground">
             Please log in to view moderation settings.
@@ -132,7 +132,7 @@ export default function ModerationSettingsPage() {
   }
 
   return (
-    <PageContainer>
+    <PageContainer className="pt-14 md:pt-0">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
         <div className="mb-6">

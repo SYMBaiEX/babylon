@@ -155,31 +155,31 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
       {/* Right column: Content */}
       <div className="min-w-0 flex-1">
         {/* Header: Name + Username + Time */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1">
+        <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <Link
               href={getProfileUrl(comment.userId, comment.userUsername)}
-              className="truncate font-semibold text-[15px] text-foreground hover:underline"
+              className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               {comment.userName}
             </Link>
             {isNPC && <VerifiedBadge size="sm" />}
             {comment.userUsername && (
-              <span className="truncate text-[15px] text-muted-foreground">
+              <span className="truncate text-[15px] text-muted-foreground leading-tight">
                 @{comment.userUsername}
               </span>
             )}
           </div>
           {timeAgo && (
-            <span className="shrink-0 text-muted-foreground text-xs">
+            <span className="text-[15px] text-muted-foreground leading-tight">
               {timeAgo}
             </span>
           )}
         </div>
 
         {/* Comment content */}
-        <p className="mt-0.5 text-foreground text-sm leading-relaxed">
+        <p className="text-foreground text-sm leading-relaxed">
           {comment.content}
         </p>
 

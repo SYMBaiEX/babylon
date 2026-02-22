@@ -759,7 +759,7 @@ export default function TeamChatPage() {
   return (
     <div
       data-command-center-container
-      className="relative flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:h-dvh lg:border-l"
+      className="relative mt-14 flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:mt-0 md:h-dvh lg:border-l"
     >
       {/* Mobile Tab Navigation - visible on small screens only */}
       <div

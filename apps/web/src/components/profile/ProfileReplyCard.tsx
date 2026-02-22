@@ -228,31 +228,31 @@ export function ProfileReplyCard({
           {/* Parent Content */}
           <div className="min-w-0 flex-1">
             {/* Header */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1">
+            <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
                 <Link
                   href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
-                  className="truncate font-semibold text-[15px] text-foreground hover:underline"
+                  className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {parentAuthorName}
                 </Link>
                 {parentAuthorIsNPC && <VerifiedBadge size="sm" />}
                 {parentAuthorUsername && (
-                  <span className="truncate text-[15px] text-muted-foreground">
+                  <span className="truncate text-[15px] text-muted-foreground leading-tight">
                     @{parentAuthorUsername}
                   </span>
                 )}
               </div>
               {parentTimestamp && (
-                <span className="shrink-0 text-muted-foreground text-xs">
+                <span className="text-[15px] text-muted-foreground leading-tight">
                   {formatTimeAgo(parentTimestamp)}
                 </span>
               )}
             </div>
 
             {/* Parent Content - truncated */}
-            <p className="mt-0.5 line-clamp-3 text-foreground text-sm leading-relaxed">
+            <p className="line-clamp-3 text-foreground text-sm leading-relaxed">
               <TaggedText text={parentContent} onTagClick={handleTagClick} />
             </p>
 
@@ -303,29 +303,29 @@ export function ProfileReplyCard({
         {/* Reply Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1">
+          <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={getProfileUrl(authorId, authorUsername)}
-                className="truncate font-semibold text-[15px] text-foreground hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {authorName}
               </Link>
               {replyAuthorIsNPC && <VerifiedBadge size="sm" />}
               {authorUsername && (
-                <span className="truncate text-[15px] text-muted-foreground">
+                <span className="truncate text-[15px] text-muted-foreground leading-tight">
                   @{authorUsername}
                 </span>
               )}
             </div>
-            <span className="shrink-0 text-muted-foreground text-xs">
+            <span className="text-[15px] text-muted-foreground leading-tight">
               {formatTimeAgo(reply.createdAt)}
             </span>
           </div>
 
           {/* Reply Content */}
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground text-sm leading-relaxed">
+          <p className="whitespace-pre-wrap break-words text-foreground text-sm leading-relaxed">
             <TaggedText text={reply.content} onTagClick={handleTagClick} />
           </p>
 

@@ -562,22 +562,15 @@ export function CreateGroupModal({
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={handleClose}
-              className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-3 transition-colors hover:bg-accent"
-              disabled={creating}
-            >
-              Cancel
-            </button>
+          {/* Action Button */}
+          <div className="mt-6">
             <button
               onClick={handleCreateGroup}
               disabled={
                 creating || (selectedMembers.length === 0 && !groupName.trim())
               }
               className={cn(
-                'flex-1 rounded-lg px-4 py-3 font-medium transition-colors',
+                'w-full rounded-lg px-4 py-3 font-medium transition-colors',
                 'bg-primary text-primary-foreground hover:bg-primary/90',
                 'disabled:cursor-not-allowed disabled:opacity-50'
               )}
