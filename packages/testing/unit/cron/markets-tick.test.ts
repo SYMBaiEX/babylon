@@ -7,10 +7,10 @@ import {
   mock,
   test,
 } from 'bun:test';
+import { NextRequest } from 'next/server';
 import * as actualApiModule from '../../../api/src/index';
 import * as actualDbModule from '../../../db/src/index';
 import * as actualEngineModule from '../../../engine/src/index';
-import { NextRequest } from 'next/server';
 
 /**
  * Markets Tick Cron Job Tests
@@ -396,10 +396,7 @@ const registerMocks = () => {
     },
     QuestionManager: class MockQuestionManager {
       constructor(_llmClient: unknown) {}
-      async generateTimeframeQuestion(
-        _timeframe: string,
-        _durationMs: number
-      ) {
+      async generateTimeframeQuestion(_timeframe: string, _durationMs: number) {
         return {
           text: 'Will AIlon Musk launch a new product?',
           expectedOutcome: true,

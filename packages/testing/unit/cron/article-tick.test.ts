@@ -7,10 +7,10 @@ import {
   mock,
   test,
 } from 'bun:test';
+import { NextRequest } from 'next/server';
 import * as actualApiModule from '../../../api/src/index';
 import * as actualDbModule from '../../../db/src/index';
 import * as actualEngineModule from '../../../engine/src/index';
-import { NextRequest } from 'next/server';
 
 /**
  * Article Tick Cron Job Tests
@@ -117,7 +117,7 @@ const createQueryBuilder = (
 const registerMocks = () => {
   // Mock @babylon/db - uses resultFn pattern for dynamic state evaluation
   mock.module('@babylon/db', () => ({
-      ...actualDbModule,
+    ...actualDbModule,
     db: {
       select: mock(() =>
         createQueryBuilder(() =>
