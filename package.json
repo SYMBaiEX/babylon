@@ -72,7 +72,8 @@
     "ruler:revert": "ruler revert",
     "audit:offline-wallet-readiness": "bun run scripts/audit-offline-wallet-readiness.ts",
     "privy:setup:offline-controls": "bun run scripts/setup-privy-offline-controls.ts",
-    "seed:nft-snapshot:csv": "bun run scripts/seed-nft-snapshot-csv.ts"
+    "seed:nft-snapshot:csv": "bun run scripts/seed-nft-snapshot-csv.ts",
+    "users:export:newsletter": "bun run scripts/export-newsletter-users-csv.ts"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.5",
