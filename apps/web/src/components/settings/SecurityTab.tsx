@@ -300,10 +300,10 @@ export function SecurityTab() {
             <p className="mt-3 text-muted-foreground text-xs">
               For security concerns or to report vulnerabilities, contact{' '}
               <a
-                href="mailto:security@elizas.com"
+                href="mailto:babylon@elizalabs.ai"
                 className="text-[#0066FF] hover:underline"
               >
-                security@elizas.com
+                babylon@elizalabs.ai
               </a>
             </p>
           </div>

@@ -312,10 +312,10 @@ export function PrivacyTab() {
               exercise your rights, contact us at:
             </p>
             <a
-              href="mailto:privacy@elizas.com"
+              href="mailto:babylon@elizalabs.ai"
               className="text-primary text-sm hover:underline"
             >
-              privacy@elizas.com
+              babylon@elizalabs.ai
             </a>
             <p className="mt-2 text-muted-foreground text-xs">
               We will respond to verified requests within 30 days (45 days for
