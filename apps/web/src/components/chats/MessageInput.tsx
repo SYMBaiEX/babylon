@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import { cn } from '@babylon/shared';
-import { ArrowUp } from 'lucide-react';
+import { cn } from "@babylon/shared";
+import { ArrowUp } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-} from 'react';
-import { LoginButton } from '@/components/auth/LoginButton';
-import { Skeleton } from '@/components/shared/Skeleton';
+} from "react";
+import { LoginButton } from "@/components/auth/LoginButton";
+import { Skeleton } from "@/components/shared/Skeleton";
 import {
   MentionAutocomplete,
   type MentionableAgent,
   useMentionAutocomplete,
-} from './MentionAutocomplete';
+} from "./MentionAutocomplete";
 
 const MAX_TEXTAREA_HEIGHT = 160;
 
@@ -34,7 +34,7 @@ interface MentionRange {
 function isAtValidMentionPosition(text: string, atIndex: number): boolean {
   if (atIndex === 0) return true;
   const charBefore = text[atIndex - 1];
-  return /\s/.test(charBefore || '');
+  return /\s/.test(charBefore || "");
 }
 
 /**
@@ -169,7 +169,7 @@ function HighlightedText({
   return (
     <>
       {parts}
-      {'\u00A0'}
+      {"\u00A0"}
     </>
   );
 }
@@ -180,7 +180,7 @@ export interface MessageInputProps {
   onSend: () => void;
   sending: boolean;
   authenticated: boolean;
-  density?: 'default' | 'compact';
+  density?: "default" | "compact";
   /** Additional disabled condition (e.g., insufficient points for agent chat) */
   disabled?: boolean;
   /** Custom placeholder text */
@@ -201,7 +201,7 @@ export function MessageInput({
   onSend,
   sending,
   authenticated,
-  density = 'default',
+  density = "default",
   disabled = false,
   placeholder,
   mentionableMembers,
@@ -250,9 +250,9 @@ export function MessageInput({
   const resizeTextarea = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
-      textarea.style.height = 'auto';
+      textarea.style.height = "auto";
       textarea.style.height =
-        Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT) + 'px';
+        Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT) + "px";
     }
   }, []);
 
@@ -311,7 +311,7 @@ export function MessageInput({
       if (!mentionsEnabled) return;
 
       const textBeforeCursor = newValue.slice(0, cursorPos);
-      const atIndex = textBeforeCursor.lastIndexOf('@');
+      const atIndex = textBeforeCursor.lastIndexOf("@");
 
       if (atIndex >= 0) {
         // Check if @ is at a valid position (start of word)
@@ -382,7 +382,7 @@ export function MessageInput({
 
         if (handled) {
           // If Enter/Tab was pressed and we have a selection, select the member
-          if (e.key === 'Enter' || e.key === 'Tab') {
+          if (e.key === "Enter" || e.key === "Tab") {
             const member = getSelectedAgent();
             if (member) {
               handleSelectMember(member);
@@ -398,9 +398,9 @@ export function MessageInput({
         // Arrow key navigation - skip over mentions
         if (
           !hasSelection &&
-          (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+          (e.key === "ArrowLeft" || e.key === "ArrowRight")
         ) {
-          if (e.key === 'ArrowLeft' && cursorPos > 0) {
+          if (e.key === "ArrowLeft" && cursorPos > 0) {
             // Check if we're at the end of a mention
             const mentionBefore = getMentionBeforeCursor(
               cursorPos,
@@ -414,7 +414,7 @@ export function MessageInput({
               );
               return;
             }
-          } else if (e.key === 'ArrowRight' && cursorPos < value.length) {
+          } else if (e.key === "ArrowRight" && cursorPos < value.length) {
             // Check if we're at the start of a mention
             const mentionAfter = getMentionAfterCursor(
               cursorPos,
@@ -429,7 +429,7 @@ export function MessageInput({
         }
 
         // Backspace - delete entire mention if cursor is right after one
-        if (e.key === 'Backspace' && !hasSelection && cursorPos > 0) {
+        if (e.key === "Backspace" && !hasSelection && cursorPos > 0) {
           const mentionBefore = getMentionBeforeCursor(
             cursorPos,
             mentionRanges
@@ -452,7 +452,7 @@ export function MessageInput({
         }
 
         // Delete key - delete entire mention if cursor is right before one
-        if (e.key === 'Delete' && !hasSelection && cursorPos < value.length) {
+        if (e.key === "Delete" && !hasSelection && cursorPos < value.length) {
           const mentionAfter = getMentionAfterCursor(cursorPos, mentionRanges);
           if (mentionAfter) {
             e.preventDefault();
@@ -470,7 +470,7 @@ export function MessageInput({
       }
 
       // Normal Enter to send (when autocomplete is closed)
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         onSend();
       }
@@ -491,8 +491,8 @@ export function MessageInput({
   );
 
   // Determine placeholder text
-  const placeholderText = placeholder || 'Type a message...';
-  const compact = density === 'compact';
+  const placeholderText = placeholder || "Type a message...";
+  const compact = density === "compact";
 
   const [isFocused, setIsFocused] = useState(false);
   const hasContent = value.trim().length > 0;
@@ -500,7 +500,7 @@ export function MessageInput({
 
   if (!authenticated) {
     return (
-      <div className={cn('bg-background', compact ? 'px-3 py-2' : 'px-4 py-3')}>
+      <div className={cn("bg-background", compact ? "px-3 py-2" : "px-4 py-3")}>
         <div className="text-center">
           <p className="mb-3 text-muted-foreground text-sm">
             Log in to send messages
@@ -512,14 +512,14 @@ export function MessageInput({
   }
 
   return (
-    <div ref={containerRef} className={cn(compact ? 'p-3' : 'p-4')}>
+    <div ref={containerRef} className={cn(compact ? "p-3" : "p-4")}>
       {/* Composer shell */}
       <div
         className={cn(
-          'relative flex items-center gap-2 rounded-xl border border-border px-3 py-2 transition-shadow duration-200',
-          'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/30',
-          isFocused && 'shadow-sm',
-          (sending || disabled) && 'opacity-60'
+          "relative flex items-end gap-2 rounded-xl border border-border pl-3 pr-1 pb-1 transition-shadow duration-200",
+          "focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/30",
+          isFocused && "shadow-sm",
+          (sending || disabled) && "opacity-60"
         )}
       >
         {/* Mention autocomplete dropdown */}
@@ -541,11 +541,11 @@ export function MessageInput({
               <div
                 ref={highlightRef}
                 className={cn(
-                  'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-[5px]',
+                  "pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words pt-2",
                   compact
-                    ? 'text-sm leading-[22px] md:text-xs'
-                    : 'text-sm leading-[22px]',
-                  'text-foreground'
+                    ? "text-sm leading-[22px] md:text-xs"
+                    : "text-sm leading-[22px]",
+                  "text-foreground"
                 )}
                 aria-hidden="true"
               >
@@ -572,13 +572,13 @@ export function MessageInput({
                 autoCorrect="off"
                 autoCapitalize="off"
                 className={cn(
-                  'relative z-10 max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
+                  "relative z-10 max-h-40 w-full resize-none overflow-y-auto bg-transparent pt-2",
                   compact
-                    ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
-                    : 'min-h-[32px] text-sm leading-[22px]',
-                  'text-transparent caret-foreground placeholder:text-muted-foreground/40',
-                  'outline-none',
-                  'disabled:cursor-not-allowed'
+                    ? "min-h-[32px] text-sm leading-[22px] md:text-xs"
+                    : "min-h-[32px] text-sm leading-[22px]",
+                  "text-transparent caret-foreground placeholder:text-muted-foreground/40",
+                  "outline-none",
+                  "disabled:cursor-not-allowed"
                 )}
               />
             </>
@@ -594,13 +594,13 @@ export function MessageInput({
               disabled={sending || disabled}
               rows={1}
               className={cn(
-                'max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
+                "max-h-40 w-full resize-none overflow-y-auto bg-transparent pt-2",
                 compact
-                  ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
-                  : 'min-h-[32px] text-sm leading-[22px]',
-                'text-foreground placeholder:text-muted-foreground/40',
-                'outline-none',
-                'disabled:cursor-not-allowed'
+                  ? "min-h-[32px] text-sm leading-[22px] md:text-xs"
+                  : "min-h-[32px] text-sm leading-[22px]",
+                "text-foreground placeholder:text-muted-foreground/40",
+                "outline-none",
+                "disabled:cursor-not-allowed"
               )}
             />
           )}
@@ -612,10 +612,10 @@ export function MessageInput({
           onClick={onSend}
           disabled={!canSend}
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-150',
+            "flex size-[34px] shrink-0 items-center justify-center rounded-lg transition-all duration-150",
             canSend
-              ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
-              : 'text-muted-foreground'
+              ? "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
+              : "text-muted-foreground"
           )}
         >
           {sending ? (
