@@ -664,20 +664,7 @@ export default function RewardsPage() {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {/* Total Earned */}
-              <div className="rounded-lg border border-border p-3">
-                <div className="mb-1 flex items-center gap-1">
-                  <Award className="h-4 w-4 text-yellow-500" />
-                  <h2 className="font-medium text-muted-foreground text-xs">
-                    Earned
-                  </h2>
-                </div>
-                <div className="font-bold text-2xl text-yellow-500">
-                  {calculateTotalEarned().toLocaleString()}
-                </div>
-              </div>
-
+            <div className="space-y-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
               {/* Total Points */}
               <div className="rounded-lg border border-border p-3">
                 <div className="mb-1 flex items-center gap-1">
@@ -693,55 +680,70 @@ export default function RewardsPage() {
                 </div>
               </div>
 
-              {/* Total Referrals */}
-              <div className="rounded-lg border border-border p-3">
-                <div className="mb-1 flex items-center gap-1">
-                  <Users className="h-4 w-4 text-primary" />
-                  <h2 className="font-medium text-muted-foreground text-xs">
-                    Referrals
-                  </h2>
+              <div className="grid grid-cols-2 gap-2 sm:contents">
+                {/* Total Earned */}
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-1 flex items-center gap-1">
+                    <Award className="h-4 w-4 text-yellow-500" />
+                    <h2 className="font-medium text-muted-foreground text-xs">
+                      Earned
+                    </h2>
+                  </div>
+                  <div className="font-bold text-2xl text-yellow-500">
+                    {calculateTotalEarned().toLocaleString()}
+                  </div>
                 </div>
-                <div className="font-bold text-2xl text-foreground">
-                  {referralData.stats.totalReferrals}
+
+                {/* Total Referrals */}
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-1 flex items-center gap-1">
+                    <Users className="h-4 w-4 text-primary" />
+                    <h2 className="font-medium text-muted-foreground text-xs">
+                      Referrals
+                    </h2>
+                  </div>
+                  <div className="font-bold text-2xl text-foreground">
+                    {referralData.stats.totalReferrals}
+                  </div>
+                  {referralData.stats.weeklyReferralCount !== undefined &&
+                    referralData.stats.weeklyLimit !== undefined && (
+                      <div className="mt-1.5 border-border border-t pt-1.5">
+                        <div className="mb-0.5 flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Week</span>
+                          <span
+                            className={`font-semibold ${
+                              referralData.stats.weeklyReferralCount >=
+                              referralData.stats.weeklyLimit
+                                ? 'text-red-500'
+                                : referralData.stats.weeklyReferralCount >=
+                                    referralData.stats.weeklyLimit * 0.8
+                                  ? 'text-yellow-500'
+                                  : 'text-foreground'
+                            }`}
+                          >
+                            {referralData.stats.weeklyReferralCount}/
+                            {referralData.stats.weeklyLimit}
+                          </span>
+                        </div>
+                        <div className="h-1 w-full rounded-full bg-background">
+                          <div
+                            className={`h-1 rounded-full transition-all ${
+                              referralData.stats.weeklyReferralCount >=
+                              referralData.stats.weeklyLimit
+                                ? 'bg-red-500'
+                                : referralData.stats.weeklyReferralCount >=
+                                    referralData.stats.weeklyLimit * 0.8
+                                  ? 'bg-yellow-500'
+                                  : 'bg-primary'
+                            }`}
+                            style={{
+                              width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                 </div>
-                {referralData.stats.weeklyReferralCount !== undefined &&
-                  referralData.stats.weeklyLimit !== undefined && (
-                    <div className="mt-1.5 border-border border-t pt-1.5">
-                      <div className="mb-0.5 flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Week</span>
-                        <span
-                          className={`font-semibold ${
-                            referralData.stats.weeklyReferralCount >=
-                            referralData.stats.weeklyLimit
-                              ? 'text-red-500'
-                              : referralData.stats.weeklyReferralCount >=
-                                  referralData.stats.weeklyLimit * 0.8
-                                ? 'text-yellow-500'
-                                : 'text-foreground'
-                          }`}
-                        >
-                          {referralData.stats.weeklyReferralCount}/
-                          {referralData.stats.weeklyLimit}
-                        </span>
-                      </div>
-                      <div className="h-1 w-full rounded-full bg-background">
-                        <div
-                          className={`h-1 rounded-full transition-all ${
-                            referralData.stats.weeklyReferralCount >=
-                            referralData.stats.weeklyLimit
-                              ? 'bg-red-500'
-                              : referralData.stats.weeklyReferralCount >=
-                                  referralData.stats.weeklyLimit * 0.8
-                                ? 'bg-yellow-500'
-                                : 'bg-primary'
-                          }`}
-                          style={{
-                            width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
               </div>
             </div>
 
@@ -824,8 +826,6 @@ export default function RewardsPage() {
                 </button>
               </div>
             </div>
-
-            <Separator />
 
             {/* Referral Link */}
             <div className="rounded-lg border border-border p-4">
