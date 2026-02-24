@@ -1,10 +1,7 @@
-name: CI - Test All
+name: CI - Test All (Manual Legacy)
 
 on:
-  pull_request:
-    branches: [production, staging]
-  push:
-    branches: [production, staging]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
