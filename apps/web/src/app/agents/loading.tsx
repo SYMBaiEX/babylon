@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 
 export default function AgentsLoading() {
   return (
-    <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
+    <div className="flex h-[calc(100dvh-56px-var(--bottom-nav-height))] flex-col md:h-dvh">
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Member sidebar skeleton */}
         <div className="hidden w-64 flex-col border-border border-r p-4 lg:flex">

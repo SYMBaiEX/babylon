@@ -2,6 +2,7 @@
 @config "../../tailwind.config.ts";
 
 :root {
+  --bottom-nav-height: 56px;
   --background: #ffffff;
   --foreground: #0f1419;
   --card: #f7f8f8;

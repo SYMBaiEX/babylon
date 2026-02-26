@@ -627,13 +627,19 @@ export default function TeamChatPage() {
     // Only scroll when loaded data
     if (!teamChat?.chatId || loading) return;
 
-    const endMarker = messagesEndRef.current;
-    if (!endMarker) return;
-
-    // Find the scroll container
-    const container = endMarker.closest('[data-chat-messages-container]');
+    // Find the visible scroll container (mobile and desktop render separate
+    // TeamChatView instances — pick the one that's actually visible).
+    const containers = document.querySelectorAll<HTMLElement>(
+      '[data-chat-messages-container]'
+    );
+    let container: HTMLElement | null = null;
+    for (const el of containers) {
+      if (el.offsetHeight > 0) {
+        container = el;
+        break;
+      }
+    }
     if (!container) {
-      // Fallback: just scroll once
       scrollToBottom('instant');
       return;
     }
@@ -646,7 +652,7 @@ export default function TeamChatPage() {
     let isActive = true;
 
     const scrollToEnd = () => {
-      endMarker.scrollIntoView({ behavior: 'auto', block: 'end' });
+      container.scrollTop = container.scrollHeight;
     };
 
     const finish = () => {
@@ -696,7 +702,7 @@ export default function TeamChatPage() {
       observer?.disconnect();
       if (idleTimeout) clearTimeout(idleTimeout);
     };
-  }, [teamChat?.chatId, loading, messagesEndRef, scrollToBottom]);
+  }, [teamChat?.chatId, loading, scrollToBottom]);
 
   // Auth required — redirect to feed and show login
   useEffect(() => {
@@ -713,7 +719,7 @@ export default function TeamChatPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
+      <div className="flex h-[calc(100dvh-56px-var(--bottom-nav-height))] flex-col md:h-dvh">
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Member sidebar skeleton */}
           <div className="hidden w-80 flex-col border-border border-r p-4 lg:flex">
@@ -759,7 +765,7 @@ export default function TeamChatPage() {
   return (
     <div
       data-command-center-container
-      className="relative mt-14 flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:mt-0 md:h-dvh lg:border-l"
+      className="relative mt-14 flex h-[calc(100dvh-56px-var(--bottom-nav-height))] flex-col overflow-hidden border-border md:mt-0 md:h-dvh lg:border-l"
     >
       {/* Mobile Tab Navigation - visible on small screens only */}
       <div
@@ -1002,6 +1008,9 @@ export default function TeamChatPage() {
           }}
           agentIds={agentIds}
           onViewSettings={handleViewSettings}
+          onInputFocus={() => {
+            setTimeout(() => scrollToBottom('smooth'), 150);
+          }}
         />
       </div>
 
@@ -1107,6 +1116,9 @@ export default function TeamChatPage() {
             onTagClick={handleTagClick}
             agentIds={agentIds}
             onViewSettings={handleViewSettings}
+            onInputFocus={() => {
+              setTimeout(() => scrollToBottom('smooth'), 150);
+            }}
           />
         </div>
 
@@ -1120,7 +1132,8 @@ export default function TeamChatPage() {
         )}
       </div>
 
-      {/* Bottom Panel - spans full width */}
+      {/* Bottom Panel - spans full width, hidden on mobile */}
+      <div className="hidden lg:contents">
       <BottomPanel
         isOpen={bottomPanelOpen}
         onToggle={() => setBottomPanelOpen((prev) => !prev)}
@@ -1252,6 +1265,7 @@ export default function TeamChatPage() {
           </>
         )}
       </BottomPanel>
+      </div>
 
       {/* Right Sidebar - Fixed position overlay, desktop only */}
       {rightSidebarOpen && (

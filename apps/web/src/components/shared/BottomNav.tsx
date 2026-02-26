@@ -67,6 +67,30 @@ function BottomNavContent() {
     return () => clearInterval(interval);
   }, [authenticated, user]);
 
+  // Hide when virtual keyboard is open (interactiveWidget: 'resizes-content'
+  // shrinks the layout viewport, pushing the fixed nav up with the keyboard).
+  // Also sets --bottom-nav-height CSS variable so page height calcs (e.g.
+  // h-[calc(100dvh-112px)]) and main pb-[--bottom-nav-height] adjust too.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    let fullHeight = vv.height;
+    const onResize = () => {
+      if (vv.height > fullHeight) fullHeight = vv.height;
+      const open = fullHeight - vv.height > 150;
+      setKeyboardOpen(open);
+      document.documentElement.style.setProperty(
+        '--bottom-nav-height',
+        open ? '0px' : '56px'
+      );
+    };
+
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
   // If should be hidden, don't render anything
   if (shouldHide) {
     return null;
@@ -114,7 +138,10 @@ function BottomNavContent() {
     <nav
       id="app-bottom-nav"
       data-bottom-nav
-      className="fixed right-0 bottom-0 bottom-nav-rounded left-0 z-50 border-border border-t bg-sidebar md:hidden"
+      className={cn(
+        'fixed right-0 bottom-0 bottom-nav-rounded left-0 z-50 border-border border-t bg-sidebar md:hidden',
+        keyboardOpen && 'hidden'
+      )}
     >
       {/* Navigation Items */}
       <div className="safe-area-bottom flex h-14 items-center justify-between px-4">
