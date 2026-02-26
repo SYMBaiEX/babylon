@@ -17,7 +17,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { balanceTransactions, db, eq, sql, users } from '@babylon/db';
+import { and, balanceTransactions, db, eq, sql, users } from '@babylon/db';
 import { generateSnowflakeId, logger, POINTS } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -88,7 +88,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const agent0Configured =
     process.env.AGENT0_RPC_URL &&
     process.env.AGENT0_PRIVATE_KEY &&
-    process.env.PINATA_JWT;
+    process.env.PINATA_JWT &&
+    process.env.BABYLON_GAME_WALLET_ADDRESS;
 
   if (!agent0Configured) {
     throw new BusinessLogicError(
