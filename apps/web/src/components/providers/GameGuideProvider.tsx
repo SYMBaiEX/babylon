@@ -25,8 +25,8 @@ function hasCompletedGameGuide(
   userId: string | undefined,
   apiCompletedAt: string | null | undefined
 ): boolean {
-  // If API says completed, it's completed
-  if (apiCompletedAt) return true;
+  // TODO: re-enable API check once testing is complete
+  // if (apiCompletedAt) return true;
 
   // Check localStorage backup (keyed by userId to support multiple accounts)
   if (typeof window === 'undefined' || !userId) return false;
@@ -112,9 +112,7 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
 
   // Check if guide should auto-open (only once per session)
   // Only shows after user has completed onboarding (profile + on-chain)
-  // TEMP: Disabled for local testing - remove this override when done
   const shouldAutoShow =
-    false &&
     authenticated &&
     !loadingProfile &&
     !needsOnboarding &&
