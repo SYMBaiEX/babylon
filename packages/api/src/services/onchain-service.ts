@@ -8,7 +8,6 @@
  * Architecture:
  * - Agent0 SDK handles contract interactions, IPFS metadata, and event parsing
  * - Privy embedded wallets provide gas-sponsored signing for users
- * - Deployer wallet signs for agents and local development
  * - Registration is opt-in and costs POINTS.ONCHAIN_REGISTRATION (100 pts)
  *
  * @see https://eips.ethereum.org/EIPS/eip-8004 - ERC-8004 Trustless Agents
@@ -124,29 +123,6 @@ function getOnboardingServices(): OnboardingServices {
 
 const contracts = getContractAddresses();
 export const IDENTITY_REGISTRY = contracts.identityRegistry;
-export const REPUTATION_SYSTEM = contracts.reputationSystem as Address;
-
-const HARDHAT_DEFAULT_PRIVATE_KEY =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
-
-const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
-
-if (
-  chainId !== 31337 &&
-  !process.env.DEPLOYER_PRIVATE_KEY &&
-  process.env.NODE_ENV === 'production'
-) {
-  logger.warn(
-    'DEPLOYER_PRIVATE_KEY not set in production — agent registrations will fail',
-    undefined,
-    'OnboardingOnchain'
-  );
-}
-
-export const DEPLOYER_PRIVATE_KEY: `0x${string}` =
-  chainId === 31337
-    ? HARDHAT_DEFAULT_PRIVATE_KEY
-    : (process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser;

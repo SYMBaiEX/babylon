@@ -517,8 +517,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Generate referral code for new user (ensures they can refer others immediately)
   await getOrCreateReferralCode(result.user.id);
 
-  // Award 1000-pt welcome bonus at profile completion (idempotent, transaction-safe)
+  // Award welcome bonus at profile completion (idempotent, transaction-safe)
   const userId = result.user.id;
+  const welcomeBonus = POINTS.INITIAL_SIGNUP;
   await withTransaction(async (tx) => {
     const [hasWelcomeBonus] = await tx
       .select({ id: balanceTransactions.id })
@@ -536,20 +537,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const [updated] = await tx
       .update(users)
       .set({
-        virtualBalance: sql`(${users.virtualBalance})::numeric + 1000`,
-        totalDeposited: sql`(${users.totalDeposited})::numeric + 1000`,
+        virtualBalance: sql`(${users.virtualBalance})::numeric + ${welcomeBonus}`,
+        totalDeposited: sql`(${users.totalDeposited})::numeric + ${welcomeBonus}`,
       })
       .where(eq(users.id, userId))
       .returning({ virtualBalance: users.virtualBalance });
 
-    const balAfter = Number(updated?.virtualBalance ?? '1000');
-    const balBefore = balAfter - 1000;
+    const balAfter = Number(updated?.virtualBalance ?? String(welcomeBonus));
+    const balBefore = balAfter - welcomeBonus;
 
     await tx.insert(balanceTransactions).values({
       id: await generateSnowflakeId(),
       userId,
       type: 'deposit',
-      amount: '1000',
+      amount: String(welcomeBonus),
       balanceBefore: String(balBefore),
       balanceAfter: String(balAfter),
       description: 'Welcome bonus - initial signup',
@@ -557,8 +558,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
 
     logger.info(
-      'Awarded 1000-pt welcome bonus at profile completion',
-      { userId },
+      `Awarded ${welcomeBonus}-pt welcome bonus at profile completion`,
+      { userId, amount: welcomeBonus },
       'POST /api/users/signup'
     );
   });

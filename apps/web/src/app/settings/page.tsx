@@ -403,7 +403,17 @@ export default function SettingsPage() {
       if (!response.ok) {
         throw new Error(data?.error || 'Registration failed');
       }
-      window.location.reload();
+      if (user && data.user) {
+        setUser({
+          ...user,
+          onChainRegistered: data.user.onChainRegistered ?? true,
+          agent0TokenId: data.user.agent0TokenId ?? undefined,
+          virtualBalance: data.user.virtualBalance
+            ? Number(data.user.virtualBalance)
+            : user.virtualBalance,
+        });
+      }
+      await refresh();
     } catch (err) {
       setRegisterOnchainError(
         err instanceof Error ? err.message : 'Registration failed'

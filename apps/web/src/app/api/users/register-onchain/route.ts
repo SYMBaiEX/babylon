@@ -151,29 +151,28 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'POST /api/users/register-onchain'
   );
 
-  // Ensure wallet is ready
-  const offlineWallet = await ensureOfflineWalletReady({
-    privyId: dbUser.privyId ?? privyId,
-  });
-  const walletAddress = offlineWallet.walletAddress.toLowerCase();
-
-  if (
-    dbUser.privyWalletId !== offlineWallet.privyWalletId ||
-    dbUser.walletAddress?.toLowerCase() !== walletAddress
-  ) {
-    await db
-      .update(users)
-      .set({
-        privyWalletId: offlineWallet.privyWalletId,
-        walletAddress,
-        offlineWalletReady: true,
-        offlineWalletReadyAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, canonicalUserId));
-  }
-
   try {
+    const offlineWallet = await ensureOfflineWalletReady({
+      privyId: dbUser.privyId ?? privyId,
+    });
+    const walletAddress = offlineWallet.walletAddress.toLowerCase();
+
+    if (
+      dbUser.privyWalletId !== offlineWallet.privyWalletId ||
+      dbUser.walletAddress?.toLowerCase() !== walletAddress
+    ) {
+      await db
+        .update(users)
+        .set({
+          privyWalletId: offlineWallet.privyWalletId,
+          walletAddress,
+          offlineWalletReady: true,
+          offlineWalletReadyAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, canonicalUserId));
+    }
+
     const onchainResult = await processOnchainRegistration({
       user: authUser,
       walletAddress,

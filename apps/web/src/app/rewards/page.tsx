@@ -341,7 +341,7 @@ export default function RewardsPage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          toast.error(data.error?.message || 'Registration failed');
+          toast.error(data.error || 'Registration failed');
           return;
         }
         if (data.data?.alreadyRegistered) {
