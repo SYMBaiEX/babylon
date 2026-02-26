@@ -1,7 +1,22 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export function NftPromoBanner() {
+  const pathname = usePathname();
+
+  // Hide banner on pages where it doesn't belong
+  const hiddenPaths = [
+    '/nft',
+    '/markets',
+    '/chats',
+    '/agents/team',
+    '/settings',
+  ];
+  if (hiddenPaths.some((p) => pathname?.startsWith(p))) return null;
+
   return (
     <div className="mt-14 border-primary/30 border-b bg-primary md:mt-0">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5">
@@ -16,7 +31,7 @@ export function NftPromoBanner() {
           <span className="font-bold text-base">ProtoMonkeys</span>
           <span className="hidden text-primary-foreground/80 sm:inline">
             {' '}
-            — Exclusive NFTs for top 100 players on leaderboard
+            — Exclusive NFTs for top 100 players
           </span>
         </div>
         <div className="flex shrink-0 items-center">

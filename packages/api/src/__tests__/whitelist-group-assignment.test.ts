@@ -47,6 +47,7 @@ const mockAssignDefaultGroups = mock(() =>
 
 const mockLoggerInfo = mock();
 const mockLoggerError = mock();
+const mockSendWhitelistWelcomeEmailToUser = mock(() => Promise.resolve());
 
 // Track what the DB insert returns — controls whether addToWhitelist thinks
 // the entry is new or already exists.
@@ -116,6 +117,11 @@ mock.module('../services/points-service', () => ({
   PointsService: {},
 }));
 
+mock.module('../services/whitelist-email-service', () => ({
+  sendWhitelistWelcomeEmailToUser: mockSendWhitelistWelcomeEmailToUser,
+  sendWhitelistWelcomeEmailsToUsers: mock(() => Promise.resolve()),
+}));
+
 // NOW import the function under test
 const { addToWhitelist } = await import('../services/whitelist-service');
 
@@ -130,6 +136,7 @@ describe('addToWhitelist → group assignment', () => {
     mockLoggerError.mockClear();
     mockInsert.mockClear();
     mockReturning.mockClear();
+    mockSendWhitelistWelcomeEmailToUser.mockClear();
   });
 
   it('should call assignDefaultGroups for a NEW whitelist entry', async () => {
@@ -153,6 +160,10 @@ describe('addToWhitelist → group assignment', () => {
 
     expect(mockAssignDefaultGroups).toHaveBeenCalledTimes(1);
     expect(mockAssignDefaultGroups).toHaveBeenCalledWith('user-123');
+    expect(mockSendWhitelistWelcomeEmailToUser).toHaveBeenCalledTimes(1);
+    expect(mockSendWhitelistWelcomeEmailToUser).toHaveBeenCalledWith(
+      'user-123'
+    );
   });
 
   it('should NOT call assignDefaultGroups for an ALREADY EXISTING entry', async () => {
@@ -172,6 +183,7 @@ describe('addToWhitelist → group assignment', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(mockAssignDefaultGroups).toHaveBeenCalledTimes(0);
+    expect(mockSendWhitelistWelcomeEmailToUser).toHaveBeenCalledTimes(0);
   });
 
   it('should log success when groups are assigned', async () => {
@@ -235,12 +247,12 @@ describe('addToWhitelist → group assignment', () => {
     expect(errorLog).toBeDefined();
   });
 
-  it('should not block the whitelist response if group assignment is slow', async () => {
+  it('should not block the whitelist response if side-effects are slow', async () => {
     mockReturning.mockImplementation(() => {
       return Promise.resolve([{ id: capturedNanoid }]);
     });
 
-    // Simulate a slow assignDefaultGroups (500ms)
+    // Simulate slow side-effects (500ms each)
     mockAssignDefaultGroups.mockImplementation(
       () =>
         new Promise((resolve) =>
@@ -256,6 +268,9 @@ describe('addToWhitelist → group assignment', () => {
           )
         )
     );
+    mockSendWhitelistWelcomeEmailToUser.mockImplementation(
+      () => new Promise((resolve) => setTimeout(resolve, 500))
+    );
 
     const startTime = Date.now();
     const result = await addToWhitelist({
@@ -264,8 +279,8 @@ describe('addToWhitelist → group assignment', () => {
     });
     const elapsed = Date.now() - startTime;
 
-    // addToWhitelist should return immediately (fire-and-forget)
+    // addToWhitelist should return immediately (fire-and-forget for both)
     expect(result.alreadyExists).toBe(false);
-    expect(elapsed).toBeLessThan(200); // Should not wait for the 500ms assignment
+    expect(elapsed).toBeLessThan(200);
   });
 });

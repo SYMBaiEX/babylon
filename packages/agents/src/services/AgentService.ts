@@ -1050,7 +1050,8 @@ export class AgentServiceV2 {
         | 'comment'
         | 'dm'
         | 'like'
-        | 'repost';
+        | 'repost'
+        | 'follow';
       level: 'info' | 'warn' | 'error' | 'debug';
       message: string;
       prompt?: string;

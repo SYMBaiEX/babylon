@@ -102,6 +102,7 @@ import {
 } from '@babylon/api';
 import {
   and,
+  balanceTransactions,
   db,
   eq,
   follows,
@@ -515,6 +516,53 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Generate referral code for new user (ensures they can refer others immediately)
   await getOrCreateReferralCode(result.user.id);
+
+  // Award welcome bonus at profile completion (idempotent, transaction-safe)
+  const userId = result.user.id;
+  const welcomeBonus = POINTS.INITIAL_SIGNUP;
+  await withTransaction(async (tx) => {
+    const [hasWelcomeBonus] = await tx
+      .select({ id: balanceTransactions.id })
+      .from(balanceTransactions)
+      .where(
+        and(
+          eq(balanceTransactions.userId, userId),
+          eq(balanceTransactions.description, 'Welcome bonus - initial signup')
+        )
+      )
+      .limit(1);
+
+    if (hasWelcomeBonus) return;
+
+    const [updated] = await tx
+      .update(users)
+      .set({
+        virtualBalance: sql`(${users.virtualBalance})::numeric + ${welcomeBonus}`,
+        totalDeposited: sql`(${users.totalDeposited})::numeric + ${welcomeBonus}`,
+      })
+      .where(eq(users.id, userId))
+      .returning({ virtualBalance: users.virtualBalance });
+
+    const balAfter = Number(updated?.virtualBalance ?? String(welcomeBonus));
+    const balBefore = balAfter - welcomeBonus;
+
+    await tx.insert(balanceTransactions).values({
+      id: await generateSnowflakeId(),
+      userId,
+      type: 'deposit',
+      amount: String(welcomeBonus),
+      balanceBefore: String(balBefore),
+      balanceAfter: String(balAfter),
+      description: 'Welcome bonus - initial signup',
+      createdAt: new Date(),
+    });
+
+    logger.info(
+      `Awarded ${welcomeBonus}-pt welcome bonus at profile completion`,
+      { userId, amount: welcomeBonus },
+      'POST /api/users/signup'
+    );
+  });
 
   // Award points for social account linking
   const pointsAwarded = {

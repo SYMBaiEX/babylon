@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { logger } from '@babylon/shared';
+import { resolveSendGridConfig, sendViaSendGrid } from './email-utils';
 
 export type EmailNotificationCategory =
   | 'realtime'
@@ -19,11 +19,6 @@ export interface SendNotificationEmailInput {
   title: string;
   message: string;
   category: EmailNotificationCategory;
-}
-
-interface ParsedEmailAddress {
-  email: string;
-  name?: string;
 }
 
 const DEFAULT_UNSUBSCRIBE_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -200,63 +195,13 @@ function createEmailText(params: {
   return `${params.title}\n\nType: ${getCategoryLabel(params.category)}\n\n${params.message}${unsubscribeSection}`;
 }
 
-function parseEmailAddress(rawValue: string): ParsedEmailAddress | null {
-  const trimmed = rawValue.trim();
-
-  const namedMatch = trimmed.match(
-    /^(?<name>[^<>]+?)\s*<(?<email>[^<>\s@]+@[^<>\s@]+)>$/
-  );
-
-  const namedEmail = namedMatch?.groups?.email?.trim().toLowerCase();
-  if (namedEmail) {
-    const rawName = namedMatch?.groups?.name?.trim();
-    const normalizedName = rawName?.replace(/^"|"$/g, '');
-    return normalizedName
-      ? { email: namedEmail, name: normalizedName }
-      : { email: namedEmail };
-  }
-
-  const isPlainEmail = /^[^<>\s@]+@[^<>\s@]+$/.test(trimmed);
-  if (isPlainEmail) {
-    return { email: trimmed.toLowerCase() };
-  }
-
-  return null;
-}
-
 export async function sendNotificationEmail(
   input: SendNotificationEmailInput
 ): Promise<{ sent: boolean; reason?: string }> {
-  const sendgridApiKey = process.env.SENDGRID_API_KEY?.trim();
-  if (!sendgridApiKey) {
-    logger.debug(
-      'Skipping notification email: SENDGRID_API_KEY is not configured',
-      { userId: input.userId, category: input.category },
-      'NotificationEmailService'
-    );
+  const logContext = { userId: input.userId, category: input.category };
+  const config = resolveSendGridConfig('NotificationEmailService', logContext);
+  if (!config) {
     return { sent: false, reason: 'provider_not_configured' };
-  }
-
-  const fromAddress =
-    process.env.NOTIFICATION_EMAIL_FROM?.trim() ||
-    process.env.EMAIL_FROM?.trim();
-  if (!fromAddress) {
-    logger.warn(
-      'Skipping notification email: sender address is not configured',
-      { userId: input.userId, category: input.category },
-      'NotificationEmailService'
-    );
-    return { sent: false, reason: 'sender_not_configured' };
-  }
-
-  const parsedFromAddress = parseEmailAddress(fromAddress);
-  if (!parsedFromAddress) {
-    logger.warn(
-      'Skipping notification email: sender address format is invalid',
-      { userId: input.userId, category: input.category, fromAddress },
-      'NotificationEmailService'
-    );
-    return { sent: false, reason: 'sender_not_configured' };
   }
 
   const unsubscribeUrl = buildNotificationUnsubscribeUrl({
@@ -278,52 +223,24 @@ export async function sendNotificationEmail(
     unsubscribeUrl,
   });
 
-  try {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${sendgridApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: parsedFromAddress,
-        personalizations: [{ to: [{ email: input.userEmail }] }],
-        subject,
-        content: [
-          { type: 'text/plain', value: text },
-          { type: 'text/html', value: html },
-        ],
-        headers: unsubscribeUrl
-          ? {
-              'List-Unsubscribe': `<${unsubscribeUrl}>`,
-              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-            }
-          : undefined,
-      }),
-    });
-
-    if (!response.ok) {
-      const responseBody = await response.text().catch(() => '');
-      logger.warn(
-        'Notification email send failed',
-        {
-          userId: input.userId,
-          category: input.category,
-          status: response.status,
-          responseBody,
-        },
-        'NotificationEmailService'
-      );
-      return { sent: false, reason: 'provider_error' };
-    }
-
-    return { sent: true };
-  } catch (error) {
-    logger.error(
-      'Notification email send threw an exception',
-      { userId: input.userId, category: input.category, error },
-      'NotificationEmailService'
-    );
-    return { sent: false, reason: 'network_error' };
-  }
+  return sendViaSendGrid(
+    config.apiKey,
+    {
+      from: config.from,
+      personalizations: [{ to: [{ email: input.userEmail }] }],
+      subject,
+      content: [
+        { type: 'text/plain', value: text },
+        { type: 'text/html', value: html },
+      ],
+      headers: unsubscribeUrl
+        ? {
+            'List-Unsubscribe': `<${unsubscribeUrl}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          }
+        : undefined,
+    },
+    'NotificationEmailService',
+    logContext
+  );
 }

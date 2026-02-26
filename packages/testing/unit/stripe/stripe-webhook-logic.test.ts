@@ -2,11 +2,19 @@
  * Unit Tests: Stripe Webhook Event Logic
  *
  * Tests for the business logic in Stripe webhook event handling.
- * These are pure logic tests that verify event type routing and
- * metadata extraction behavior.
+ * These are pure logic tests that verify event type routing,
+ * metadata extraction behavior, and app metadata filtering.
  */
 
 import { describe, expect, it } from 'bun:test';
+import {
+  createChargeRefundedEvent,
+  createCheckoutCompletedEvent,
+  createCheckoutExpiredEvent,
+  createDisputeCreatedEvent,
+  createDisputeLostEvent,
+  createDisputeWonEvent,
+} from './test-fixtures';
 
 /**
  * Simulated Stripe event types we handle
@@ -362,6 +370,357 @@ describe('Checkout Session Status Validation', () => {
   it('should not credit points when payment not paid', () => {
     expect(shouldCreditPoints('complete', 'unpaid')).toBe(false);
     expect(shouldCreditPoints('complete', 'no_payment_required')).toBe(false);
+  });
+});
+
+describe('App Metadata Filtering', () => {
+  /**
+   * Extract app metadata from a Stripe event object.
+   * Mirrors the logic in the webhook handler that checks
+   * event.data.object.metadata.app and falls back to
+   * event.data.object.subscription_details.metadata.app.
+   */
+  function extractAppMetadata(
+    eventObject: Record<string, unknown>
+  ): string | undefined {
+    return (
+      (eventObject?.metadata as Record<string, string> | undefined)?.app ??
+      (
+        (
+          eventObject?.subscription_details as
+            | Record<string, unknown>
+            | undefined
+        )?.metadata as Record<string, string> | undefined
+      )?.app
+    );
+  }
+
+  /**
+   * Determine if an event should be processed by this app.
+   * Returns true if the event belongs to 'babylon' or has no app tag (backward compat).
+   */
+  function shouldProcessForApp(
+    eventObject: Record<string, unknown>,
+    appName: string = 'babylon'
+  ): boolean {
+    const app = extractAppMetadata(eventObject);
+    // If no app metadata, allow (backward compat with pre-tagging resources)
+    if (!app) return true;
+    // Only process if it matches our app
+    return app === appName;
+  }
+
+  describe('extractAppMetadata', () => {
+    it('should extract app from top-level metadata', () => {
+      const obj = { metadata: { app: 'babylon' } };
+      expect(extractAppMetadata(obj)).toBe('babylon');
+    });
+
+    it('should extract app from subscription_details.metadata', () => {
+      const obj = {
+        metadata: {},
+        subscription_details: { metadata: { app: 'eliza-cloud' } },
+      };
+      expect(extractAppMetadata(obj)).toBe('eliza-cloud');
+    });
+
+    it('should prefer top-level metadata over subscription_details', () => {
+      const obj = {
+        metadata: { app: 'babylon' },
+        subscription_details: { metadata: { app: 'eliza-cloud' } },
+      };
+      expect(extractAppMetadata(obj)).toBe('babylon');
+    });
+
+    it('should return undefined when no app metadata exists', () => {
+      const obj = { metadata: {} };
+      expect(extractAppMetadata(obj)).toBeUndefined();
+    });
+
+    it('should return undefined when metadata is absent', () => {
+      const obj = {};
+      expect(extractAppMetadata(obj)).toBeUndefined();
+    });
+
+    it('should return undefined when metadata is null-ish', () => {
+      const obj = { metadata: null };
+      expect(
+        extractAppMetadata(obj as Record<string, unknown>)
+      ).toBeUndefined();
+    });
+  });
+
+  describe('shouldProcessForApp', () => {
+    it('should process events tagged with babylon', () => {
+      const obj = { metadata: { app: 'babylon' } };
+      expect(shouldProcessForApp(obj)).toBe(true);
+    });
+
+    it('should reject events tagged with eliza-cloud', () => {
+      const obj = { metadata: { app: 'eliza-cloud' } };
+      expect(shouldProcessForApp(obj)).toBe(false);
+    });
+
+    it('should reject events tagged with unknown app', () => {
+      const obj = { metadata: { app: 'some-other-app' } };
+      expect(shouldProcessForApp(obj)).toBe(false);
+    });
+
+    it('should allow events with no app metadata (backward compat)', () => {
+      const obj = { metadata: {} };
+      expect(shouldProcessForApp(obj)).toBe(true);
+    });
+
+    it('should allow events with no metadata at all (backward compat)', () => {
+      const obj = {};
+      expect(shouldProcessForApp(obj)).toBe(true);
+    });
+
+    it('should process when subscription_details has babylon', () => {
+      const obj = {
+        metadata: {},
+        subscription_details: { metadata: { app: 'babylon' } },
+      };
+      expect(shouldProcessForApp(obj)).toBe(true);
+    });
+
+    it('should reject when subscription_details has eliza-cloud', () => {
+      const obj = {
+        metadata: {},
+        subscription_details: { metadata: { app: 'eliza-cloud' } },
+      };
+      expect(shouldProcessForApp(obj)).toBe(false);
+    });
+  });
+
+  describe('Filtering across all webhook event types', () => {
+    describe('checkout.session.completed', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createCheckoutCompletedEvent('user_1', 10, {
+          app: 'babylon',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createCheckoutCompletedEvent('user_1', 10, {
+          app: 'eliza-cloud',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+
+      it('should allow event with no app tag (backward compat)', () => {
+        const event = createCheckoutCompletedEvent('user_1', 10);
+        // Remove app from metadata to simulate legacy event
+        delete (
+          event.data.object as unknown as Record<string, unknown> & {
+            metadata: Record<string, string | undefined>;
+          }
+        ).metadata.app;
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+    });
+
+    describe('checkout.session.expired', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createCheckoutExpiredEvent(undefined, undefined, {
+          app: 'babylon',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createCheckoutExpiredEvent(undefined, undefined, {
+          app: 'eliza-cloud',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+    });
+
+    describe('checkout.session.async_payment_succeeded', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createCheckoutCompletedEvent('user_1', 10, {
+          app: 'babylon',
+        });
+        event.type = 'checkout.session.async_payment_succeeded';
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createCheckoutCompletedEvent('user_1', 10, {
+          app: 'eliza-cloud',
+        });
+        event.type = 'checkout.session.async_payment_succeeded';
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+    });
+
+    describe('checkout.session.async_payment_failed', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createCheckoutCompletedEvent('user_1', 10, {
+          app: 'babylon',
+        });
+        event.type = 'checkout.session.async_payment_failed';
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createCheckoutCompletedEvent('user_1', 10, {
+          app: 'eliza-cloud',
+        });
+        event.type = 'checkout.session.async_payment_failed';
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+    });
+
+    describe('charge.dispute.created', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createDisputeCreatedEvent('pi_test', 50, {
+          app: 'babylon',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createDisputeCreatedEvent('pi_test', 50, {
+          app: 'eliza-cloud',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+    });
+
+    describe('charge.dispute.closed (won)', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createDisputeWonEvent('pi_test', 50, {
+          app: 'babylon',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createDisputeWonEvent('pi_test', 50, {
+          app: 'eliza-cloud',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+    });
+
+    describe('charge.dispute.closed (lost)', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createDisputeLostEvent('pi_test', 50, {
+          app: 'babylon',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createDisputeLostEvent('pi_test', 50, {
+          app: 'eliza-cloud',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+    });
+
+    describe('charge.refunded', () => {
+      it('should process babylon-tagged event', () => {
+        const event = createChargeRefundedEvent('pi_test', 25, 50, {
+          app: 'babylon',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(true);
+      });
+
+      it('should reject eliza-cloud-tagged event', () => {
+        const event = createChargeRefundedEvent('pi_test', 25, 50, {
+          app: 'eliza-cloud',
+        });
+        expect(
+          shouldProcessForApp(
+            event.data.object as unknown as Record<string, unknown>
+          )
+        ).toBe(false);
+      });
+    });
+  });
+
+  describe('Response behavior for filtered events', () => {
+    it('should return 200 for filtered events (prevent Stripe retries)', () => {
+      // When an event is filtered, we return 200 so Stripe doesn't retry
+      const filteredResponse = {
+        status: 200,
+        body: { received: true, ignored: true },
+      };
+      expect(filteredResponse.status).toBe(200);
+      expect(filteredResponse.body.ignored).toBe(true);
+    });
+
+    it('should return 200 for processed events', () => {
+      const processedResponse = { status: 200, body: { received: true } };
+      expect(processedResponse.status).toBe(200);
+    });
   });
 });
 

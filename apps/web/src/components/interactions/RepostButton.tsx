@@ -44,9 +44,9 @@ const sizeClasses = {
 };
 
 const iconSizes = {
-  sm: 18,
-  md: 20,
-  lg: 22,
+  sm: 20,
+  md: 22,
+  lg: 24,
 };
 
 const skeletonSizes = {
@@ -210,10 +210,10 @@ export function RepostButton({
             }}
           />
 
-          {/* Modal - Mobile */}
-          <div className="fixed inset-x-4 top-20 bottom-auto z-[110] flex max-h-[85vh] flex-col overflow-hidden rounded-2xl border border-border bg-sidebar shadow-2xl md:hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between border-border border-b px-6 py-4">
+          {/* Modal - Mobile (Full Screen) */}
+          <div className="fixed inset-0 z-[110] flex flex-col bg-sidebar md:hidden">
+            {/* Header - Fixed */}
+            <div className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -251,19 +251,23 @@ export function RepostButton({
               </button>
             </div>
 
-            {/* Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              {/* Quote Comment Textarea */}
+            {/* Content - Whole area scrolls */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+              {/* Quote Comment Textarea - auto-grows, never scrolls internally */}
               <textarea
                 value={quoteComment}
-                onChange={(e) => setQuoteComment(e.target.value)}
+                onChange={(e) => {
+                  setQuoteComment(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
                 placeholder="Add your thoughts (optional)"
                 maxLength={500}
                 rows={3}
                 aria-label="Quote comment"
                 aria-describedby="char-count-mobile"
                 className={cn(
-                  'mb-1 w-full rounded-xl p-3',
+                  'mb-1 w-full overflow-hidden rounded-xl py-3 pr-3',
                   'border-0 bg-transparent',
                   'text-foreground placeholder:text-muted-foreground',
                   'resize-none focus:outline-none',
@@ -273,21 +277,21 @@ export function RepostButton({
               />
 
               {/* Character Count */}
-              {quoteComment.length > 0 && (
-                <div className="mb-3 flex justify-end">
-                  <span
-                    id="char-count-mobile"
-                    className={cn(
-                      'text-xs',
-                      quoteComment.length > 450
+              <div className="mb-3 flex justify-end">
+                <span
+                  id="char-count-mobile"
+                  className={cn(
+                    'text-xs',
+                    quoteComment.length === 0
+                      ? 'invisible'
+                      : quoteComment.length > 450
                         ? 'text-red-400'
                         : 'text-muted-foreground'
-                    )}
-                  >
-                    {quoteComment.length}/500
-                  </span>
-                </div>
-              )}
+                  )}
+                >
+                  {quoteComment.length || 0}/500
+                </span>
+              </div>
 
               {/* Original Post Preview */}
               {postData && (
@@ -382,7 +386,7 @@ export function RepostButton({
               </div>
 
               {/* Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="flex-1 overflow-y-auto px-6 pb-6">
                 {/* Quote Comment Textarea */}
                 <textarea
                   value={quoteComment}
@@ -393,7 +397,7 @@ export function RepostButton({
                   aria-label="Quote comment"
                   aria-describedby="char-count-desktop"
                   className={cn(
-                    'mb-1 w-full rounded-xl p-4',
+                    'mb-1 w-full rounded-xl py-4 pr-4',
                     'border-0 bg-transparent',
                     'text-base text-foreground placeholder:text-muted-foreground',
                     'resize-none focus:outline-none',
@@ -403,21 +407,21 @@ export function RepostButton({
                 />
 
                 {/* Character Count */}
-                {quoteComment.length > 0 && (
-                  <div className="mb-4 flex justify-end">
-                    <span
-                      id="char-count-desktop"
-                      className={cn(
-                        'text-sm',
-                        quoteComment.length > 450
+                <div className="mb-4 flex justify-end">
+                  <span
+                    id="char-count-desktop"
+                    className={cn(
+                      'text-sm',
+                      quoteComment.length === 0
+                        ? 'invisible'
+                        : quoteComment.length > 450
                           ? 'text-red-400'
                           : 'text-muted-foreground'
-                      )}
-                    >
-                      {quoteComment.length}/500
-                    </span>
-                  </div>
-                )}
+                    )}
+                  >
+                    {quoteComment.length || 0}/500
+                  </span>
+                </div>
 
                 {/* Original Post Preview */}
                 {postData && (

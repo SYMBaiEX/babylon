@@ -30,6 +30,7 @@ mock.module('@babylon/db', () => ({
   db: mockDb,
   dmAcceptances: {},
   eq: (a: unknown, b: unknown) => ({ a, b }),
+  follows: { id: 'id', followerId: 'followerId', followingId: 'followingId' },
   gte: (...args: unknown[]) => args,
   isNull: (...args: unknown[]) => args,
   messages: {},
@@ -50,6 +51,9 @@ mock.module('@babylon/api', () => ({
   broadcastAgentActivity: mock(async () => undefined),
   broadcastChatMessage: mock(async () => undefined),
   broadcastToChannel: mock(async () => undefined),
+  cachedDb: {
+    invalidateUserCache: mock(async () => undefined),
+  },
 }));
 
 mock.module('@babylon/core/markets/perps', () => ({
@@ -74,6 +78,7 @@ mock.module('@babylon/engine', () => ({
   generateTagsFromPost: mock(async () => []),
   invalidateAfterPredictionTrade: mock(async () => undefined),
   PredictionPricing: {},
+  createPerpPriceImpactPort: mock(() => ({})),
   StaticDataRegistry: { getActor: mock(() => null) },
   storeTagsForPost: mock(async () => undefined),
   WalletService: class {},

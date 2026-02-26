@@ -166,7 +166,7 @@ export function CommentCard({
           <Avatar
             id={comment.userId}
             name={comment.userName}
-            size="sm"
+            size="md"
             src={comment.userAvatar || undefined}
             imageUrl={comment.userAvatar || undefined}
           />
@@ -175,29 +175,26 @@ export function CommentCard({
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header: Username/handle on left, timestamp and actions on right */}
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex items-start justify-between gap-3 leading-none sm:items-center sm:pt-0.5">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
                 href={getProfileUrl(comment.userId, comment.userUsername)}
-                className="truncate font-semibold text-sm hover:underline"
+                className="truncate font-semibold text-[15px] text-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {comment.userName}
               </Link>
-              {showVerifiedBadge && (
-                <VerifiedBadge size="sm" className="-ml-1" />
-              )}
+              {showVerifiedBadge && <VerifiedBadge size="sm" />}
               <Link
                 href={getProfileUrl(comment.userId, comment.userUsername)}
-                className="truncate text-muted-foreground text-xs hover:underline"
+                className="truncate text-[15px] text-muted-foreground leading-tight hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 @{comment.userUsername || comment.userName}
               </Link>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {/* Timestamp - Right aligned */}
-              <span className="text-muted-foreground text-xs">
+            <div className="flex items-start gap-2 sm:items-center">
+              <span className="text-[15px] text-muted-foreground leading-tight">
                 {formatTimeAgo(new Date(comment.createdAt).toISOString())}
               </span>
 

@@ -107,6 +107,26 @@ export async function POST(req: Request) {
     'StripeWebhook'
   );
 
+  // Filter events by app metadata — only process events belonging to this app (babylon).
+  // Events without metadata.app are allowed through for backward compatibility with
+  // resources created before this tagging was added.
+  const eventObject = event.data.object as unknown as Record<string, unknown>;
+  const appMetadata =
+    (eventObject?.metadata as Record<string, string> | undefined)?.app ??
+    (
+      (eventObject?.subscription_details as Record<string, unknown> | undefined)
+        ?.metadata as Record<string, string> | undefined
+    )?.app;
+
+  if (appMetadata && appMetadata !== 'babylon') {
+    logger.info(
+      `Ignoring Stripe event for different app: ${appMetadata}`,
+      { eventId: event.id, type: event.type, app: appMetadata },
+      'StripeWebhook'
+    );
+    return NextResponse.json({ received: true, ignored: true });
+  }
+
   // Handle events - each handler returns a result indicating success/failure
   let result: WebhookHandlerResult = { success: true };
 

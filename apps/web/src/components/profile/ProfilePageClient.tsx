@@ -1107,7 +1107,7 @@ export function ProfilePageClient({
                 </div>
               </div>
 
-              <div className="space-y-2 px-4 py-4">
+              <div className="sm:px-4 sm:py-4">
                 {tab === 'trades' ? (
                   <TradesFeed userId={actorInfo.id} />
                 ) : tab === 'replies' ? (
@@ -1146,7 +1146,7 @@ export function ProfilePageClient({
                     }
                   />
                 ) : (
-                  <div className="space-y-3">
+                  <div>
                     {filteredPosts.map((item, i) => {
                       const postData = {
                         id: item.post.id,
