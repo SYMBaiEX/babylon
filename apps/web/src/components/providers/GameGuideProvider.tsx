@@ -25,8 +25,7 @@ function hasCompletedGameGuide(
   userId: string | undefined,
   apiCompletedAt: string | null | undefined
 ): boolean {
-  // TODO: re-enable API check once testing is complete
-  // if (apiCompletedAt) return true;
+  if (apiCompletedAt) return true;
 
   // Check localStorage backup (keyed by userId to support multiple accounts)
   if (typeof window === 'undefined' || !userId) return false;
