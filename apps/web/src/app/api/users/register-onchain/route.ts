@@ -84,9 +84,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   if (dbUser.onChainRegistered && dbUser.agent0TokenId) {
     return successResponse(
       {
-        message: 'Already registered on-chain',
-        alreadyRegistered: true,
-        agent0TokenId: dbUser.agent0TokenId,
+        onchain: {
+          message: 'Already registered on-chain',
+          alreadyRegistered: true,
+          tokenId: dbUser.agent0TokenId,
+          userId: canonicalUserId,
+        },
+        user: {
+          id: dbUser.id,
+          username: dbUser.username,
+          displayName: dbUser.displayName,
+          walletAddress: dbUser.walletAddress,
+          onChainRegistered: dbUser.onChainRegistered,
+          agent0TokenId: dbUser.agent0TokenId,
+          virtualBalance: dbUser.virtualBalance,
+        },
+        cost: 0,
       },
       200
     );

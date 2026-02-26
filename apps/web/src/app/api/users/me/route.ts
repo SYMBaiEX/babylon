@@ -191,6 +191,7 @@ const userSelectFields = {
   hasProfileImage: users.hasProfileImage,
   onChainRegistered: users.onChainRegistered,
   nftTokenId: users.nftTokenId,
+  agent0TokenId: users.agent0TokenId,
   referralCode: users.referralCode,
   referredBy: users.referredBy,
   reputationPoints: users.reputationPoints,
@@ -242,6 +243,7 @@ type UserSelectResult = {
   hasProfileImage: boolean;
   onChainRegistered: boolean;
   nftTokenId: number | null;
+  agent0TokenId: number | null;
   referralCode: string | null;
   referredBy: string | null;
   reputationPoints: number;
@@ -297,6 +299,7 @@ function buildUserResponse(
     hasProfileImage: dbUser.hasProfileImage,
     onChainRegistered: dbUser.onChainRegistered,
     nftTokenId: dbUser.nftTokenId,
+    agent0TokenId: dbUser.agent0TokenId,
     referralCode: dbUser.referralCode,
     referredBy: dbUser.referredBy,
     reputationPoints: dbUser.reputationPoints,

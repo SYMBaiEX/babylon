@@ -344,7 +344,7 @@ export default function RewardsPage() {
           toast.error(data.error || 'Registration failed');
           return;
         }
-        if (data.data?.alreadyRegistered) {
+        if (data.onchain?.alreadyRegistered) {
           toast.info('Already registered on-chain');
         } else {
           toast.success('On-chain registration complete!');
