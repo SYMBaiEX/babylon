@@ -82,6 +82,13 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'submit_feedback',
   }, // 5 feedback submissions per minute
 
+  // On-chain registration (expensive operation, limit aggressively)
+  ONCHAIN_REGISTRATION: {
+    maxRequests: 3,
+    windowMs: 3600000,
+    actionType: 'onchain_registration',
+  }, // 3 attempts per hour
+
   // Profile updates
   UPDATE_PROFILE: {
     maxRequests: 5,
