@@ -70,7 +70,7 @@ function BottomNavContent() {
   // Hide when virtual keyboard is open (interactiveWidget: 'resizes-content'
   // shrinks the layout viewport, pushing the fixed nav up with the keyboard).
   // Also sets --bottom-nav-height CSS variable so page height calcs (e.g.
-  // h-[calc(100dvh-112px)]) and main pb-[--bottom-nav-height] adjust too.
+  // h-[calc(100dvh-56px-var(--bottom-nav-height))]) and main pb-[--bottom-nav-height] adjust too.
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
     const vv = window.visualViewport;
