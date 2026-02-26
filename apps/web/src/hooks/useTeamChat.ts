@@ -280,11 +280,24 @@ export function useTeamChat(): UseTeamChatReturn {
     markPendingReactionDelta,
   });
 
-  // Helper to find scroll container from messagesEndRef
+  // Helper to find the visible scroll container.
+  // On mobile/desktop, two TeamChatView instances share the same messagesEndRef,
+  // but only one is visible at a time. Prefer the ref's ancestor, but fall back
+  // to querying for the visible [data-chat-messages-container].
   const getScrollContainer = useCallback((): HTMLElement | null => {
-    return messagesEndRef.current?.closest(
+    const fromRef = messagesEndRef.current?.closest(
       '[class*="overflow"]'
     ) as HTMLElement | null;
+    if (fromRef && fromRef.offsetHeight > 0) return fromRef;
+
+    // Ref points to a hidden container — find the visible one
+    const containers = document.querySelectorAll<HTMLElement>(
+      '[data-chat-messages-container]'
+    );
+    for (const el of containers) {
+      if (el.offsetHeight > 0) return el;
+    }
+    return fromRef;
   }, []);
 
   // Scroll to bottom helper

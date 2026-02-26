@@ -187,6 +187,8 @@ export interface MessageInputProps {
   placeholder?: string;
   /** Mentionable members - when provided, enables @mention autocomplete */
   mentionableMembers?: MentionableAgent[];
+  /** Called when the input is focused (e.g. to scroll chat to bottom on mobile keyboard open) */
+  onInputFocus?: () => void;
 }
 
 /**
@@ -205,6 +207,7 @@ export function MessageInput({
   disabled = false,
   placeholder,
   mentionableMembers,
+  onInputFocus,
 }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -561,7 +564,10 @@ export function MessageInput({
                 onKeyDown={handleKeyDown}
                 onScroll={handleScroll}
                 onSelect={handleSelect}
-                onFocus={() => setIsFocused(true)}
+                onFocus={() => {
+                  setIsFocused(true);
+                  onInputFocus?.();
+                }}
                 onBlur={() => setIsFocused(false)}
                 aria-label="Message input, use @ to mention members"
                 placeholder={placeholderText}
@@ -588,7 +594,10 @@ export function MessageInput({
               value={value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
+              onFocus={() => {
+                setIsFocused(true);
+                onInputFocus?.();
+              }}
               onBlur={() => setIsFocused(false)}
               placeholder={placeholderText}
               disabled={sending || disabled}
