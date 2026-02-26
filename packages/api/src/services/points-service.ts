@@ -41,11 +41,37 @@ import {
 const UNQUALIFIED_REFERRAL_LIMIT = 10;
 
 /**
- * Leaderboard category type
- *
- * @description Categories for filtering leaderboard results.
+ * Leaderboard category type (legacy — used by existing getLeaderboard)
  */
 type LeaderboardCategory = 'all' | 'earned' | 'referral' | 'total';
+
+/**
+ * New leaderboard types: per-wallet (individual wallets) or team (user + agents)
+ */
+type LeaderboardType = 'wallet' | 'team';
+
+/**
+ * Entry in the new wallet/team leaderboards
+ */
+interface LeaderboardEntry {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  profileImageUrl: string | null;
+  totalPoints: number;
+  balance: number;
+  lifetimePnL: number;
+  createdAt: Date;
+  rank: number;
+  isAgent: boolean;
+  managedBy?: string | null;
+  onChainRegistered: boolean;
+  nftTokenId: number | null;
+  teamTotalPoints?: number;
+  agentCount?: number;
+  userPoints?: number;
+  agentPoints?: number;
+}
 
 /**
  * Result of awarding points to a user
@@ -1603,5 +1629,298 @@ export class PointsService {
     const higherActorsCount = higherActorsResult?.count ?? 0;
 
     return higherUsersCount + higherActorsCount + 1;
+  }
+
+  /**
+   * Per-wallet leaderboard: every wallet (users AND agents) ranked by totalPoints.
+   */
+  static async getWalletLeaderboard(page = 1, pageSize = 100) {
+    const skip = (page - 1) * pageSize;
+
+    const walletSelectFields = {
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      virtualBalance: users.virtualBalance,
+      lifetimePnL: users.lifetimePnL,
+      totalPoints: users.totalPoints,
+      createdAt: users.createdAt,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+      isAgent: users.isAgent,
+      managedBy: users.managedBy,
+    };
+
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(users)
+      .where(eq(users.isActor, false));
+
+    const usersResult = await db
+      .select(walletSelectFields)
+      .from(users)
+      .where(eq(users.isActor, false))
+      .orderBy(desc(users.totalPoints))
+      .limit(pageSize)
+      .offset(skip);
+
+    const usersWithRank = usersResult.map((user, index) => ({
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      profileImageUrl: user.profileImageUrl,
+      totalPoints: Number(user.totalPoints ?? 0),
+      balance: Number(user.virtualBalance ?? 0),
+      lifetimePnL: Number(user.lifetimePnL ?? 0),
+      createdAt: user.createdAt,
+      isAgent: user.isAgent,
+      managedBy: user.managedBy,
+      onChainRegistered: user.onChainRegistered,
+      nftTokenId: user.nftTokenId,
+      rank: skip + index + 1,
+    }));
+
+    const totalCount = countResult?.count ?? 0;
+    return {
+      users: usersWithRank,
+      totalCount,
+      page,
+      pageSize,
+      totalPages: Math.ceil(totalCount / pageSize),
+      leaderboardType: 'wallet' as const,
+    };
+  }
+
+  /**
+   * Team leaderboard: each user + their agents combined, ranked by sum of totalPoints.
+   */
+  static async getTeamLeaderboard(page = 1, pageSize = 100) {
+    const skip = (page - 1) * pageSize;
+
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(users)
+      .where(and(eq(users.isActor, false), eq(users.isAgent, false)));
+
+    const teamsResult = await db.execute(sql`
+      SELECT
+        u."id",
+        u."username",
+        u."displayName",
+        u."profileImageUrl",
+        u."totalPoints"::numeric AS "userPoints",
+        u."virtualBalance"::numeric AS "balance",
+        u."lifetimePnL"::numeric AS "lifetimePnL",
+        u."onChainRegistered",
+        u."nftTokenId",
+        u."createdAt",
+        COALESCE(agents."agentPoints", 0)::numeric AS "agentPoints",
+        COALESCE(agents."agentCount", 0)::int AS "agentCount",
+        (u."totalPoints"::numeric + COALESCE(agents."agentPoints", 0))::numeric AS "teamTotalPoints"
+      FROM "User" u
+      LEFT JOIN (
+        SELECT "managedBy",
+               SUM("totalPoints"::numeric) AS "agentPoints",
+               COUNT(*)::int AS "agentCount"
+        FROM "User"
+        WHERE "isAgent" = true
+        GROUP BY "managedBy"
+      ) agents ON agents."managedBy" = u."id"
+      WHERE u."isActor" = false AND u."isAgent" = false
+      ORDER BY "teamTotalPoints" DESC
+      LIMIT ${pageSize} OFFSET ${skip}
+    `);
+
+    const rows = teamsResult as unknown as Array<{
+      id: string;
+      username: string | null;
+      displayName: string | null;
+      profileImageUrl: string | null;
+      userPoints: string;
+      balance: string;
+      lifetimePnL: string;
+      onChainRegistered: boolean;
+      nftTokenId: number | null;
+      createdAt: Date;
+      agentPoints: string;
+      agentCount: number;
+      teamTotalPoints: string;
+    }>;
+
+    const usersWithRank = rows.map((team, index) => ({
+      id: team.id,
+      username: team.username,
+      displayName: team.displayName,
+      profileImageUrl: team.profileImageUrl,
+      totalPoints: Number(team.userPoints ?? 0),
+      teamTotalPoints: Number(team.teamTotalPoints ?? 0),
+      userPoints: Number(team.userPoints ?? 0),
+      agentPoints: Number(team.agentPoints ?? 0),
+      agentCount: team.agentCount ?? 0,
+      balance: Number(team.balance ?? 0),
+      lifetimePnL: Number(team.lifetimePnL ?? 0),
+      createdAt: team.createdAt,
+      isAgent: false,
+      onChainRegistered: team.onChainRegistered,
+      nftTokenId: team.nftTokenId,
+      rank: skip + index + 1,
+    }));
+
+    const totalCount = countResult?.count ?? 0;
+    return {
+      users: usersWithRank,
+      totalCount,
+      page,
+      pageSize,
+      totalPages: Math.ceil(totalCount / pageSize),
+      leaderboardType: 'team' as const,
+    };
+  }
+
+  /**
+   * Get a user's position on either the wallet or team leaderboard.
+   * For agents viewing the team leaderboard, resolves to their manager's team.
+   */
+  static async getUserPosition(
+    userId: string,
+    leaderboardType: LeaderboardType,
+    pageSize = 100
+  ): Promise<{
+    rank: number;
+    page: number;
+    entry: LeaderboardEntry;
+  } | null> {
+    const positionSelectFields = {
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      virtualBalance: users.virtualBalance,
+      lifetimePnL: users.lifetimePnL,
+      totalPoints: users.totalPoints,
+      createdAt: users.createdAt,
+      onChainRegistered: users.onChainRegistered,
+      nftTokenId: users.nftTokenId,
+      isAgent: users.isAgent,
+      managedBy: users.managedBy,
+    };
+
+    const userResult = await db
+      .select(positionSelectFields)
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!userResult[0]) return null;
+    const user = userResult[0];
+
+    const effectiveUserId =
+      leaderboardType === 'team' && user.isAgent && user.managedBy
+        ? user.managedBy
+        : user.id;
+
+    let effectiveUser = user;
+    if (effectiveUserId !== user.id) {
+      const managerResult = await db
+        .select(positionSelectFields)
+        .from(users)
+        .where(eq(users.id, effectiveUserId))
+        .limit(1);
+      if (!managerResult[0]) return null;
+      effectiveUser = managerResult[0];
+    }
+
+    if (leaderboardType === 'wallet') {
+      const [higherCount] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(
+          and(
+            eq(users.isActor, false),
+            gt(users.totalPoints, effectiveUser.totalPoints)
+          )
+        );
+
+      const rank = (higherCount?.count ?? 0) + 1;
+      return {
+        rank,
+        page: Math.ceil(rank / pageSize),
+        entry: {
+          id: effectiveUser.id,
+          username: effectiveUser.username,
+          displayName: effectiveUser.displayName,
+          profileImageUrl: effectiveUser.profileImageUrl,
+          totalPoints: Number(effectiveUser.totalPoints ?? 0),
+          balance: Number(effectiveUser.virtualBalance ?? 0),
+          lifetimePnL: Number(effectiveUser.lifetimePnL ?? 0),
+          createdAt: effectiveUser.createdAt,
+          isAgent: effectiveUser.isAgent,
+          managedBy: effectiveUser.managedBy,
+          onChainRegistered: effectiveUser.onChainRegistered,
+          nftTokenId: effectiveUser.nftTokenId,
+          rank,
+        },
+      };
+    }
+
+    // Team leaderboard position
+    const [agentSum] = await db
+      .select({
+        total: sql<string>`COALESCE(SUM("totalPoints"::numeric), 0)`,
+      })
+      .from(users)
+      .where(
+        and(eq(users.managedBy, effectiveUserId), eq(users.isAgent, true))
+      );
+
+    const teamTotal =
+      Number(effectiveUser.totalPoints) + Number(agentSum?.total ?? 0);
+
+    const higherResult = await db.execute(sql`
+      SELECT COUNT(*)::int AS "count" FROM (
+        SELECT u."id"
+        FROM "User" u
+        LEFT JOIN (
+          SELECT "managedBy", SUM("totalPoints"::numeric) AS "agentPoints"
+          FROM "User" WHERE "isAgent" = true GROUP BY "managedBy"
+        ) a ON a."managedBy" = u."id"
+        WHERE u."isActor" = false AND u."isAgent" = false
+          AND (u."totalPoints"::numeric + COALESCE(a."agentPoints", 0)) > ${teamTotal}
+      ) higher
+    `);
+
+    const higherRows = higherResult as unknown as Array<{ count: number }>;
+    const rank = (higherRows[0]?.count ?? 0) + 1;
+
+    const [agentCountResult] = await db
+      .select({ count: count() })
+      .from(users)
+      .where(
+        and(eq(users.managedBy, effectiveUserId), eq(users.isAgent, true))
+      );
+
+    return {
+      rank,
+      page: Math.ceil(rank / pageSize),
+      entry: {
+        id: effectiveUser.id,
+        username: effectiveUser.username,
+        displayName: effectiveUser.displayName,
+        profileImageUrl: effectiveUser.profileImageUrl,
+        totalPoints: Number(effectiveUser.totalPoints ?? 0),
+        teamTotalPoints: teamTotal,
+        userPoints: Number(effectiveUser.totalPoints ?? 0),
+        agentPoints: Number(agentSum?.total ?? 0),
+        agentCount: agentCountResult?.count ?? 0,
+        balance: Number(effectiveUser.virtualBalance ?? 0),
+        lifetimePnL: Number(effectiveUser.lifetimePnL ?? 0),
+        createdAt: effectiveUser.createdAt,
+        isAgent: false,
+        onChainRegistered: effectiveUser.onChainRegistered,
+        nftTokenId: effectiveUser.nftTokenId,
+        rank,
+      },
+    };
   }
 }
