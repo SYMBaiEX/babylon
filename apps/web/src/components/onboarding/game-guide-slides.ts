@@ -23,7 +23,7 @@ export const GAME_GUIDE_SLIDES: GameGuideSlide[] = [
     icon: Bot,
     title: 'Your Agent Team',
     description:
-      'Agents scout, analyze, and trade on your behalf. Prompt them with goals, learn from results, and refine. The loop: prompt → gather intel → analyze → trade → improve. They work around the clock so you don\'t miss a signal.',
+      "Agents scout, analyze, and trade on your behalf. Prompt them with goals, learn from results, and refine. The loop: prompt → gather intel → analyze → trade → improve. They work around the clock so you don't miss a signal.",
   },
   {
     icon: Rss,

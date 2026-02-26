@@ -75,7 +75,7 @@ export function GameGuideModal({
       onComplete();
       router.push(href);
     },
-    [onComplete, router],
+    [onComplete, router]
   );
 
   // Keyboard navigation
@@ -118,7 +118,7 @@ export function GameGuideModal({
       <div
         className={cn(
           'absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300',
-          isVisible ? 'opacity-100' : 'opacity-0',
+          isVisible ? 'opacity-100' : 'opacity-0'
         )}
       />
 
@@ -127,7 +127,7 @@ export function GameGuideModal({
         <div
           className={cn(
             'my-8 w-full max-w-2xl rounded-lg border border-border bg-background shadow-2xl transition-all duration-300',
-            isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0',
+            isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
           )}
         >
           {/* Header */}
@@ -144,7 +144,7 @@ export function GameGuideModal({
                   'text-muted-foreground text-sm transition-colors',
                   isSubmitting
                     ? 'cursor-not-allowed opacity-40'
-                    : 'hover:text-foreground',
+                    : 'hover:text-foreground'
                 )}
               >
                 Skip
@@ -165,7 +165,7 @@ export function GameGuideModal({
                       ? 'w-6 bg-[#0066FF]'
                       : i < currentSlide
                         ? 'w-2 bg-[#0066FF]/50'
-                        : 'w-2 bg-muted-foreground/30',
+                        : 'w-2 bg-muted-foreground/30'
                   )}
                 />
               ))}
@@ -211,7 +211,7 @@ export function GameGuideModal({
                           'rounded-lg px-4 py-2 font-medium text-sm transition-colors',
                           i === 0
                             ? 'bg-[#0066FF] text-primary-foreground hover:bg-[#0066FF]/90'
-                            : 'border border-border text-foreground hover:bg-muted',
+                            : 'border border-border text-foreground hover:bg-muted'
                         )}
                       >
                         {cta.label}
@@ -236,7 +236,7 @@ export function GameGuideModal({
                     'flex items-center gap-1 font-medium text-sm transition-colors',
                     isSubmitting
                       ? 'cursor-not-allowed text-muted-foreground/40'
-                      : 'text-muted-foreground hover:text-foreground',
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -254,7 +254,7 @@ export function GameGuideModal({
                   'flex items-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm transition-colors',
                   isSubmitting
                     ? 'cursor-not-allowed opacity-70'
-                    : 'hover:bg-[#0066FF]/90',
+                    : 'hover:bg-[#0066FF]/90'
                 )}
               >
                 {isSubmitting ? (
