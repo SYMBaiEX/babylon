@@ -541,10 +541,10 @@ export function MessageInput({
               <div
                 ref={highlightRef}
                 className={cn(
-                  'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words pt-2',
+                  'wrap-break-word pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap pt-2',
                   compact
-                    ? 'text-sm leading-[22px] md:text-xs'
-                    : 'text-sm leading-[22px]',
+                    ? 'text-sm leading-5.5 md:text-xs'
+                    : 'text-sm leading-5.5',
                   'text-foreground'
                 )}
                 aria-hidden="true"
@@ -574,8 +574,8 @@ export function MessageInput({
                 className={cn(
                   'relative z-10 max-h-40 w-full resize-none overflow-y-auto bg-transparent pt-2',
                   compact
-                    ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
-                    : 'min-h-[32px] text-sm leading-[22px]',
+                    ? 'min-h-8 text-sm leading-5.5 md:text-xs'
+                    : 'min-h-8 text-sm leading-5.5',
                   'text-transparent caret-foreground placeholder:text-muted-foreground/40',
                   'outline-none',
                   'disabled:cursor-not-allowed'
@@ -596,8 +596,8 @@ export function MessageInput({
               className={cn(
                 'max-h-40 w-full resize-none overflow-y-auto bg-transparent pt-2',
                 compact
-                  ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
-                  : 'min-h-[32px] text-sm leading-[22px]',
+                  ? 'min-h-8 text-sm leading-5.5 md:text-xs'
+                  : 'min-h-8 text-sm leading-5.5',
                 'text-foreground placeholder:text-muted-foreground/40',
                 'outline-none',
                 'disabled:cursor-not-allowed'
@@ -612,7 +612,7 @@ export function MessageInput({
           onClick={onSend}
           disabled={!canSend}
           className={cn(
-            'flex size-[34px] shrink-0 items-center justify-center rounded-lg transition-all duration-150',
+            'flex size-8.5 shrink-0 items-center justify-center rounded-lg transition-all duration-150',
             canSend
               ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
               : 'text-muted-foreground'
