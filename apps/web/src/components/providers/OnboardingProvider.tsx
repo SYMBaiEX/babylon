@@ -74,7 +74,7 @@ export function OnboardingProvider({
   const [stage, setStage] = useState<OnboardingStage>('PROFILE');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submittedProfile, setSubmittedProfile] =
+  const [_submittedProfile, setSubmittedProfile] =
     useState<OnboardingProfilePayload | null>(null);
   const [importedProfileData, setImportedProfileData] =
     useState<ImportedProfileData | null>(null);
@@ -347,13 +347,10 @@ export function OnboardingProvider({
     // User has completed onboarding - don't reset stage or show onboarding
     // The handleProfileSubmit dependency is intentional - the socialAutoSubmitAttempted
     // and socialAutoSubmitRef guards prevent infinite loops and repeated retries.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     authenticated,
     loadingProfile,
     needsOnboarding,
-    user,
-    submittedProfile,
     isSocialLogin,
     importedProfileData,
     handleProfileSubmit,
