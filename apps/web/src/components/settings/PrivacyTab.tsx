@@ -190,8 +190,9 @@ export function PrivacyTab() {
               <p className="mt-1 text-muted-foreground text-sm">
                 You have on-chain identity data (wallet address:{' '}
                 {user.walletAddress?.slice(0, 6)}...
-                {user.walletAddress?.slice(-4)}, NFT token ID: {user.nftTokenId}
-                ) that is permanently recorded on the blockchain and{' '}
+                {user.walletAddress?.slice(-4)}, Token ID:{' '}
+                {user.agent0TokenId ?? user.nftTokenId ?? 'N/A'}) that is
+                permanently recorded on the blockchain and{' '}
                 <strong>cannot be deleted</strong>. This data will remain
                 publicly visible even if you delete your account.
               </p>
