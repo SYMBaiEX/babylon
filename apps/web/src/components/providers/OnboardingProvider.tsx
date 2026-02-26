@@ -1,23 +1,16 @@
 'use client';
 
-import type { JsonValue, OnboardingProfilePayload } from '@babylon/shared';
-import { getWalletErrorMessage, logger, POINTS } from '@babylon/shared';
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import { logger, POINTS } from '@babylon/shared';
 import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type ImportedProfileData,
   OnboardingModal,
 } from '@/components/onboarding/OnboardingModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useSignupTracking } from '@/hooks/usePostHog';
-import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/stores/authStore';
 import { apiFetch } from '@/utils/api-fetch';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
@@ -25,7 +18,7 @@ import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 /**
  * Onboarding stage type for multi-step onboarding flow.
  */
-type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
+type OnboardingStage = 'PROFILE' | 'COMPLETED';
 
 /**
  * Onboarding provider component for managing user onboarding flow.
@@ -36,17 +29,16 @@ type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
  * Integrates with Privy authentication and smart wallet registration.
  *
  * Features:
- * - Multi-stage onboarding (PROFILE, ONCHAIN, COMPLETED)
+ * - Multi-stage onboarding (PROFILE, COMPLETED)
  * - Full-screen blocking onboarding (user cannot access app until complete)
  * - Profile creation form (simplified: username + picture + terms)
- * - On-chain agent registration (MANDATORY - no skip option)
  * - Social account import (Farcaster, Twitter) - skips PROFILE stage
  * - Referral code handling
  * - Error handling and retry logic
  *
  * Flow:
- * - Wallet users: PROFILE → ONCHAIN → COMPLETED
- * - Social (Farcaster/Twitter) users: ONCHAIN → COMPLETED (profile auto-imported)
+ * - Wallet users: PROFILE → COMPLETED
+ * - Social (Farcaster/Twitter) users: COMPLETED (profile auto-imported)
  *
  * @param props - OnboardingProvider component props
  * @returns Onboarding provider element
@@ -56,18 +48,10 @@ export function OnboardingProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const {
-    authenticated,
-    user,
-    needsOnboarding,
-    needsOnchain,
-    loadingProfile,
-    embeddedWalletReady,
-    refresh,
-    logout,
-  } = useAuth();
+  const { authenticated, user, needsOnboarding, loadingProfile, logout } =
+    useAuth();
 
-  const { user: privyUser, getAccessToken } = usePrivy();
+  const { user: privyUser } = usePrivy();
 
   // Detect if user authenticated via social login (Farcaster or Twitter)
   // These users skip the PROFILE stage - their data is auto-imported
@@ -82,7 +66,7 @@ export function OnboardingProvider({
     );
   }, [privyUser]);
 
-  const { setUser, setNeedsOnboarding, setNeedsOnchain } = useAuthStore();
+  const { setUser, setNeedsOnboarding } = useAuthStore();
   const { identityToken } = useIdentityToken();
   const { trackSignupStarted, trackSignupCompleted, trackOnboardingStep } =
     useSignupTracking();
@@ -96,21 +80,12 @@ export function OnboardingProvider({
     useState<ImportedProfileData | null>(null);
   const [_hasProgressedPastSocialImport, setHasProgressedPastSocialImport] =
     useState(false);
-  const [pendingOnchainSubmission, setPendingOnchainSubmission] =
-    useState<OnboardingProfilePayload | null>(null);
-  const [onchainReferralCode, setOnchainReferralCode] = useState<string | null>(
-    null
-  );
-  // Server-side tx flow: no client txHash caching required.
-
   // Track if social user auto-submit is currently in-flight (prevents StrictMode double-invoke)
   const socialAutoSubmitRef = useRef(false);
   // Persistent flag to prevent repeated auto-submit attempts after failure
   // (only reset on explicit logout/cleanup, NOT on failure)
   const [socialAutoSubmitAttempted, setSocialAutoSubmitAttempted] =
     useState(false);
-  // Prevent duplicate on-chain submissions (e.g. StrictMode double-invoking effects)
-  const onchainSubmitInFlightRef = useRef(false);
 
   // Delay onboarding display to prevent flickering
   const [isReadyToShow, setIsReadyToShow] = useState(false);
@@ -151,7 +126,6 @@ export function OnboardingProvider({
   /**
    * Determines if onboarding should be shown (full-screen blocking).
    * Unlike before, this is NOT dismissible - users must complete onboarding.
-   * On-chain registration is MANDATORY.
    */
   const shouldShowOnboarding = useMemo(() => {
     // Check if dev mode is enabled via URL parameter
@@ -178,9 +152,9 @@ export function OnboardingProvider({
       return false;
     }
 
-    // Don't show onboarding if user is already fully registered
-    // Both profileComplete AND onChainRegistered must be true
-    if (user?.onChainRegistered && user?.profileComplete) {
+    // Don't show onboarding if user has completed their profile
+    // On-chain registration is opt-in and not required for onboarding
+    if (user?.profileComplete) {
       return false;
     }
 
@@ -189,15 +163,12 @@ export function OnboardingProvider({
       return true;
     }
 
-    // Show onboarding when backend says user needs to complete steps
-    // On-chain registration is now MANDATORY (no skip option)
-    return Boolean(needsOnboarding || needsOnchain);
+    return Boolean(needsOnboarding);
   }, [
     isReadyToShow,
     authenticated,
     loadingProfile,
     needsOnboarding,
-    needsOnchain,
     stage,
     user,
   ]);
@@ -268,19 +239,16 @@ export function OnboardingProvider({
           });
         }
         setNeedsOnboarding(false);
-        setNeedsOnchain(true);
 
         clearReferralCode();
         setSubmittedProfile(payload);
-        setOnchainReferralCode(referralCode ?? null);
-        setPendingOnchainSubmission({ ...payload });
         trackOnboardingStep('profile', true);
         trackSignupCompleted(data.user?.id ?? '', {
           hasReferrer: Boolean(referralCode),
           hasFarcaster: data.user?.hasFarcaster ?? false,
           hasTwitter: data.user?.hasTwitter ?? false,
         });
-        setStage('ONCHAIN');
+        setStage('COMPLETED');
         setIsSubmitting(false);
       } catch (err) {
         setIsSubmitting(false);
@@ -292,7 +260,6 @@ export function OnboardingProvider({
       user,
       setUser,
       setNeedsOnboarding,
-      setNeedsOnchain,
       identityToken,
       trackSignupStarted,
       trackSignupCompleted,
@@ -307,11 +274,8 @@ export function OnboardingProvider({
       setError(null);
       setImportedProfileData(null);
       setHasProgressedPastSocialImport(false);
-      setPendingOnchainSubmission(null);
-      setOnchainReferralCode(null);
       socialAutoSubmitRef.current = false;
       setSocialAutoSubmitAttempted(false);
-      onchainSubmitInFlightRef.current = false;
       return;
     }
 
@@ -321,7 +285,6 @@ export function OnboardingProvider({
 
     if (needsOnboarding) {
       // For social login users (Farcaster/Twitter), skip PROFILE and auto-submit
-      // They go straight to ONCHAIN stage with auto-imported profile data
       // Check both: socialAutoSubmitRef (in-flight) and socialAutoSubmitAttempted (persistent)
       if (
         isSocialLogin &&
@@ -334,14 +297,13 @@ export function OnboardingProvider({
         // Mark as in-flight to prevent StrictMode double-invoke
         socialAutoSubmitRef.current = true;
         logger.info(
-          'Social login user - auto-submitting profile and skipping to ONCHAIN',
+          'Social login user - auto-submitting profile',
           {
             platform: importedProfileData.platform,
             username: importedProfileData.username,
           },
           'OnboardingProvider'
         );
-        // Auto-submit profile for social users - this will trigger ONCHAIN stage
         const autoProfile: OnboardingProfilePayload = {
           username: importedProfileData.username,
           displayName: importedProfileData.displayName,
@@ -362,7 +324,6 @@ export function OnboardingProvider({
           tosAccepted: true, // Social login implies acceptance
           privacyPolicyAccepted: true,
         };
-        // Handle auto-submit with proper error handling
         handleProfileSubmit(autoProfile).catch((submitError: Error) => {
           logger.error(
             'Social login auto-submit failed',
@@ -373,31 +334,13 @@ export function OnboardingProvider({
             'OnboardingProvider'
           );
           setError(submitError.message);
-          // Reset in-flight ref but NOT socialAutoSubmitAttempted
-          // This allows the effect to complete but prevents automatic retries
-          // User must manually submit via the PROFILE form
           socialAutoSubmitRef.current = false;
-          // Fall back to manual profile entry
           setStage('PROFILE');
         });
         return;
       }
       // Non-social users: start at profile setup
       setStage('PROFILE');
-      return;
-    }
-
-    if (needsOnchain) {
-      if (!submittedProfile && user) {
-        setSubmittedProfile({
-          username: user.username ?? `user_${user.id.slice(0, 8)}`,
-          displayName: user.displayName ?? user.username ?? 'New User',
-          bio: '', // Empty bio by default
-          profileImageUrl: user.profileImageUrl ?? undefined,
-          coverImageUrl: user.coverImageUrl ?? undefined,
-        });
-      }
-      setStage((prev) => (prev === 'COMPLETED' ? prev : 'ONCHAIN'));
       return;
     }
 
@@ -409,7 +352,6 @@ export function OnboardingProvider({
     authenticated,
     loadingProfile,
     needsOnboarding,
-    needsOnchain,
     user,
     submittedProfile,
     isSocialLogin,
@@ -593,169 +535,6 @@ export function OnboardingProvider({
     }
   }, [authenticated]);
 
-  const submitOnchain = useCallback(
-    async (profile: OnboardingProfilePayload, referralCode: string | null) => {
-      // Defensive check: skip if user is already fully registered
-      if (
-        user?.onChainRegistered &&
-        user?.nftTokenId &&
-        user?.profileComplete
-      ) {
-        logger.info(
-          'User already fully registered, skipping onchain submission',
-          { userId: user.id, nftTokenId: user.nftTokenId },
-          'OnboardingProvider'
-        );
-        setNeedsOnboarding(false);
-        setNeedsOnchain(false);
-        setStage('COMPLETED');
-        return;
-      }
-
-      const callEndpoint = async (payload: Record<string, JsonValue>) => {
-        const accessToken = await getAccessToken().catch(() => null);
-
-        const response = await apiFetch('/api/users/onboarding/onchain', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-          const rawError = data?.error;
-          const message =
-            (typeof rawError === 'string'
-              ? rawError
-              : typeof rawError?.message === 'string'
-                ? rawError.message
-                : null) ??
-            `Failed to complete on-chain onboarding (status ${response.status})`;
-          throw new Error(message);
-        }
-        return data as {
-          onchain: Record<string, JsonValue>;
-          user: StoreUser | null;
-        };
-      };
-
-      const applyResponse = (data: {
-        onchain: Record<string, JsonValue>;
-        user: StoreUser | null;
-      }) => {
-        if (data.user) {
-          setUser({
-            id: data.user.id,
-            walletAddress: data.user.walletAddress ?? undefined,
-            displayName: data.user.displayName ?? user?.displayName,
-            email: user?.email,
-            username: data.user.username ?? undefined,
-            bio: data.user.bio ?? undefined,
-            profileImageUrl: data.user.profileImageUrl ?? undefined,
-            coverImageUrl: data.user.coverImageUrl ?? undefined,
-            profileComplete: data.user.profileComplete ?? true,
-            reputationPoints:
-              data.user.reputationPoints ?? user?.reputationPoints,
-            hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
-            hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
-            farcasterUsername:
-              data.user.farcasterUsername ?? user?.farcasterUsername,
-            twitterUsername: data.user.twitterUsername ?? user?.twitterUsername,
-            nftTokenId: data.user.nftTokenId ?? undefined,
-            createdAt: data.user.createdAt ?? user?.createdAt,
-            onChainRegistered:
-              data.user.onChainRegistered ?? user?.onChainRegistered,
-          });
-        }
-        setNeedsOnboarding(false);
-        setNeedsOnchain(false);
-        setStage('COMPLETED');
-        void refresh().catch(() => undefined);
-      };
-
-      const response = await callEndpoint({
-        referralCode: referralCode ?? null,
-        username: profile.username,
-        displayName: profile.displayName ?? null,
-        email: profile.email ?? null,
-        bio: profile.bio ?? null,
-        profileImageUrl: profile.profileImageUrl ?? null,
-        coverImageUrl: profile.coverImageUrl ?? null,
-        importedFrom: profile.importedFrom ?? null,
-        twitterId: profile.twitterId ?? null,
-        twitterUsername: profile.twitterUsername ?? null,
-        farcasterFid: profile.farcasterFid ?? null,
-        farcasterUsername: profile.farcasterUsername ?? null,
-        tosAccepted: profile.tosAccepted ?? null,
-        privacyPolicyAccepted: profile.privacyPolicyAccepted ?? null,
-      }).catch((rawError: Error) => {
-        // Use wallet-aware error message
-        const userFriendlyMessage = getWalletErrorMessage(rawError);
-        setError(userFriendlyMessage);
-        logger.error(
-          'Failed to complete on-chain onboarding',
-          { error: rawError.message },
-          'OnboardingProvider'
-        );
-        return null;
-      });
-
-      if (!response) return;
-      applyResponse(response);
-    },
-    [
-      getAccessToken,
-      refresh,
-      setNeedsOnboarding,
-      setNeedsOnchain,
-      setUser,
-      user,
-    ]
-  );
-
-  useLayoutEffect(() => {
-    const walletReady = embeddedWalletReady;
-
-    if (
-      stage !== 'ONCHAIN' ||
-      !pendingOnchainSubmission ||
-      !walletReady ||
-      isSubmitting ||
-      onchainSubmitInFlightRef.current
-    ) {
-      return;
-    }
-
-    onchainSubmitInFlightRef.current = true;
-    setIsSubmitting(true);
-    setError(null);
-    void submitOnchain(pendingOnchainSubmission, onchainReferralCode).finally(
-      () => {
-        setPendingOnchainSubmission(null);
-        setIsSubmitting(false);
-        onchainSubmitInFlightRef.current = false;
-      }
-    );
-  }, [
-    stage,
-    pendingOnchainSubmission,
-    isSubmitting,
-    submitOnchain,
-    onchainReferralCode,
-    embeddedWalletReady,
-  ]);
-
-  const handleRetryOnchain = useCallback(async () => {
-    if (!submittedProfile) return;
-    setError(null);
-
-    setOnchainReferralCode((prev) => prev ?? getReferralCode());
-    setPendingOnchainSubmission({ ...submittedProfile });
-  }, [submittedProfile]);
-
   // Handler for completion - closes the onboarding screen
   const handleComplete = useCallback(() => {
     logger.info(
@@ -772,7 +551,6 @@ export function OnboardingProvider({
   }, [stage, user]);
 
   // Full-screen blocking onboarding - user cannot access app until complete
-  // On-chain registration is MANDATORY (no skip option)
   if (shouldShowOnboarding) {
     return (
       <OnboardingModal
@@ -780,9 +558,7 @@ export function OnboardingProvider({
         stage={stage}
         isSubmitting={isSubmitting}
         error={error}
-        isWalletReady={embeddedWalletReady}
         onSubmitProfile={handleProfileSubmit}
-        onRetryOnchain={handleRetryOnchain}
         onComplete={handleComplete}
         onLogout={logout}
         user={user}

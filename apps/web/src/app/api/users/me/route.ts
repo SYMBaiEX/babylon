@@ -624,8 +624,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const responseUser = buildUserResponse(linkedUser, stats);
 
       const needsOnboarding = !linkedUser.profileComplete;
-      const needsOnchain =
-        linkedUser.profileComplete && !linkedUser.onChainRegistered;
+      const needsOnchain = false;
 
       logger.info(
         'Returning linked existing user profile',
@@ -930,7 +929,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const responseUser = buildUserResponse(dbUser, stats);
 
   const needsOnboarding = !dbUser.profileComplete;
-  const needsOnchain = dbUser.profileComplete && !dbUser.onChainRegistered;
+  const needsOnchain = false;
 
   logger.info(
     'Authenticated user profile fetched',

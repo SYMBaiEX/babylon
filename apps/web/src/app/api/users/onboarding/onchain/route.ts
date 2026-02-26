@@ -66,8 +66,18 @@ interface OnchainRequestBody {
   referralCode?: string | null;
 }
 
-export const POST = withErrorHandling(async (request: NextRequest) => {
-  const authUser = await authenticate(request);
+/**
+ * @deprecated This endpoint is deprecated. Use POST /api/users/register-onchain instead.
+ * On-chain registration is now opt-in and costs POINTS.ONCHAIN_REGISTRATION points.
+ */
+export const POST = withErrorHandling(async (_request: NextRequest) => {
+  throw new BusinessLogicError(
+    'This endpoint is deprecated. Use POST /api/users/register-onchain for on-chain registration.',
+    'DEPRECATED'
+  );
+
+  // Original implementation kept below for reference — unreachable code.
+  const authUser = await authenticate(_request);
   const privyId = authUser.privyId ?? authUser.userId;
   const body = (await request.json()) as
     | OnchainRequestBody

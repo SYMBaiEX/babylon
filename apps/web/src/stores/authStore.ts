@@ -29,6 +29,7 @@ export interface User {
   coverImageUrl?: string;
   profileComplete?: boolean;
   nftTokenId?: number | null;
+  agent0TokenId?: number | null;
   createdAt?: string;
   isActor?: boolean;
   isAdmin?: boolean;

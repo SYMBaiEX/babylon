@@ -241,7 +241,7 @@ export function useAuth(): UseAuthReturn {
         };
 
         setNeedsOnboarding(me.needsOnboarding);
-        setNeedsOnchain(me.needsOnchain);
+        setNeedsOnchain(false);
 
         // Get current state directly from store for comparison to avoid stale closure
         const currentUser = useAuthStore.getState().user;
@@ -295,6 +295,7 @@ export function useAuth(): UseAuthReturn {
             showWalletPublic: me.user.showWalletPublic ?? undefined,
             stats: me.user.stats ?? undefined,
             nftTokenId: me.user.nftTokenId ?? undefined,
+            agent0TokenId: me.user.agent0TokenId ?? undefined,
             createdAt: me.user.createdAt,
             onChainRegistered: me.user.onChainRegistered ?? undefined,
             isAdmin: me.user.isAdmin ?? undefined,

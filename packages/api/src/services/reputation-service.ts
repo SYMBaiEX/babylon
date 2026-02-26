@@ -1,74 +1,36 @@
 /**
  * Reputation Service
  *
- * @description Handles on-chain reputation updates based on prediction market
- * outcomes. Winners get +10 reputation, losers get -5 reputation.
+ * Tracks prediction market outcomes in the local database.
+ * Winners get +10 reputation points, losers get -5.
+ *
+ * On-chain reputation tracking via Base Sepolia contracts has been removed.
+ * Reputation is now purely database-driven, with optional Agent0 feedback
+ * propagation handled by the ReputationBridge in @babylon/agents.
  */
 
 import { db, eq, inArray, positions, users } from '@babylon/db';
-import {
-  getCurrentRpcUrl,
-  logger,
-  REPUTATION_SYSTEM_ABI,
-  REPUTATION_SYSTEM_BASE_SEPOLIA,
-} from '@babylon/shared';
-import {
-  type Address,
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseAbi,
-  parseEther,
-} from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { baseSepolia } from 'viem/chains';
+import { logger } from '@babylon/shared';
 
-// Contract addresses from canonical config
-const REPUTATION_SYSTEM = REPUTATION_SYSTEM_BASE_SEPOLIA as Address;
-
-// Hardhat default account #0 private key (has 10000 ETH on local node)
-const HARDHAT_DEFAULT_PRIVATE_KEY =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
-
-// Server wallet for paying gas - uses Hardhat's pre-funded account for local dev
-const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
-const DEPLOYER_PRIVATE_KEY: `0x${string}` =
-  chainId === 31337
-    ? HARDHAT_DEFAULT_PRIVATE_KEY
-    : (process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
-
-/**
- * Market resolution information
- */
 interface MarketResolution {
   marketId: string;
-  outcome: boolean; // true = YES, false = NO
+  outcome: boolean;
 }
 
-/**
- * Reputation update result
- */
 interface ReputationUpdate {
   userId: string;
   tokenId: number;
-  change: number; // +10 or -5
+  change: number;
   txHash?: string;
   error?: string;
 }
 
-/**
- * Reputation Service Class
- */
 export class ReputationService {
-  /**
-   * Update reputation for all users who had positions in a resolved market
-   */
   static async updateReputationForResolvedMarket(
     resolution: MarketResolution
   ): Promise<ReputationUpdate[]> {
     const results: ReputationUpdate[] = [];
 
-    // 1. Get all positions for this market
     const positionsData = await db
       .select({
         id: positions.id,
@@ -88,13 +50,14 @@ export class ReputationService {
       return [];
     }
 
-    // Get user data for all positions
     const userIds = [...new Set(positionsData.map((p) => p.userId))];
     const usersData = await db
       .select({
         id: users.id,
+        agent0TokenId: users.agent0TokenId,
         nftTokenId: users.nftTokenId,
         onChainRegistered: users.onChainRegistered,
+        reputationPoints: users.reputationPoints,
       })
       .from(users)
       .where(inArray(users.id, userIds));
@@ -107,85 +70,42 @@ export class ReputationService {
       'ReputationService'
     );
 
-    // 2. Create clients
-    const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(getCurrentRpcUrl()),
-    });
-
-    const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
-    const walletClient = createWalletClient({
-      account,
-      chain: baseSepolia,
-      transport: http(getCurrentRpcUrl()),
-    });
-
-    // 3. Process each position
     for (const position of positionsData) {
       const user = userMap.get(position.userId);
-
-      // Skip if user is not registered on-chain
-      if (!user?.onChainRegistered || !user.nftTokenId) {
+      if (!user) {
         results.push({
           userId: position.userId,
           tokenId: 0,
           change: 0,
-          error: 'User not registered on-chain',
+          error: 'User not found',
         });
         continue;
       }
 
-      const tokenId = user.nftTokenId;
+      const tokenId = user.agent0TokenId ?? user.nftTokenId ?? 0;
       const isWinner = position.side === resolution.outcome;
-      const sharesAmount = Number(position.shares);
-      const amount = parseEther(Math.abs(sharesAmount).toString());
+      const change = isWinner ? 10 : -5;
 
-      let txHash: `0x${string}`;
+      const currentReputation = user.reputationPoints ?? 0;
+      const newReputation = Math.max(0, currentReputation + change);
 
-      if (isWinner) {
-        // Winner: +10 reputation
-        logger.info(
-          `Recording WIN for token ${tokenId} (+10 reputation)`,
-          { tokenId, change: 10 },
-          'ReputationService'
-        );
-        txHash = await walletClient.writeContract({
-          address: REPUTATION_SYSTEM,
-          abi: parseAbi(REPUTATION_SYSTEM_ABI),
-          functionName: 'recordWin',
-          args: [BigInt(tokenId), amount],
-        });
-      } else {
-        // Loser: -5 reputation
-        logger.info(
-          `Recording LOSS for token ${tokenId} (-5 reputation)`,
-          { tokenId, change: -5 },
-          'ReputationService'
-        );
-        txHash = await walletClient.writeContract({
-          address: REPUTATION_SYSTEM,
-          abi: parseAbi(REPUTATION_SYSTEM_ABI),
-          functionName: 'recordLoss',
-          args: [BigInt(tokenId), amount],
-        });
-      }
-
-      // Wait for transaction confirmation
-      await publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      await db
+        .update(users)
+        .set({
+          reputationPoints: newReputation,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, position.userId));
 
       results.push({
         userId: position.userId,
         tokenId,
-        change: isWinner ? 10 : -5,
-        txHash,
+        change,
       });
 
       logger.info(
-        `Updated reputation for token ${tokenId}`,
-        { tokenId, txHash, change: isWinner ? 10 : -5 },
+        `Updated reputation for user ${position.userId}`,
+        { tokenId, change, newReputation },
         'ReputationService'
       );
     }
@@ -193,60 +113,25 @@ export class ReputationService {
     return results;
   }
 
-  /**
-   * Get current on-chain reputation for a user
-   */
   static async getOnChainReputation(userId: string): Promise<number | null> {
-    // Get user's NFT token ID
     const [user] = await db
       .select({
-        nftTokenId: users.nftTokenId,
+        reputationPoints: users.reputationPoints,
         onChainRegistered: users.onChainRegistered,
       })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (!user || !user.onChainRegistered || !user.nftTokenId) {
-      return null;
-    }
+    if (!user) return null;
 
-    // Query on-chain reputation
-    const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(getCurrentRpcUrl()),
-    });
-
-    const reputation = (await publicClient.readContract({
-      address: REPUTATION_SYSTEM,
-      abi: parseAbi(REPUTATION_SYSTEM_ABI),
-      functionName: 'getReputation',
-      args: [BigInt(user.nftTokenId)],
-    })) as [bigint, bigint, bigint, bigint, bigint, bigint, boolean];
-
-    // Reputation returns tuple: [totalBets, winningBets, totalVolume, profitLoss, accuracyScore, trustScore, isBanned]
-    // We want trustScore (index 5) which is 0-10000 scale (divide by 100 to get 0-100)
-    const trustScore = Number(reputation[5]);
-    return Math.floor(trustScore / 100); // Convert from 0-10000 to 0-100
+    return user.reputationPoints ?? null;
   }
 
-  /**
-   * Sync database reputation with on-chain reputation
-   */
   static async syncUserReputation(userId: string): Promise<number | null> {
-    const onChainReputation =
-      await ReputationService.getOnChainReputation(userId);
-
-    if (onChainReputation === null) {
-      return null;
-    }
-
-    return onChainReputation;
+    return ReputationService.getOnChainReputation(userId);
   }
 
-  /**
-   * Batch update reputation for multiple market resolutions
-   */
   static async batchUpdateReputation(
     resolutions: MarketResolution[]
   ): Promise<Record<string, ReputationUpdate[]>> {
