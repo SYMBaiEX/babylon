@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, logger } from '@babylon/shared';
+import { cn, logger, POINTS } from '@babylon/shared';
 import {
   AlertCircle,
   Bell,
@@ -12,6 +12,7 @@ import {
   Moon,
   Palette,
   Receipt,
+  RefreshCw,
   Save,
   Shield,
   Sun,
@@ -32,6 +33,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
+import { apiFetch } from '@/utils/api-fetch';
 import { uploadImage, validateImageFile } from '@/utils/upload-image';
 
 /**
@@ -92,6 +94,10 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false);
+  const [isRegisteringOnchain, setIsRegisteringOnchain] = useState(false);
+  const [registerOnchainError, setRegisterOnchainError] = useState<
+    string | null
+  >(null);
 
   // Profile settings state
   const [displayName, setDisplayName] = useState(user?.displayName || '');
@@ -382,6 +388,39 @@ export default function SettingsPage() {
         payload.preferences.monthlySummary ??
         user.emailNotificationsMonthlySummary,
     });
+  };
+
+  const handleRegisterOnchain = async () => {
+    setIsRegisteringOnchain(true);
+    setRegisterOnchainError(null);
+    try {
+      const response = await apiFetch('/api/users/register-onchain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Registration failed');
+      }
+      if (user && data.user) {
+        setUser({
+          ...user,
+          onChainRegistered: data.user.onChainRegistered ?? true,
+          agent0TokenId: data.user.agent0TokenId ?? undefined,
+          virtualBalance: data.user.virtualBalance
+            ? Number(data.user.virtualBalance)
+            : user.virtualBalance,
+        });
+      }
+      await refresh();
+    } catch (err) {
+      setRegisterOnchainError(
+        err instanceof Error ? err.message : 'Registration failed'
+      );
+    } finally {
+      setIsRegisteringOnchain(false);
+    }
   };
 
   const handleSave = async () => {
@@ -938,6 +977,59 @@ export default function SettingsPage() {
                     <div className="mt-3 text-muted-foreground text-xs">
                       All notification emails include an unsubscribe link.
                     </div>
+                  </div>
+
+                  {/* On-Chain Registration */}
+                  <div className="space-y-3 border-border border-t pt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-sm">
+                          On-Chain Identity
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          {user?.onChainRegistered
+                            ? 'Verified on Ethereum via ERC-8004'
+                            : 'Register your identity on the Ethereum blockchain'}
+                        </div>
+                      </div>
+                      {user?.onChainRegistered ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2">
+                          <Shield className="h-4 w-4 text-green-500" />
+                          <span className="font-medium text-green-600 text-sm">
+                            Verified
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleRegisterOnchain}
+                          disabled={isRegisteringOnchain}
+                          className="flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-[#0066FF] px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-[#0055DD] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isRegisteringOnchain ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                              Registering...
+                            </>
+                          ) : (
+                            <>
+                              <Shield className="h-4 w-4" />
+                              Register (costs {POINTS.ONCHAIN_REGISTRATION} pts)
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    {registerOnchainError && (
+                      <p className="text-red-500 text-xs">
+                        {registerOnchainError}
+                      </p>
+                    )}
+                    {user?.agent0TokenId && (
+                      <p className="font-mono text-muted-foreground text-xs">
+                        Token ID: {user.agent0TokenId}
+                      </p>
+                    )}
                   </div>
                 </div>
 

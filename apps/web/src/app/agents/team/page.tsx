@@ -627,13 +627,19 @@ export default function TeamChatPage() {
     // Only scroll when loaded data
     if (!teamChat?.chatId || loading) return;
 
-    const endMarker = messagesEndRef.current;
-    if (!endMarker) return;
-
-    // Find the scroll container
-    const container = endMarker.closest('[data-chat-messages-container]');
+    // Find the visible scroll container (mobile and desktop render separate
+    // TeamChatView instances — pick the one that's actually visible).
+    const containers = document.querySelectorAll<HTMLElement>(
+      '[data-chat-messages-container]'
+    );
+    let container: HTMLElement | null = null;
+    for (const el of containers) {
+      if (el.offsetHeight > 0) {
+        container = el;
+        break;
+      }
+    }
     if (!container) {
-      // Fallback: just scroll once
       scrollToBottom('instant');
       return;
     }
@@ -646,7 +652,7 @@ export default function TeamChatPage() {
     let isActive = true;
 
     const scrollToEnd = () => {
-      endMarker.scrollIntoView({ behavior: 'auto', block: 'end' });
+      container.scrollTop = container.scrollHeight;
     };
 
     const finish = () => {
@@ -696,7 +702,7 @@ export default function TeamChatPage() {
       observer?.disconnect();
       if (idleTimeout) clearTimeout(idleTimeout);
     };
-  }, [teamChat?.chatId, loading, messagesEndRef, scrollToBottom]);
+  }, [teamChat?.chatId, loading, scrollToBottom]);
 
   // Auth required — redirect to feed and show login
   useEffect(() => {
@@ -713,7 +719,7 @@ export default function TeamChatPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
+      <div className="flex h-[calc(100dvh-56px-var(--bottom-nav-height))] flex-col md:h-dvh">
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Member sidebar skeleton */}
           <div className="hidden w-80 flex-col border-border border-r p-4 lg:flex">
@@ -759,7 +765,7 @@ export default function TeamChatPage() {
   return (
     <div
       data-command-center-container
-      className="relative mt-14 flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:mt-0 md:h-dvh lg:border-l"
+      className="relative mt-14 flex h-[calc(100dvh-56px-var(--bottom-nav-height))] flex-col overflow-hidden border-border md:mt-0 md:h-dvh lg:border-l"
     >
       {/* Mobile Tab Navigation - visible on small screens only */}
       <div
@@ -1002,6 +1008,9 @@ export default function TeamChatPage() {
           }}
           agentIds={agentIds}
           onViewSettings={handleViewSettings}
+          onInputFocus={() => {
+            setTimeout(() => scrollToBottom('smooth'), 150);
+          }}
         />
       </div>
 
@@ -1107,6 +1116,9 @@ export default function TeamChatPage() {
             onTagClick={handleTagClick}
             agentIds={agentIds}
             onViewSettings={handleViewSettings}
+            onInputFocus={() => {
+              setTimeout(() => scrollToBottom('smooth'), 150);
+            }}
           />
         </div>
 
@@ -1120,138 +1132,145 @@ export default function TeamChatPage() {
         )}
       </div>
 
-      {/* Bottom Panel - spans full width */}
-      <BottomPanel
-        isOpen={bottomPanelOpen}
-        onToggle={() => setBottomPanelOpen((prev) => !prev)}
-        activeTab={bottomPanelTab}
-        onTabChange={setBottomPanelTab}
-        selectedEntityId={bottomPanelEntityId}
-        selectedEntityType={bottomPanelEntityType}
-        onEntityChange={handleBottomPanelEntityChange}
-        userId={user?.id}
-        userName={user?.displayName || user?.username || 'You'}
-        agents={
-          teamChat?.agents.map((a) => ({
-            id: a.id,
-            name: a.displayName || a.username || 'Agent',
-          })) || []
-        }
-        height={bottomPanelHeight}
-        onHeightChange={setBottomPanelHeight}
-      >
-        {bottomPanelEntityId && bottomPanelEntityType && (
-          <>
-            {/* Activity Tab */}
-            {bottomPanelTab === 'activity' && (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {bottomPanelEntityType === 'agent' ? (
-                  <div className="p-4">
-                    <AgentActivityFeed
-                      agentId={bottomPanelEntityId}
-                      limit={20}
-                      showAgent={false}
-                      showConnectionStatus={false}
-                      emptyMessage="No activity from this agent yet."
-                    />
-                  </div>
-                ) : (
-                  <div className="p-4">
-                    <UserActivity userId={bottomPanelEntityId} />
-                  </div>
-                )}
-              </div>
-            )}
+      {/* Bottom Panel - spans full width, hidden on mobile */}
+      <div className="hidden lg:contents">
+        <BottomPanel
+          isOpen={bottomPanelOpen}
+          onToggle={() => setBottomPanelOpen((prev) => !prev)}
+          activeTab={bottomPanelTab}
+          onTabChange={setBottomPanelTab}
+          selectedEntityId={bottomPanelEntityId}
+          selectedEntityType={bottomPanelEntityType}
+          onEntityChange={handleBottomPanelEntityChange}
+          userId={user?.id}
+          userName={user?.displayName || user?.username || 'You'}
+          agents={
+            teamChat?.agents.map((a) => ({
+              id: a.id,
+              name: a.displayName || a.username || 'Agent',
+            })) || []
+          }
+          height={bottomPanelHeight}
+          onHeightChange={setBottomPanelHeight}
+        >
+          {bottomPanelEntityId && bottomPanelEntityType && (
+            <>
+              {/* Activity Tab */}
+              {bottomPanelTab === 'activity' && (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {bottomPanelEntityType === 'agent' ? (
+                    <div className="p-4">
+                      <AgentActivityFeed
+                        agentId={bottomPanelEntityId}
+                        limit={20}
+                        showAgent={false}
+                        showConnectionStatus={false}
+                        emptyMessage="No activity from this agent yet."
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-4">
+                      <UserActivity userId={bottomPanelEntityId} />
+                    </div>
+                  )}
+                </div>
+              )}
 
-            {/* Wallet Tab */}
-            {bottomPanelTab === 'wallet' &&
-              (() => {
-                if (bottomPanelEntityType === 'team') {
-                  return (
-                    <TeamPortfolio
-                      summary={teamSummary}
-                      loading={teamSummaryLoading}
-                      error={teamSummaryError}
-                      scope={teamScope}
-                      onScopeChange={setTeamScope}
-                      onSelectMember={handleBottomPanelEntityChange}
-                    />
+              {/* Wallet Tab */}
+              {bottomPanelTab === 'wallet' &&
+                (() => {
+                  if (bottomPanelEntityType === 'team') {
+                    return (
+                      <TeamPortfolio
+                        summary={teamSummary}
+                        loading={teamSummaryLoading}
+                        error={teamSummaryError}
+                        scope={teamScope}
+                        onScopeChange={setTeamScope}
+                        onSelectMember={handleBottomPanelEntityChange}
+                      />
+                    );
+                  }
+                  if (bottomPanelEntityType === 'user') {
+                    return (
+                      <AgentPortfolio
+                        entityType="user"
+                        userId={bottomPanelEntityId}
+                        entityName={
+                          user?.displayName || user?.username || 'You'
+                        }
+                      />
+                    );
+                  }
+                  const bottomAgent = teamChat?.agents.find(
+                    (a) => a.id === bottomPanelEntityId
                   );
-                }
-                if (bottomPanelEntityType === 'user') {
                   return (
                     <AgentPortfolio
-                      entityType="user"
-                      userId={bottomPanelEntityId}
-                      entityName={user?.displayName || user?.username || 'You'}
+                      entityType="agent"
+                      agentId={bottomPanelEntityId}
+                      entityName={
+                        bottomAgent?.displayName ||
+                        bottomAgent?.username ||
+                        'Agent'
+                      }
                     />
                   );
-                }
-                const bottomAgent = teamChat?.agents.find(
-                  (a) => a.id === bottomPanelEntityId
-                );
-                return (
-                  <AgentPortfolio
-                    entityType="agent"
-                    agentId={bottomPanelEntityId}
-                    entityName={
-                      bottomAgent?.displayName ||
-                      bottomAgent?.username ||
-                      'Agent'
-                    }
-                  />
-                );
-              })()}
+                })()}
 
-            {/* PnL Tab */}
-            {bottomPanelTab === 'pnl' &&
-              (() => {
-                if (bottomPanelEntityType === 'team') {
-                  return (
-                    <TeamPnL
-                      summary={teamSummary}
-                      loading={teamSummaryLoading}
-                      error={teamSummaryError}
-                      scope={teamScope}
-                      onScopeChange={setTeamScope}
-                      onSelectMember={handleBottomPanelEntityChange}
-                    />
+              {/* PnL Tab */}
+              {bottomPanelTab === 'pnl' &&
+                (() => {
+                  if (bottomPanelEntityType === 'team') {
+                    return (
+                      <TeamPnL
+                        summary={teamSummary}
+                        loading={teamSummaryLoading}
+                        error={teamSummaryError}
+                        scope={teamScope}
+                        onScopeChange={setTeamScope}
+                        onSelectMember={handleBottomPanelEntityChange}
+                      />
+                    );
+                  }
+                  if (bottomPanelEntityType === 'user') {
+                    return (
+                      <AgentPnL
+                        entityType={'user' as const}
+                        userId={bottomPanelEntityId}
+                        entityName={
+                          user?.displayName || user?.username || 'You'
+                        }
+                      />
+                    );
+                  }
+                  const bottomAgent = teamChat?.agents.find(
+                    (a) => a.id === bottomPanelEntityId
                   );
-                }
-                if (bottomPanelEntityType === 'user') {
                   return (
                     <AgentPnL
-                      entityType={'user' as const}
-                      userId={bottomPanelEntityId}
-                      entityName={user?.displayName || user?.username || 'You'}
+                      entityType={'agent' as const}
+                      agentId={bottomPanelEntityId}
+                      entityName={
+                        bottomAgent?.displayName ||
+                        bottomAgent?.username ||
+                        'Agent'
+                      }
                     />
                   );
-                }
-                const bottomAgent = teamChat?.agents.find(
-                  (a) => a.id === bottomPanelEntityId
-                );
-                return (
-                  <AgentPnL
-                    entityType={'agent' as const}
-                    agentId={bottomPanelEntityId}
-                    entityName={
-                      bottomAgent?.displayName ||
-                      bottomAgent?.username ||
-                      'Agent'
-                    }
-                  />
-                );
-              })()}
+                })()}
 
-            {/* Logs Tab - only for agents */}
-            {bottomPanelTab === 'logs' && bottomPanelEntityType === 'agent' && (
-              <div className="p-4">
-                <AgentLogs agentId={bottomPanelEntityId} />
-              </div>
-            )}
-          </>
-        )}
-      </BottomPanel>
+              {/* Logs Tab - only for agents */}
+              {bottomPanelTab === 'logs' &&
+                bottomPanelEntityType === 'agent' && (
+                  <div className="p-4">
+                    <AgentLogs agentId={bottomPanelEntityId} />
+                  </div>
+                )}
+            </>
+          )}
+        </BottomPanel>
+      </div>
 
       {/* Right Sidebar - Fixed position overlay, desktop only */}
       {rightSidebarOpen && (

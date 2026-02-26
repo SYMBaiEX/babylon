@@ -266,12 +266,19 @@ export function CreateGroupModal({
           <div className="space-y-4">
             {/* Group Name (Optional) */}
             <div>
-              <label className="mb-2 block font-medium text-sm">
-                Group Name{' '}
-                <span className="font-normal text-muted-foreground text-xs">
-                  (Optional)
-                </span>
-              </label>
+              <div className="mb-2 flex items-baseline justify-between">
+                <label className="font-medium text-sm">
+                  Group Name{' '}
+                  <span className="font-normal text-muted-foreground text-xs">
+                    (Optional)
+                  </span>
+                </label>
+                {groupName && (
+                  <span className="text-muted-foreground text-xs">
+                    {groupName.length}/100
+                  </span>
+                )}
+              </div>
               <input
                 id="groupName"
                 type="text"
@@ -282,11 +289,6 @@ export function CreateGroupModal({
                 className="w-full rounded-lg border border-border bg-sidebar px-4 py-3 transition-colors focus:border-primary focus:outline-none"
                 disabled={creating}
               />
-              {groupName && (
-                <p className="mt-1 text-muted-foreground text-xs">
-                  {groupName.length}/100 characters
-                </p>
-              )}
             </div>
 
             {/* Selected Members */}

@@ -162,6 +162,8 @@ interface TeamChatViewProps {
   agentIds?: ReadonlySet<string>;
   /** Callback to open agent settings modal */
   onViewSettings?: (agentId: string) => void;
+  /** Called when the message input is focused (e.g. to scroll to bottom on mobile keyboard open) */
+  onInputFocus?: () => void;
 }
 
 /**
@@ -199,6 +201,7 @@ export function TeamChatView({
   onToggleReaction,
   agentIds,
   onViewSettings,
+  onInputFocus,
 }: TeamChatViewProps) {
   const compact = density === 'compact';
   // Empty state when no chat selected
@@ -312,7 +315,7 @@ export function TeamChatView({
       </div>
 
       {/* Footer - Fixed */}
-      <div className="shrink-0">
+      <div className="shrink-0 pb-safe lg:pb-0">
         {/* Thinking Indicator - shown when agents are processing complex queries */}
         {thinkingAgents.length > 0 && (
           <ThinkingIndicator
@@ -341,6 +344,7 @@ export function TeamChatView({
           density={density}
           placeholder="Message your team — @ to mention agents"
           mentionableMembers={agents}
+          onInputFocus={onInputFocus}
         />
       </div>
     </div>
