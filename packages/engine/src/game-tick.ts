@@ -46,7 +46,6 @@ import {
   logger,
   PERP_MARKET_CONFIG,
   PREDICTION_MARKET_ABI,
-  REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
 import { BabylonLLMClient } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
@@ -1512,19 +1511,11 @@ export async function resolveQuestionPayouts(
     );
   }
 
-  // Check if on-chain reputation updates are configured (requires deployer key)
-  if (process.env.DEPLOYER_PRIVATE_KEY && REPUTATION_SYSTEM_BASE_SEPOLIA) {
-    await ReputationService.updateReputationForResolvedMarket({
-      marketId: marketId,
-      outcome: winningSide,
-    });
-  } else {
-    logger.debug(
-      'Skipping reputation update - DEPLOYER_PRIVATE_KEY not configured',
-      { marketId: marketId },
-      'GameTick'
-    );
-  }
+  // Update reputation in database (no longer requires deployer key or on-chain calls)
+  await ReputationService.updateReputationForResolvedMarket({
+    marketId: marketId,
+    outcome: winningSide,
+  });
 
   // Resolve market on-chain if onChainMarketId exists
   let onChainResolutionTxHash: string | null = null;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import {
   getPrimaryAccessLabel,
-  shouldAutoRedirectWhitelistedUser,
   type NftAccessState,
+  shouldAutoRedirectWhitelistedUser,
 } from './comingSoonAccess';
 
 describe('comingSoonAccess', () => {
@@ -13,9 +13,9 @@ describe('comingSoonAccess', () => {
         reason: 'whitelist',
       };
 
-      expect(
-        shouldAutoRedirectWhitelistedUser(true, 'user-1', nftAccess)
-      ).toBe(true);
+      expect(shouldAutoRedirectWhitelistedUser(true, 'user-1', nftAccess)).toBe(
+        true
+      );
     });
 
     it('returns false for non-whitelist access reasons', () => {
