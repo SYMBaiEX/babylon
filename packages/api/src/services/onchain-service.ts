@@ -507,7 +507,7 @@ export async function processOnchainRegistration({
     }
   }
 
-  // Persist registration to DB
+  // Persist registration state to DB (registration fields only, not profile fields)
   await db
     .update(users)
     .set({
@@ -517,15 +517,6 @@ export async function processOnchainRegistration({
       agent0RegisteredAt: new Date(),
       registrationTxHash: registrationTxHash ?? null,
       registrationTimestamp: new Date(),
-      username: user.isAgent ? user.userId : username || dbUser.username,
-      displayName: displayName || username || dbUser.username || user.userId,
-      bio:
-        bio ||
-        (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined) ||
-        dbUser.username ||
-        null,
-      profileImageUrl: profileImageUrl ?? undefined,
-      coverImageUrl: coverImageUrl ?? undefined,
     })
     .where(eq(users.id, dbUser.id));
 

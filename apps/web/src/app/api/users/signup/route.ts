@@ -517,53 +517,51 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Generate referral code for new user (ensures they can refer others immediately)
   await getOrCreateReferralCode(result.user.id);
 
-  // Award 1000-pt welcome bonus at profile completion (idempotent)
+  // Award 1000-pt welcome bonus at profile completion (idempotent, transaction-safe)
   const userId = result.user.id;
-  const [hasWelcomeBonus] = await db
-    .select({ id: balanceTransactions.id })
-    .from(balanceTransactions)
-    .where(
-      and(
-        eq(balanceTransactions.userId, userId),
-        eq(balanceTransactions.description, 'Welcome bonus - initial signup')
+  await withTransaction(async (tx) => {
+    const [hasWelcomeBonus] = await tx
+      .select({ id: balanceTransactions.id })
+      .from(balanceTransactions)
+      .where(
+        and(
+          eq(balanceTransactions.userId, userId),
+          eq(balanceTransactions.description, 'Welcome bonus - initial signup')
+        )
       )
-    )
-    .limit(1);
-
-  if (!hasWelcomeBonus) {
-    const [currentBalanceRow] = await db
-      .select({ virtualBalance: users.virtualBalance })
-      .from(users)
-      .where(eq(users.id, userId))
       .limit(1);
-    const currentBal = Number(currentBalanceRow?.virtualBalance ?? '0');
 
-    const bonusId = await generateSnowflakeId();
-    await db.insert(balanceTransactions).values({
-      id: bonusId,
-      userId,
-      type: 'deposit',
-      amount: '1000',
-      balanceBefore: String(currentBal),
-      balanceAfter: String(currentBal + 1000),
-      description: 'Welcome bonus - initial signup',
-      createdAt: new Date(),
-    });
+    if (hasWelcomeBonus) return;
 
-    await db
+    const [updated] = await tx
       .update(users)
       .set({
         virtualBalance: sql`(${users.virtualBalance})::numeric + 1000`,
         totalDeposited: sql`(${users.totalDeposited})::numeric + 1000`,
       })
-      .where(eq(users.id, userId));
+      .where(eq(users.id, userId))
+      .returning({ virtualBalance: users.virtualBalance });
+
+    const balAfter = Number(updated?.virtualBalance ?? '1000');
+    const balBefore = balAfter - 1000;
+
+    await tx.insert(balanceTransactions).values({
+      id: await generateSnowflakeId(),
+      userId,
+      type: 'deposit',
+      amount: '1000',
+      balanceBefore: String(balBefore),
+      balanceAfter: String(balAfter),
+      description: 'Welcome bonus - initial signup',
+      createdAt: new Date(),
+    });
 
     logger.info(
       'Awarded 1000-pt welcome bonus at profile completion',
       { userId },
       'POST /api/users/signup'
     );
-  }
+  });
 
   // Award points for social account linking
   const pointsAwarded = {

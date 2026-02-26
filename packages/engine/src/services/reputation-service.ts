@@ -9,7 +9,7 @@
  * propagation handled by the ReputationBridge in @babylon/agents.
  */
 
-import { db, eq, inArray, positions, users } from '@babylon/db';
+import { db, eq, inArray, positions, sql, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 
 // =============================================================================
@@ -127,16 +127,14 @@ export class ReputationService {
       const isWinner = position.side === resolution.outcome;
       const change = isWinner ? 10 : -5;
 
-      const currentReputation = user.reputationPoints ?? 0;
-      const newReputation = Math.max(0, currentReputation + change);
-
-      await db
+      const [updated] = await db
         .update(users)
         .set({
-          reputationPoints: newReputation,
+          reputationPoints: sql`GREATEST(0, COALESCE(${users.reputationPoints}, 0) + ${change})`,
           updatedAt: new Date(),
         })
-        .where(eq(users.id, position.userId));
+        .where(eq(users.id, position.userId))
+        .returning({ reputationPoints: users.reputationPoints });
 
       results.push({
         userId: position.userId,
@@ -146,7 +144,7 @@ export class ReputationService {
 
       logger.info(
         `Updated reputation for user ${position.userId}`,
-        { tokenId, change, newReputation },
+        { tokenId, change, newReputation: updated?.reputationPoints },
         'ReputationService'
       );
     }

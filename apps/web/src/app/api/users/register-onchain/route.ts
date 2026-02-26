@@ -10,10 +10,13 @@
  */
 
 import {
+  applyRateLimit,
   authenticate,
   BusinessLogicError,
   ensureOfflineWalletReady,
   processOnchainRegistration,
+  RATE_LIMIT_CONFIGS,
+  rateLimitError,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -29,6 +32,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
   const privyId = authUser.privyId ?? authUser.userId;
   const canonicalUserId = authUser.dbUserId ?? authUser.userId;
+
+  const rl = applyRateLimit(
+    canonicalUserId,
+    RATE_LIMIT_CONFIGS.ONCHAIN_REGISTRATION
+  );
+  if (!rl.allowed) return rateLimitError(rl.retryAfter);
 
   const body = (await request
     .json()
