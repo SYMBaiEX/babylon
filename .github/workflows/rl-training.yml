@@ -40,8 +40,12 @@ concurrency:
   group: training-pipeline
   cancel-in-progress: false  # Wait for current run to finish
 
+permissions:
+  contents: read
+
 jobs:
   train:
+    if: ${{ vars.ENABLE_RL_TRAINING == 'true' }}
     name: Train RL Model
     runs-on: ubuntu-latest
     timeout-minutes: 360  # 6 hours max
