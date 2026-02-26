@@ -25,6 +25,7 @@ import {
   identityRegistryAbi,
   logger,
   POINTS,
+  type PointsReason,
   reputationSystemAbi,
   ValidationError,
 } from '@babylon/shared';
@@ -100,7 +101,7 @@ type OnboardingServices = {
     awardPoints: (
       userId: string,
       amount: number,
-      reason: string,
+      reason: PointsReason,
       metadata?: StringRecord<JsonValue>
     ) => Promise<{
       success: boolean;
@@ -132,7 +133,7 @@ function getOnboardingServices(): OnboardingServices {
     onboardingServicesFallbackLogged = true;
   }
 
-  onboardingServicesInstance = {
+  const services: OnboardingServices = {
     notifyNewAccount,
     pointsService: {
       awardReferralSignup: PointsService.awardReferralSignup,
@@ -140,8 +141,9 @@ function getOnboardingServices(): OnboardingServices {
     },
     getOrCreateReferralCode,
   };
+  onboardingServicesInstance = services;
 
-  return onboardingServicesInstance;
+  return services;
 }
 
 // Get contract addresses based on environment

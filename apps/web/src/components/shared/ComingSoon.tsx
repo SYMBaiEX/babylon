@@ -28,13 +28,13 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { Avatar } from '@/components/shared/Avatar';
-import { MarketingFooter } from '@/components/shared/MarketingFooter';
-import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import {
   getPrimaryAccessLabel,
-  shouldAutoRedirectWhitelistedUser,
   type NftAccessState,
+  shouldAutoRedirectWhitelistedUser,
 } from '@/components/shared/comingSoonAccess';
+import { MarketingFooter } from '@/components/shared/MarketingFooter';
+import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
 import { EXTERNAL_LINKS } from '@/lib/constants';
