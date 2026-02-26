@@ -516,7 +516,7 @@ export function MessageInput({
       {/* Composer shell */}
       <div
         className={cn(
-          'relative flex items-center gap-2 rounded-xl border border-border px-3 py-2 transition-shadow duration-200',
+          'relative flex items-end gap-2 rounded-xl border border-border pr-1 pb-1 pl-3 transition-shadow duration-200',
           'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/30',
           isFocused && 'shadow-sm',
           (sending || disabled) && 'opacity-60'
@@ -541,10 +541,10 @@ export function MessageInput({
               <div
                 ref={highlightRef}
                 className={cn(
-                  'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-[5px]',
+                  'wrap-break-word pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap pt-2',
                   compact
-                    ? 'text-sm leading-[22px] md:text-xs'
-                    : 'text-sm leading-[22px]',
+                    ? 'text-sm leading-5.5 md:text-xs'
+                    : 'text-sm leading-5.5',
                   'text-foreground'
                 )}
                 aria-hidden="true"
@@ -572,10 +572,10 @@ export function MessageInput({
                 autoCorrect="off"
                 autoCapitalize="off"
                 className={cn(
-                  'relative z-10 max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
+                  'relative z-10 max-h-40 w-full resize-none overflow-y-auto bg-transparent pt-2',
                   compact
-                    ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
-                    : 'min-h-[32px] text-sm leading-[22px]',
+                    ? 'min-h-8 text-sm leading-5.5 md:text-xs'
+                    : 'min-h-8 text-sm leading-5.5',
                   'text-transparent caret-foreground placeholder:text-muted-foreground/40',
                   'outline-none',
                   'disabled:cursor-not-allowed'
@@ -594,10 +594,10 @@ export function MessageInput({
               disabled={sending || disabled}
               rows={1}
               className={cn(
-                'max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
+                'max-h-40 w-full resize-none overflow-y-auto bg-transparent pt-2',
                 compact
-                  ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
-                  : 'min-h-[32px] text-sm leading-[22px]',
+                  ? 'min-h-8 text-sm leading-5.5 md:text-xs'
+                  : 'min-h-8 text-sm leading-5.5',
                 'text-foreground placeholder:text-muted-foreground/40',
                 'outline-none',
                 'disabled:cursor-not-allowed'
@@ -612,7 +612,7 @@ export function MessageInput({
           onClick={onSend}
           disabled={!canSend}
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-150',
+            'flex size-8.5 shrink-0 items-center justify-center rounded-lg transition-all duration-150',
             canSend
               ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
               : 'text-muted-foreground'
