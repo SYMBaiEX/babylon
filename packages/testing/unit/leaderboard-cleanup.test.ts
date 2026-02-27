@@ -217,9 +217,7 @@ describe('Wallet Leaderboard Logic', () => {
     pageSize: number
   ) {
     const filtered = allUsers.filter((u) => !u.isActor);
-    const sorted = [...filtered].sort(
-      (a, b) => b.totalPoints - a.totalPoints
-    );
+    const sorted = [...filtered].sort((a, b) => b.totalPoints - a.totalPoints);
     const skip = (page - 1) * pageSize;
     const paginated = sorted.slice(skip, skip + pageSize);
     return {
@@ -417,7 +415,10 @@ describe('Team Leaderboard Logic', () => {
     const humans = allUsers.filter((u) => !u.isActor && !u.isAgent);
     const agents = allUsers.filter((u) => u.isAgent);
 
-    const agentsByManager = new Map<string, { points: number; count: number }>();
+    const agentsByManager = new Map<
+      string,
+      { points: number; count: number }
+    >();
     for (const agent of agents) {
       if (!agent.managedBy) continue;
       const existing = agentsByManager.get(agent.managedBy) ?? {
@@ -691,12 +692,48 @@ describe('User Position Logic', () => {
   }
 
   const testUsers: UserRow[] = [
-    { id: 'u1', totalPoints: 5000, isAgent: false, isActor: false, managedBy: null },
-    { id: 'u2', totalPoints: 8000, isAgent: false, isActor: false, managedBy: null },
-    { id: 'u3', totalPoints: 2000, isAgent: false, isActor: false, managedBy: null },
-    { id: 'a1', totalPoints: 4000, isAgent: true, isActor: false, managedBy: 'u1' },
-    { id: 'a2', totalPoints: 3000, isAgent: true, isActor: false, managedBy: 'u1' },
-    { id: 'a3', totalPoints: 500, isAgent: true, isActor: false, managedBy: 'u3' },
+    {
+      id: 'u1',
+      totalPoints: 5000,
+      isAgent: false,
+      isActor: false,
+      managedBy: null,
+    },
+    {
+      id: 'u2',
+      totalPoints: 8000,
+      isAgent: false,
+      isActor: false,
+      managedBy: null,
+    },
+    {
+      id: 'u3',
+      totalPoints: 2000,
+      isAgent: false,
+      isActor: false,
+      managedBy: null,
+    },
+    {
+      id: 'a1',
+      totalPoints: 4000,
+      isAgent: true,
+      isActor: false,
+      managedBy: 'u1',
+    },
+    {
+      id: 'a2',
+      totalPoints: 3000,
+      isAgent: true,
+      isActor: false,
+      managedBy: 'u1',
+    },
+    {
+      id: 'a3',
+      totalPoints: 500,
+      isAgent: true,
+      isActor: false,
+      managedBy: 'u3',
+    },
   ];
 
   describe('wallet position', () => {
@@ -724,9 +761,27 @@ describe('User Position Logic', () => {
 
     it('should handle ties (same rank computation)', () => {
       const tiedUsers: UserRow[] = [
-        { id: 'u1', totalPoints: 1000, isAgent: false, isActor: false, managedBy: null },
-        { id: 'u2', totalPoints: 1000, isAgent: false, isActor: false, managedBy: null },
-        { id: 'u3', totalPoints: 500, isAgent: false, isActor: false, managedBy: null },
+        {
+          id: 'u1',
+          totalPoints: 1000,
+          isAgent: false,
+          isActor: false,
+          managedBy: null,
+        },
+        {
+          id: 'u2',
+          totalPoints: 1000,
+          isAgent: false,
+          isActor: false,
+          managedBy: null,
+        },
+        {
+          id: 'u3',
+          totalPoints: 500,
+          isAgent: false,
+          isActor: false,
+          managedBy: null,
+        },
       ];
       const pos1 = simulateWalletPosition(tiedUsers, 'u1');
       const pos2 = simulateWalletPosition(tiedUsers, 'u2');
@@ -804,17 +859,45 @@ describe('Batch Operation Agent Inclusion', () => {
   }
 
   function getMarkDirtyCandidatesNew(allUsers: MockUser[]): MockUser[] {
-    return allUsers.filter(
-      (u) => !u.isActor && u.totalPoints === '0'
-    );
+    return allUsers.filter((u) => !u.isActor && u.totalPoints === '0');
   }
 
   const mockUsers: MockUser[] = [
-    { id: 'user-1', totalPoints: '0', virtualBalance: '2000', isAgent: false, isActor: false },
-    { id: 'agent-1', totalPoints: '0', virtualBalance: '5000', isAgent: true, isActor: false },
-    { id: 'agent-2', totalPoints: '0', virtualBalance: '0', isAgent: true, isActor: false },
-    { id: 'actor-1', totalPoints: '0', virtualBalance: '8000', isAgent: false, isActor: true },
-    { id: 'user-2', totalPoints: '1500', virtualBalance: '1500', isAgent: false, isActor: false },
+    {
+      id: 'user-1',
+      totalPoints: '0',
+      virtualBalance: '2000',
+      isAgent: false,
+      isActor: false,
+    },
+    {
+      id: 'agent-1',
+      totalPoints: '0',
+      virtualBalance: '5000',
+      isAgent: true,
+      isActor: false,
+    },
+    {
+      id: 'agent-2',
+      totalPoints: '0',
+      virtualBalance: '0',
+      isAgent: true,
+      isActor: false,
+    },
+    {
+      id: 'actor-1',
+      totalPoints: '0',
+      virtualBalance: '8000',
+      isAgent: false,
+      isActor: true,
+    },
+    {
+      id: 'user-2',
+      totalPoints: '1500',
+      virtualBalance: '1500',
+      isAgent: false,
+      isActor: false,
+    },
   ];
 
   it('should now include agents in backfill candidates', () => {
