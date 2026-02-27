@@ -2,49 +2,40 @@
 
 import { describe, expect, test } from 'bun:test';
 
-// Must match GAME_GUIDE_SLIDES in apps/web/src/components/onboarding/GameGuideModal.tsx
+// Must match GAME_GUIDE_SLIDES in apps/web/src/components/onboarding/game-guide-slides.ts
 const GAME_GUIDE_SLIDES = [
   {
+
     title: 'Welcome to Babylon',
-    points: [
-      'This is the world: humans, NPCs, and agents live here with you.',
-      "You don't play alone: you operate with a team of agents that you direct.",
-      "What's unfolding matters: narratives emerge here first, and markets react to them.",
-      'Objective: turn better information + faster execution into more points.',
-    ],
+    description:
+      'A world of humans, NPCs, and AI agents. You command a team of agents that work for you — narratives emerge here first, markets react, and better information means more points. Points are the game currency, onchain tokens on the horizon.',
   },
   {
-    title: 'The Agents (your team)',
-    points: [
-      'Why agents exist: the world is too dense to track manually — agents can consume and summarize continuously.',
-      'How you use them: you prompt agents with goals (what to watch, what to analyze, how to act).',
-      'Agent types: Scout (monitors the feed), Analyst (turns signals into a thesis), Trader (executes entries/exits).',
-      'The game loop: prompt → gather intel → analyze → trade → learn → refine prompts.',
-    ],
+
+    title: 'Your Agent Team',
+    description:
+      "Agents scout, analyze, and trade on your behalf. Prompt them with goals, learn from results, and refine. The loop: prompt → gather intel → analyze → trade → improve. They work around the clock so you don't miss a signal.",
   },
   {
-    title: 'Intel Source #1: The Feed',
-    points: [
-      'What it is: the main feed where agents, humans, and NPCs post — narratives start here.',
-      "Why it matters: markets pull signal from what's happening in Babylon.",
-      'How agents use it: track specific NPCs/topics, surface changes in narrative and sentiment, summarize "what changed" and why it matters.',
-    ],
+
+    title: 'The Feed',
+    description:
+      'The timeline where agents, humans, and NPCs post. Your agents track topics and NPCs, surface sentiment shifts, and summarize what changed — narratives start here and markets pull signal from them.',
   },
   {
-    title: 'Intel Source #2: DMs + NPC Group Chats',
-    points: [
-      'What it is: private channels where NPCs and groups share context, timing, and hints.',
-      'How access works: with the right prompting, your agents can engage NPCs and get pulled into the right rooms over time.',
-      'What to prompt for: which NPCs to approach, the exact questions to ask, what to extract from chats (signals, catalysts, timing).',
-    ],
+
+    title: 'DMs & Group Chats',
+    description:
+      'Private channels where NPCs drop context, timing, and hints. Prompt your agents on which NPCs to approach, what questions to ask, and what to extract — signals, catalysts, and timing. The right prompts get you into the right rooms.',
   },
   {
-    title: 'Capitalize: Trade + Improve',
-    points: [
-      'How you capitalize: trade on the information your agents collect via prediction markets and perps.',
-      'Agents help you act faster and more consistently than manual trading.',
-      'What to prompt next: "What are the top 3 tradable narratives?", "What\'s the entry, exit, and invalidation?", "Execute the best one with tight risk."',
-      'Get started: Go to Agents → Create Agent, define its purpose, fund it, activate it, then iterate.',
+
+    title: 'Trade & Improve',
+    description:
+      'Trade on what your agents find via prediction markets and perps. Agents act faster than manual trading — iterate on prompts, sharpen your edge, climb the leaderboard.',
+    ctas: [
+      { label: 'Create Your First Agent', href: '/agents/team?create=true' },
+      { label: 'Explore the Feed', href: '/feed' },
     ],
   },
 ] as const;
@@ -61,26 +52,14 @@ describe('Game Guide - Slide Content', () => {
     }
   });
 
-  test('each slide should have at least 3 points', () => {
+  test('each slide should have a non-empty description', () => {
     for (const slide of GAME_GUIDE_SLIDES) {
-      expect(slide.points.length).toBeGreaterThanOrEqual(3);
+      expect(slide.description).toBeDefined();
+      expect(slide.description.length).toBeGreaterThan(10);
     }
   });
 
-  test('no slide should have more than 5 points', () => {
-    for (const slide of GAME_GUIDE_SLIDES) {
-      expect(slide.points.length).toBeLessThanOrEqual(5);
-    }
-  });
 
-  test('all points should be non-empty strings', () => {
-    for (const slide of GAME_GUIDE_SLIDES) {
-      for (const point of slide.points) {
-        expect(typeof point).toBe('string');
-        expect(point.length).toBeGreaterThan(10); // Meaningful content
-      }
-    }
-  });
 
   test('slide titles should be unique', () => {
     const titles = GAME_GUIDE_SLIDES.map((s) => s.title);
@@ -95,9 +74,8 @@ describe('Game Guide - Slide Content', () => {
   test('last slide should be the CTA slide', () => {
     const lastSlide = GAME_GUIDE_SLIDES[GAME_GUIDE_SLIDES.length - 1]!;
     expect(lastSlide.title).toContain('Trade');
-    // Should contain call to action
-    const allText = lastSlide.points.join(' ');
-    expect(allText).toContain('Get started');
+    expect(lastSlide.ctas).toBeDefined();
+    expect(lastSlide.ctas!.length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -462,13 +440,5 @@ describe('Game Guide - Progress Indicator', () => {
       'completed',
       'current',
     ]);
-  });
-
-  test('progress display text format', () => {
-    const formatProgress = (current: number, total: number) =>
-      `${current + 1} / ${total}`;
-    expect(formatProgress(0, 5)).toBe('1 / 5');
-    expect(formatProgress(2, 5)).toBe('3 / 5');
-    expect(formatProgress(4, 5)).toBe('5 / 5');
   });
 });
