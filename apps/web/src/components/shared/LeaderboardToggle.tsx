@@ -2,25 +2,8 @@
 
 import { cn } from '@babylon/shared';
 
-export type LeaderboardTab = 'total' | 'all' | 'earned' | 'referral';
+export type LeaderboardTab = 'wallet' | 'team';
 
-/**
- * Leaderboard toggle component for switching between leaderboard views.
- *
- * Provides tab navigation between Total Points, Reputation, Earned Points, and Referral Points views.
- * Shows active tab with underline indicator and hover states.
- *
- * @param props - LeaderboardToggle component props
- * @returns Leaderboard toggle element with tabs
- *
- * @example
- * ```tsx
- * <LeaderboardToggle
- *   activeTab="total"
- *   onTabChange={(tab) => setActiveTab(tab)}
- * />
- * ```
- */
 interface LeaderboardToggleProps {
   activeTab: LeaderboardTab;
   onTabChange: (tab: LeaderboardTab) => void;
@@ -33,50 +16,26 @@ export function LeaderboardToggle({
   return (
     <div className="flex w-full items-center border-border border-b">
       <button
-        onClick={() => onTabChange('total')}
+        onClick={() => onTabChange('wallet')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'total' ? 'text-foreground' : 'text-muted-foreground'
+          activeTab === 'wallet' ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
-        Total
-        {activeTab === 'total' && (
+        Per Wallet
+        {activeTab === 'wallet' && (
           <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
         )}
       </button>
       <button
-        onClick={() => onTabChange('all')}
+        onClick={() => onTabChange('team')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'all' ? 'text-foreground' : 'text-muted-foreground'
+          activeTab === 'team' ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
-        Reputation
-        {activeTab === 'all' && (
-          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
-        )}
-      </button>
-      <button
-        onClick={() => onTabChange('earned')}
-        className={cn(
-          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'earned' ? 'text-foreground' : 'text-muted-foreground'
-        )}
-      >
-        Earned
-        {activeTab === 'earned' && (
-          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
-        )}
-      </button>
-      <button
-        onClick={() => onTabChange('referral')}
-        className={cn(
-          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'referral' ? 'text-foreground' : 'text-muted-foreground'
-        )}
-      >
-        Referral
-        {activeTab === 'referral' && (
+        Team
+        {activeTab === 'team' && (
           <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
         )}
       </button>

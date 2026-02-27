@@ -1,10 +1,16 @@
 'use client';
 
-import { getActorProfileUrl, getProfileUrl } from '@babylon/shared';
-import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
+import { getProfileUrl } from '@babylon/shared';
+import {
+  Bot,
+  ChevronLeft,
+  ChevronRight,
+  Crosshair,
+  Trophy,
+} from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FollowButton } from '@/components/interactions/FollowButton';
 import type { SelectedUser } from '@/components/leaderboard/LeaderboardWidgetSidebar';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
@@ -14,10 +20,8 @@ import { LeaderboardToggle } from '@/components/shared/LeaderboardToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { RankNumber } from '@/components/shared/RankBadge';
 import { LeaderboardSkeleton } from '@/components/shared/Skeleton';
-import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
 
-// Lazy load sidebar - only needed on desktop
 const LeaderboardWidgetSidebar = dynamic(
   () =>
     import('@/components/leaderboard/LeaderboardWidgetSidebar').then((m) => ({
@@ -34,20 +38,25 @@ interface LeaderboardUser {
   username: string | null;
   displayName: string | null;
   profileImageUrl: string | null;
-  allPoints: number;
-  invitePoints: number;
-  earnedPoints: number;
   totalPoints: number;
-  bonusPoints: number;
-  referralCount: number;
   balance: number;
   lifetimePnL: number;
   createdAt: Date;
   rank: number;
-  isActor?: boolean;
-  tier?: string | null;
+  isAgent?: boolean;
+  managedBy?: string | null;
   onChainRegistered?: boolean;
   nftTokenId?: number | null;
+  teamTotalPoints?: number;
+  agentCount?: number;
+  userPoints?: number;
+  agentPoints?: number;
+}
+
+interface CurrentUserPosition {
+  rank: number;
+  page: number;
+  entry: LeaderboardUser;
 }
 
 interface LeaderboardData {
@@ -58,8 +67,8 @@ interface LeaderboardData {
     totalCount: number;
     totalPages: number;
   };
-  minPoints: number;
-  pointsCategory: LeaderboardTab;
+  leaderboardType: LeaderboardTab;
+  currentUser: CurrentUserPosition | null;
 }
 
 export default function LeaderboardPage() {
@@ -69,22 +78,23 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedTab, setSelectedTab] = useState<LeaderboardTab>('total');
+  const [selectedTab, setSelectedTab] = useState<LeaderboardTab>('wallet');
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
+  const scrollToUserRef = useRef(false);
 
   const pageSize = 100;
-  const baseMinPoints = 500;
-  const minPoints = selectedTab === 'all' ? baseMinPoints : 0;
 
-  // Fetch leaderboard data
   useEffect(() => {
     async function fetchLeaderboard() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
-        `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
-      );
+      let url = `/api/leaderboard?type=${selectedTab}&page=${currentPage}&pageSize=${pageSize}`;
+      if (authenticated && user) {
+        url += `&userId=${user.id}`;
+      }
+
+      const response = await fetch(url);
 
       if (!response.ok) {
         setError('Failed to fetch leaderboard');
@@ -98,13 +108,21 @@ export default function LeaderboardPage() {
     }
 
     fetchLeaderboard();
-  }, [currentPage, minPoints, selectedTab]);
+  }, [currentPage, selectedTab, authenticated, user]);
+
+  useEffect(() => {
+    if (scrollToUserRef.current && !loading) {
+      scrollToUserRef.current = false;
+      setTimeout(() => {
+        document
+          .querySelector('[data-current-user="true"]')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [loading]);
 
   const handleTabChange = (tab: LeaderboardTab) => {
-    if (tab === selectedTab) {
-      return;
-    }
-
+    if (tab === selectedTab) return;
     setSelectedTab(tab);
     setCurrentPage(1);
     setSelectedUser(null);
@@ -127,6 +145,13 @@ export default function LeaderboardPage() {
     }
   };
 
+  const handleJumpToPosition = () => {
+    if (leaderboardData?.currentUser) {
+      setCurrentPage(leaderboardData.currentUser.page);
+      scrollToUserRef.current = true;
+    }
+  };
+
   const handleUserClick = (player: LeaderboardUser) => {
     setSelectedUser({
       id: player.id,
@@ -134,91 +159,157 @@ export default function LeaderboardPage() {
       displayName: player.displayName,
       profileImageUrl: player.profileImageUrl,
       totalPoints: player.totalPoints,
-      allPoints: player.allPoints,
-      invitePoints: player.invitePoints,
-      earnedPoints: player.earnedPoints,
-      bonusPoints: player.bonusPoints,
-      referralCount: player.referralCount,
       balance: player.balance,
       lifetimePnL: player.lifetimePnL,
       rank: player.rank,
-      isActor: player.isActor,
-      tier: player.tier,
+      isAgent: player.isAgent,
+      managedBy: player.managedBy,
       onChainRegistered: player.onChainRegistered,
       nftTokenId: player.nftTokenId,
+      teamTotalPoints: player.teamTotalPoints,
+      agentCount: player.agentCount,
+      userPoints: player.userPoints,
+      agentPoints: player.agentPoints,
     });
   };
 
-  const activePointsLabel =
-    selectedTab === 'total'
-      ? 'Total Points'
-      : selectedTab === 'all'
-        ? 'All Points'
-        : selectedTab === 'earned'
-          ? 'Earned Points'
-          : 'Referral Points';
+  const isTeamView = selectedTab === 'team';
+  const currentUserPosition = leaderboardData?.currentUser ?? null;
+  const isCurrentUserOnPage =
+    authenticated &&
+    user &&
+    leaderboardData?.leaderboard.some((p) => p.id === user.id);
 
   const tabDescriptions: Record<LeaderboardTab, string> = {
-    total: 'Portfolio value: wallet balance + open positions',
-    all: 'Total reputation including invites and bonuses',
-    earned: 'Points from trading P&L across all markets',
-    referral: 'Points from inviting and onboarding friends',
+    wallet:
+      'Individual wallets ranked by total points (balance + positions + reputation)',
+    team: 'Users + their AI agents combined, ranked by team total',
+  };
+
+  const getDisplayPoints = (player: LeaderboardUser): number => {
+    if (isTeamView && player.teamTotalPoints !== undefined) {
+      return player.teamTotalPoints;
+    }
+    return player.totalPoints;
+  };
+
+  const getPointsLabel = (): string => {
+    return isTeamView ? 'Team Points' : 'Total Points';
+  };
+
+  const renderPlayerRow = (
+    player: LeaderboardUser,
+    variant: 'desktop' | 'mobile' | 'pinned'
+  ) => {
+    const isCurrentUser = authenticated && user && player.id === user.id;
+    const displayPoints = getDisplayPoints(player);
+    const formattedPoints = (displayPoints ?? 0).toLocaleString();
+    const isPinned = variant === 'pinned';
+
+    const content = (
+      <div
+        className={`flex items-center ${variant === 'mobile' ? 'gap-2 sm:gap-4' : 'gap-4'}`}
+      >
+        <div className="shrink-0">
+          <RankNumber rank={player.rank} size="md" />
+        </div>
+        <div className="relative shrink-0">
+          <Avatar
+            id={player.id}
+            name={player.displayName || player.username || 'User'}
+            size="md"
+            src={player.profileImageUrl || undefined}
+          />
+          {authenticated && !isCurrentUser && !isPinned && (
+            <div
+              className={`-bottom-0.5 -right-1 absolute ${variant === 'mobile' ? '' : ''}`}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <FollowButton userId={player.id} variant="circle" />
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <h3
+              className={`truncate font-semibold text-foreground ${variant === 'mobile' ? 'text-sm sm:text-base' : ''}`}
+            >
+              {player.displayName || player.username || 'Anonymous'}
+            </h3>
+            {player.isAgent ? (
+              <span className="flex shrink-0 items-center gap-0.5 rounded bg-blue-500/10 px-1.5 py-0.5 text-blue-500 text-xs">
+                <Bot className="h-3 w-3" />
+                AI
+              </span>
+            ) : (
+              <OnChainBadge
+                isRegistered={player.onChainRegistered ?? false}
+                nftTokenId={player.nftTokenId ?? null}
+                size="sm"
+              />
+            )}
+            {(isCurrentUser || isPinned) && (
+              <span className="shrink-0 rounded bg-foreground px-2 py-0.5 font-semibold text-background text-xs">
+                YOU
+              </span>
+            )}
+          </div>
+          {variant !== 'mobile' && player.username && (
+            <p className="truncate text-muted-foreground text-sm">
+              @{player.username}
+            </p>
+          )}
+          {variant === 'mobile' && (
+            <div className="flex items-center gap-2 text-xs sm:text-sm">
+              <span className="font-bold text-foreground">
+                {formattedPoints} pts
+              </span>
+              {isTeamView &&
+                player.agentCount !== undefined &&
+                player.agentCount > 0 && (
+                  <span className="text-muted-foreground">
+                    {player.agentCount}{' '}
+                    {player.agentCount === 1 ? 'agent' : 'agents'}
+                  </span>
+                )}
+            </div>
+          )}
+        </div>
+        {variant !== 'mobile' && (
+          <div className="shrink-0 text-right">
+            <div className="font-bold text-foreground text-lg">
+              {formattedPoints}
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {getPointsLabel()}
+              {isTeamView &&
+                player.agentCount !== undefined &&
+                player.agentCount > 0 &&
+                ` (${player.agentCount} ${player.agentCount === 1 ? 'agent' : 'agents'})`}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+
+    return content;
   };
 
   const renderEmptyState = () => {
     if (!leaderboardData) return null;
-
     return (
       <div className="flex flex-1 items-center justify-center p-8">
         <div className="text-center text-muted-foreground">
           <Trophy className="mx-auto mb-4 h-16 w-16 opacity-50" />
-          {leaderboardData.pointsCategory === 'total' && (
-            <>
-              <p className="mb-2 font-semibold text-foreground text-lg">
-                No Total Points Yet
-              </p>
-              <p className="text-sm">
-                Total points combine your wallet balance and open positions.
-              </p>
-            </>
-          )}
-          {leaderboardData.pointsCategory === 'all' && (
-            <>
-              <p className="mb-2 font-semibold text-foreground text-lg">
-                Compete with AI Traders
-              </p>
-              <p className="mb-2 text-sm">
-                Earn {baseMinPoints.toLocaleString()} reputation points to
-                appear on the leaderboard!
-              </p>
-              <p className="text-xs">
-                Complete your profile, link socials, share, and refer friends to
-                earn points
-              </p>
-            </>
-          )}
-          {leaderboardData.pointsCategory === 'earned' && (
-            <>
-              <p className="mb-2 font-semibold text-foreground text-lg">
-                No Earned Points Yet
-              </p>
-              <p className="text-sm">
-                Close profitable trades across perps and prediction markets to
-                climb this board.
-              </p>
-            </>
-          )}
-          {leaderboardData.pointsCategory === 'referral' && (
-            <>
-              <p className="mb-2 font-semibold text-foreground text-lg">
-                No Referral Points Yet
-              </p>
-              <p className="text-sm">
-                Share your invite link and onboard friends to earn referral
-                points.
-              </p>
-            </>
-          )}
+          <p className="mb-2 font-semibold text-foreground text-lg">
+            No Results Yet
+          </p>
+          <p className="text-sm">
+            {isTeamView
+              ? 'No teams have points yet. Start trading to appear here!'
+              : 'No wallets have points yet. Start trading to appear here!'}
+          </p>
         </div>
       </div>
     );
@@ -256,23 +347,11 @@ export default function LeaderboardPage() {
           {leaderboardData.leaderboard.map((player) => {
             const isCurrentUser =
               authenticated && user && player.id === user.id;
-            const isSelected = selectedUser?.id === player.id;
-            const profileUrl = player.isActor
-              ? getActorProfileUrl(player.id)
-              : getProfileUrl(player.id, player.username);
-            const displayPoints =
-              selectedTab === 'total'
-                ? player.totalPoints
-                : selectedTab === 'all'
-                  ? player.allPoints
-                  : selectedTab === 'earned'
-                    ? player.earnedPoints
-                    : player.invitePoints;
-            const formattedPoints = (displayPoints ?? 0).toLocaleString();
+            const isPlayerSelected = selectedUser?.id === player.id;
 
             return (
               <div key={player.id} className="flex items-stretch">
-                {/* Clickable area for widget (desktop) - using div to allow nested FollowButton */}
+                {/* Desktop: clickable for sidebar widget */}
                 <div
                   role="button"
                   tabIndex={0}
@@ -287,140 +366,44 @@ export default function LeaderboardPage() {
                       handleUserClick(player);
                     }
                   }}
-                  data-testid={
-                    player.isActor ? 'npc-entry' : 'leaderboard-entry'
-                  }
+                  data-current-user={isCurrentUser ? 'true' : undefined}
                   className={`hidden flex-1 cursor-pointer px-4 py-3 text-left transition-colors xl:block ${
-                    isSelected
+                    isPlayerSelected
                       ? 'border-l-4 border-l-foreground bg-muted/30'
                       : isCurrentUser
                         ? 'border-l-4 border-l-foreground bg-muted/20 hover:bg-muted/30'
                         : 'border-l-4 border-l-transparent hover:bg-muted/30'
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="shrink-0">
-                      <RankNumber rank={player.rank} size="md" />
-                    </div>
-                    <div className="relative shrink-0">
-                      <Avatar
-                        id={player.id}
-                        name={player.displayName || player.username || 'User'}
-                        type={player.isActor ? 'actor' : undefined}
-                        size="md"
-                        src={player.profileImageUrl || undefined}
-                      />
-                      {authenticated && !isCurrentUser && (
-                        <div
-                          className="-bottom-0.5 -right-1 absolute"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <FollowButton userId={player.id} variant="circle" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="truncate font-semibold text-foreground">
-                          {player.displayName || player.username || 'Anonymous'}
-                        </h3>
-                        {player.isActor ? (
-                          <VerifiedBadge size="sm" />
-                        ) : (
-                          <OnChainBadge
-                            isRegistered={player.onChainRegistered ?? false}
-                            nftTokenId={player.nftTokenId ?? null}
-                            size="sm"
-                          />
-                        )}
-                        {isCurrentUser && (
-                          <span className="rounded bg-foreground px-2 py-0.5 font-semibold text-background text-xs">
-                            YOU
-                          </span>
-                        )}
-                      </div>
-                      {player.username && (
-                        <p className="truncate text-muted-foreground text-sm">
-                          @{player.username}
-                        </p>
-                      )}
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <div className="font-bold text-foreground text-lg">
-                        {formattedPoints}
-                      </div>
-                      <div className="text-muted-foreground text-xs">
-                        {activePointsLabel}
-                      </div>
-                    </div>
-                  </div>
+                  {renderPlayerRow(player, 'desktop')}
                 </div>
 
-                {/* Mobile/Tablet: Direct link to profile */}
+                {/* Mobile/Tablet: direct link to profile */}
                 <Link
-                  href={profileUrl}
-                  data-testid={
-                    player.isActor ? 'npc-entry' : 'leaderboard-entry'
-                  }
+                  href={getProfileUrl(player.id, player.username) || '#'}
+                  data-current-user={isCurrentUser ? 'true' : undefined}
                   className={`block flex-1 px-4 py-1.5 transition-colors xl:hidden ${
                     isCurrentUser
                       ? 'border-l-4 border-l-foreground bg-muted/20'
                       : 'hover:bg-muted/30'
                   }`}
                 >
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="shrink-0">
-                      <RankNumber rank={player.rank} size="md" />
-                    </div>
-                    <div className="relative shrink-0">
-                      <Avatar
-                        id={player.id}
-                        name={player.displayName || player.username || 'User'}
-                        type={player.isActor ? 'actor' : undefined}
-                        size="md"
-                        src={player.profileImageUrl || undefined}
-                      />
-                      {authenticated && !isCurrentUser && (
-                        <div className="-bottom-0.5 -right-1 absolute">
-                          <FollowButton userId={player.id} variant="circle" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="truncate font-semibold text-foreground text-sm sm:text-base">
-                          {player.displayName || player.username || 'Anonymous'}
-                        </h3>
-                        {player.isActor ? (
-                          <VerifiedBadge size="sm" />
-                        ) : (
-                          <OnChainBadge
-                            isRegistered={player.onChainRegistered ?? false}
-                            nftTokenId={player.nftTokenId ?? null}
-                            size="sm"
-                          />
-                        )}
-                        {isCurrentUser && (
-                          <span className="shrink-0 rounded bg-foreground px-2 py-0.5 text-background text-xs">
-                            You
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs sm:text-sm">
-                        <span className="font-bold text-foreground">
-                          {formattedPoints} pts
-                        </span>
-                        <span className="text-muted-foreground">
-                          {activePointsLabel}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  {renderPlayerRow(player, 'mobile')}
                 </Link>
               </div>
             );
           })}
         </div>
+
+        {/* Pinned current user row (when not on current page) */}
+        {authenticated && currentUserPosition && !isCurrentUserOnPage && (
+          <div className="sticky bottom-14 border-border border-t bg-muted/40 px-4 py-3 backdrop-blur-sm">
+            <div className="mb-1 text-muted-foreground text-xs">
+              Your position
+            </div>
+            {renderPlayerRow(currentUserPosition.entry, 'pinned')}
+          </div>
+        )}
 
         {/* Pagination */}
         {leaderboardData.pagination.totalPages > 1 && (
@@ -455,47 +438,67 @@ export default function LeaderboardPage() {
   };
 
   return (
-    <PageContainer noPadding className="!overflow-visible flex w-full flex-col">
+    <PageContainer noPadding className="flex w-full flex-col overflow-visible!">
       {/* Desktop: Content + Widgets layout */}
       <div className="hidden flex-1 overflow-hidden xl:flex">
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-border lg:border-r lg:border-l">
           {/* Header with tabs */}
-          <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+          <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
             <LeaderboardToggle
               activeTab={selectedTab}
               onTabChange={handleTabChange}
             />
-            <p className="px-3 py-3 text-muted-foreground text-sm sm:px-4 lg:px-6">
-              {tabDescriptions[selectedTab]}
-            </p>
+            <div className="flex items-center justify-between px-3 py-3 sm:px-4 lg:px-6">
+              <p className="text-muted-foreground text-sm">
+                {tabDescriptions[selectedTab]}
+              </p>
+              {authenticated && currentUserPosition && (
+                <button
+                  onClick={handleJumpToPosition}
+                  className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 font-medium text-primary text-sm transition-colors hover:bg-primary/20"
+                >
+                  <Crosshair className="h-3.5 w-3.5" />#
+                  {currentUserPosition.rank.toLocaleString()}
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Content */}
           {renderLeaderboardContent()}
         </div>
 
         {/* Widget Sidebar */}
         <LeaderboardWidgetSidebar
           selectedUser={selectedUser}
-          pointsCategory={selectedTab}
+          leaderboardType={selectedTab}
         />
       </div>
 
       {/* Mobile/Tablet: Full width content */}
       <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
         {/* Header with tabs */}
-        <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+        <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
           <LeaderboardToggle
             activeTab={selectedTab}
             onTabChange={handleTabChange}
           />
-          <p className="px-3 py-2 text-muted-foreground text-xs sm:px-4 sm:text-sm">
-            {tabDescriptions[selectedTab]}
-          </p>
+          <div className="flex items-center justify-between px-3 py-2 sm:px-4">
+            <p className="text-muted-foreground text-xs sm:text-sm">
+              {tabDescriptions[selectedTab]}
+            </p>
+            {authenticated && currentUserPosition && (
+              <button
+                onClick={handleJumpToPosition}
+                className="flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary text-xs transition-colors hover:bg-primary/20"
+              >
+                <Crosshair className="h-3 w-3" />#
+                {currentUserPosition.rank.toLocaleString()}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Content */}
         {renderLeaderboardContent()}
       </div>
     </PageContainer>
