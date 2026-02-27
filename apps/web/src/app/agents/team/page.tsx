@@ -292,6 +292,14 @@ export default function TeamChatPage() {
     }
   }, [tutorial.isActive, tutorial.currentStep]);
 
+  // Open create-agent modal when navigated with ?create=true (e.g. from game guide)
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setShowCreateAgentModal(true);
+      router.replace('/agents/team', { scroll: false });
+    }
+  }, [searchParams, router]);
+
   // Build chat details with fake tutorial messages injected at the top
   const tutorialChatDetails = useMemo(() => {
     if (!chatDetails) return chatDetails;
