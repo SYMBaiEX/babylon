@@ -1,8 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { formatCurrencyCompact } from '@/lib/format';
-import { getUserDisplayName } from '@/lib/user-display';
 import {
   Ban,
   CheckCircle,
@@ -21,6 +19,8 @@ import { BlockUserModal } from '@/components/moderation/BlockUserModal';
 import { MuteUserModal } from '@/components/moderation/MuteUserModal';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { formatCurrencyCompact } from '@/lib/format';
+import { getUserDisplayName } from '@/lib/user-display';
 
 /**
  * User schema for validation.

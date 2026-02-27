@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { formatCurrencyCompact } from '@/lib/format';
 import {
   Activity,
   Award,
@@ -18,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { formatCurrencyCompact } from '@/lib/format';
 
 /**
  * User stats schema for validation.

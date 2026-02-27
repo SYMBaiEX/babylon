@@ -1,6 +1,6 @@
 import { cn } from '@babylon/shared';
-import { formatCurrencyDisplay } from '@/lib/format';
 import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react';
+import { formatCurrencyDisplay } from '@/lib/format';
 
 /**
  * Market category type for category PnL card.

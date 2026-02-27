@@ -1,6 +1,6 @@
+import type { PortfolioBreakdownSnapshot } from '@/hooks/usePortfolioPnL';
 import { formatCurrencyDisplay } from '@/lib/format';
 import { getUserDisplayName, getUserHandle } from '@/lib/user-display';
-import type { PortfolioBreakdownSnapshot } from '@/hooks/usePortfolioPnL';
 import type { User } from '@/stores/authStore';
 
 /**

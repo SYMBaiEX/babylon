@@ -9,7 +9,7 @@ import {
   getTokenUsageCallback,
   setTokenUsageCallback,
 } from '../llm/openai-client';
-import { TokenStatsService } from '../services/token-stats-service';
+import { tokenStatsService } from '../services/token-stats-service';
 import {
   calculateEstimatedCost,
   TOKEN_COST_PER_MILLION,
@@ -44,38 +44,38 @@ describe('Token Stats Types', () => {
   });
 });
 
-describe('TokenStatsService', () => {
+describe('tokenStatsService', () => {
   beforeEach(() => {
-    TokenStatsService.clearAll();
+    tokenStatsService.clearAll();
   });
 
   afterEach(() => {
-    TokenStatsService.clearAll();
+    tokenStatsService.clearAll();
   });
 
   test('startTick begins collection', () => {
-    expect(TokenStatsService.isTickInProgress()).toBe(false);
+    expect(tokenStatsService.isTickInProgress()).toBe(false);
 
-    const tickId = TokenStatsService.startTick('test-tick-1');
+    const tickId = tokenStatsService.startTick('test-tick-1');
 
     expect(tickId).toBe('test-tick-1');
-    expect(TokenStatsService.isTickInProgress()).toBe(true);
+    expect(tokenStatsService.isTickInProgress()).toBe(true);
   });
 
   test('endTick returns statistics', () => {
-    TokenStatsService.startTick('test-tick-2');
+    tokenStatsService.startTick('test-tick-2');
 
-    const stats = TokenStatsService.endTick();
+    const stats = tokenStatsService.endTick();
 
     expect(stats).not.toBeNull();
     expect(stats?.tickId).toBe('test-tick-2');
     expect(stats?.totalCalls).toBe(0);
     expect(stats?.totalTokens).toBe(0);
-    expect(TokenStatsService.isTickInProgress()).toBe(false);
+    expect(tokenStatsService.isTickInProgress()).toBe(false);
   });
 
   test('callback collects LLM calls', () => {
-    TokenStatsService.startTick('test-tick-3');
+    tokenStatsService.startTick('test-tick-3');
 
     // Simulate an LLM call via the callback
     const callback = getTokenUsageCallback();
@@ -92,14 +92,14 @@ describe('TokenStatsService', () => {
       success: true,
     });
 
-    const currentStats = TokenStatsService.getCurrentStats();
+    const currentStats = tokenStatsService.getCurrentStats();
     expect(currentStats).not.toBeNull();
     expect(currentStats?.totalCalls).toBe(1);
     expect(currentStats?.totalInputTokens).toBe(1000);
     expect(currentStats?.totalOutputTokens).toBe(500);
     expect(currentStats?.totalTokens).toBe(1500);
 
-    const finalStats = TokenStatsService.endTick();
+    const finalStats = tokenStatsService.endTick();
     expect(finalStats?.totalCalls).toBe(1);
     expect(finalStats?.byPromptType).toHaveLength(1);
     expect(finalStats?.byPromptType[0]?.promptType).toBe('test-prompt');
@@ -108,7 +108,7 @@ describe('TokenStatsService', () => {
   });
 
   test('multiple calls aggregate correctly', () => {
-    TokenStatsService.startTick('test-tick-4');
+    tokenStatsService.startTick('test-tick-4');
 
     const callback = getTokenUsageCallback();
 
@@ -146,7 +146,7 @@ describe('TokenStatsService', () => {
       success: true,
     });
 
-    const stats = TokenStatsService.endTick();
+    const stats = tokenStatsService.endTick();
 
     expect(stats?.totalCalls).toBe(3);
     expect(stats?.totalInputTokens).toBe(3500);
@@ -170,7 +170,7 @@ describe('TokenStatsService', () => {
 
   test('getSummary aggregates multiple ticks', () => {
     // Run first tick
-    TokenStatsService.startTick('tick-1');
+    tokenStatsService.startTick('tick-1');
     getTokenUsageCallback()?.({
       provider: 'groq',
       model: 'qwen/qwen3-32b',
@@ -181,10 +181,10 @@ describe('TokenStatsService', () => {
       durationMs: 100,
       success: true,
     });
-    TokenStatsService.endTick();
+    tokenStatsService.endTick();
 
     // Run second tick
-    TokenStatsService.startTick('tick-2');
+    tokenStatsService.startTick('tick-2');
     getTokenUsageCallback()?.({
       provider: 'groq',
       model: 'qwen/qwen3-32b',
@@ -195,9 +195,9 @@ describe('TokenStatsService', () => {
       durationMs: 150,
       success: true,
     });
-    TokenStatsService.endTick();
+    tokenStatsService.endTick();
 
-    const summary = TokenStatsService.getSummary(10);
+    const summary = tokenStatsService.getSummary(10);
 
     expect(summary).not.toBeNull();
     expect(summary?.tickCount).toBe(2);
@@ -211,7 +211,7 @@ describe('TokenStatsService', () => {
   });
 
   test('failed calls are tracked', () => {
-    TokenStatsService.startTick('test-tick-5');
+    tokenStatsService.startTick('test-tick-5');
 
     const callback = getTokenUsageCallback();
 
@@ -227,7 +227,7 @@ describe('TokenStatsService', () => {
       error: 'Rate limit exceeded',
     });
 
-    const stats = TokenStatsService.endTick();
+    const stats = tokenStatsService.endTick();
 
     expect(stats?.totalCalls).toBe(1);
     expect(stats?.byPromptType[0]?.successRate).toBe(0);
@@ -236,7 +236,7 @@ describe('TokenStatsService', () => {
   test('recentTicks stores history', () => {
     // Run a few ticks
     for (let i = 0; i < 5; i++) {
-      TokenStatsService.startTick(`tick-${i}`);
+      tokenStatsService.startTick(`tick-${i}`);
       getTokenUsageCallback()?.({
         provider: 'groq',
         model: 'qwen/qwen3-32b',
@@ -247,10 +247,10 @@ describe('TokenStatsService', () => {
         durationMs: 100,
         success: true,
       });
-      TokenStatsService.endTick();
+      tokenStatsService.endTick();
     }
 
-    const recent = TokenStatsService.getRecentTicks(3);
+    const recent = tokenStatsService.getRecentTicks(3);
 
     expect(recent).toHaveLength(3);
     // Most recent should be first

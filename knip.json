@@ -1,0 +1,33 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.ts", "apps/cli/src/index.ts"]
+    },
+    "apps/web": {
+      "next": true
+    },
+    "apps/docs": {
+      "entry": ["app/**/*.tsx", "content/**/*.ts", "content/**/*.mdx"]
+    },
+    "packages/testing": {
+      "entry": [
+        "integration/**/*.test.ts",
+        "unit/**/*.test.ts",
+        "e2e/**/*.ts",
+        "performance/**/*.ts",
+        "manual/**/*.ts",
+        "deployment/**/*.ts",
+        "**/preload.ts",
+        "**/setup.ts",
+        "synpress/**/*.ts"
+      ]
+    },
+    "packages/engine": {
+      "entry": ["src/index.ts", "src/**/__tests__/**/*.test.ts"]
+    },
+    "packages/training": {
+      "entry": ["scripts/**/*.ts", "src/**/*.ts"]
+    }
+  }
+}

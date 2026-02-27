@@ -105,7 +105,7 @@ function createAgentCardObject(
     documentationUrl: `${BASE_URL}/docs`,
 
     capabilities: {
-      streaming: true,
+      streaming: false,
       pushNotifications: false,
       stateTransitionHistory: true,
     },

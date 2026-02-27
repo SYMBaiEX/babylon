@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  cn,
-  getActorProfileUrl,
-  getProfileUrl,
-  logger,
-} from '@babylon/shared';
-import { formatCurrencyDisplay } from '@/lib/format';
+import { cn, getActorProfileUrl, getProfileUrl, logger } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -19,6 +13,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
+import { formatCurrencyDisplay } from '@/lib/format';
 
 /**
  * Page size for pagination in trades feed.

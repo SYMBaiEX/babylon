@@ -24,10 +24,7 @@ export async function parseJsonBody<T extends z.ZodType>(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   const result = schema.safeParse(body);

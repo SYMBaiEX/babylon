@@ -1,7 +1,6 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
-import { formatCurrencyDefault } from '@/lib/format';
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -17,6 +16,7 @@ import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { getAuthToken } from '@/lib/auth';
+import { formatCurrencyDefault } from '@/lib/format';
 
 /**
  * Escrow schema for validation.

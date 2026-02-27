@@ -1107,11 +1107,15 @@ export function useTeamChat(): UseTeamChatReturn {
               } else {
                 // Remove thinking bubble and show toast for other errors
                 removeMessage(thinkingId);
-                toast.error(`${getUserDisplayName(agent, 'Agent')}: ${errorMessage}`);
+                toast.error(
+                  `${getUserDisplayName(agent, 'Agent')}: ${errorMessage}`
+                );
               }
             } catch {
               removeMessage(thinkingId);
-              toast.error(`${getUserDisplayName(agent, 'Agent')} failed to respond`);
+              toast.error(
+                `${getUserDisplayName(agent, 'Agent')} failed to respond`
+              );
             }
           }
         } catch (err) {

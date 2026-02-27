@@ -1,8 +1,6 @@
 'use client';
 
 import { cn, getActorProfileUrl, getUserProfileUrl } from '@babylon/shared';
-import { formatCurrencyCompact } from '@/lib/format';
-import { getUserDisplayName } from '@/lib/user-display';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -15,6 +13,8 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
+import { formatCurrencyCompact } from '@/lib/format';
+import { getUserDisplayName } from '@/lib/user-display';
 
 /**
  * Trade type discriminator for trade card display.

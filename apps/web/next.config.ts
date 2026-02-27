@@ -51,8 +51,29 @@ const nextConfig: NextConfig = {
     '@babylon/a2a',
   ],
   experimental: {
-    optimizePackageImports: ['lucide-react'],
+    optimizePackageImports: [
+      'lucide-react',
+      'framer-motion',
+      'recharts',
+      'date-fns',
+      'ethers',
+      'viem',
+      'react-hook-form',
+      '@hookform/resolvers',
+      '@tanstack/react-query',
+      'class-variance-authority',
+      'zod',
+      'ai',
+    ],
     // instrumentationHook removed - available by default in Next.js 15+
+    // Reduce peak memory during webpack build (Next.js 15+)
+    webpackMemoryOptimizations: true,
+    // Run webpack in a worker to lower main process memory (can help with 14GB+ builds)
+    webpackBuildWorker: true,
+    // Cap parallelism to avoid dozens of jest-worker children and load average 200+
+    cpus: 4,
+    // Disable parallel worker threads so we don't spawn 50+ jest-worker processes (slower build, sane load)
+    workerThreads: false,
   },
   typescript: {
     // Ignore type errors during build - we run typecheck separately via turbo
@@ -195,54 +216,22 @@ const nextConfig: NextConfig = {
       )
     );
 
-    // Also use IgnorePlugin as a fallback for any remaining cases
-    // CRITICAL: For client builds, completely ignore server-only packages
+    // Client: ignore server-only packages so they are never bundled in the browser.
+    // Server: Next.js serverExternalPackages + externals below handle runtime resolution.
     if (!isServer) {
       config.plugins.push(
-        // Ignore server-only Babylon packages in client builds (including subpaths)
         new webpack.IgnorePlugin({
           resourceRegExp:
-            /^@babylon\/(api|db|contracts|training|agents)(\/.*)?$/,
-        }),
-        // Ignore server-only npm packages
-        new webpack.IgnorePlugin({
-          resourceRegExp:
-            /^(ioredis|postgres|electron-fetch|agent0-sdk|ipfs-http-client)$/,
-        }),
-        // Ignore @elizaos/core for client builds (it imports node:fs)
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^@elizaos\/core$/,
+            /^@babylon\/(api|db|contracts|training|agents)(\/.*)?$|^(ioredis|postgres|electron-fetch|agent0-sdk|ipfs-http-client)$|^@elizaos\/core$/,
         })
       );
     }
 
-    // Common plugins for both server and client
+    // Common: fallbacks for electron/electron-fetch (replaced above) and optional swagger-jsdoc
     config.plugins.push(
       new webpack.IgnorePlugin({
-        resourceRegExp: /^electron$/,
-        contextRegExp: /node_modules/,
-      }),
-      // Ignore electron-fetch as a fallback if replacement doesn't work
-      new webpack.IgnorePlugin({
-        resourceRegExp: /^electron-fetch$/,
-        contextRegExp: /node_modules/,
-      }),
-      // Ignore swagger-jsdoc - it's an optional dev dependency for docs generation
-      // The code handles its absence gracefully, but webpack still tries to resolve it
-      // Don't restrict to node_modules context since it might be imported from our packages
-      new webpack.IgnorePlugin({
-        resourceRegExp: /^swagger-jsdoc$/,
-      }),
-      // Ignore postgres package for client-side builds only
-      // postgres requires Node.js built-ins (net, tls, crypto, stream) not available in browser
-      ...(isServer
-        ? []
-        : [
-            new webpack.IgnorePlugin({
-              resourceRegExp: /^postgres$/,
-              contextRegExp: /node_modules/,
-            }),
-          ])
+        resourceRegExp: /^(electron|electron-fetch|swagger-jsdoc)$/,
+      })
     );
 
     // Configure externals for optional dependencies and server-only packages
@@ -394,15 +383,6 @@ const nextConfig: NextConfig = {
         );
       }
     }
-
-    // Ignore postgres package completely for client-side builds
-    // postgres requires Node.js built-ins (net, tls, crypto, stream) not available in browser
-    config.plugins.push(
-      new webpack.IgnorePlugin({
-        resourceRegExp: /^postgres$/,
-        contextRegExp: /node_modules/,
-      })
-    );
 
     return config;
   },

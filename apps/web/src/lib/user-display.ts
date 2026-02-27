@@ -38,10 +38,13 @@ export function getUserDisplayName(
  * @param fallback - Default when no handle is available (default: '')
  */
 export function getUserHandle(
-  user: Pick<
-    UserDisplayFields,
-    'username' | 'farcasterUsername' | 'twitterUsername' | 'walletAddress'
-  > | null | undefined,
+  user:
+    | Pick<
+        UserDisplayFields,
+        'username' | 'farcasterUsername' | 'twitterUsername' | 'walletAddress'
+      >
+    | null
+    | undefined,
   fallback = ''
 ): string {
   if (!user) return fallback;

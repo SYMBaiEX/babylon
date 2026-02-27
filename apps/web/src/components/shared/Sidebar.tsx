@@ -27,11 +27,11 @@ import { Avatar } from '@/components/shared/Avatar';
 import { BabylonIcon } from '@/components/shared/icons/BabylonIcon';
 import { BabylonFullLogo } from '@/components/shared/icons/BabylonLogo';
 import { HouseIcon } from '@/components/shared/icons/HouseIcon';
-import { getUserDisplayName } from '@/lib/user-display';
 import { useAuth } from '@/hooks/useAuth';
 import { usePostHog } from '@/hooks/usePostHog';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { getAuthToken } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display';
 
 /**
  * Main sidebar content component with navigation and user menu.

@@ -109,7 +109,6 @@ export {
   validateHashtags,
   validateNoEmojis,
   validateNoRealNames,
-  validateNoRealNamesStrict,
   validatePostBatch,
 } from './validate-output';
 export { daySummary } from './world/day-summary';

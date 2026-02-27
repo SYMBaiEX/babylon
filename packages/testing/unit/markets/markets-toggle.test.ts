@@ -13,7 +13,7 @@ describe('formatCurrency (used in MarketsToggle)', () => {
       `${BABYLON_POINTS_SYMBOL}99.99`
     );
     expect(formatCurrency(-500.25, { useThousandsSeparator: true })).toBe(
-      `${BABYLON_POINTS_SYMBOL}-500.25`
+      `-${BABYLON_POINTS_SYMBOL}500.25`
     );
   });
 
