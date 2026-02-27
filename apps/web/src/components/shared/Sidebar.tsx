@@ -27,6 +27,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { BabylonIcon } from '@/components/shared/icons/BabylonIcon';
 import { BabylonFullLogo } from '@/components/shared/icons/BabylonLogo';
 import { HouseIcon } from '@/components/shared/icons/HouseIcon';
+import { getUserDisplayName } from '@/lib/user-display';
 import { useAuth } from '@/hooks/useAuth';
 import { usePostHog } from '@/hooks/usePostHog';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
@@ -431,7 +432,7 @@ function SidebarContent() {
             >
               <Avatar
                 id={user.id}
-                name={user.displayName || user.email || 'User'}
+                name={getUserDisplayName(user, 'User')}
                 type="user"
                 size="sm"
                 src={user.profileImageUrl || undefined}

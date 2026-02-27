@@ -23,6 +23,7 @@
 
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { isValidCronSecret } from './dev-credentials';
 import { AuthorizationError } from './errors';
 
@@ -164,4 +165,32 @@ export function cronUnauthorizedResponse(): Response {
     status: 401,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+export type CronHandler = (
+  request: NextRequest,
+  context?: { params?: Promise<Record<string, string>> }
+) => Promise<NextResponse>;
+
+/**
+ * Wrap a cron route handler with auth check. If verification fails, returns 401.
+ * Use so each route does not repeat the same auth block.
+ *
+ * @example
+ * export const GET = withCronAuth('MyCron', async (request) => {
+ *   // ... handler logic
+ *   return NextResponse.json({ ok: true });
+ * });
+ */
+export function withCronAuth(
+  jobName: string,
+  handler: CronHandler,
+  options: CronAuthOptions = {}
+): CronHandler {
+  return async (request, context) => {
+    if (!verifyCronAuth(request, { ...options, jobName })) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return handler(request, context);
+  };
 }

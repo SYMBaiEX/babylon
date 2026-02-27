@@ -13,7 +13,7 @@ import {
   parseSimulationMetrics,
 } from '../benchmark/parseSimulationMetrics';
 import type { SimulationMetrics } from '../benchmark/SimulationEngine';
-import { logger } from '../utils';
+import { formatCurrency, logger } from '../utils';
 import {
   getHuggingFaceToken,
   HuggingFaceUploadUtil,
@@ -350,7 +350,7 @@ ${
 
 | Metric | Value |
 |--------|-------|
-| Average P&L | ${data.metrics.avgPnl.toFixed(2)} |
+| Average P&L | ${formatCurrency(data.metrics.avgPnl)} |
 | Average Accuracy | ${(data.metrics.avgAccuracy * 100).toFixed(1)}% |
 | Average Optimality | ${data.metrics.avgOptimality.toFixed(1)} |
 
@@ -494,7 +494,7 @@ For questions or issues, please contact the Babylon team or open an issue on the
 
     results.forEach((result) => {
       const date = new Date(result.runAt).toISOString().split('T')[0];
-      table += `| ${result.benchmarkId.substring(0, 20)}... | ${date} | ${result.metrics.totalPnl.toFixed(2)} | ${(result.metrics.predictionMetrics.accuracy * 100).toFixed(1)}% | ${(result.metrics.perpMetrics.winRate * 100).toFixed(1)}% | ${result.metrics.optimalityScore.toFixed(1)} |\n`;
+      table += `| ${result.benchmarkId.substring(0, 20)}... | ${date} | ${formatCurrency(result.metrics.totalPnl)} | ${(result.metrics.predictionMetrics.accuracy * 100).toFixed(1)}% | ${(result.metrics.perpMetrics.winRate * 100).toFixed(1)}% | ${result.metrics.optimalityScore.toFixed(1)} |\n`;
     });
 
     return table;

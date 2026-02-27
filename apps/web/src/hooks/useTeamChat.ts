@@ -28,6 +28,7 @@ import {
 } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useToggleReaction } from '@/hooks/useToggleReaction';
+import { getUserDisplayName } from '@/lib/user-display';
 import { useAuthStore } from '@/stores/authStore';
 
 // Constants for scroll behavior
@@ -706,7 +707,7 @@ export function useTeamChat(): UseTeamChatReturn {
             ? [
                 {
                   id: user.id,
-                  displayName: user.displayName || user.username || 'You',
+                  displayName: getUserDisplayName(user, 'You'),
                   username: user.username,
                   profileImageUrl: user.profileImageUrl,
                 } as ChatParticipant,
@@ -717,7 +718,7 @@ export function useTeamChat(): UseTeamChatReturn {
             (agent) =>
               ({
                 id: agent.id,
-                displayName: agent.displayName || agent.username || 'Agent',
+                displayName: getUserDisplayName(agent, 'Agent'),
                 username: agent.username,
                 profileImageUrl: agent.profileImageUrl,
               }) as ChatParticipant
@@ -965,7 +966,7 @@ export function useTeamChat(): UseTeamChatReturn {
       });
 
       // Get user info for team chat context
-      const ownerName = user.displayName || user.username || 'User';
+      const ownerName = getUserDisplayName(user, 'User');
       const ownerUsername = user.username || '';
 
       // Create thinking message IDs for each agent (for tracking)
@@ -1050,12 +1051,12 @@ export function useTeamChat(): UseTeamChatReturn {
             if (data.isLLMFailure) {
               // LLM failed to parse - no points charged, show warning
               toast.warning(
-                `${agent?.displayName} had trouble understanding. No points charged.`
+                `${getUserDisplayName(agent, 'Agent')} had trouble understanding. No points charged.`
               );
             } else if (data.pointsCost && data.pointsCost > 0) {
               // Successful response with points deducted
               toast.success(
-                `Response from ${agent?.displayName} (-${data.pointsCost} points)`
+                `Response from ${getUserDisplayName(agent, 'Agent')} (-${data.pointsCost} points)`
               );
             }
 
@@ -1088,7 +1089,7 @@ export function useTeamChat(): UseTeamChatReturn {
               // (e.g., "insufficient permissions" should not trigger this)
               if (errorMessage.toLowerCase().includes('insufficient balance')) {
                 // Replace thinking bubble with system message that has action button
-                const agentDisplayName = agent?.displayName || 'Agent';
+                const agentDisplayName = getUserDisplayName(agent, 'Agent');
                 updateMessage(thinkingId, {
                   id: `system-insufficient-${agentId}-${Date.now()}`,
                   content: `${agentDisplayName} needs more points to respond.`,
@@ -1106,11 +1107,11 @@ export function useTeamChat(): UseTeamChatReturn {
               } else {
                 // Remove thinking bubble and show toast for other errors
                 removeMessage(thinkingId);
-                toast.error(`${agent?.displayName}: ${errorMessage}`);
+                toast.error(`${getUserDisplayName(agent, 'Agent')}: ${errorMessage}`);
               }
             } catch {
               removeMessage(thinkingId);
-              toast.error(`${agent?.displayName} failed to respond`);
+              toast.error(`${getUserDisplayName(agent, 'Agent')} failed to respond`);
             }
           }
         } catch (err) {
@@ -1123,7 +1124,7 @@ export function useTeamChat(): UseTeamChatReturn {
           } else {
             // Network or other unexpected errors - show toast
             toast.error(
-              `${agent?.displayName}: Connection error. Please try again.`
+              `${getUserDisplayName(agent, 'Agent')}: Connection error. Please try again.`
             );
           }
         } finally {

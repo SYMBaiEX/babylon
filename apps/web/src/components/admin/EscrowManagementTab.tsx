@@ -1,10 +1,7 @@
 'use client';
 
-import {
-  cn,
-  formatCurrency as formatCurrencyShared,
-  logger,
-} from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
+import { formatCurrencyDefault } from '@/lib/format';
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -191,11 +188,7 @@ export function EscrowManagementTab() {
     setIsRefunding(false);
   };
 
-  /** Use shared formatCurrency for currency formatting */
-  const formatCurrency = (value: string | number) => {
-    const num = typeof value === 'string' ? parseFloat(value) : value;
-    return formatCurrencyShared(num);
-  };
+  const formatCurrency = formatCurrencyDefault;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

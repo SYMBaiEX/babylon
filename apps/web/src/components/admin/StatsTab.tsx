@@ -1,6 +1,7 @@
 'use client';
 
-import { cn, formatCompactCurrency } from '@babylon/shared';
+import { cn } from '@babylon/shared';
+import { formatCurrencyCompact } from '@/lib/format';
 import {
   Activity,
   Award,
@@ -243,11 +244,7 @@ export function StatsTab() {
     return () => clearInterval(interval);
   }, [fetchStats, fetchFeeStats, fetchTokenStats]);
 
-  /** Use shared formatCompactCurrency for currency formatting */
-  const formatCurrency = (value: string) => {
-    const num = parseFloat(value);
-    return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
-  };
+  const formatCurrency = formatCurrencyCompact;
 
   const formatNumber = (value: number) => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;

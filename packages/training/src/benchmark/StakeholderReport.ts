@@ -12,6 +12,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { formatCurrency, formatCurrencyWithSign } from '../utils';
 import { logger } from '../utils/logger';
 import type { ArchetypeFitScore } from './ArchetypeFitCalculator';
 import type {
@@ -146,8 +147,8 @@ function evaluateCriteria(
       return {
         passed,
         details: passed
-          ? `Scammer extracted $${alpha.toFixed(2)} alpha (target: >$${criteria.scammerMinAlpha})`
-          : `Scammer extracted only $${alpha.toFixed(2)} alpha (target: >$${criteria.scammerMinAlpha})`,
+          ? `Scammer extracted ${formatCurrency(alpha)} alpha (target: >${formatCurrency(criteria.scammerMinAlpha)})`
+          : `Scammer extracted only ${formatCurrency(alpha)} alpha (target: >${formatCurrency(criteria.scammerMinAlpha)})`,
       };
     }
 
@@ -168,8 +169,8 @@ function evaluateCriteria(
       return {
         passed,
         details: passed
-          ? `Agent achieved positive P&L: $${pnl.toFixed(2)}`
-          : `Agent lost money: $${pnl.toFixed(2)}`,
+          ? `Agent achieved positive P&L: ${formatCurrency(pnl)}`
+          : `Agent lost money: ${formatCurrency(pnl)}`,
       };
     }
   }
@@ -296,13 +297,13 @@ function calculateOverallVerdict(
 
   if (scenariosWon >= DEPLOY_MIN_SCENARIOS_WON && totalAlpha > 0) {
     overallVerdict = 'deploy';
-    verdictExplanation = `Model won ${scenariosWon}/${scenarios.length} scenarios with $${totalAlpha.toFixed(2)} total alpha. Ready for deployment.`;
+    verdictExplanation = `Model won ${scenariosWon}/${scenarios.length} scenarios with ${formatCurrency(totalAlpha)} total alpha. Ready for deployment.`;
   } else if (
     scenariosLost >= REGRESSION_MIN_SCENARIOS_LOST ||
     totalAlpha < REGRESSION_ALPHA_THRESHOLD
   ) {
     overallVerdict = 'regression';
-    verdictExplanation = `Model lost ${scenariosLost}/${scenarios.length} scenarios with $${totalAlpha.toFixed(2)} total alpha. Training regressed - investigate.`;
+    verdictExplanation = `Model lost ${scenariosLost}/${scenarios.length} scenarios with ${formatCurrency(totalAlpha)} total alpha. Training regressed - investigate.`;
   } else {
     overallVerdict = 'keep_training';
     verdictExplanation = `Model shows mixed results (${scenariosWon}W/${scenariosLost}L/${scenariosTied}T). Continue training for improvement.`;
@@ -576,7 +577,7 @@ export class StakeholderReportGenerator {
       </div>
       <div class="stat">
         <div class="stat-value ${report.summary.totalAlpha >= 0 ? 'positive' : 'negative'}">
-          $${report.summary.totalAlpha.toFixed(0)}
+          ${formatCurrency(report.summary.totalAlpha, 0)}
         </div>
         <div class="stat-label">Total Alpha</div>
       </div>
@@ -615,9 +616,9 @@ export class StakeholderReportGenerator {
           <tr>
             <td><strong>${s.scenarioName}</strong></td>
             <td>${s.marketCondition}</td>
-            <td class="${s.baseline.pnl >= 0 ? 'positive' : 'negative'}">$${s.baseline.pnl.toFixed(0)}</td>
-            <td class="${s.challenger.pnl >= 0 ? 'positive' : 'negative'}">$${s.challenger.pnl.toFixed(0)}</td>
-            <td class="${s.alphaGenerated >= 0 ? 'positive' : 'negative'}">${s.alphaGenerated >= 0 ? '+' : ''}$${s.alphaGenerated.toFixed(0)}</td>
+            <td class="${s.baseline.pnl >= 0 ? 'positive' : 'negative'}">${formatCurrency(s.baseline.pnl, 0)}</td>
+            <td class="${s.challenger.pnl >= 0 ? 'positive' : 'negative'}">${formatCurrency(s.challenger.pnl, 0)}</td>
+            <td class="${s.alphaGenerated >= 0 ? 'positive' : 'negative'}">${formatCurrencyWithSign(s.alphaGenerated, 0)}</td>
             <td class="${s.improvement.fitScoreDelta >= 0 ? 'positive' : 'negative'}">${s.improvement.fitScoreDelta >= 0 ? '+' : ''}${(s.improvement.fitScoreDelta * 100).toFixed(0)}%</td>
             <td>
               <span class="winner-badge winner-${s.winner}">${s.winner}</span>
@@ -704,7 +705,7 @@ export class StakeholderReportGenerator {
       `Scenarios Won:        ${report.summary.scenariosWon}/${report.scenarios.length}`
     );
     lines.push(
-      `Total Alpha:          $${report.summary.totalAlpha.toFixed(2)}`
+      `Total Alpha:          ${formatCurrency(report.summary.totalAlpha)}`
     );
     lines.push(
       `Avg P&L Improvement:  ${report.summary.avgPnlImprovement >= 0 ? '+' : ''}${report.summary.avgPnlImprovement.toFixed(2)}%`
@@ -728,9 +729,9 @@ export class StakeholderReportGenerator {
 
     for (const s of report.scenarios) {
       const name = s.scenarioName.padEnd(20).slice(0, 20);
-      const basePnl = `$${s.baseline.pnl.toFixed(0)}`.padStart(8);
-      const chalPnl = `$${s.challenger.pnl.toFixed(0)}`.padStart(8);
-      const alpha = `$${s.alphaGenerated.toFixed(0)}`.padStart(8);
+      const basePnl = `${formatCurrency(s.baseline.pnl, 0)}`.padStart(8);
+      const chalPnl = `${formatCurrency(s.challenger.pnl, 0)}`.padStart(8);
+      const alpha = `${formatCurrency(s.alphaGenerated, 0)}`.padStart(8);
       const winner = s.winner.padEnd(8);
       lines.push(`${name} | ${basePnl} | ${chalPnl} | ${alpha} | ${winner}`);
     }
