@@ -14,6 +14,7 @@ import {
   Gift,
   Link as LinkIcon,
   Share2,
+  Shield,
   TrendingUp,
   Twitter,
   UserPlus,
@@ -73,6 +74,7 @@ interface ReferralData {
     farcasterUsername: string | null;
     twitterUsername: string | null;
     walletAddress: string | null;
+    onChainRegistered: boolean;
   };
   stats: ReferralStats;
   referredUsers: ReferredUser[];
@@ -292,22 +294,69 @@ export default function RewardsPage() {
           icon: Wallet,
           color: 'text-orange-500',
         },
+        {
+          id: 'onchain-registration',
+          title: 'Register On-Chain',
+          description: referralData.user.onChainRegistered
+            ? 'ERC-8004 verified identity ✓'
+            : 'Get verified with ERC-8004 on Ethereum',
+          points: -POINTS.ONCHAIN_REGISTRATION,
+          completed: referralData.user.onChainRegistered,
+          action: 'register-onchain',
+          icon: Shield,
+          color: 'text-emerald-500',
+        },
       ]
     : [];
 
-  const handleTaskClick = (_taskId: string, action: string) => {
+  const [registeringOnchain, setRegisteringOnchain] = useState(false);
+
+  const handleTaskClick = async (_taskId: string, action: string) => {
     if (action === 'link-social') {
       setShowLinkSocialModal(true);
     } else if (action === 'profile-settings') {
       window.location.href = '/settings';
     } else if (action === 'wallet-connect') {
-      // Trigger Privy login modal for wallet connection
       if (authenticated) {
-        // If already authenticated, redirect to settings to connect wallet
         window.location.href = '/settings';
       } else {
-        // Trigger login modal
         login();
+      }
+    } else if (action === 'register-onchain') {
+      if (registeringOnchain) return;
+      setRegisteringOnchain(true);
+      try {
+        const token = await getAccessToken();
+        if (!token) {
+          toast.error('Authentication required');
+          return;
+        }
+        const res = await fetch('/api/users/register-onchain', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || 'Registration failed');
+          return;
+        }
+        if (data.onchain?.alreadyRegistered) {
+          toast.info('Already registered on-chain');
+        } else {
+          toast.success('On-chain registration complete!');
+        }
+        window.dispatchEvent(new CustomEvent('rewards-updated'));
+        refresh();
+        fetchReferralData();
+        fetchPortfolio();
+      } catch {
+        toast.error('On-chain registration failed. Please try again.');
+      } finally {
+        setRegisteringOnchain(false);
       }
     }
   };
@@ -445,10 +494,13 @@ export default function RewardsPage() {
                     <button
                       key={task.id}
                       onClick={() => handleTaskClick(task.id, task.action)}
+                      disabled={
+                        task.action === 'register-onchain' && registeringOnchain
+                      }
                       className={`flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-all ${
                         task.completed
                           ? 'border-green-500/30 bg-green-500/10'
-                          : 'cursor-pointer border-border hover:bg-muted/50'
+                          : 'cursor-pointer border-border hover:bg-muted/50 disabled:cursor-wait disabled:opacity-60'
                       }`}
                     >
                       <div className={`shrink-0 ${task.color}`}>
@@ -469,13 +521,22 @@ export default function RewardsPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <div
-                          className={`font-bold text-sm ${task.completed ? 'text-green-500' : 'text-yellow-500'}`}
+                          className={`font-bold text-sm ${
+                            task.completed
+                              ? 'text-green-500'
+                              : task.points < 0
+                                ? 'text-amber-500'
+                                : 'text-yellow-500'
+                          }`}
                         >
-                          {task.completed ? '✓ ' : '+'}
-                          {task.points}
+                          {task.completed
+                            ? `✓ ${Math.abs(task.points)}`
+                            : task.points < 0
+                              ? `${task.points}`
+                              : `+${task.points}`}
                         </div>
                         <div className="text-muted-foreground text-xs">
-                          points
+                          {task.points < 0 ? 'cost' : 'points'}
                         </div>
                       </div>
                     </button>
@@ -664,20 +725,7 @@ export default function RewardsPage() {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {/* Total Earned */}
-              <div className="rounded-lg border border-border p-3">
-                <div className="mb-1 flex items-center gap-1">
-                  <Award className="h-4 w-4 text-yellow-500" />
-                  <h2 className="font-medium text-muted-foreground text-xs">
-                    Earned
-                  </h2>
-                </div>
-                <div className="font-bold text-2xl text-yellow-500">
-                  {calculateTotalEarned().toLocaleString()}
-                </div>
-              </div>
-
+            <div className="space-y-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
               {/* Total Points */}
               <div className="rounded-lg border border-border p-3">
                 <div className="mb-1 flex items-center gap-1">
@@ -693,55 +741,70 @@ export default function RewardsPage() {
                 </div>
               </div>
 
-              {/* Total Referrals */}
-              <div className="rounded-lg border border-border p-3">
-                <div className="mb-1 flex items-center gap-1">
-                  <Users className="h-4 w-4 text-primary" />
-                  <h2 className="font-medium text-muted-foreground text-xs">
-                    Referrals
-                  </h2>
+              <div className="grid grid-cols-2 gap-2 sm:contents">
+                {/* Total Earned */}
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-1 flex items-center gap-1">
+                    <Award className="h-4 w-4 text-yellow-500" />
+                    <h2 className="font-medium text-muted-foreground text-xs">
+                      Earned
+                    </h2>
+                  </div>
+                  <div className="font-bold text-2xl text-yellow-500">
+                    {calculateTotalEarned().toLocaleString()}
+                  </div>
                 </div>
-                <div className="font-bold text-2xl text-foreground">
-                  {referralData.stats.totalReferrals}
+
+                {/* Total Referrals */}
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-1 flex items-center gap-1">
+                    <Users className="h-4 w-4 text-primary" />
+                    <h2 className="font-medium text-muted-foreground text-xs">
+                      Referrals
+                    </h2>
+                  </div>
+                  <div className="font-bold text-2xl text-foreground">
+                    {referralData.stats.totalReferrals}
+                  </div>
+                  {referralData.stats.weeklyReferralCount !== undefined &&
+                    referralData.stats.weeklyLimit !== undefined && (
+                      <div className="mt-1.5 border-border border-t pt-1.5">
+                        <div className="mb-0.5 flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Week</span>
+                          <span
+                            className={`font-semibold ${
+                              referralData.stats.weeklyReferralCount >=
+                              referralData.stats.weeklyLimit
+                                ? 'text-red-500'
+                                : referralData.stats.weeklyReferralCount >=
+                                    referralData.stats.weeklyLimit * 0.8
+                                  ? 'text-yellow-500'
+                                  : 'text-foreground'
+                            }`}
+                          >
+                            {referralData.stats.weeklyReferralCount}/
+                            {referralData.stats.weeklyLimit}
+                          </span>
+                        </div>
+                        <div className="h-1 w-full rounded-full bg-background">
+                          <div
+                            className={`h-1 rounded-full transition-all ${
+                              referralData.stats.weeklyReferralCount >=
+                              referralData.stats.weeklyLimit
+                                ? 'bg-red-500'
+                                : referralData.stats.weeklyReferralCount >=
+                                    referralData.stats.weeklyLimit * 0.8
+                                  ? 'bg-yellow-500'
+                                  : 'bg-primary'
+                            }`}
+                            style={{
+                              width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                 </div>
-                {referralData.stats.weeklyReferralCount !== undefined &&
-                  referralData.stats.weeklyLimit !== undefined && (
-                    <div className="mt-1.5 border-border border-t pt-1.5">
-                      <div className="mb-0.5 flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Week</span>
-                        <span
-                          className={`font-semibold ${
-                            referralData.stats.weeklyReferralCount >=
-                            referralData.stats.weeklyLimit
-                              ? 'text-red-500'
-                              : referralData.stats.weeklyReferralCount >=
-                                  referralData.stats.weeklyLimit * 0.8
-                                ? 'text-yellow-500'
-                                : 'text-foreground'
-                          }`}
-                        >
-                          {referralData.stats.weeklyReferralCount}/
-                          {referralData.stats.weeklyLimit}
-                        </span>
-                      </div>
-                      <div className="h-1 w-full rounded-full bg-background">
-                        <div
-                          className={`h-1 rounded-full transition-all ${
-                            referralData.stats.weeklyReferralCount >=
-                            referralData.stats.weeklyLimit
-                              ? 'bg-red-500'
-                              : referralData.stats.weeklyReferralCount >=
-                                  referralData.stats.weeklyLimit * 0.8
-                                ? 'bg-yellow-500'
-                                : 'bg-primary'
-                          }`}
-                          style={{
-                            width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
               </div>
             </div>
 
@@ -762,10 +825,13 @@ export default function RewardsPage() {
                     <button
                       key={task.id}
                       onClick={() => handleTaskClick(task.id, task.action)}
+                      disabled={
+                        task.action === 'register-onchain' && registeringOnchain
+                      }
                       className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-all ${
                         task.completed
                           ? 'border-green-500/30 bg-green-500/10'
-                          : 'cursor-pointer border-border hover:bg-muted/50'
+                          : 'cursor-pointer border-border hover:bg-muted/50 disabled:cursor-wait disabled:opacity-60'
                       }`}
                     >
                       <div className={`shrink-0 ${task.color}`}>
@@ -789,11 +855,16 @@ export default function RewardsPage() {
                           className={
                             task.completed
                               ? 'text-green-500'
-                              : 'text-yellow-500'
+                              : task.points < 0
+                                ? 'text-amber-500'
+                                : 'text-yellow-500'
                           }
                         >
-                          {task.completed ? '✓' : '+'}
-                          {task.points}
+                          {task.completed
+                            ? `✓ ${Math.abs(task.points)}`
+                            : task.points < 0
+                              ? `${task.points}`
+                              : `+${task.points}`}
                         </span>
                       </div>
                     </button>
@@ -824,8 +895,6 @@ export default function RewardsPage() {
                 </button>
               </div>
             </div>
-
-            <Separator />
 
             {/* Referral Link */}
             <div className="rounded-lg border border-border p-4">

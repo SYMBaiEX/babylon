@@ -20,7 +20,7 @@ export function ChatHeader({
 }: ChatHeaderProps) {
   return (
     <div className="px-4 py-3">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="font-bold text-foreground text-xl">Messages</h2>
           {isConnected ? (
@@ -52,7 +52,7 @@ export function ChatHeader({
       </div>
 
       {/* Filter Tabs */}
-      <div className="mb-4 flex items-center border-border border-b">
+      <div className="flex items-center border-border border-b">
         <button
           onClick={() => onFilterChange('all')}
           aria-label="Show all conversations"

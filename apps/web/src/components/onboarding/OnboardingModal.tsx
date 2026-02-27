@@ -1,7 +1,7 @@
 'use client';
 
 import type { OnboardingProfilePayload } from '@babylon/shared';
-import { CHAIN, cn, logger } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
   Check,
@@ -41,13 +41,12 @@ export interface ImportedProfileData {
  * form submission and error states.
  *
  * Features:
- * - Multi-stage flow (PROFILE, ONCHAIN, COMPLETED)
+ * - Multi-stage flow (PROFILE, COMPLETED)
  * - Profile form (name, username, bio)
  * - Profile picture selection
  * - Banner selection
  * - Social account import
  * - Username validation
- * - On-chain registration
  * - Terms acceptance
  * - Loading states
  * - Error handling
@@ -69,12 +68,10 @@ export interface ImportedProfileData {
  */
 interface OnboardingModalProps {
   isOpen: boolean;
-  stage: 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
+  stage: 'PROFILE' | 'COMPLETED';
   isSubmitting: boolean;
   error?: string | null;
-  isWalletReady: boolean;
   onSubmitProfile: (payload: OnboardingProfilePayload) => Promise<void>;
-  onRetryOnchain: () => Promise<void>;
   /** Called when onboarding is fully complete (after COMPLETED stage) */
   onComplete: () => void;
   onLogout?: () => Promise<void>;
@@ -141,9 +138,7 @@ export function OnboardingModal({
   stage,
   isSubmitting,
   error,
-  isWalletReady,
   onSubmitProfile,
-  onRetryOnchain,
   onComplete,
   onLogout,
   user,
@@ -651,7 +646,6 @@ export function OnboardingModal({
   };
 
   // In full-screen mode, no close button - only logout is available
-  // On-chain registration is MANDATORY (no skip option)
   const canLogout = !isSubmitting && onLogout;
 
   const handleLogout = async () => {
@@ -750,9 +744,7 @@ export function OnboardingModal({
             <h2 className="truncate font-bold text-lg md:text-xl">
               {stage === 'COMPLETED'
                 ? 'Welcome to Babylon!'
-                : stage === 'ONCHAIN'
-                  ? 'Almost there!'
-                  : 'Set up your profile'}
+                : 'Set up your profile'}
             </h2>
             {stage === 'PROFILE' && importedData && (
               <p className="text-[#0066FF] text-xs">
@@ -800,8 +792,7 @@ export function OnboardingModal({
                   You&apos;re all set! 🎉
                 </h3>
                 <p className="mx-auto max-w-sm text-muted-foreground">
-                  Your profile is ready and you&apos;re registered on the
-                  blockchain.
+                  Your profile is ready. Welcome to Babylon!
                 </p>
               </div>
               <button
@@ -811,140 +802,6 @@ export function OnboardingModal({
               >
                 Start Exploring
               </button>
-            </div>
-          ) : stage === 'ONCHAIN' ? (
-            <div className="flex flex-col items-center gap-6 p-8 text-center md:p-12">
-              {isSubmitting ? (
-                <>
-                  <div className="relative flex h-20 w-20 items-center justify-center md:h-24 md:w-24">
-                    <div className="absolute inset-0 rounded-full border-4 border-[#0066FF]/20" />
-                    <div
-                      className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[#0066FF]"
-                      style={{ animationDuration: '1s' }}
-                    />
-                    <Sparkles className="h-8 w-8 text-[#0066FF] md:h-10 md:w-10" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-semibold text-lg md:text-xl">
-                      Registering on-chain...
-                    </p>
-                    <p className="mx-auto max-w-sm text-muted-foreground text-sm">
-                      Confirming your identity on the blockchain. This usually
-                      takes 10-30 seconds.
-                    </p>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="w-full max-w-xs overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-2 animate-pulse rounded-full bg-[#0066FF]"
-                      style={{
-                        width: '60%',
-                        animation: 'pulse 2s ease-in-out infinite',
-                      }}
-                    />
-                  </div>
-                  <p className="text-muted-foreground/60 text-xs">
-                    Please don&apos;t close this window
-                  </p>
-                </>
-              ) : error ? (
-                <>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-500/10 md:h-24 md:w-24">
-                    <AlertCircle className="h-10 w-10 text-red-500 md:h-12 md:w-12" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-semibold text-lg md:text-xl">
-                      Registration Failed
-                    </p>
-                    <p className="mx-auto max-w-sm text-red-500 text-sm">
-                      {error}
-                    </p>
-                  </div>
-                  <div className="mx-auto max-w-sm rounded-lg bg-muted/50 p-4 text-left text-muted-foreground text-sm">
-                    <p className="mb-2 font-medium">Troubleshooting tips:</p>
-                    <ul className="list-inside list-disc space-y-1 text-xs">
-                      <li>Check your internet connection</li>
-                      <li>Make sure you have ETH for gas on {CHAIN.name}</li>
-                      <li>Try refreshing and attempting again</li>
-                    </ul>
-                  </div>
-                  <button
-                    type="button"
-                    className="w-full max-w-xs rounded-xl bg-[#0066FF] px-6 py-4 font-semibold text-white shadow-lg transition-all hover:bg-[#0055DD] hover:shadow-xl active:scale-[0.98] disabled:opacity-50"
-                    onClick={onRetryOnchain}
-                    disabled={isSubmitting}
-                  >
-                    Try Again
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#0066FF]/10 md:h-24 md:w-24">
-                    <Sparkles className="h-10 w-10 text-[#0066FF] md:h-12 md:w-12" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-semibold text-lg md:text-xl">
-                      Final Step
-                    </p>
-                    <p className="mx-auto max-w-sm text-muted-foreground text-sm">
-                      Register on the blockchain to unlock all features
-                    </p>
-                  </div>
-                  {/* Features list */}
-                  <div className="mx-auto grid w-full max-w-sm gap-3">
-                    <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0066FF]/10">
-                        <Check className="h-4 w-4 text-[#0066FF]" />
-                      </div>
-                      <span className="text-sm">
-                        On-chain reputation tracking
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0066FF]/10">
-                        <Check className="h-4 w-4 text-[#0066FF]" />
-                      </div>
-                      <span className="text-sm">
-                        Verifiable trading history
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0066FF]/10">
-                        <Check className="h-4 w-4 text-[#0066FF]" />
-                      </div>
-                      <span className="text-sm">
-                        NFT-based identity (ERC-8004)
-                      </span>
-                    </div>
-                  </div>
-                  {user?.walletAddress && (
-                    <p className="rounded-lg bg-muted/50 px-4 py-2 font-mono text-muted-foreground text-xs">
-                      {user.walletAddress.slice(0, 8)}...
-                      {user.walletAddress.slice(-6)}
-                    </p>
-                  )}
-                  {!isWalletReady && (
-                    <div className="flex items-center gap-2 text-amber-500 text-sm">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Preparing your wallet...</span>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className={cn(
-                      'w-full max-w-xs rounded-xl bg-[#0066FF] px-6 py-4 font-semibold text-white shadow-lg transition-all hover:bg-[#0055DD] hover:shadow-xl active:scale-[0.98]',
-                      (!isWalletReady || isSubmitting) &&
-                        'cursor-not-allowed opacity-50'
-                    )}
-                    onClick={onRetryOnchain}
-                    disabled={isSubmitting || !isWalletReady}
-                  >
-                    {isWalletReady
-                      ? 'Complete Registration'
-                      : 'Preparing Wallet...'}
-                  </button>
-                </>
-              )}
             </div>
           ) : isLoadingDefaults ? (
             <div className="flex flex-col items-center p-6 md:p-8">
@@ -980,45 +837,12 @@ export function OnboardingModal({
                 'flex h-6 w-6 items-center justify-center rounded-full font-medium text-xs transition-all',
                 stage === 'PROFILE'
                   ? 'bg-[#0066FF] text-white'
-                  : stage === 'ONCHAIN' || stage === 'COMPLETED'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-muted text-muted-foreground'
+                  : 'bg-green-500 text-white'
               )}
             >
-              {stage === 'ONCHAIN' || stage === 'COMPLETED' ? (
-                <Check className="h-3.5 w-3.5" />
-              ) : (
-                '1'
-              )}
+              {stage === 'COMPLETED' ? <Check className="h-3.5 w-3.5" /> : '1'}
             </div>
             <span className="hidden text-xs sm:inline">Profile</span>
-          </div>
-
-          {/* Connector */}
-          <div
-            className={cn(
-              'h-0.5 w-8 rounded-full transition-colors',
-              stage === 'ONCHAIN' || stage === 'COMPLETED'
-                ? 'bg-green-500'
-                : 'bg-muted'
-            )}
-          />
-
-          {/* Step 2: On-chain */}
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                'flex h-6 w-6 items-center justify-center rounded-full font-medium text-xs transition-all',
-                stage === 'ONCHAIN'
-                  ? 'bg-[#0066FF] text-white'
-                  : stage === 'COMPLETED'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-muted text-muted-foreground'
-              )}
-            >
-              {stage === 'COMPLETED' ? <Check className="h-3.5 w-3.5" /> : '2'}
-            </div>
-            <span className="hidden text-xs sm:inline">Register</span>
           </div>
 
           {/* Connector */}
@@ -1029,7 +853,7 @@ export function OnboardingModal({
             )}
           />
 
-          {/* Step 3: Complete */}
+          {/* Step 2: Done */}
           <div className="flex items-center gap-2">
             <div
               className={cn(
@@ -1039,7 +863,7 @@ export function OnboardingModal({
                   : 'bg-muted text-muted-foreground'
               )}
             >
-              {stage === 'COMPLETED' ? <Check className="h-3.5 w-3.5" /> : '3'}
+              {stage === 'COMPLETED' ? <Check className="h-3.5 w-3.5" /> : '2'}
             </div>
             <span className="hidden text-xs sm:inline">Done</span>
           </div>

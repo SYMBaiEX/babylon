@@ -142,7 +142,7 @@ export default async function RootLayout({
                 </Suspense>
 
                 {/* Main Content Area - Scrollable content with pull-to-refresh */}
-                <main className="min-h-screen min-w-0 flex-1 bg-background pb-14 md:pb-0">
+                <main className="min-h-screen min-w-0 flex-1 bg-background pb-[--bottom-nav-height] md:pb-0">
                   {children}
                 </main>
 

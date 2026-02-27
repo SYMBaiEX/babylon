@@ -2,7 +2,7 @@ import { ChatListSkeleton, Skeleton } from '@/components/shared/Skeleton';
 
 export default function ChatsLoading() {
   return (
-    <div className="flex h-[calc(100dvh-var(--header-height,112px))] flex-col overflow-hidden md:h-dvh">
+    <div className="flex h-[calc(100dvh-56px-var(--bottom-nav-height))] flex-col overflow-hidden md:h-dvh">
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left column: Chat list */}
         <div className="flex w-full flex-col border-border bg-background xl:w-80 xl:border-r">
