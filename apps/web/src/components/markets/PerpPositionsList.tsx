@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { invalidatePerpMarketsCache } from '@/stores/perpMarketsStore';
+import { useUserPositionsStore } from '@/stores/userPositionsStore';
 import type { DisplayPerpPosition } from '@/types/markets';
 import {
   type ClosePerpDetails,
@@ -59,7 +60,7 @@ export function PerpPositionsList({
   density = 'default',
 }: PerpPositionsListProps) {
   const compact = density === 'compact';
-  const [closingId, setClosingId] = useState<string | null>(null);
+  const [closingIds, setClosingIds] = useState<Set<string>>(new Set());
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingClose, setPendingClose] = useState<{
     position: PerpPosition;
@@ -122,30 +123,52 @@ export function PerpPositionsList({
   const handleConfirmClose = useCallback(async () => {
     if (!pendingClose) return;
 
-    setClosingId(pendingClose.position.id);
+    // Capture values before async work to avoid stale closure if user
+    // clicks another position's Close button while this one is in-flight.
+    const closingPosition = pendingClose.position;
+    const positionId = closingPosition.id;
+
+    setClosingIds((prev) => new Set(prev).add(positionId));
     setConfirmDialogOpen(false);
-
-    const data = await closePerpPosition(pendingClose.position.id);
-    const pnl =
-      typeof data?.pnl === 'number'
-        ? data.pnl
-        : typeof data?.realizedPnL === 'number'
-          ? data.realizedPnL
-          : 0;
-
-    const pnlSign = pnl >= 0 ? '+' : '-';
-    toast.success('Position closed!', {
-      description: `${pendingClose.position.ticker}: ${pnlSign}${formatCurrency(
-        Math.abs(pnl),
-        { useThousandsSeparator: true }
-      )} PnL`,
-    });
-
-    // Invalidate cache to ensure fresh data on next fetch
-    invalidatePerpMarketsCache();
-    await onPositionClosed?.();
-    setClosingId(null);
     setPendingClose(null);
+
+    try {
+      const data = await closePerpPosition(positionId);
+      const pnl =
+        typeof data?.pnl === 'number'
+          ? data.pnl
+          : typeof data?.realizedPnL === 'number'
+            ? data.realizedPnL
+            : 0;
+
+      const pnlSign = pnl >= 0 ? '+' : '-';
+      toast.success('Position closed!', {
+        description: `${closingPosition.ticker}: ${pnlSign}${formatCurrency(
+          Math.abs(pnl),
+          { useThousandsSeparator: true }
+        )} PnL`,
+      });
+
+      // Optimistic removal: immediately remove from store so the UI updates
+      // without waiting for the background refresh round-trip.
+      useUserPositionsStore.getState().removePerpPosition(positionId);
+
+      // Fire-and-forget: invalidate caches and refresh in background.
+      // Don't await — the optimistic removal already updated the UI.
+      invalidatePerpMarketsCache();
+      onPositionClosed?.();
+    } catch (err) {
+      toast.error('Failed to close position', {
+        description:
+          err instanceof Error ? err.message : 'An unexpected error occurred',
+      });
+    } finally {
+      setClosingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(positionId);
+        return next;
+      });
+    }
   }, [closePerpPosition, onPositionClosed, pendingClose]);
 
   /** Use shared formatCurrency for price formatting */
@@ -187,7 +210,7 @@ export function PerpPositionsList({
           liquidationDistance,
           isNearLiquidation,
         }) => {
-          const isClosing = closingId === position.id;
+          const isClosing = closingIds.has(position.id);
 
           return (
             <div
@@ -322,7 +345,9 @@ export function PerpPositionsList({
         open={confirmDialogOpen}
         onOpenChange={setConfirmDialogOpen}
         onConfirm={handleConfirmClose}
-        isSubmitting={closingId !== null}
+        isSubmitting={
+          pendingClose !== null && closingIds.has(pendingClose.position.id)
+        }
         tradeDetails={
           pendingClose
             ? ({

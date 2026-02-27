@@ -559,19 +559,41 @@ export class PerpMarketService {
 
     // OI decreases by the closed portion
     const newOpenInterest = Math.max(0, market.openInterest - closeSize);
-    await this.db.updateMarketStats(position.ticker, {
-      openInterest: newOpenInterest,
-      volume24h: market.volume24h + closeSize,
-    });
 
+    // Run market stats update and balance query in parallel — they're
+    // independent of each other and both depend only on the settlement above.
+    const [, balanceResult] = await Promise.all([
+      this.db.updateMarketStats(position.ticker, {
+        openInterest: newOpenInterest,
+        volume24h: market.volume24h + closeSize,
+      }),
+      this.deps.wallet.getBalance(input.userId),
+    ]);
+
+    // Fee processing is bookkeeping (referral distribution, fee records).
+    // The position is already settled, so this is safe to run without blocking
+    // the response back to the user.
     if (this.deps.feeProcessor) {
-      await this.deps.feeProcessor.processTradingFee({
-        userId: input.userId,
-        amount: position.size,
-        type: 'perp_close',
-        relatedId: position.ticker,
-        positionId: position.id,
-      });
+      this.deps.feeProcessor
+        .processTradingFee({
+          userId: input.userId,
+          amount: position.size,
+          type: 'perp_close',
+          relatedId: position.ticker,
+          positionId: position.id,
+        })
+        .catch((err) => {
+          logger.error(
+            'Fee processing failed after close settlement',
+            {
+              positionId: position.id,
+              userId: input.userId,
+              ticker: position.ticker,
+              error: err instanceof Error ? err.message : String(err),
+            },
+            'PerpService'
+          );
+        });
     }
 
     // Apply market-level post-close impact after settlement to keep the close
@@ -615,13 +637,15 @@ export class PerpMarketService {
       realizedPnL,
       feePaid: fee,
       marginPaid,
-      balance: (await this.deps.wallet.getBalance(input.userId)).balance,
+      balance: balanceResult.balance,
       remainingSize: isFullClose ? 0 : remainingSize,
       fullyClosed: isFullClose,
     };
 
-    // Broadcast trade event for real-time UI updates
-    await this.emitTradeEvent({
+    // Broadcast trade event for real-time UI updates.
+    // emitTradeEvent already handles errors internally, so fire-and-forget
+    // to avoid blocking the response.
+    this.emitTradeEvent({
       type: 'perp_trade',
       action: isFullClose ? 'close' : 'partial_close',
       ticker: position.ticker,
