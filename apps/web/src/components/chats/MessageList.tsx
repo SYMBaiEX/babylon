@@ -101,11 +101,32 @@ export function MessageList({
   if (loading) {
     return (
       <>
-        <div className="flex h-full items-center justify-center">
-          <div className="w-full max-w-md space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+        <div className="flex flex-1 flex-col justify-end p-4">
+          <div className="space-y-4">
+            {/* Other user message skeleton */}
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+              <div className="space-y-1">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-14 w-48 rounded-2xl rounded-tl-sm" />
+              </div>
+            </div>
+            {/* Current user message skeleton */}
+            <div className="flex justify-end">
+              <Skeleton className="h-10 w-40 rounded-2xl rounded-tr-sm" />
+            </div>
+            {/* Other user message skeleton */}
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+              <div className="space-y-1">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-20 w-64 rounded-2xl rounded-tl-sm" />
+              </div>
+            </div>
+            {/* Current user message skeleton */}
+            <div className="flex justify-end">
+              <Skeleton className="h-10 w-56 rounded-2xl rounded-tr-sm" />
+            </div>
           </div>
         </div>
         <div ref={messagesEndRef} />

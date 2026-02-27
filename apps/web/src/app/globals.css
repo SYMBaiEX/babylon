@@ -2,6 +2,7 @@
 @config "../../tailwind.config.ts";
 
 :root {
+  --bottom-nav-height: 56px;
   --background: #ffffff;
   --foreground: #0f1419;
   --card: #f7f8f8;
@@ -369,15 +370,6 @@ button:disabled {
   box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.1), inset -5px -5px 5px rgba(255, 255, 255, 0.05);
 }
 
-.chat-button {
-  box-shadow: inset 3px 3px 3px rgba(0, 0, 0, 0.1), inset -3px -3px 3px rgba(255, 255, 255, 0.05);
-  transition: all 0.3s ease;
-}
-
-.chat-button:hover:not(:disabled) {
-  box-shadow: none;
-}
-
 .message-input {
   box-shadow: none;
 }
@@ -398,10 +390,6 @@ button:disabled {
 /* Dark mode adjustments for chat styles */
 .dark .chat-card {
   box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.3), inset -5px -5px 5px rgba(255, 255, 255, 0.02);
-}
-
-.dark .chat-button {
-  box-shadow: inset 3px 3px 3px rgba(0, 0, 0, 0.3), inset -3px -3px 3px rgba(255, 255, 255, 0.02);
 }
 
 .dark .message-input {

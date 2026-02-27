@@ -28,6 +28,7 @@ export const POINTS = {
   REFERRAL_SIGNUP: 100, // Reward for referrer when someone signs up
   REFERRAL_BONUS: 100, // Bonus for new user who used a referral code (on top of base signup)
   REFERRAL_QUALIFIED: 100, // Bonus for referrer when referred user completes profile
+  ONCHAIN_REGISTRATION: 100, // Cost to register on-chain via Agent0 ERC-8004
   PRIVATE_GROUP_CREATE: 200, // Reward for creating a private group
   PRIVATE_CHANNEL_CREATE: 200, // Reward for creating a private channel
 
@@ -93,4 +94,5 @@ export type PointsReason =
   | 'transfer_received'
   | 'report_reward' // Reward for successful reporting of CSAM/scammer
   | 'trading_pnl' // Points from trading profit/loss
-  | 'daily_login'; // Points from daily login streak reward
+  | 'daily_login' // Points from daily login streak reward
+  | 'onchain_registration'; // Points deducted for on-chain ERC-8004 registration

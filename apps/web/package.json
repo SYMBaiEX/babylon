@@ -11,7 +11,7 @@
     "lint": "biome lint .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "NODE_OPTIONS='--max-old-space-size=8192' tsc --noEmit",
     "clean": "rm -rf .next .turbo node_modules/.cache"
   },
   "dependencies": {
