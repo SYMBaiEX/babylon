@@ -438,7 +438,7 @@ export default function LeaderboardPage() {
   };
 
   return (
-    <PageContainer noPadding className="flex w-full flex-col overflow-visible!">
+    <PageContainer noPadding className="overflow-visible! flex w-full flex-col">
       {/* Desktop: Content + Widgets layout */}
       <div className="hidden flex-1 overflow-hidden xl:flex">
         {/* Main content */}

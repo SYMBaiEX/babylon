@@ -124,10 +124,7 @@ export function LeaderboardWidgetSidebar({
   const isTeamView = leaderboardType === 'team';
 
   return (
-    <div
-      ref={containerRef}
-      className="hidden w-96 shrink-0 flex-col xl:flex"
-    >
+    <div ref={containerRef} className="hidden w-96 shrink-0 flex-col xl:flex">
       <div ref={innerRef} className="mr-28 flex flex-col gap-6 px-4 py-6">
         {selectedUser && (
           <div className="space-y-4">

@@ -58,7 +58,9 @@ const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL_MS / 1000);
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
 
 interface CachedLeaderboardData {
-  users: Awaited<ReturnType<typeof PointsService.getWalletLeaderboard>>['users'];
+  users: Awaited<
+    ReturnType<typeof PointsService.getWalletLeaderboard>
+  >['users'];
   totalCount: number;
   page: number;
   pageSize: number;
@@ -106,9 +108,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  let currentUser: Awaited<
-    ReturnType<typeof PointsService.getUserPosition>
-  > = null;
+  let currentUser: Awaited<ReturnType<typeof PointsService.getUserPosition>> =
+    null;
   if (userId) {
     currentUser = await PointsService.getUserPosition(
       userId,

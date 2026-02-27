@@ -296,24 +296,14 @@ export const TotalPointsService = {
             whitelist,
             and(eq(whitelist.userId, users.id), isNull(whitelist.revokedAt))
           )
-          .where(
-            and(
-              eq(users.isActor, false),
-              cursorFilter
-            )
-          )
+          .where(and(eq(users.isActor, false), cursorFilter))
           .orderBy(users.id)
           .limit(BATCH_SIZE);
       } else {
         batch = await db
           .select({ id: users.id, totalPoints: users.totalPoints })
           .from(users)
-          .where(
-            and(
-              eq(users.isActor, false),
-              cursorFilter
-            )
-          )
+          .where(and(eq(users.isActor, false), cursorFilter))
           .orderBy(users.id)
           .limit(BATCH_SIZE);
       }
