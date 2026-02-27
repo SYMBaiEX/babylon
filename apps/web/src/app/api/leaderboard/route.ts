@@ -57,16 +57,13 @@ const CACHE_TTL_MS = Number(process.env.LEADERBOARD_CACHE_MS) || 120_000;
 const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL_MS / 1000);
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
 
-interface CachedLeaderboardData {
-  users: Awaited<
-    ReturnType<typeof PointsService.getWalletLeaderboard>
-  >['users'];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  leaderboardType: 'wallet' | 'team';
-}
+type WalletLeaderboardResult = Awaited<
+  ReturnType<typeof PointsService.getWalletLeaderboard>
+>;
+type TeamLeaderboardResult = Awaited<
+  ReturnType<typeof PointsService.getTeamLeaderboard>
+>;
+type CachedLeaderboardData = WalletLeaderboardResult | TeamLeaderboardResult;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
