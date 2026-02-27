@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { NextRequest } from 'next/server';
+import * as actualDbModule from '../../../db/src/index';
 
 /**
  * Mock game state type
@@ -50,6 +51,8 @@ interface SqlCondition {
 // Mock db with a mutable state we can control in tests
 let mockGame: MockGame | null = null;
 
+mock.module('server-only', () => ({}));
+
 // Create a complete mock that includes schema exports
 mock.module('@babylon/db', () => {
   const createModelMock = (overrides: Partial<MockModel> = {}): MockModel => ({
@@ -96,6 +99,7 @@ mock.module('@babylon/db', () => {
   };
 
   return {
+    ...actualDbModule,
     db: {
       game: createModelMock(),
       user: createModelMock(),
@@ -200,10 +204,18 @@ mock.module('@babylon/api/services/cron-relay-service', () => ({
   relayCronToStaging: async () => ({ forwarded: false }),
 }));
 
+mock.module('@/lib/engine/ensure-engine-services', () => ({
+  ensureEngineServices: () => {},
+}));
+
 // Import the route handler after mocks are set up
-import { POST } from '@/app/api/cron/agent-tick/route';
+const { POST } = await import('@/app/api/cron/agent-tick/route');
 
 describe('Agent Tick Cron - DB State', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     mockGame = null;
   });
