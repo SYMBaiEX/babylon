@@ -24,7 +24,7 @@ import { NextResponse } from 'next/server';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-async function handler(request: NextRequest) {
+async function handler(_request: NextRequest) {
   const startTime = Date.now();
   const now = new Date();
   const isMidnight = now.getUTCHours() === 0 && now.getUTCMinutes() < 15;

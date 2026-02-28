@@ -10,7 +10,10 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { getDevCredentials } from '@babylon/api';
-import { requireAuth as requireAuthShared } from './helpers';
+import {
+  requireAuth as requireAuthShared,
+  requireServer as requireServerShared,
+} from './helpers';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -19,6 +22,10 @@ const BASE_URL =
 
 let serverAvailable = false;
 let devAdminToken: string | null = null;
+
+function requireServer(): void {
+  requireServerShared(serverAvailable, BASE_URL);
+}
 
 function requireAuth(): void {
   requireAuthShared(serverAvailable, devAdminToken, BASE_URL);
