@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, formatCompactCurrency } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import {
   Activity,
   Award,
@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { formatCurrencyCompact } from '@/lib/format';
 
 /**
  * User stats schema for validation.
@@ -243,11 +244,7 @@ export function StatsTab() {
     return () => clearInterval(interval);
   }, [fetchStats, fetchFeeStats, fetchTokenStats]);
 
-  /** Use shared formatCompactCurrency for currency formatting */
-  const formatCurrency = (value: string) => {
-    const num = parseFloat(value);
-    return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
-  };
+  const formatCurrency = formatCurrencyCompact;
 
   const formatNumber = (value: number) => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;

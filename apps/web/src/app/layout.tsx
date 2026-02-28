@@ -135,14 +135,14 @@ export default async function RootLayout({
                 <MobileHeader />
               </Suspense>
 
-              <div className="mark mx-auto flex min-h-screen max-w-7xl bg-sidebar">
+              <div className="mark mx-auto flex min-h-dvh max-w-7xl bg-sidebar md:min-h-screen">
                 {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
                 <Suspense fallback={null}>
                   <Sidebar />
                 </Suspense>
 
                 {/* Main Content Area - Scrollable content with pull-to-refresh */}
-                <main className="min-h-screen min-w-0 flex-1 bg-background pb-[--bottom-nav-height] md:pb-0">
+                <main className="min-h-dvh min-w-0 flex-1 bg-background pb-[--bottom-nav-height] md:min-h-screen md:pb-0">
                   {children}
                 </main>
 

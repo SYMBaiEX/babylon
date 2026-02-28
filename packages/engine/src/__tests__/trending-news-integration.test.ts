@@ -8,17 +8,12 @@
 /// <reference types="bun-types" />
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import type { BabylonLLMClient } from '../../engine/llm/openai-client';
-import type {
-  Actor,
-  FeedPost,
-  Organization,
-  Question,
-} from '../../shared/types';
 import { type Article, ArticleGenerator } from '../ArticleGenerator';
 import { FeedGenerator } from '../FeedGenerator';
+import type { BabylonLLMClient } from '../llm/openai-client';
 import { NewsArticlePacingEngine } from '../NewsArticlePacingEngine';
 import { TrendingTopicsEngine } from '../TrendingTopicsEngine';
+import type { Actor, FeedPost, Organization, Question } from '../types/shared';
 
 /**
  * Mock LLM client interface for testing

@@ -1,5 +1,6 @@
-import { cn, formatCurrency as formatCurrencyShared } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react';
+import { formatCurrencyDisplay } from '@/lib/format';
 
 /**
  * Market category type for category PnL card.
@@ -62,20 +63,6 @@ interface CategoryPnLCardProps {
   onShare: () => void;
   onRefresh: () => void;
   lastUpdated: number | null;
-}
-
-/**
- * Format currency value safely.
- *
- * Formats a number as Babylon points currency, defaulting to 0 if invalid.
- *
- * @param value - Value to format
- * @returns Formatted currency string
- */
-function formatCurrency(value: number | null | undefined) {
-  const safeValue =
-    typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 /**
@@ -208,7 +195,7 @@ export function CategoryPnLCard({
               </div>
               <p className="font-bold text-4xl text-foreground sm:text-5xl">
                 {pnlIsPositive ? '+' : ''}
-                {formatCurrency(pnl)}
+                {formatCurrencyDisplay(pnl)}
               </p>
             </div>
 
@@ -227,7 +214,7 @@ export function CategoryPnLCard({
                     Total Value
                   </dt>
                   <dd className="font-semibold text-base text-foreground">
-                    {formatCurrency(data.totalValue)}
+                    {formatCurrencyDisplay(data.totalValue)}
                   </dd>
                 </div>
               )}
@@ -237,7 +224,7 @@ export function CategoryPnLCard({
                     Open Interest
                   </dt>
                   <dd className="font-semibold text-base text-foreground">
-                    {formatCurrency(data.categorySpecific.openInterest)}
+                    {formatCurrencyDisplay(data.categorySpecific.openInterest)}
                   </dd>
                 </div>
               )}
@@ -257,7 +244,7 @@ export function CategoryPnLCard({
                     Total Invested
                   </dt>
                   <dd className="font-semibold text-base text-foreground">
-                    {formatCurrency(data.categorySpecific.totalInvested)}
+                    {formatCurrencyDisplay(data.categorySpecific.totalInvested)}
                   </dd>
                 </div>
               )}

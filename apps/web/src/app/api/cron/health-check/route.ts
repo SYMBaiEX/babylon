@@ -53,7 +53,7 @@
  * ```
  */
 
-import { verifyCronAuth } from '@babylon/api';
+import { withCronAuth } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -63,14 +63,8 @@ import { NextResponse } from 'next/server';
 export const maxDuration = 60; // 1 minute max for health check
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+async function handler(_request: NextRequest) {
   const startTime = Date.now();
-
-  // Verify cron authorization using centralized auth
-  if (!verifyCronAuth(request, { jobName: 'HealthCheck' })) {
-    logger.warn('Unauthorized health check attempt', undefined, 'HealthCheck');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
   // Quick database health check
   await db.$queryRaw`SELECT 1`;
@@ -94,3 +88,5 @@ export async function GET(request: NextRequest) {
     timestamp: new Date().toISOString(),
   });
 }
+
+export const GET = withCronAuth('HealthCheck', handler);

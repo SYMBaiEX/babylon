@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, formatCompactCurrency } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import {
   Ban,
   CheckCircle,
@@ -19,6 +19,8 @@ import { BlockUserModal } from '@/components/moderation/BlockUserModal';
 import { MuteUserModal } from '@/components/moderation/MuteUserModal';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { formatCurrencyCompact } from '@/lib/format';
+import { getUserDisplayName } from '@/lib/user-display';
 
 /**
  * User schema for validation.
@@ -237,11 +239,7 @@ export function UserManagementTab() {
     }
   };
 
-  /** Use shared formatCompactCurrency for currency formatting */
-  const formatCurrency = (value: string) => {
-    const num = parseFloat(value);
-    return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
-  };
+  const formatCurrency = formatCurrencyCompact;
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -252,7 +250,7 @@ export function UserManagementTab() {
   };
 
   const UserRow = ({ user }: { user: User }) => {
-    const displayName = user.displayName || user.username || 'Anonymous';
+    const displayName = getUserDisplayName(user, 'Anonymous');
 
     return (
       <div className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50">

@@ -1402,9 +1402,9 @@ export function ComingSoon() {
   // Unauthenticated state - Show landing page
   if (!authenticated || !dbUser) {
     return (
-      <div className="safe-area-bottom flex min-h-screen w-full flex-col overflow-x-hidden bg-background text-foreground">
+      <div className="safe-area-bottom flex min-h-dvh w-full flex-col overflow-x-hidden bg-background text-foreground md:min-h-screen">
         {/* Hero Section */}
-        <section className="relative z-10 flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-visible px-4 pt-4 pb-8 sm:px-6 sm:py-16 md:px-8 md:py-20 lg:py-24">
+        <section className="relative z-10 flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-visible px-4 pt-4 pb-8 sm:px-6 sm:py-16 md:min-h-screen md:px-8 md:py-20 lg:py-24">
           {/* Background Image - Full Width */}
           <div className="-translate-x-1/2 fixed inset-0 left-1/2 z-0 h-full w-screen">
             <Image
@@ -2514,7 +2514,7 @@ export function ComingSoon() {
 
   // Authenticated & waitlisted - Show position and leaderboard
   return (
-    <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="flex min-h-dvh w-full flex-col overflow-x-hidden bg-background text-foreground md:min-h-screen">
       {/* Background Image - Full Width */}
       <div className="-translate-x-1/2 fixed inset-0 left-1/2 z-0 h-full w-screen">
         <Image

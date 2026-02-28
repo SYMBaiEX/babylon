@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { BabylonLLMClient } from '../llm/openai-client';
-import { TokenStatsService } from '../services/token-stats-service';
+import { tokenStatsService } from '../services/token-stats-service';
 
 // Skip if no API key is available
 const hasApiKey = Boolean(
@@ -18,16 +18,16 @@ const hasApiKey = Boolean(
 
 describe.skipIf(!hasApiKey)('Token Stats Integration - Real API Calls', () => {
   beforeEach(() => {
-    TokenStatsService.clearAll();
+    tokenStatsService.clearAll();
   });
 
   afterEach(() => {
-    TokenStatsService.clearAll();
+    tokenStatsService.clearAll();
   });
 
   test('tracks tokens from a real LLM call', async () => {
     // Start token collection
-    const tickId = TokenStatsService.startTick('integration-test-1');
+    const tickId = tokenStatsService.startTick('integration-test-1');
     expect(tickId).toBe('integration-test-1');
 
     // Create LLM client
@@ -56,7 +56,7 @@ describe.skipIf(!hasApiKey)('Token Stats Integration - Real API Calls', () => {
     expect(Object.keys(result).length).toBeGreaterThan(0);
 
     // End collection and get stats
-    const stats = TokenStatsService.endTick();
+    const stats = tokenStatsService.endTick();
 
     // Verify stats were collected
     expect(stats).not.toBeNull();
@@ -92,7 +92,7 @@ describe.skipIf(!hasApiKey)('Token Stats Integration - Real API Calls', () => {
   }, 30000); // 30 second timeout for API call
 
   test('tracks multiple LLM calls with different prompt types', async () => {
-    TokenStatsService.startTick('integration-test-2');
+    tokenStatsService.startTick('integration-test-2');
 
     const llm = BabylonLLMClient.forGameTick();
 
@@ -117,7 +117,7 @@ describe.skipIf(!hasApiKey)('Token Stats Integration - Real API Calls', () => {
       { temperature: 0, maxTokens: 50, promptType: 'test-greeting' }
     );
 
-    const stats = TokenStatsService.endTick();
+    const stats = tokenStatsService.endTick();
 
     console.log('\n=== Multiple Calls Stats ===');
     console.log('Total Calls:', stats?.totalCalls);
@@ -144,7 +144,7 @@ describe.skipIf(!hasApiKey)('Token Stats Integration - Real API Calls', () => {
   }, 60000); // 60 second timeout
 
   test('validates token counts are reasonable', async () => {
-    TokenStatsService.startTick('integration-test-3');
+    tokenStatsService.startTick('integration-test-3');
 
     const llm = BabylonLLMClient.forGameTick();
 
@@ -183,7 +183,7 @@ Be creative but keep responses short.`;
       { temperature: 0.5, maxTokens: 100, promptType: 'long' }
     );
 
-    const stats = TokenStatsService.endTick();
+    const stats = tokenStatsService.endTick();
 
     const shortStats = stats?.byPromptType.find(
       (p) => p.promptType === 'short'
@@ -210,25 +210,25 @@ Be creative but keep responses short.`;
 
   test('summary includes cost estimates', async () => {
     // Run two ticks
-    TokenStatsService.startTick('cost-test-1');
+    tokenStatsService.startTick('cost-test-1');
     const llm = BabylonLLMClient.forGameTick();
     await llm.generateJSON<{ x: number }>(
       'Return {"x":1}',
       { properties: { x: { type: 'number' } }, required: ['x'] },
       { temperature: 0, maxTokens: 20, promptType: 'cost-test' }
     );
-    TokenStatsService.endTick();
+    tokenStatsService.endTick();
 
-    TokenStatsService.startTick('cost-test-2');
+    tokenStatsService.startTick('cost-test-2');
     await llm.generateJSON<{ y: number }>(
       'Return {"y":2}',
       { properties: { y: { type: 'number' } }, required: ['y'] },
       { temperature: 0, maxTokens: 20, promptType: 'cost-test' }
     );
-    TokenStatsService.endTick();
+    tokenStatsService.endTick();
 
     // Get summary
-    const summary = TokenStatsService.getSummary(10);
+    const summary = tokenStatsService.getSummary(10);
 
     console.log('\n=== Cost Summary ===');
     console.log('Tick Count:', summary?.tickCount);

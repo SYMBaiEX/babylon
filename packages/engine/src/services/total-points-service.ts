@@ -2,7 +2,7 @@
  * Total Points Service
  *
  * Manages the `totalPoints` column on the User table.
- * totalPoints = wallet + positions (excludes agents).
+ * totalPoints = wallet + positions + reputation.
  */
 
 import { PredictionPricing } from '@babylon/core/markets/prediction';
@@ -233,7 +233,6 @@ export const TotalPointsService = {
   async markZeroTotalPointsDirty(batchSize = 5000): Promise<number> {
     const safeBatchSize = Math.min(Math.max(1, batchSize), 10_000);
     const baseWhere = and(
-      eq(users.isAgent, false),
       eq(users.isActor, false),
       eq(users.totalPoints, '0'),
       isNull(users.totalPointsDirtyAt)
@@ -297,26 +296,14 @@ export const TotalPointsService = {
             whitelist,
             and(eq(whitelist.userId, users.id), isNull(whitelist.revokedAt))
           )
-          .where(
-            and(
-              eq(users.isAgent, false),
-              eq(users.isActor, false),
-              cursorFilter
-            )
-          )
+          .where(and(eq(users.isActor, false), cursorFilter))
           .orderBy(users.id)
           .limit(BATCH_SIZE);
       } else {
         batch = await db
           .select({ id: users.id, totalPoints: users.totalPoints })
           .from(users)
-          .where(
-            and(
-              eq(users.isAgent, false),
-              eq(users.isActor, false),
-              cursorFilter
-            )
-          )
+          .where(and(eq(users.isActor, false), cursorFilter))
           .orderBy(users.id)
           .limit(BATCH_SIZE);
       }
@@ -424,7 +411,6 @@ export const TotalPointsService = {
           WHERE w."userId" = u."id"
             AND w."revokedAt" IS NULL
             AND u."totalPoints" = '0'
-            AND u."isAgent" = false
             AND u."isActor" = false
         `)
       : await db.execute(sql`
@@ -433,7 +419,6 @@ export const TotalPointsService = {
             "totalPoints" = COALESCE(CAST("virtualBalance" AS DECIMAL(18,2)), 0) + "reputationPoints",
             "totalPointsDirtyAt" = NOW()
           WHERE "totalPoints" = '0'
-            AND "isAgent" = false
             AND "isActor" = false
         `);
 

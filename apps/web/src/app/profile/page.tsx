@@ -43,7 +43,7 @@ export default function ProfileRootRedirectPage() {
   }, [ready, authenticated, user?.id, user?.username, router, login]);
 
   return (
-    <PageContainer noPadding className="min-h-screen">
+    <PageContainer noPadding className="min-h-dvh md:min-h-screen">
       <div className="mx-auto w-full max-w-[700px]">
         <ProfileHeaderSkeleton />
       </div>

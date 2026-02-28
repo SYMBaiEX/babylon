@@ -1085,4 +1085,3 @@ export function getDbInstance(): DatabaseService {
 }
 
 export { DatabaseService };
-export default getDbInstance;

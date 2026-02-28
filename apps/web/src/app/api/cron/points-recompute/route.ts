@@ -15,7 +15,7 @@
  * - At midnight UTC: Additionally snapshot all user points
  */
 
-import { recordCronExecution, verifyCronAuth } from '@babylon/api';
+import { recordCronExecution, withCronAuth } from '@babylon/api';
 import { TotalPointsService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -24,20 +24,7 @@ import { NextResponse } from 'next/server';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
-  return POST(request);
-}
-
-export async function POST(request: NextRequest) {
-  if (!verifyCronAuth(request, { jobName: 'PointsRecompute' })) {
-    logger.warn(
-      'Unauthorized points-recompute request',
-      undefined,
-      'PointsRecompute'
-    );
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+async function handler(_request: NextRequest) {
   const startTime = Date.now();
   const now = new Date();
   const isMidnight = now.getUTCHours() === 0 && now.getUTCMinutes() < 15;
@@ -107,3 +94,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+const cronHandler = withCronAuth('PointsRecompute', handler);
+export const POST = cronHandler;
+export const GET = cronHandler;

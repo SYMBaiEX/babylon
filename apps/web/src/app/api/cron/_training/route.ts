@@ -41,16 +41,12 @@
  * ```
  */
 
-import { verifyCronAuth } from '@babylon/api';
+import { withCronAuth } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
-  // Security: Verify cron authorization even for disabled endpoints
-  if (!verifyCronAuth(request, { jobName: 'TrainingCron' })) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+async function handler(_request: NextRequest) {
   logger.info('Training cron endpoint called (currently disabled)');
 
   return NextResponse.json({
@@ -59,3 +55,5 @@ export async function GET(request: NextRequest) {
     hint: 'Training is handled by separate Eliza agent processes',
   });
 }
+
+export const GET = withCronAuth('TrainingCron', handler);
