@@ -110,13 +110,13 @@ class SnowflakeGenerator {
 
     this.lastTimestamp = timestamp;
 
-    // Construct the ID
+    // Construct the ID (ensure decimal string for BigInt() compatibility across runtimes)
     const id =
       (timestamp << TIMESTAMP_SHIFT) |
       (this.workerId << WORKER_SHIFT) |
       this.sequence;
 
-    return id.toString();
+    return String(id).trim();
   }
 
   /**
@@ -138,7 +138,7 @@ class SnowflakeGenerator {
     workerId: number;
     sequence: number;
   } {
-    const idBigInt = typeof id === 'string' ? BigInt(id) : id;
+    const idBigInt = typeof id === 'string' ? BigInt(id.trim()) : id;
 
     const timestamp = (idBigInt >> TIMESTAMP_SHIFT) + EPOCH;
     const workerId = (idBigInt >> WORKER_SHIFT) & MAX_WORKER_ID;
@@ -155,12 +155,18 @@ class SnowflakeGenerator {
    * Check if a string is a valid Snowflake ID
    */
   static isValid(id: string): boolean {
-    const idBigInt = BigInt(id);
-    if (idBigInt < 0n || idBigInt >= 1n << 63n) {
+    const s = id.trim();
+    if (s === '') return false;
+    try {
+      const idBigInt = BigInt(s);
+      if (idBigInt < 0n || idBigInt >= 1n << 63n) {
+        return false;
+      }
+      SnowflakeGenerator.parse(idBigInt);
+      return true;
+    } catch {
       return false;
     }
-    SnowflakeGenerator.parse(idBigInt);
-    return true;
   }
 }
 

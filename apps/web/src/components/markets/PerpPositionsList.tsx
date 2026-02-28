@@ -248,7 +248,7 @@ export function PerpPositionsList({
                     ${position.ticker}
                   </span>
                   {position.isAgentPosition && (
-                    <span className="flex shrink-0 items-center gap-0.5 rounded bg-purple-600/20 px-1 py-0.5 font-medium text-[11px] text-purple-500">
+                    <span className="flex shrink-0 items-center gap-0.5 rounded bg-muted px-1 py-0.5 font-medium text-[11px] text-muted-foreground">
                       <Bot size={10} />
                       {position.agentName || 'Agent'}
                     </span>
@@ -287,21 +287,14 @@ export function PerpPositionsList({
                   <span className="text-muted-foreground/40">&middot;</span>
                   <span>
                     Liq{' '}
-                    <span className="font-medium text-red-600">
+                    <span className="font-medium text-foreground">
                       {formatPrice(position.liquidationPrice)}
                     </span>
                   </span>
                   <span className="text-muted-foreground/40">&middot;</span>
                   <span>
                     Fund{' '}
-                    <span
-                      className={cn(
-                        'font-medium',
-                        position.fundingPaid >= 0
-                          ? 'text-red-600'
-                          : 'text-green-600'
-                      )}
-                    >
+                    <span className="font-medium text-foreground">
                       {position.fundingPaid >= 0 ? '-' : '+'}
                       {formatPrice(Math.abs(position.fundingPaid))}
                     </span>

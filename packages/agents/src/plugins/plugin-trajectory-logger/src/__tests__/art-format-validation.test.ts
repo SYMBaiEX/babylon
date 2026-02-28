@@ -12,7 +12,7 @@
 import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
 import type { IAgentRuntime, Logger, UUID } from '@elizaos/core';
 import { createUniqueUuid } from '@elizaos/core';
-import type { JsonValue } from '../../../types/common';
+import type { JsonValue } from '../../../../types/common';
 import {
   extractSharedPrefix,
   groupTrajectories,

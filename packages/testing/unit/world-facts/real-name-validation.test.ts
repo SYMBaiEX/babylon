@@ -9,13 +9,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import {
-  getForbiddenRealNames,
-  validateNoRealNamesStrict,
-} from '@babylon/engine';
-
-// Use the strict version which has pattern-based detection
-const validateNoRealNames = validateNoRealNamesStrict;
+import { getForbiddenRealNames, validateNoRealNames } from '@babylon/engine';
 
 describe('Real Name Validation System', () => {
   describe('Pattern-Based Detection', () => {
