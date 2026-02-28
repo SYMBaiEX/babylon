@@ -574,7 +574,7 @@ export class PerpMarketService {
     // The position is already settled, so this is safe to run without blocking
     // the response back to the user.
     if (this.deps.feeProcessor) {
-      this.deps.feeProcessor
+      void this.deps.feeProcessor
         .processTradingFee({
           userId: input.userId,
           amount: position.size,
@@ -645,7 +645,7 @@ export class PerpMarketService {
     // Broadcast trade event for real-time UI updates.
     // emitTradeEvent already handles errors internally, so fire-and-forget
     // to avoid blocking the response.
-    this.emitTradeEvent({
+    void this.emitTradeEvent({
       type: 'perp_trade',
       action: isFullClose ? 'close' : 'partial_close',
       ticker: position.ticker,

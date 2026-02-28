@@ -65,9 +65,15 @@ describe('Game Guide - Slide Content', () => {
   });
 
   test('last slide should be the CTA slide', () => {
-    const lastSlide = GAME_GUIDE_SLIDES[4];
+    const lastSlide = GAME_GUIDE_SLIDES[GAME_GUIDE_SLIDES.length - 1];
+    if (!lastSlide) {
+      throw new Error('Expected at least one game guide slide');
+    }
     expect(lastSlide.title).toContain('Trade');
-    expect(lastSlide.ctas).toBeDefined();
+    expect('ctas' in lastSlide).toBe(true);
+    if (!('ctas' in lastSlide)) {
+      throw new Error('Expected last slide to include CTAs');
+    }
     expect(lastSlide.ctas.length).toBeGreaterThanOrEqual(1);
   });
 });

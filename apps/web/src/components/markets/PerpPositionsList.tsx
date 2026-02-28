@@ -48,7 +48,7 @@ type PerpPosition = DisplayPerpPosition;
  */
 interface PerpPositionsListProps {
   positions: PerpPosition[];
-  onPositionClosed?: () => void;
+  onPositionClosed?: () => void | Promise<void>;
   onPositionClick?: (ticker: string) => void;
   density?: 'default' | 'compact';
 }
@@ -156,7 +156,10 @@ export function PerpPositionsList({
       // Fire-and-forget: invalidate caches and refresh in background.
       // Don't await — the optimistic removal already updated the UI.
       invalidatePerpMarketsCache();
-      onPositionClosed?.();
+      const refreshResult = onPositionClosed?.();
+      if (refreshResult instanceof Promise) {
+        void refreshResult.catch(() => {});
+      }
     } catch (err) {
       toast.error('Failed to close position', {
         description:
