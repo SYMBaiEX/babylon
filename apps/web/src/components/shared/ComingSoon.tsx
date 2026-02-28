@@ -2695,8 +2695,8 @@ export function ComingSoon() {
                 </h3>
               </div>
               <p className="text-muted-foreground text-sm">
-                We are whitelisting new people every day, so stay patient.
-                We will notify you by email when you get whitelisted.
+                We are whitelisting new people every day, so stay patient. We
+                will notify you by email when you get whitelisted.
               </p>
             </div>
           )}
@@ -3508,7 +3508,6 @@ export function ComingSoon() {
                       </span>
                     </div>
                   )}
-
                 </div>
               </div>
             </div>
