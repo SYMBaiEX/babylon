@@ -436,6 +436,7 @@ describeWaitlist('WaitlistService', () => {
         displayName: 'Test Email User',
         reputationPoints: 100,
         bonusPoints: 0,
+        isWaitlistActive: true,
         isTest: true,
         updatedAt: new Date(),
       });
@@ -471,6 +472,7 @@ describeWaitlist('WaitlistService', () => {
         displayName: 'Test Email User 2',
         reputationPoints: 100,
         bonusPoints: 0,
+        isWaitlistActive: true,
         isTest: true,
         updatedAt: new Date(),
       });
@@ -516,6 +518,7 @@ describeWaitlist('WaitlistService', () => {
         displayName: 'Test Email User 3',
         reputationPoints: 50,
         bonusPoints: 0,
+        isWaitlistActive: true,
         isTest: true,
         updatedAt: new Date(),
       });

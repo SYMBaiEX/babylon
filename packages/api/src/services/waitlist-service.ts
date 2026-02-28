@@ -519,6 +519,7 @@ export class WaitlistService {
   ): Promise<boolean> {
     const userResult = await db
       .select({
+        isWaitlistActive: users.isWaitlistActive,
         pointsAwardedForEmail: users.pointsAwardedForEmail,
         reputationPoints: users.reputationPoints,
         bonusPoints: users.bonusPoints,
@@ -529,7 +530,7 @@ export class WaitlistService {
 
     const user = userResult[0];
 
-    if (!user) {
+    if (!user || !user.isWaitlistActive) {
       return false;
     }
 
@@ -537,6 +538,7 @@ export class WaitlistService {
       return false;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
     const bonusAmount = POINTS.EMAIL_SUBMIT;
     const newBonusPoints = user.bonusPoints + bonusAmount;
     const newReputationPoints = user.reputationPoints + bonusAmount;
@@ -544,7 +546,7 @@ export class WaitlistService {
     await db
       .update(users)
       .set({
-        email,
+        email: normalizedEmail,
         pointsAwardedForEmail: true,
         bonusPoints: newBonusPoints,
         reputationPoints: newReputationPoints,
@@ -558,7 +560,6 @@ export class WaitlistService {
       pointsBefore: user.reputationPoints,
       pointsAfter: newReputationPoints,
       reason: 'email_submit',
-      metadata: JSON.stringify({ email }),
     });
 
     logger.info(

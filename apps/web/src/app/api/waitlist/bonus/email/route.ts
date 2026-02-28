@@ -71,7 +71,11 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 const EmailBonusSchema = z.object({
-  email: z.string().email('Valid email address is required'),
+  email: z
+    .string()
+    .trim()
+    .email('Valid email address is required')
+    .transform((value) => value.toLowerCase()),
 });
 
 export const POST = withErrorHandling(async (request: NextRequest) => {

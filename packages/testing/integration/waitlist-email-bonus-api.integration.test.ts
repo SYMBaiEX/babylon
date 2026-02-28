@@ -67,6 +67,7 @@ async function createTestUser(overrides: Record<string, unknown> = {}) {
     displayName: 'Test Email Bonus User',
     reputationPoints: 100,
     bonusPoints: 0,
+    isWaitlistActive: true,
     isTest: true,
     updatedAt: new Date(),
     ...overrides,
