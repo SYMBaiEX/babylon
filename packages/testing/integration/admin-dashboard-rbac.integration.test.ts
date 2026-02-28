@@ -13,6 +13,10 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
+import {
+  requireAuth as requireAuthShared,
+  requireServer as requireServerShared,
+} from './helpers';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -26,17 +30,20 @@ let skippedTestCount = 0;
 const testUserIds: string[] = [];
 
 function requireServer(): void {
-  if (!serverAvailable) {
+  try {
+    requireServerShared(serverAvailable, BASE_URL);
+  } catch (e) {
     skippedTestCount++;
-    throw new Error(`TEST SKIPPED: Server not available at ${BASE_URL}`);
+    throw e;
   }
 }
 
 function requireAuth(): void {
-  requireServer();
-  if (!devAdminToken) {
+  try {
+    requireAuthShared(serverAvailable, devAdminToken, BASE_URL);
+  } catch (e) {
     skippedTestCount++;
-    throw new Error('TEST SKIPPED: Dev admin token not available');
+    throw e;
   }
 }
 

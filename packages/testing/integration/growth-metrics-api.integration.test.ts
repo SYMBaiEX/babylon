@@ -16,6 +16,10 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { getDevCredentials } from '@babylon/api';
 import { db, eq, userSessions, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
+import {
+  requireAuth as requireAuthShared,
+  requireServer as requireServerShared,
+} from './helpers';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -28,16 +32,11 @@ const testUserIds: string[] = [];
 const testSessionIds: string[] = [];
 
 function requireServer(): void {
-  if (!serverAvailable) {
-    throw new Error(`TEST SKIPPED: Server not available at ${BASE_URL}`);
-  }
+  requireServerShared(serverAvailable, BASE_URL);
 }
 
 function requireAuth(): void {
-  requireServer();
-  if (!devAdminToken) {
-    throw new Error('TEST SKIPPED: Dev admin token not available');
-  }
+  requireAuthShared(serverAvailable, devAdminToken, BASE_URL);
 }
 
 async function adminRequest(path: string, options: RequestInit = {}) {

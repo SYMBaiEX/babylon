@@ -114,12 +114,6 @@ export function validateNoRealNames(text: string): string[] {
 }
 
 /**
- * Alias for validateNoRealNames - kept for backward compatibility
- * Both functions use pattern-based detection for variations and misspellings
- */
-export const validateNoRealNamesStrict = validateNoRealNames;
-
-/**
  * Escape special regex characters
  */
 function escapeRegex(str: string): string {

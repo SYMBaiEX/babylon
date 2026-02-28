@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  cn,
-  formatCurrency as formatCurrencyShared,
-  getActorProfileUrl,
-  getProfileUrl,
-  logger,
-} from '@babylon/shared';
+import { cn, getActorProfileUrl, getProfileUrl, logger } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -19,6 +13,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
+import { formatCurrencyDisplay } from '@/lib/format';
 
 /**
  * Page size for pagination in trades feed.
@@ -354,12 +349,7 @@ export function AssetTradesFeed({
     },
   });
 
-  /** Wrapper around shared formatCurrency to handle string input */
-  const formatCurrency = (value: string | number) => {
-    const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    if (Number.isNaN(num)) return formatCurrencyShared(0);
-    return formatCurrencyShared(num, { useThousandsSeparator: true });
-  };
+  const formatCurrency = formatCurrencyDisplay;
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);

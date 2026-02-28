@@ -29,6 +29,7 @@
 
 import { mkdirSync } from 'fs';
 import * as path from 'path';
+import { formatCurrency } from '../utils';
 import { logger } from '../utils/logger';
 import type { ArchetypeFitScore } from './ArchetypeFitCalculator';
 import { ArchetypeFitCalculator } from './ArchetypeFitCalculator';
@@ -575,7 +576,7 @@ Consider market conditions, your current balance, and risk management.`;
       .slice(0, 3)
       .map(
         (p) =>
-          `  - ${p.ticker}: $${p.price.toFixed(2)} (${p.priceChange24h > 0 ? '+' : ''}${p.priceChange24h.toFixed(2)}%)`
+          `  - ${p.ticker}: ${formatCurrency(p.price)} (${p.priceChange24h > 0 ? '+' : ''}${p.priceChange24h.toFixed(2)}%)`
       )
       .join('\n');
 
@@ -586,8 +587,8 @@ Consider market conditions, your current balance, and risk management.`;
     const balance = this.config.startingBalance + pnl;
 
     return `Current State:
-- Balance: $${balance.toFixed(2)}
-- P&L: $${pnl.toFixed(2)}
+- Balance: ${formatCurrency(balance)}
+- P&L: ${formatCurrency(pnl)}
 - Tick: ${state.tick}
 
 Prediction Markets:

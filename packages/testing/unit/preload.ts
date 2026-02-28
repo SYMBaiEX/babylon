@@ -14,6 +14,9 @@ import { mock } from 'bun:test';
 process.env.NODE_ENV = 'test';
 process.env.BUN_ENV = 'test';
 
+// Mock server-only so tests can import Next.js route handlers that use it
+mock.module('server-only', () => ({}));
+
 // Respect any CI/runner-provided DB connection string; otherwise default to local test DB.
 process.env.DATABASE_URL ??=
   'postgresql://postgres:postgres@localhost:5432/test_db';
