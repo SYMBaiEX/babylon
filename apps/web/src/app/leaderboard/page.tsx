@@ -175,10 +175,15 @@ export default function LeaderboardPage() {
 
   const isTeamView = selectedTab === 'team';
   const currentUserPosition = leaderboardData?.currentUser ?? null;
-  const isCurrentUserOnPage =
-    authenticated &&
-    user &&
-    leaderboardData?.leaderboard.some((p) => p.id === user.id);
+  const currentUserRowId =
+    authenticated && user
+      ? isTeamView && currentUserPosition
+        ? currentUserPosition.entry.id
+        : user.id
+      : null;
+  const isCurrentUserOnPage = currentUserRowId
+    ? leaderboardData?.leaderboard.some((p) => p.id === currentUserRowId)
+    : false;
 
   const tabDescriptions: Record<LeaderboardTab, string> = {
     wallet:
@@ -201,7 +206,9 @@ export default function LeaderboardPage() {
     player: LeaderboardUser,
     variant: 'desktop' | 'mobile' | 'pinned'
   ) => {
-    const isCurrentUser = authenticated && user && player.id === user.id;
+    const isCurrentUser = currentUserRowId
+      ? player.id === currentUserRowId
+      : false;
     const displayPoints = getDisplayPoints(player);
     const formattedPoints = (displayPoints ?? 0).toLocaleString();
     const isPinned = variant === 'pinned';
@@ -345,8 +352,9 @@ export default function LeaderboardPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-0">
           {leaderboardData.leaderboard.map((player) => {
-            const isCurrentUser =
-              authenticated && user && player.id === user.id;
+            const isCurrentUser = currentUserRowId
+              ? player.id === currentUserRowId
+              : false;
             const isPlayerSelected = selectedUser?.id === player.id;
 
             return (

@@ -19,7 +19,9 @@ import {
   gte,
   isNull,
   type JsonValue,
+  lt,
   ne,
+  or,
   pointsTransactions,
   referrals,
   sql,
@@ -1661,7 +1663,7 @@ export class PointsService {
       .select(walletSelectFields)
       .from(users)
       .where(eq(users.isActor, false))
-      .orderBy(desc(users.totalPoints))
+      .orderBy(desc(users.totalPoints), asc(users.createdAt), asc(users.id))
       .limit(pageSize)
       .offset(skip);
 
@@ -1724,11 +1726,11 @@ export class PointsService {
                SUM("totalPoints"::numeric) AS "agentPoints",
                COUNT(*)::int AS "agentCount"
         FROM "User"
-        WHERE "isAgent" = true
+        WHERE "isAgent" = true AND "isActor" = false
         GROUP BY "managedBy"
       ) agents ON agents."managedBy" = u."id"
       WHERE u."isActor" = false AND u."isAgent" = false
-      ORDER BY "teamTotalPoints" DESC
+      ORDER BY "teamTotalPoints" DESC, u."createdAt" ASC, u."id" ASC
       LIMIT ${pageSize} OFFSET ${skip}
     `);
 
@@ -1832,13 +1834,26 @@ export class PointsService {
     }
 
     if (leaderboardType === 'wallet') {
+      const effectiveTotalPoints = effectiveUser.totalPoints ?? '0';
       const [higherCount] = await db
         .select({ count: count() })
         .from(users)
         .where(
           and(
             eq(users.isActor, false),
-            gt(users.totalPoints, effectiveUser.totalPoints)
+            or(
+              gt(users.totalPoints, effectiveTotalPoints),
+              and(
+                eq(users.totalPoints, effectiveTotalPoints),
+                or(
+                  lt(users.createdAt, effectiveUser.createdAt),
+                  and(
+                    eq(users.createdAt, effectiveUser.createdAt),
+                    lt(users.id, effectiveUser.id)
+                  )
+                )
+              )
+            )
           )
         );
 
@@ -1871,7 +1886,11 @@ export class PointsService {
       })
       .from(users)
       .where(
-        and(eq(users.managedBy, effectiveUserId), eq(users.isAgent, true))
+        and(
+          eq(users.managedBy, effectiveUserId),
+          eq(users.isAgent, true),
+          eq(users.isActor, false)
+        )
       );
 
     const teamTotal =
@@ -1883,10 +1902,19 @@ export class PointsService {
         FROM "User" u
         LEFT JOIN (
           SELECT "managedBy", SUM("totalPoints"::numeric) AS "agentPoints"
-          FROM "User" WHERE "isAgent" = true GROUP BY "managedBy"
+          FROM "User" WHERE "isAgent" = true AND "isActor" = false GROUP BY "managedBy"
         ) a ON a."managedBy" = u."id"
         WHERE u."isActor" = false AND u."isAgent" = false
-          AND (u."totalPoints"::numeric + COALESCE(a."agentPoints", 0)) > ${teamTotal}
+          AND (
+            (u."totalPoints"::numeric + COALESCE(a."agentPoints", 0)) > ${teamTotal}
+            OR (
+              (u."totalPoints"::numeric + COALESCE(a."agentPoints", 0)) = ${teamTotal}
+              AND (
+                u."createdAt" < ${effectiveUser.createdAt}
+                OR (u."createdAt" = ${effectiveUser.createdAt} AND u."id" < ${effectiveUserId})
+              )
+            )
+          )
       ) higher
     `);
 
@@ -1897,7 +1925,11 @@ export class PointsService {
       .select({ count: count() })
       .from(users)
       .where(
-        and(eq(users.managedBy, effectiveUserId), eq(users.isAgent, true))
+        and(
+          eq(users.managedBy, effectiveUserId),
+          eq(users.isAgent, true),
+          eq(users.isActor, false)
+        )
       );
 
     return {

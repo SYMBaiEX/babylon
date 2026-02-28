@@ -53,7 +53,12 @@ import { LeaderboardQuerySchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
 const CACHE_KEY_NAMESPACE = 'leaderboard';
-const CACHE_TTL_MS = Number(process.env.LEADERBOARD_CACHE_MS) || 120_000;
+const CACHE_TTL_MS = (() => {
+  const raw = process.env.LEADERBOARD_CACHE_MS;
+  if (raw === undefined) return 120_000;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : 120_000;
+})();
 const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL_MS / 1000);
 const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
 
@@ -143,7 +148,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     200,
     {
       'x-cache': cacheHit ? 'leaderboard-hit' : 'leaderboard-miss',
-      'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+      'Cache-Control': userId
+        ? 'private, no-store'
+        : `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
       Vary: 'Accept-Encoding',
     }
   );
