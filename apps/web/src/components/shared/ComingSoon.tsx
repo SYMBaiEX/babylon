@@ -223,10 +223,10 @@ export function ComingSoon() {
     null
   );
 
-  // Email collection state
-  const [emailInput, setEmailInput] = useState('');
+  // Email collection state — initialize from dbUser to avoid flash of wrong state
+  const [emailInput, setEmailInput] = useState(() => dbUser?.email ?? '');
   const [isSavingEmail, setIsSavingEmail] = useState(false);
-  const [emailSaved, setEmailSaved] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(() => Boolean(dbUser?.email));
 
   // Total available assets
   const TOTAL_PROFILE_PICTURES = 100;
@@ -2547,7 +2547,9 @@ export function ComingSoon() {
                   <p className="mt-1 text-muted-foreground text-sm">
                     {canClaimNft || hasNft
                       ? 'Welcome to Babylon'
-                      : `Top ${waitlistData?.totalCount ?? 0}`}
+                      : waitlistData?.totalCount
+                        ? `Top ${waitlistData.totalCount}`
+                        : ''}
                   </p>
                 </div>
               </div>
@@ -2662,6 +2664,7 @@ export function ComingSoon() {
               <div className="flex items-center gap-2">
                 <input
                   type="email"
+                  aria-label="Email address"
                   placeholder="Enter your email"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
@@ -3506,7 +3509,6 @@ export function ComingSoon() {
                     </div>
                   )}
 
-                  {/* Email - moved to prominent section above */}
                 </div>
               </div>
             </div>
