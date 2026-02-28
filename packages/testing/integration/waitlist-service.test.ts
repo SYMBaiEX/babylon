@@ -426,6 +426,127 @@ describeWaitlist('WaitlistService', () => {
       expect(updatedUser?.bonusPoints).toBe(300);
       expect(updatedUser?.reputationPoints).toBe(400);
     });
+
+    it('should award email bonus and save email to user record', async () => {
+      const userId = await generateSnowflakeId();
+      await db.insert(users).values({
+        id: userId,
+        privyId: `test-email-${Date.now()}`,
+        username: `useremail${Date.now()}`,
+        displayName: 'Test Email User',
+        reputationPoints: 100,
+        bonusPoints: 0,
+        isWaitlistActive: true,
+        isTest: true,
+        updatedAt: new Date(),
+      });
+      testUserIds.push(userId);
+
+      const testEmail = `test-${Date.now()}@example.com`;
+      const awarded = await WaitlistService.awardEmailBonus(userId, testEmail);
+      expect(awarded).toBe(true);
+
+      const [updatedUser] = await db
+        .select({
+          email: users.email,
+          bonusPoints: users.bonusPoints,
+          reputationPoints: users.reputationPoints,
+          pointsAwardedForEmail: users.pointsAwardedForEmail,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      expect(updatedUser?.email).toBe(testEmail);
+      expect(updatedUser?.pointsAwardedForEmail).toBe(true);
+      expect(updatedUser?.bonusPoints).toBe(100); // EMAIL_SUBMIT = 100
+      expect(updatedUser?.reputationPoints).toBe(200); // 100 base + 100 bonus
+    });
+
+    it('should award email bonus only once', async () => {
+      const userId = await generateSnowflakeId();
+      await db.insert(users).values({
+        id: userId,
+        privyId: `test-email2-${Date.now()}`,
+        username: `useremail2${Date.now()}`,
+        displayName: 'Test Email User 2',
+        reputationPoints: 100,
+        bonusPoints: 0,
+        isWaitlistActive: true,
+        isTest: true,
+        updatedAt: new Date(),
+      });
+      testUserIds.push(userId);
+
+      const firstEmail = `first-${Date.now()}@example.com`;
+      const awarded1 = await WaitlistService.awardEmailBonus(
+        userId,
+        firstEmail
+      );
+      expect(awarded1).toBe(true);
+
+      // Second attempt with a different email should be rejected
+      const secondEmail = `second-${Date.now()}@example.com`;
+      const awarded2 = await WaitlistService.awardEmailBonus(
+        userId,
+        secondEmail
+      );
+      expect(awarded2).toBe(false);
+
+      // Points should only be 100, not 200
+      const [updatedUser] = await db
+        .select({
+          email: users.email,
+          bonusPoints: users.bonusPoints,
+          reputationPoints: users.reputationPoints,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      expect(updatedUser?.email).toBe(firstEmail); // First email retained
+      expect(updatedUser?.bonusPoints).toBe(100);
+      expect(updatedUser?.reputationPoints).toBe(200);
+    });
+
+    it('should create a points transaction for email bonus', async () => {
+      const userId = await generateSnowflakeId();
+      await db.insert(users).values({
+        id: userId,
+        privyId: `test-email3-${Date.now()}`,
+        username: `useremail3${Date.now()}`,
+        displayName: 'Test Email User 3',
+        reputationPoints: 50,
+        bonusPoints: 0,
+        isWaitlistActive: true,
+        isTest: true,
+        updatedAt: new Date(),
+      });
+      testUserIds.push(userId);
+
+      const testEmail = `txn-${Date.now()}@example.com`;
+      await WaitlistService.awardEmailBonus(userId, testEmail);
+
+      const [txn] = await db
+        .select()
+        .from(pointsTransactions)
+        .where(eq(pointsTransactions.userId, userId))
+        .limit(1);
+
+      expect(txn).toBeDefined();
+      expect(txn?.amount).toBe(100); // EMAIL_SUBMIT = 100
+      expect(txn?.reason).toBe('email_submit');
+      expect(txn?.pointsBefore).toBe(50);
+      expect(txn?.pointsAfter).toBe(150);
+    });
+
+    it('should return false for unknown user', async () => {
+      const awarded = await WaitlistService.awardEmailBonus(
+        'nonexistent-user-id',
+        'test@example.com'
+      );
+      expect(awarded).toBe(false);
+    });
   });
 
   describe('getTopWaitlistUsers', () => {

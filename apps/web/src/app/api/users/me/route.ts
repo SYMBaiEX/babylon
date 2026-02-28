@@ -200,6 +200,7 @@ const userSelectFields = {
   pointsAwardedForFarcasterFollow: users.pointsAwardedForFarcasterFollow,
   pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
   pointsAwardedForDiscordJoin: users.pointsAwardedForDiscordJoin,
+  pointsAwardedForEmail: users.pointsAwardedForEmail,
   hasFarcaster: users.hasFarcaster,
   hasTwitter: users.hasTwitter,
   hasDiscord: users.hasDiscord,
@@ -252,6 +253,7 @@ type UserSelectResult = {
   pointsAwardedForFarcasterFollow: boolean;
   pointsAwardedForTwitterFollow: boolean;
   pointsAwardedForDiscordJoin: boolean;
+  pointsAwardedForEmail: boolean;
   hasFarcaster: boolean;
   hasTwitter: boolean;
   hasDiscord: boolean;
@@ -308,6 +310,7 @@ function buildUserResponse(
     pointsAwardedForFarcasterFollow: dbUser.pointsAwardedForFarcasterFollow,
     pointsAwardedForTwitterFollow: dbUser.pointsAwardedForTwitterFollow,
     pointsAwardedForDiscordJoin: dbUser.pointsAwardedForDiscordJoin,
+    pointsAwardedForEmail: dbUser.pointsAwardedForEmail,
     hasFarcaster: dbUser.hasFarcaster,
     hasTwitter: dbUser.hasTwitter,
     hasDiscord: dbUser.hasDiscord,
