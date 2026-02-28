@@ -55,7 +55,7 @@ export default function GlobalError({
   return (
     <html lang="en">
       <body>
-        <div className="flex min-h-screen flex-col items-center justify-center p-8">
+        <div className="flex min-h-dvh flex-col items-center justify-center p-8 md:min-h-screen">
           <div className="max-w-md text-center">
             <AlertTriangle className="mx-auto mb-4 h-16 w-16 text-destructive" />
             <h2 className="mb-2 font-bold text-2xl">Something went wrong</h2>

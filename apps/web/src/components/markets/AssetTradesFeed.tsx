@@ -547,7 +547,7 @@ const TradeCard = memo(function TradeCard({
               {user?.displayName || user?.username || 'Unknown'}
             </Link>
             {user?.isActor && (
-              <span className="rounded bg-purple-600/20 px-2 py-0.5 text-purple-600 text-xs">
+              <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
                 NPC
               </span>
             )}
