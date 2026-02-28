@@ -424,14 +424,23 @@ export const LeaderboardQuerySchema = z.object({
     .int()
     .min(0)
     .default(1)
-    .transform((val) => Math.max(1, val)), // Clamp to min 1, default 1
+    .transform((val) => Math.max(1, val)),
   pageSize: z.coerce
     .number()
     .int()
     .nonnegative()
     .default(100)
-    .transform((val) => Math.max(1, Math.min(val, 100))), // Clamp to min 1, max 100
-  minPoints: z.coerce.number().nonnegative().default(500), // Show all with >500 reputation
+    .transform((val) => Math.max(1, Math.min(val, 100))),
+  type: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val || !['wallet', 'team'].includes(val)) return 'wallet' as const;
+      return val as 'wallet' | 'team';
+    }),
+  userId: z.string().optional(),
+  // Deprecated — kept for backward compatibility, ignored by new route
+  minPoints: z.coerce.number().nonnegative().default(0),
   pointsType: z
     .string()
     .optional()
