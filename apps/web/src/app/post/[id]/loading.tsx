@@ -3,7 +3,10 @@ import { PostCardSkeleton, Skeleton } from '@/components/shared/Skeleton';
 
 export default function PostDetailLoading() {
   return (
-    <PageContainer noPadding className="flex min-h-dvh flex-col md:min-h-screen">
+    <PageContainer
+      noPadding
+      className="flex min-h-dvh flex-col md:min-h-screen"
+    >
       {/* Desktop */}
       <div className="hidden flex-1 lg:flex">
         {/* Main Content */}
