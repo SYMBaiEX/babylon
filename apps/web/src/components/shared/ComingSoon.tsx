@@ -223,10 +223,15 @@ export function ComingSoon() {
     null
   );
 
-  // Email collection state — initialize from dbUser to avoid flash of wrong state
+  // Email collection state — initialize from dbUser to avoid flash of wrong state.
+  // emailSaved tracks whether the bonus was already claimed (pointsAwardedForEmail flag),
+  // not just whether an email exists, to handle social-login users who have an email
+  // but haven't submitted the form and earned the bonus yet.
   const [emailInput, setEmailInput] = useState(() => dbUser?.email ?? '');
   const [isSavingEmail, setIsSavingEmail] = useState(false);
-  const [emailSaved, setEmailSaved] = useState(() => Boolean(dbUser?.email));
+  const [emailSaved, setEmailSaved] = useState(
+    () => Boolean(dbUser?.pointsAwardedForEmail)
+  );
 
   // Total available assets
   const TOTAL_PROFILE_PICTURES = 100;
@@ -609,13 +614,17 @@ export function ComingSoon() {
     dbUser?.pointsAwardedForDiscordJoin,
   ]);
 
-  // Initialize email state from dbUser
+  // Sync email state when dbUser loads asynchronously.
+  // Pre-fill input from any existing email (social login or previous submission).
+  // Only mark as saved when the bonus flag is set, not just because email exists.
   useEffect(() => {
     if (dbUser?.email) {
       setEmailInput(dbUser.email);
+    }
+    if (dbUser?.pointsAwardedForEmail) {
       setEmailSaved(true);
     }
-  }, [dbUser?.email]);
+  }, [dbUser?.email, dbUser?.pointsAwardedForEmail]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
