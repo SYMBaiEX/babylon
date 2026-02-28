@@ -77,7 +77,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   if (isLoading) {
     return (
       <PageContainer noPadding className="flex w-full flex-col">
-        <div className="relative flex min-h-screen flex-1">
+        <div className="relative flex min-h-dvh flex-1 md:min-h-screen">
           <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
             <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
               <div className="px-6 py-4">
@@ -106,7 +106,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   if (error || !article) {
     return (
       <PageContainer noPadding className="flex w-full flex-col">
-        <div className="relative flex min-h-screen flex-1">
+        <div className="relative flex min-h-dvh flex-1 md:min-h-screen">
           <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
             <div className="flex flex-1 flex-col items-center justify-center bg-background">
               <div className="text-center">
@@ -136,7 +136,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
   return (
     <PageContainer noPadding className="flex w-full flex-col">
-      <div className="relative flex min-h-screen flex-1">
+      <div className="relative flex min-h-dvh flex-1 md:min-h-screen">
         {/* Desktop: Article content area */}
         <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
           {/* Desktop: Top bar with back button */}

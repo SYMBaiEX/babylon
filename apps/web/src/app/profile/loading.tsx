@@ -6,7 +6,7 @@ import {
 
 export default function ProfileLoading() {
   return (
-    <PageContainer noPadding className="min-h-screen">
+    <PageContainer noPadding className="min-h-dvh md:min-h-screen">
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

@@ -81,7 +81,7 @@ export class PostHogErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback || (
-          <div className="flex min-h-screen items-center justify-center p-4">
+          <div className="flex min-h-dvh items-center justify-center p-4 md:min-h-screen">
             <div className="text-center">
               <h2 className="mb-2 font-bold text-2xl">Something went wrong</h2>
               <p className="mb-4 text-muted-foreground">
