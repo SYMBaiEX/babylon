@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Copy,
   Link2,
+  Mail,
   TrendingUp,
   Upload,
   User,
@@ -221,6 +222,11 @@ export function ComingSoon() {
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(
     null
   );
+
+  // Email collection state
+  const [emailInput, setEmailInput] = useState('');
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
 
   // Total available assets
   const TOTAL_PROFILE_PICTURES = 100;
@@ -603,6 +609,14 @@ export function ComingSoon() {
     dbUser?.pointsAwardedForDiscordJoin,
   ]);
 
+  // Initialize email state from dbUser
+  useEffect(() => {
+    if (dbUser?.email) {
+      setEmailInput(dbUser.email);
+      setEmailSaved(true);
+    }
+  }, [dbUser?.email]);
+
   // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -822,6 +836,53 @@ export function ComingSoon() {
     },
     [fetchWaitlistPosition]
   );
+
+  const handleEmailSubmit = useCallback(async () => {
+    if (!dbUser?.id || !emailInput.trim() || isSavingEmail) return;
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailInput.trim())) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
+    setIsSavingEmail(true);
+    try {
+      const response = await fetch('/api/waitlist/bonus/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.trim() }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(
+          'Failed to submit email',
+          { userId: dbUser.id, status: response.status, errorText },
+          'ComingSoon'
+        );
+        toast.error('Failed to save email. Please try again.');
+        return;
+      }
+
+      const result = await response.json();
+      setEmailSaved(true);
+
+      if (result.awarded) {
+        toast.success(`Email saved! +${POINTS.EMAIL_SUBMIT} points`);
+      } else {
+        toast.success('Email saved!');
+      }
+
+      // Refresh position to show updated points
+      await fetchWaitlistPosition(dbUser.id);
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setIsSavingEmail(false);
+    }
+  }, [dbUser?.id, emailInput, isSavingEmail, fetchWaitlistPosition]);
 
   const dbUserId = dbUser?.id;
   const dbUserProfileComplete = dbUser?.profileComplete;
@@ -2479,10 +2540,14 @@ export function ComingSoon() {
                 </div>
                 <div>
                   <h1 className="font-bold text-2xl text-foreground tracking-tight sm:text-3xl md:text-4xl">
-                    Click play to access the game
+                    {canClaimNft || hasNft
+                      ? 'Click play to access the game'
+                      : 'Leaderboard'}
                   </h1>
                   <p className="mt-1 text-muted-foreground text-sm">
-                    Welcome to Babylon
+                    {canClaimNft || hasNft
+                      ? 'Welcome to Babylon'
+                      : `Top ${waitlistData?.totalCount ?? 0}`}
                   </p>
                 </div>
               </div>
@@ -2577,6 +2642,61 @@ export function ComingSoon() {
               </div>
             </div>
           </div>
+
+          {/* Email Collection — prominent section */}
+          {!(canClaimNft || hasNft) && !emailSaved && (
+            <div className="mb-8 rounded-xl border border-primary/30 bg-primary/5 p-5 backdrop-blur-sm sm:p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                <h3 className="font-bold text-base text-foreground">
+                  Email Required
+                </h3>
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary text-xs">
+                  +{POINTS.EMAIL_SUBMIT} pts
+                </span>
+              </div>
+              <p className="mb-4 text-muted-foreground text-sm">
+                We will notify you by email when you get whitelisted. We are
+                whitelisting new people every day, so stay patient.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleEmailSubmit();
+                    }
+                  }}
+                  disabled={isSavingEmail}
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-background/80 px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+                />
+                <button
+                  onClick={handleEmailSubmit}
+                  disabled={isSavingEmail || !emailInput.trim()}
+                  className="shrink-0 rounded-lg bg-primary px-5 py-2.5 font-semibold text-primary-foreground text-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSavingEmail ? 'Saving...' : 'Submit'}
+                </button>
+              </div>
+            </div>
+          )}
+          {!(canClaimNft || hasNft) && emailSaved && (
+            <div className="mb-8 rounded-xl border border-green-500/30 bg-green-500/5 p-5 backdrop-blur-sm sm:p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <Mail className="h-5 w-5 text-green-500" />
+                <h3 className="font-bold text-base text-foreground">
+                  Email Provided
+                </h3>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                We are whitelisting new people every day, so stay patient.
+                We will notify you by email when you get whitelisted.
+              </p>
+            </div>
+          )}
 
           <div className="mb-8 rounded-xl border border-primary/10 bg-background/40 p-4 backdrop-blur-sm sm:p-5">
             <div className="mb-3 text-muted-foreground text-sm">
@@ -3385,6 +3505,8 @@ export function ComingSoon() {
                       </span>
                     </div>
                   )}
+
+                  {/* Email - moved to prominent section above */}
                 </div>
               </div>
             </div>
