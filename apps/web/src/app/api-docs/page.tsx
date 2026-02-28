@@ -24,7 +24,7 @@ const SwaggerUI = dynamic(() => import('swagger-ui-react'), { ssr: false });
  */
 export default function ApiDocsPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background md:min-h-screen">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="mb-2 font-bold text-4xl">Babylon API Documentation</h1>

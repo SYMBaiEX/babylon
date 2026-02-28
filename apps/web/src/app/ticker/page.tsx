@@ -14,7 +14,7 @@ export const metadata: Metadata = {
  */
 export default function TickerPage() {
   return (
-    <div className="min-h-screen w-full">
+    <div className="min-h-dvh w-full md:min-h-screen">
       <TickerClient />
     </div>
   );

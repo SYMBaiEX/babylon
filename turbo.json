@@ -1,6 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "NODE_ENV",
+    "CI",
+    "VERCEL",
+    "SENTRY_AUTH_TOKEN",
+    "NEXT_PUBLIC_*"
+  ],
   "globalPassThroughEnv": ["*"],
   "tasks": {
     "build": {
@@ -20,9 +27,7 @@
       "dependsOn": ["build"],
       "cache": false
     },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
+    "lint": {},
     "typecheck": {
       "dependsOn": ["^typecheck"]
     },

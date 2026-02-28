@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { getUserDisplayName } from '@/lib/user-display';
 import type { LeaderboardTab, TopUser, WaitlistData } from '../types';
 
 interface LeaderboardProps {
@@ -112,7 +113,7 @@ export function Leaderboard({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 truncate font-semibold text-base lg:text-lg">
                       <span className="truncate">
-                        {topUser.displayName || topUser.username || 'Anonymous'}
+                        {getUserDisplayName(topUser, 'Anonymous')}
                       </span>
                       {isCurrentUser && (
                         <span className="shrink-0 rounded bg-primary px-2 py-1 text-primary-foreground text-xs">

@@ -114,7 +114,7 @@ import {
   rateLimitError,
 } from '@babylon/api';
 import { and, db, desc, gte, tickTokenStats } from '@babylon/db';
-import { TokenStatsService } from '@babylon/engine';
+import { tokenStatsService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -208,7 +208,7 @@ export async function GET(request: NextRequest) {
     cacheKey,
     async () => {
       // First try to get from in-memory stats (for recent data)
-      const memorySummary = TokenStatsService.getSummary(limit);
+      const memorySummary = tokenStatsService.getSummary(limit);
 
       // Also fetch from database for historical data
       const dbStats = await db
@@ -398,7 +398,7 @@ export async function GET(request: NextRequest) {
           byModel: memorySummary.byModel.sort(
             (a, b) => b.totalTokens - a.totalTokens
           ),
-          recentTicks: TokenStatsService.getRecentTicks(5).map((t) => ({
+          recentTicks: tokenStatsService.getRecentTicks(5).map((t) => ({
             tickId: t.tickId,
             tickStartedAt: t.tickStartedAt,
             tickCompletedAt: t.tickCompletedAt,

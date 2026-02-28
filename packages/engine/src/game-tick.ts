@@ -74,9 +74,9 @@ import {
   rssFeedService,
   StaticDataRegistry,
   syncReputationIfAvailable,
-  TokenStatsService,
   TradeExecutionService,
   timeframeArcProcessor,
+  tokenStatsService,
   WalletService,
   worldFactsGenerator,
 } from './services';
@@ -181,7 +181,7 @@ export async function executeGameTick(
   const deadline = startedAt + budgetMs;
 
   // Start token usage collection for this tick
-  const tokenStatsTickId = TokenStatsService.startTick(`tick-${startedAt}`);
+  const tokenStatsTickId = tokenStatsService.startTick(`tick-${startedAt}`);
 
   logger.info(
     'Executing game tick',
@@ -901,7 +901,7 @@ export async function executeGameTick(
   }
 
   // End token stats collection and store in database
-  const tickTokenStatsData = TokenStatsService.endTick();
+  const tickTokenStatsData = tokenStatsService.endTick();
   if (tickTokenStatsData) {
     // Calculate estimated cost from per-model usage
     let estimatedCostUSD = 0;

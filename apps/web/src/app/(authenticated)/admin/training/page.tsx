@@ -175,7 +175,7 @@ export default function TrainingDashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center md:min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );

@@ -181,7 +181,7 @@ export default function TrendingTagPage() {
 
   return (
     <PageContainer noPadding className="flex w-full flex-col">
-      <div className="relative flex min-h-screen flex-1">
+      <div className="relative flex min-h-dvh flex-1 md:min-h-screen">
         {/* Desktop: Content area */}
         <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
           {/* Desktop header */}

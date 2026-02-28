@@ -214,7 +214,7 @@ export function PredictionPositionsList({
                   {position.side}
                 </span>
                 {position.isAgentPosition && (
-                  <span className="flex shrink-0 items-center gap-0.5 rounded bg-purple-600/20 px-1 py-0.5 font-medium text-[11px] text-purple-500">
+                  <span className="flex shrink-0 items-center gap-0.5 rounded bg-muted px-1 py-0.5 font-medium text-[11px] text-muted-foreground">
                     <Bot size={10} />
                     {position.agentName || 'Agent'}
                   </span>

@@ -8,7 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { SimulationMetrics } from '../benchmark/SimulationEngine';
-import { calculateArrayStats, logger } from '../utils';
+import { calculateArrayStats, formatCurrency, logger } from '../utils';
 import {
   getHuggingFaceToken,
   HuggingFaceUploadUtil,
@@ -345,7 +345,7 @@ This dataset contains benchmark results for autonomous trading agents on the Bab
 
 | Metric | Mean | Median | Std Dev | Min | Max |
 |--------|------|--------|---------|-----|-----|
-| Total P&L | ${summary.pnl.mean.toFixed(2)} | ${summary.pnl.median.toFixed(2)} | ${summary.pnl.std.toFixed(2)} | ${summary.pnl.min.toFixed(2)} | ${summary.pnl.max.toFixed(2)} |
+| Total P&L | ${formatCurrency(summary.pnl.mean)} | ${formatCurrency(summary.pnl.median)} | ${formatCurrency(summary.pnl.std)} | ${formatCurrency(summary.pnl.min)} | ${formatCurrency(summary.pnl.max)} |
 | Prediction Accuracy | ${(summary.accuracy.mean * 100).toFixed(1)}% | ${(summary.accuracy.median * 100).toFixed(1)}% | ${(summary.accuracy.std * 100).toFixed(1)}% | ${(summary.accuracy.min * 100).toFixed(1)}% | ${(summary.accuracy.max * 100).toFixed(1)}% |
 | Optimality Score | ${summary.optimality.mean.toFixed(1)} | ${summary.optimality.median.toFixed(1)} | ${summary.optimality.std.toFixed(1)} | ${summary.optimality.min.toFixed(1)} | ${summary.optimality.max.toFixed(1)} |
 
@@ -492,7 +492,7 @@ For questions or issues, please open an issue on the Babylon repository.
     table += '|------|-------|---------|----------|------------|------|\n';
 
     leaderboard.forEach((entry, index) => {
-      table += `| ${index + 1} | ${entry.model} | ${entry.avgPnl.toFixed(2)} | ${(entry.avgAccuracy * 100).toFixed(1)}% | ${entry.avgOptimality.toFixed(1)} | ${entry.runs} |\n`;
+      table += `| ${index + 1} | ${entry.model} | ${formatCurrency(entry.avgPnl)} | ${(entry.avgAccuracy * 100).toFixed(1)}% | ${entry.avgOptimality.toFixed(1)} | ${entry.runs} |\n`;
     });
 
     return table;

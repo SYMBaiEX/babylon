@@ -86,9 +86,11 @@ export {
 } from './cache';
 // Cron Authentication
 export {
+  type CronHandler,
   cronUnauthorizedResponse,
   requireCronAuth,
   verifyCronAuth,
+  withCronAuth,
 } from './cron-auth';
 // Development credentials (for local testing)
 export {
