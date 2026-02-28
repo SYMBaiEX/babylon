@@ -229,8 +229,8 @@ export function ComingSoon() {
   // but haven't submitted the form and earned the bonus yet.
   const [emailInput, setEmailInput] = useState(() => dbUser?.email ?? '');
   const [isSavingEmail, setIsSavingEmail] = useState(false);
-  const [emailSaved, setEmailSaved] = useState(
-    () => Boolean(dbUser?.pointsAwardedForEmail)
+  const [emailSaved, setEmailSaved] = useState(() =>
+    Boolean(dbUser?.pointsAwardedForEmail)
   );
 
   // Total available assets
