@@ -4,7 +4,6 @@ import {
   getReferralUrl,
   logger,
   POINTS,
-  signInWithFarcaster,
 } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
@@ -142,7 +141,14 @@ interface ReferralUser {
  * @returns Coming soon page element
  */
 export function ComingSoon() {
-  const { login, authenticated, user: privyUser, logout } = usePrivy();
+  const {
+    login,
+    authenticated,
+    user: privyUser,
+    logout,
+    linkTwitter,
+    linkFarcaster,
+  } = usePrivy();
   const { user: dbUser, refresh, getAccessToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -275,11 +281,12 @@ export function ComingSoon() {
       return;
     }
 
-    // Store current URL to return to
-    sessionStorage.setItem('oauth_return_url', window.location.pathname);
-    // Redirect to Twitter OAuth initiation
-    // Cookies should be sent automatically with the redirect
-    window.location.href = '/api/auth/twitter/initiate';
+    if (!linkTwitter) {
+      toast.error('X linking is currently unavailable');
+      return;
+    }
+
+    linkTwitter();
   };
 
   const handleDiscordOAuth = () => {
@@ -296,8 +303,8 @@ export function ComingSoon() {
   };
 
   // Handle Farcaster OAuth - uses proper Sign In with Farcaster (SIWF) protocol
-  // Creates a channel on relay.farcaster.xyz, then polls for authentication completion
-  const handleFarcasterOAuth = async () => {
+  // via Privy-native linking flow.
+  const handleFarcasterOAuth = () => {
     if (!dbUser?.id) {
       toast.error('Please complete your profile first');
       logger.warn(
@@ -308,64 +315,12 @@ export function ComingSoon() {
       return;
     }
 
-    // Use the proper SIWF protocol via relay.farcaster.xyz
-    const result = await signInWithFarcaster({
-      userId: dbUser.id,
-      onStatusUpdate: (status) => {
-        logger.debug('Farcaster auth status', { status }, 'ComingSoon');
-      },
-    });
-
-    // Send authentication data to backend for verification and linking
-    const token = getAuthToken();
-    const response = await fetch('/api/auth/farcaster/callback', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        message: result.message,
-        signature: result.signature,
-        fid: result.fid,
-        username: result.username,
-        displayName: result.displayName,
-        pfpUrl: result.pfpUrl,
-        state: result.state,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      // Refresh user profile to reflect the linked Farcaster account
-      await refresh();
-
-      // Refresh waitlist position to update points
-      if (dbUser?.id) {
-        await fetchWaitlistPosition(dbUser.id);
-      }
-
-      if (data.pointsAwarded > 0) {
-        toast.success(
-          `Farcaster linked! +${data.pointsAwarded} points awarded`
-        );
-      } else {
-        toast.success('Farcaster account linked successfully!');
-      }
-    } else {
-      // Show specific error message for 409 conflicts
-      const errorMessage = data.error || 'Failed to link Farcaster account';
-      if (response.status === 409) {
-        toast.error(
-          errorMessage.includes('already linked')
-            ? errorMessage
-            : 'This Farcaster account is already linked to another user'
-        );
-      } else {
-        toast.error(errorMessage);
-      }
+    if (!linkFarcaster) {
+      toast.error('Farcaster linking is currently unavailable');
+      return;
     }
+
+    linkFarcaster();
   };
 
   // Handle Farcaster Follow - just open the link
