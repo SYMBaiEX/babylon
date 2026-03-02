@@ -20,6 +20,7 @@ import {
   pad,
 } from 'viem';
 import type { AgentProfileMetadata } from '@/hooks/useUpdateAgentProfileTx';
+import { wrapServerActionWithSentry } from '@/lib/sentry/server-actions';
 
 import { requirePrivyTokenBundle } from './utils';
 
@@ -56,7 +57,7 @@ const PREDICTION_MARKET_ABI = [
   },
 ] as const;
 
-export async function buySharesOnchainAction(input: {
+async function buySharesOnchainActionImpl(input: {
   marketId: string;
   outcome: 'YES' | 'NO';
   numShares: number;
@@ -87,7 +88,12 @@ export async function buySharesOnchainAction(input: {
   return { txHash: hash };
 }
 
-export async function sellSharesOnchainAction(input: {
+export const buySharesOnchainAction = wrapServerActionWithSentry(
+  'buySharesOnchainAction',
+  buySharesOnchainActionImpl
+);
+
+async function sellSharesOnchainActionImpl(input: {
   marketId: string;
   outcome: 'YES' | 'NO';
   numShares: number;
@@ -118,7 +124,12 @@ export async function sellSharesOnchainAction(input: {
   return { txHash: hash };
 }
 
-export async function sendSponsoredEthTransferAction(input: {
+export const sellSharesOnchainAction = wrapServerActionWithSentry(
+  'sellSharesOnchainAction',
+  sellSharesOnchainActionImpl
+);
+
+async function sendSponsoredEthTransferActionImpl(input: {
   to: string;
   amountWei: string;
   userJwt?: string;
@@ -142,7 +153,12 @@ export async function sendSponsoredEthTransferAction(input: {
   return { txHash: hash };
 }
 
-export async function updateAgentProfileOnchainAction(input: {
+export const sendSponsoredEthTransferAction = wrapServerActionWithSentry(
+  'sendSponsoredEthTransferAction',
+  sendSponsoredEthTransferActionImpl
+);
+
+async function updateAgentProfileOnchainActionImpl(input: {
   metadata: AgentProfileMetadata;
   endpoint?: string;
   userJwt?: string;
@@ -184,3 +200,8 @@ export async function updateAgentProfileOnchainAction(input: {
 
   return { txHash: hash };
 }
+
+export const updateAgentProfileOnchainAction = wrapServerActionWithSentry(
+  'updateAgentProfileOnchainAction',
+  updateAgentProfileOnchainActionImpl
+);

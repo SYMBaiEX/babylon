@@ -80,6 +80,35 @@ export interface ErrorHandlerOptions {
   captureError?: (error: Error, context: Record<string, JsonValue>) => void;
 }
 
+let defaultErrorCapture: ErrorHandlerOptions['captureError'];
+
+/**
+ * Sets a global default error capture callback used by withErrorHandling.
+ * Route-level options.captureError still takes precedence when provided.
+ */
+export function setDefaultErrorCapture(
+  captureError?: ErrorHandlerOptions['captureError']
+): void {
+  defaultErrorCapture = captureError;
+}
+
+function resolveErrorHandlerOptions(
+  options?: ErrorHandlerOptions
+): ErrorHandlerOptions | undefined {
+  if (options?.captureError) {
+    return options;
+  }
+
+  if (!defaultErrorCapture) {
+    return options;
+  }
+
+  return {
+    ...options,
+    captureError: defaultErrorCapture,
+  };
+}
+
 /**
  * Main error handler that processes all errors and returns appropriate responses
  */
@@ -458,7 +487,7 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
       const response = await handler(req, context!);
       return response;
     } catch (error) {
-      return errorHandler(error, req, options);
+      return errorHandler(error, req, resolveErrorHandlerOptions(options));
     }
   };
 }
@@ -488,7 +517,7 @@ export function asyncHandler<TContext extends RouteContext = RouteContext>(
       }
       return result;
     } catch (error) {
-      return errorHandler(error, req);
+      return errorHandler(error, req, resolveErrorHandlerOptions());
     }
   };
 }
