@@ -13,11 +13,6 @@
  * Responses are displayed without message bubbles (full-width text).
  */
 
-// Coordinator may dispatch to child agents via DISPATCH_TO_AGENT:
-// coordinator (3 iters ≈ 3s) + agent dispatch (4 iters ≈ 8s) + summary (≈ 2s) ≈ 13s total
-// Without this, Vercel's 10s default kills any dispatch request.
-export const maxDuration = 60;
-
 import { agentRuntimeManager, teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
@@ -47,6 +42,11 @@ import {
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+
+// Coordinator may dispatch to child agents via DISPATCH_TO_AGENT:
+// coordinator (3 iters ≈ 3s) + agent dispatch (4 iters ≈ 8s) + summary (≈ 2s) ≈ 13s total
+// Without this, Vercel's 10s default kills any dispatch request.
+export const maxDuration = 60;
 
 // =============================================================================
 // Coordinator Prompt Templates
