@@ -68,14 +68,18 @@ export async function registerAgent(): Promise<AgentIdentity> {
 
   // Register on-chain
   console.log('⛓️  Registering on-chain...');
-  const registration = await agent.registerIPFS();
+  const registrationTx = await agent.registerIPFS();
+  const { result: registration } = await registrationTx.waitMined();
 
   console.log('✅ Registration complete!');
-  console.log(`   Token ID: ${registration.agentId}`);
-  console.log(`   Metadata: ${registration.agentURI}`);
+  console.log(`   Token ID: ${registration.agentId ?? 'unknown'}`);
+  console.log(`   Metadata: ${registration.agentURI ?? 'unknown'}`);
 
   // Parse agent ID
-  const parts = registration.agentId!.split(':');
+  if (!registration.agentId) {
+    throw new Error('Agent0 registration did not return an agentId');
+  }
+  const parts = registration.agentId.split(':');
   const tokenId = Number.parseInt(parts[1]!);
 
   // Get wallet address from private key
@@ -85,7 +89,7 @@ export async function registerAgent(): Promise<AgentIdentity> {
   const identity: AgentIdentity = {
     tokenId,
     address: wallet.address,
-    agentId: registration.agentId!,
+    agentId: registration.agentId,
     metadataCID: registration.agentURI?.replace('ipfs://', ''),
   };
 

@@ -40,7 +40,9 @@ function getScriptKind(filePath: string): ts.ScriptKind {
   return filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
 }
 
-function isExported(node: { modifiers?: ts.NodeArray<ts.Modifier> }): boolean {
+function isExported(node: {
+  modifiers?: ts.NodeArray<ts.ModifierLike>;
+}): boolean {
   return Boolean(
     node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
   );

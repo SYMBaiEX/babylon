@@ -14,9 +14,10 @@ import type {
 // Mock database client for all unit tests
 beforeAll(() => {
   // Set test environment variables
-  process.env.NODE_ENV = 'test';
-  process.env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test';
-  process.env.REDIS_URL = 'redis://localhost:6379';
+  const env = process.env as Record<string, string | undefined>;
+  env.NODE_ENV = 'test';
+  env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test';
+  env.REDIS_URL = 'redis://localhost:6379';
 
   // Mock the database module entirely
   mock.module('@babylon/db', () => {

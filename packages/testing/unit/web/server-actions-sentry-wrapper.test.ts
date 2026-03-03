@@ -76,9 +76,11 @@ describe('wrapServerActionWithSentry', () => {
 
   it('captures, tags, and rethrows errors with sanitized args', async () => {
     const actionError = new Error('action failed');
-    const action = mock(async () => {
-      throw actionError;
-    });
+    const action = mock(
+      async (_input: { token: string; amount: number }, _message: string) => {
+        throw actionError;
+      }
+    );
     const wrapped = wrapServerActionWithSentry('failingAction', action);
 
     await expect(
