@@ -61,6 +61,29 @@ function serializeErrorCause(cause: unknown): Record<string, JsonValue> | null {
   return { message: String(cause) };
 }
 
+const SENSITIVE_CONTEXT_KEY_PATTERN =
+  /(token|secret|password|authorization|cookie|jwt|api[-_]?key|signature|session|credential|wallet)/i;
+
+/**
+ * Shallow-sanitizes a BabylonError context object before sending to Sentry.
+ * Redacts values whose key matches sensitive patterns; preserves safe primitives.
+ */
+function sanitizeErrorContext(
+  ctx: Record<string, JsonValue>
+): Record<string, JsonValue> {
+  const out: Record<string, JsonValue> = {};
+  for (const [key, value] of Object.entries(ctx)) {
+    if (SENSITIVE_CONTEXT_KEY_PATTERN.test(key)) {
+      out[key] = '[REDACTED]';
+    } else if (typeof value === 'string' && value.length > 200) {
+      out[key] = `[string:${value.length}]`;
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 /**
  * Options for error tracking and logging
  */
@@ -199,8 +222,43 @@ export function errorHandler(
     );
   }
 
+  const userId = request.headers.get('x-user-id') || null;
+
   // Handle legacy/simple API errors used by many routes
   if (error instanceof ApiError) {
+    if (error.statusCode >= 500) {
+      logger.error('ApiError (5xx)', {
+        error: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        ...errorContext,
+      });
+
+      if (options?.captureError) {
+        try {
+          options.captureError(error, {
+            request: {
+              url: new URL(request.url).pathname,
+              method: request.method,
+              headers: sanitizeHeaders(request.headers),
+            },
+            ...(userId ? { user: { id: userId } } : {}),
+          });
+        } catch (captureErr) {
+          logger.warn('Error capture callback threw for ApiError', {
+            error: String(captureErr),
+          });
+        }
+      }
+    } else {
+      logger.warn('ApiError (4xx)', {
+        error: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        ...errorContext,
+      });
+    }
+
     const errorData: Record<string, JsonValue> = { error: error.message };
 
     if (process.env.NODE_ENV === 'development') {
@@ -243,7 +301,6 @@ export function errorHandler(
 
   // Track error with analytics (async, don't await to avoid slowing down response)
   // Skip tracking authentication errors, validation errors, and 4xx client errors as they're expected behavior
-  const userId = request.headers.get('x-user-id') || null;
   const isClientError =
     error instanceof BabylonError &&
     error.statusCode >= 400 &&
@@ -261,23 +318,21 @@ export function errorHandler(
   }
 
   // Capture error in error tracking (only for server errors, not client errors like validation)
-  // Skip capturing validation errors, authentication errors, and known operational errors
+  // ZodError and AuthenticationError are excluded via early returns above.
+  // BabylonError operational 4xx (e.g. ValidationError, BadRequestError) are excluded here.
   const shouldCaptureInErrorTracking =
     options?.captureError &&
     error instanceof Error &&
-    !(error instanceof ZodError) &&
     !(
       error instanceof BabylonError &&
       error.isOperational &&
       error.statusCode < 500
-    ) &&
-    !isAuthenticationError(error) &&
-    error.name !== 'ValidationError';
+    );
 
   if (shouldCaptureInErrorTracking && options.captureError) {
     const context: Record<string, JsonValue> = {
       request: {
-        url: request.url,
+        url: new URL(request.url).pathname,
         method: request.method,
         headers: sanitizeHeaders(request.headers),
       },
@@ -286,9 +341,16 @@ export function errorHandler(
       context.user = { id: userId };
     }
     if (error instanceof BabylonError && error.context) {
-      context.error = { context: error.context, code: error.code };
+      context.error = {
+        context: sanitizeErrorContext(error.context),
+        code: error.code,
+      };
     }
-    options.captureError(error, context);
+    try {
+      options.captureError(error, context);
+    } catch (captureErr) {
+      logger.warn('Error capture callback threw', { error: String(captureErr) });
+    }
   }
 
   // Handle Babylon errors (our custom errors)
@@ -499,7 +561,8 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
 export function asyncHandler<TContext extends RouteContext = RouteContext>(
   setup?: () => Promise<void>,
   handler?: (req: NextRequest, context?: TContext) => Promise<NextResponse>,
-  teardown?: () => Promise<void>
+  teardown?: () => Promise<void>,
+  options?: ErrorHandlerOptions
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (req: NextRequest, context?: TContext) => {
     try {
@@ -517,7 +580,7 @@ export function asyncHandler<TContext extends RouteContext = RouteContext>(
       }
       return result;
     } catch (error) {
-      return errorHandler(error, req, resolveErrorHandlerOptions());
+      return errorHandler(error, req, resolveErrorHandlerOptions(options));
     }
   };
 }
