@@ -3,12 +3,10 @@
 import { logger } from '@babylon/shared';
 import {
   type ConnectedWallet,
-  type User as PrivyUser,
   usePrivy,
   useWallets,
 } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { toast } from 'sonner';
 import { type User, useAuthStore } from '@/stores/authStore';
 import { apiFetch } from '@/utils/api-fetch';
 
@@ -50,11 +48,11 @@ let lastSyncedWalletAddress: string | null = null;
 let globalFetchInFlight: Promise<void> | null = null;
 let globalTokenRetryTimeout: number | null = null;
 
-// Track users for whom social accounts have been linked in this session
+// Track users for whom legacy wallet sync has run in this session
 const linkedSocialUsers = new Set<string>();
-// Track in-flight linking operations to prevent race conditions
+// Track in-flight legacy wallet sync operations to prevent race conditions
 const linkingInProgress = new Set<string>();
-// Track failed linking attempts (409 = account already linked to different user)
+// Track failed wallet sync attempts (409 = account already linked to different user)
 // Key format: `${userId}:${platform}:${identifier}` (e.g., "did:privy:123:wallet:0x...")
 const failedLinkAttempts = new Set<string>();
 
@@ -65,13 +63,13 @@ const failedLinkAttempts = new Set<string>();
  * - User profile loading and synchronization
  * - Wallet connection and management (prioritizes embedded wallet for gas sponsorship)
  * - Smart wallet integration
- * - Social account linking (Farcaster, Twitter, Wallet)
+ * - Legacy wallet sync fallback via API
  * - Access token management
  * - Onboarding and on-chain registration status
  *
  * The hook uses Privy for authentication and automatically:
  * - Fetches user profile when authenticated
- * - Links social accounts when available
+ * - Syncs wallet fallback data when needed
  * - Manages access tokens for API calls
  * - Prevents duplicate profile fetches across components
  *
@@ -211,7 +209,18 @@ export function useAuth(): UseAuthReturn {
           ? `/api/users/me?ref=${encodeURIComponent(referralCode)}`
           : '/api/users/me';
 
-        const response = await apiFetch(url);
+        const currentUser = useAuthStore.getState().user;
+        const shouldForcePrivyIdentitySync =
+          (!!privyUser.email?.address &&
+            (!currentUser?.email || !currentUser?.emailVerified)) ||
+          (!!privyUser.farcaster && !currentUser?.hasFarcaster) ||
+          (!!privyUser.twitter && !currentUser?.hasTwitter);
+
+        const response = await apiFetch(url, {
+          headers: shouldForcePrivyIdentitySync
+            ? { 'x-sync-privy-identities': '1' }
+            : undefined,
+        });
 
         // 401 is expected when not authenticated - exit early without error
         if (response.status === 401) {
@@ -244,7 +253,6 @@ export function useAuth(): UseAuthReturn {
         setNeedsOnchain(false);
 
         // Get current state directly from store for comparison to avoid stale closure
-        const currentUser = useAuthStore.getState().user;
         const fallbackProfileImageUrl = currentUser?.profileImageUrl;
         const fallbackCoverImageUrl = currentUser?.coverImageUrl;
 
@@ -406,7 +414,7 @@ export function useAuth(): UseAuthReturn {
     });
   }, [wallet, setWallet]);
 
-  const linkSocialAccounts = useCallback(async () => {
+  const synchronizeLegacyWalletLink = useCallback(async () => {
     if (!authenticated || !privyUser) return;
     if (isLoadingProfile) return; // Wait for profile to load
     if (needsOnboarding || needsOnchain) return;
@@ -425,113 +433,8 @@ export function useAuth(): UseAuthReturn {
     // Mark as in progress immediately to prevent race conditions
     linkingInProgress.add(privyUser.id);
 
-    const userWithFarcaster = privyUser as PrivyUser & {
-      farcaster?: { username?: string; displayName?: string };
-    };
-    const userWithTwitter = privyUser as PrivyUser & {
-      twitter?: { username?: string };
-    };
-
-    // Only link accounts that aren't already linked
-    if (userWithFarcaster.farcaster && !currentUser.hasFarcaster) {
-      const farcaster = userWithFarcaster.farcaster;
-      const farcasterKey = `${privyUser.id}:farcaster:${farcaster.username || farcaster.displayName}`;
-
-      // Skip if this link attempt previously failed with 409
-      if (!failedLinkAttempts.has(farcasterKey)) {
-        const response = await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'farcaster',
-              username: farcaster.username || farcaster.displayName,
-            }),
-          }
-        );
-
-        if (response.status === 409) {
-          // 409 = account already linked to another user - don't retry
-          failedLinkAttempts.add(farcasterKey);
-          toast.error('Farcaster Account Already Linked', {
-            description: `The Farcaster account @${farcaster.username || farcaster.displayName} is already linked to another Babylon account.`,
-            duration: 6000,
-          });
-          logger.info(
-            'Farcaster account already linked to another user, skipping future retries',
-            { username: farcaster.username },
-            'useAuth'
-          );
-        } else if (!response.ok) {
-          // Log other errors but don't throw - we don't want to break auth flow
-          const errorText = await response.text().catch(() => 'Unknown error');
-          logger.warn(
-            'Failed to link Farcaster account',
-            {
-              username: farcaster.username,
-              status: response.status,
-              error: errorText,
-            },
-            'useAuth'
-          );
-        }
-        // 200 means successfully linked - great!
-      }
-    }
-
-    if (userWithTwitter.twitter && !currentUser.hasTwitter) {
-      const twitter = userWithTwitter.twitter;
-      const twitterKey = `${privyUser.id}:twitter:${twitter.username}`;
-
-      // Skip if this link attempt previously failed with 409
-      if (!failedLinkAttempts.has(twitterKey)) {
-        const response = await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'twitter',
-              username: twitter.username,
-            }),
-          }
-        );
-
-        if (response.status === 409) {
-          // 409 = account already linked to another user - don't retry
-          failedLinkAttempts.add(twitterKey);
-          toast.error('Twitter Account Already Linked', {
-            description: `The Twitter account @${twitter.username} is already linked to another Babylon account.`,
-            duration: 6000,
-          });
-          logger.info(
-            'Twitter account already linked to another user, skipping future retries',
-            { username: twitter.username },
-            'useAuth'
-          );
-        } else if (!response.ok) {
-          // Log other errors but don't throw - we don't want to break auth flow
-          const errorText = await response.text().catch(() => 'Unknown error');
-          logger.warn(
-            'Failed to link Twitter account',
-            {
-              username: twitter.username,
-              status: response.status,
-              error: errorText,
-            },
-            'useAuth'
-          );
-        }
-        // 200 means successfully linked - great!
-      }
-    }
-
-    // Only link wallet if it's different from the stored wallet address
+    // Legacy fallback: only sync wallet if it's different from the stored wallet address.
+    // Social identity linking now relies on Privy identity sync server-side.
     if (
       wallet?.address &&
       currentUser.walletAddress?.toLowerCase() !== wallet.address.toLowerCase()
@@ -695,12 +598,12 @@ export function useAuth(): UseAuthReturn {
     void fetchCurrentUser();
   }, [ready, authenticated, privyUser?.id, fetchCurrentUser, privyUser]);
 
-  // Link social accounts only once per user session
+  // Sync legacy wallet fallback only once per user session
   // Removed wallet?.address from dependencies to prevent spam
   // The wallet linking logic checks if the address changed before making API calls
   useEffect(() => {
-    void linkSocialAccounts();
-  }, [linkSocialAccounts]);
+    void synchronizeLegacyWalletLink();
+  }, [synchronizeLegacyWalletLink]);
 
   const refresh = async () => {
     if (!authenticated || !privyUser) return;

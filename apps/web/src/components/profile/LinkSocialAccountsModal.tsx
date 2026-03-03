@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, logger, signInWithFarcaster } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import { useLinkAccount, usePrivy } from '@privy-io/react-auth';
 import { Check, ExternalLink, Mail, Shield, X as XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -56,21 +56,25 @@ export function LinkSocialAccountsModal({
   // user.email may be unverified (e.g. imported from a previous auth method).
   const privyEmail = privyUser?.email?.address?.trim() || null;
 
-  const { linkEmail } = useLinkAccount({
-    onSuccess: () => {
-      toast.success('Email linked to Privy');
+  const { linkEmail, linkFarcaster } = useLinkAccount({
+    onSuccess: ({ linkedAccount }) => {
       setLinking(null);
+      if (linkedAccount.type === 'farcaster_account') {
+        toast.success('Farcaster account linked successfully!');
+      } else {
+        toast.success('Email linked successfully');
+      }
       onClose();
     },
     onError: (error) => {
       setLinking(null);
       if (isLinkEmailFlowCancellationError(error)) return;
       logger.error(
-        'Failed to link email via Privy',
+        'Failed to link account via Privy',
         { error: String(error) },
         'LinkSocialAccountsModal'
       );
-      toast.error('Failed to link email. Please try again.');
+      toast.error('Failed to link account. Please try again.');
     },
   });
 
@@ -94,13 +98,8 @@ export function LinkSocialAccountsModal({
 
     setLinking('twitter');
 
-    // Redirect to OAuth initiation endpoint
-    const initiateUrl = `/api/auth/twitter/initiate`;
-
-    // Store current URL to return to
     sessionStorage.setItem('oauth_return_url', window.location.pathname);
-
-    window.location.href = initiateUrl;
+    window.location.href = `/api/auth/twitter/initiate`;
   };
 
   const handleTwitterDisconnect = async () => {
@@ -145,70 +144,10 @@ export function LinkSocialAccountsModal({
     }
   };
 
-  const handleFarcasterAuth = async () => {
+  const handleFarcasterAuth = () => {
     if (!user?.id) return;
-
     setLinking('farcaster');
-
-    // Use the proper SIWF protocol via relay.farcaster.xyz
-    const result = await signInWithFarcaster({
-      userId: user.id,
-    });
-
-    // Send authentication data to backend for verification and linking
-    const token = getAuthToken();
-    const response = await fetch('/api/auth/farcaster/callback', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        message: result.message,
-        signature: result.signature,
-        fid: result.fid,
-        username: result.username,
-        displayName: result.displayName,
-        pfpUrl: result.pfpUrl,
-        state: result.state,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      setUser({
-        ...user,
-        hasFarcaster: true,
-        farcasterUsername: result.username,
-        reputationPoints: data.newTotal || user.reputationPoints,
-      });
-
-      // Dispatch event to notify other components (like UserMenu) to refresh
-      window.dispatchEvent(new CustomEvent('rewards-updated'));
-
-      if (data.pointsAwarded > 0) {
-        toast.success(
-          `Farcaster linked! +${data.pointsAwarded} points awarded`
-        );
-      } else {
-        toast.success('Farcaster account linked successfully!');
-      }
-
-      onClose();
-    } else {
-      const errorMessage = data.error || 'Failed to link Farcaster account';
-      if (response.status === 409) {
-        toast.error(
-          errorMessage.includes('already linked')
-            ? errorMessage
-            : 'This Farcaster account is already linked to another user'
-        );
-      } else {
-        toast.error(errorMessage);
-      }
-    }
-    setLinking(null);
+    linkFarcaster();
   };
 
   return (
