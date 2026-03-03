@@ -18,6 +18,8 @@
     "dev:next-only": "turbo dev:next-only --filter=web",
     "env:pull:staging": "vercel env pull --yes .env.staging.local --environment=staging",
     "env:pull:production": "vercel env pull --yes .env.production.local --environment=production",
+    "env:audit": "bun run scripts/env-audit.ts",
+    "env:audit:check": "bun run scripts/env-audit.ts --check --format=json",
     "build": "turbo build",
     "clean": "turbo clean && rm -rf node_modules/.cache .turbo",
     "build:staging": "NODE_ENV=production bun --env-file=.env.staging.local run build",
