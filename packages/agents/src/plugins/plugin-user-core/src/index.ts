@@ -21,6 +21,7 @@ import {
   checkRecentMarketTradesAction,
   checkTeamChatAction,
   checkUserPnlAction,
+  dispatchToAgentAction,
 } from './actions';
 import {
   coordinatorActionStateProvider,
@@ -34,6 +35,7 @@ import {
  * User Core Plugin
  *
  * Provides capabilities for the user coordinator:
+ * - DISPATCH_TO_AGENT - Dispatch commands to child agents (orchestration)
  * - CHECK_PREDICTIONS - Detailed prediction market info
  * - CHECK_PERPS - Perpetual market data
  * - CHECK_USER_PNL - User's balance, positions, P&L
@@ -45,9 +47,11 @@ import {
 export const userCorePlugin: Plugin = {
   name: 'user-core',
   description:
-    'Core capabilities for user coordinator with read-only actions for team chat coordination',
+    'Core capabilities for user coordinator with orchestration dispatch and read-only informational actions',
 
   actions: [
+    // Orchestration — listed first so the LLM sees it as the primary action for execution requests
+    dispatchToAgentAction,
     // Market information
     checkPredictionsAction,
     checkPerpsAction,
@@ -78,6 +82,7 @@ export {
   checkRecentMarketTradesAction,
   checkTeamChatAction,
   checkUserPnlAction,
+  dispatchToAgentAction,
 } from './actions';
 export {
   coordinatorActionStateProvider,

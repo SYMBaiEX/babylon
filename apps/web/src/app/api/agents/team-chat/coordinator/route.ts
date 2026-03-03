@@ -13,6 +13,11 @@
  * Responses are displayed without message bubbles (full-width text).
  */
 
+// Coordinator may dispatch to child agents via DISPATCH_TO_AGENT:
+// coordinator (3 iters ≈ 3s) + agent dispatch (4 iters ≈ 8s) + summary (≈ 2s) ≈ 13s total
+// Without this, Vercel's 10s default kills any dispatch request.
+export const maxDuration = 60;
+
 import { agentRuntimeManager, teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
@@ -89,13 +94,21 @@ No actions taken yet.
 
 # Decision Guide
 
-**Use an action** when you need data to answer the user's question.
-**Skip actions** when: user wants to trade (guide to @agent), general questions, or you already have the data.
+**Use DISPATCH_TO_AGENT** when the user wants to execute a trade, post, comment, or any agent action.
+  - Select the agent using their [id: ...] from the Team Members list above
+  - Write the command clearly as the exact instruction for the agent
+  - If no agents exist in the team, skip this action and tell the user to create one at /agents
+
+**Use a data-fetch action** (CHECK_PERPS, CHECK_PREDICTIONS, CHECK_USER_PNL, etc.) when you need information to answer the user's question.
+
+**Skip all actions** when the question is conversational, or you already have the data needed to answer.
+
+**NEVER repeat the same action with the same parameters.**
 
 Use plain @username for mentions. No markdown links.
 
 <keys>
-"thought" Your reasoning about what the user needs
+"thought" Your reasoning about what the user needs and which action (if any) to take
 "action" Action name from available actions above, or empty string "" if no action needed
 "parameters" JSON parameters for the action, or {} if no parameters needed
 "isFinish" Set to true when ready to respond to user
@@ -152,7 +165,11 @@ No actions were needed.
 
 **Feed/social:** "Here's what's trending: @user1 posted about NVDAI earnings (42 likes), @user2 shared their prediction strategy..."
 
-**Trade/post requests:** "To trade: \`@agent open long TSLAI $100\` | To post: \`@agent post about the market\`"
+**Agent dispatched:** "I've sent @trading_bot the instruction to open a long position on TSLAI. Their response will appear in this chat."
+
+**Agent dispatch failed:** "I wasn't able to dispatch that — [reason]. You can @mention your agent directly to retry."
+
+**No agents:** "You don't have any agents yet. Create one at /agents to get started."
 
 Use plain @username. No markdown links.
 
@@ -404,10 +421,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       }
     }
 
-    // Store params in state for action handler
+    // Store params and inject broadcastFn so DISPATCH_TO_AGENT can broadcast
+    // broadcastFn is injected here (not imported inside packages/agents) to
+    // maintain architectural separation between @babylon/api and @babylon/agents
     state.data = {
       ...state.data,
       actionParams,
+      broadcastFn: broadcastChatMessage,
     };
 
     // Build action content for processActions
