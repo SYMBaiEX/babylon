@@ -1,6 +1,7 @@
 'use client';
 
 import type { FeedPost } from '@babylon/shared';
+import { AlertCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,7 +16,6 @@ import { useErrorToasts } from '@/hooks/useErrorToasts';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
-import { AlertCircle } from 'lucide-react';
 import { EmptyFeed, NarrativeStoryList, PostList } from './components';
 import {
   useFeedPosts,
@@ -309,11 +309,7 @@ export function FeedClient() {
 
     if (tab === 'narrative') {
       if (narrativeError)
-        return (
-          <NarrativeFeedError
-            onRetry={() => void refreshNarrative()}
-          />
-        );
+        return <NarrativeFeedError onRetry={() => void refreshNarrative()} />;
       if (narrativeStories.length === 0)
         return <EmptyFeed variant="narrative" />;
       return <NarrativeStoryList stories={narrativeStories} />;
