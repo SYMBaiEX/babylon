@@ -63,10 +63,11 @@ describe('scripts/env-audit', () => {
       expect(isRuntimeFilePath('packages/api/src/foo.ts')).toBe(true);
       expect(isRuntimeFilePath('scripts/dev-wrapper.ts')).toBe(true);
 
-      expect(isRuntimeFilePath('packages/testing/unit/foo.test.ts')).toBe(false);
+      expect(isRuntimeFilePath('packages/testing/unit/foo.test.ts')).toBe(
+        false
+      );
       expect(isRuntimeFilePath('packages/examples/x/src/index.ts')).toBe(false);
       expect(isRuntimeFilePath('apps/docs/app/page.tsx')).toBe(false);
     });
   });
 });
-

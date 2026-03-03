@@ -240,7 +240,9 @@ export function ConversationList({
                       {onDeleteConversation && (
                         <button
                           type="button"
-                          onClick={(e) => handleDeleteConversation(e, conversation)}
+                          onClick={(e) =>
+                            handleDeleteConversation(e, conversation)
+                          }
                           disabled={
                             deletingId !== null ||
                             !canDeleteConversation(conversations.length)

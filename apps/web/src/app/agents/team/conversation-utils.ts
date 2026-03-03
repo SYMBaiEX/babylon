@@ -22,7 +22,8 @@ export function getConversationDisplayName(
   }
 
   const effectiveLocale =
-    locale ?? (typeof navigator !== 'undefined' ? navigator.language : undefined);
+    locale ??
+    (typeof navigator !== 'undefined' ? navigator.language : undefined);
   const dateStr = date.toLocaleDateString(effectiveLocale, {
     month: 'short',
     day: 'numeric',

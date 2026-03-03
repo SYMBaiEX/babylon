@@ -46,9 +46,9 @@ describe('scripts/validate-env', () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.missing.some((item) => item.id === 'sendgrid-from-address')).toBe(
-      true
-    );
+    expect(
+      result.missing.some((item) => item.id === 'sendgrid-from-address')
+    ).toBe(true);
   });
 
   it('requires Agent0 settings when AGENT0_ENABLED=true', () => {
@@ -62,9 +62,9 @@ describe('scripts/validate-env', () => {
 
     expect(result.valid).toBe(false);
     expect(result.missing.some((item) => item.id === 'agent0-core')).toBe(true);
-    expect(result.missing.some((item) => item.id === 'agent0-ipfs-provider')).toBe(
-      true
-    );
+    expect(
+      result.missing.some((item) => item.id === 'agent0-ipfs-provider')
+    ).toBe(true);
   });
 
   it('requires NEXT_PUBLIC_APP_URL in staging and production', () => {

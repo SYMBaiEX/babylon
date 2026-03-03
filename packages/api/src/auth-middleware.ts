@@ -15,12 +15,12 @@ import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { verifyAgentSession } from './agent-auth';
+import { getPrivyAppIdFromEnv, getTrimmedEnv } from './env';
 import {
   AuthenticationError,
   AuthorizationError,
   isAuthenticationError,
 } from './errors';
-import { getPrivyAppIdFromEnv, getTrimmedEnv } from './env';
 import { hasNftAccessForAuthUser } from './services/nft-access-service';
 
 // Re-export types from shared for backwards compatibility

@@ -49,14 +49,7 @@ type ParsedArgs = {
   showHelp: boolean;
 };
 
-const TRUTHY_VALUES = new Set([
-  '1',
-  'true',
-  'yes',
-  'on',
-  'start',
-  'running',
-]);
+const TRUTHY_VALUES = new Set(['1', 'true', 'yes', 'on', 'start', 'running']);
 
 const BASE_REQUIRED_RULES: ValidationRule[] = [
   {
@@ -127,7 +120,8 @@ const CONDITIONAL_RULES: ValidationRule[] = [
   },
   {
     id: 'onchain-perps-diamond-address',
-    description: 'On-chain perpetuals Diamond contract address when on-chain mode is enabled',
+    description:
+      'On-chain perpetuals Diamond contract address when on-chain mode is enabled',
     kind: 'allOf',
     keys: ['NEXT_PUBLIC_DIAMOND_ADDRESS'],
     when: ({ env }) =>
@@ -234,8 +228,12 @@ export function evaluateEnv(params: {
   documentedKeys?: Set<string>;
   declaredFileKeys?: Set<string>;
 }): ValidationResult {
-  const { env, profile, documentedKeys = new Set(), declaredFileKeys = new Set() } =
-    params;
+  const {
+    env,
+    profile,
+    documentedKeys = new Set(),
+    declaredFileKeys = new Set(),
+  } = params;
   const context: RuleContext = { env, profile };
   const rules = [...BASE_REQUIRED_RULES, ...CONDITIONAL_RULES].filter((rule) =>
     isRuleActive(rule, context)

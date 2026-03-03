@@ -44,4 +44,3 @@ describe('api env helpers', () => {
     expect(getNotificationEmailFromEnv()).toBe('legacy@babylon.market');
   });
 });
-

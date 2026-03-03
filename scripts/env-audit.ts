@@ -1,7 +1,13 @@
 #!/usr/bin/env bun
 
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
 
 type OutputFormat = 'text' | 'json';
 
@@ -201,7 +207,10 @@ function isPlatformKey(key: string): boolean {
   return false;
 }
 
-function scanFiles(rootDir: string, filePaths: string[]): EnvReferenceScanResult {
+function scanFiles(
+  rootDir: string,
+  filePaths: string[]
+): EnvReferenceScanResult {
   const keys = new Set<string>();
   const dynamicAccesses: Array<{ file: string; sample: string }> = [];
 
@@ -298,16 +307,22 @@ function printTextReport(report: EnvAuditReport): void {
       console.log(`- ${item.file}: ${item.sample}`);
     }
     if (report.dynamicAccesses.length > preview.length) {
-      console.log(`- ...and ${report.dynamicAccesses.length - preview.length} more`);
+      console.log(
+        `- ...and ${report.dynamicAccesses.length - preview.length} more`
+      );
     }
   }
 }
 
 function printHelp(): void {
-  console.log('Usage: bun run env:audit [--check] [--format=json|text] [--out=<file>]');
+  console.log(
+    'Usage: bun run env:audit [--check] [--format=json|text] [--out=<file>]'
+  );
   console.log('');
   console.log('Options:');
-  console.log('- --check: exit non-zero if runtime-owned keys are used but not declared in .env.example');
+  console.log(
+    '- --check: exit non-zero if runtime-owned keys are used but not declared in .env.example'
+  );
   console.log('- --format=json|text: output format (default: text)');
   console.log('- --out=<file>: write output to file instead of stdout');
 }
@@ -389,9 +404,7 @@ export function runCli(rootDir: string, argv: string[]): number {
   });
 
   const output =
-    args.format === 'json'
-      ? `${JSON.stringify(report, null, 2)}\n`
-      : null;
+    args.format === 'json' ? `${JSON.stringify(report, null, 2)}\n` : null;
 
   if (args.outFile) {
     const outPath = resolve(absRoot, args.outFile);
