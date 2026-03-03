@@ -10,7 +10,7 @@
  */
 
 import { agentService } from '@babylon/agents';
-import { authenticateUser } from '@babylon/api';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
 import {
   agentTrades,
   comments,
@@ -73,7 +73,7 @@ interface CommentActivity {
 
 type AgentActivity = TradeActivity | PostActivity | CommentActivity;
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -241,4 +241,4 @@ export async function GET(
       hasMore: activities.length > limit,
     },
   });
-}
+});

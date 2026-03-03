@@ -155,6 +155,22 @@ export function errorHandler(
       ...errorContext,
     });
 
+    // Best-effort capture for non-Error thrown values (rare, but can happen).
+    if (options?.captureError) {
+      const normalized = new Error(String(error));
+      normalized.name = 'NonErrorThrown';
+      options.captureError(normalized, {
+        request: {
+          url: request.url,
+          method: request.method,
+          headers: sanitizeHeaders(request.headers),
+        },
+        error: {
+          message: String(error),
+        },
+      });
+    }
+
     return NextResponse.json(
       {
         error: {
@@ -522,31 +538,28 @@ export interface RouteContext {
  */
 // Overload 1: Handler without context (for routes without dynamic params)
 export function withErrorHandling(
-  handler: (req: NextRequest) => Promise<NextResponse> | NextResponse,
+  handler: (req: NextRequest) => Promise<Response> | Response,
   options?: ErrorHandlerOptions
-): (req: NextRequest) => Promise<NextResponse>;
+): (req: NextRequest) => Promise<Response>;
 
 // Overload 2: Handler with context (for routes with dynamic params)
 export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   handler: (
     req: NextRequest,
     context: TContext
-  ) => Promise<NextResponse> | NextResponse,
+  ) => Promise<Response> | Response,
   options?: ErrorHandlerOptions
-): (req: NextRequest, context: TContext) => Promise<NextResponse>;
+): (req: NextRequest, context: TContext) => Promise<Response>;
 
 // Implementation
 export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   handler: (
     req: NextRequest,
     context?: TContext
-  ) => Promise<NextResponse> | NextResponse,
+  ) => Promise<Response> | Response,
   options?: ErrorHandlerOptions
-): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
-  return async (
-    req: NextRequest,
-    context?: TContext
-  ): Promise<NextResponse> => {
+): (req: NextRequest, context?: TContext) => Promise<Response> {
+  return async (req: NextRequest, context?: TContext): Promise<Response> => {
     try {
       const response = await handler(req, context!);
       return response;
@@ -562,10 +575,10 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
  */
 export function asyncHandler<TContext extends RouteContext = RouteContext>(
   setup?: () => Promise<void>,
-  handler?: (req: NextRequest, context?: TContext) => Promise<NextResponse>,
+  handler?: (req: NextRequest, context?: TContext) => Promise<Response>,
   teardown?: () => Promise<void>,
   options?: ErrorHandlerOptions
-): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
+): (req: NextRequest, context?: TContext) => Promise<Response> {
   return async (req: NextRequest, context?: TContext) => {
     try {
       if (setup) {

@@ -65,7 +65,7 @@
  */
 
 import { X402Manager } from '@babylon/a2a';
-import { authenticate } from '@babylon/api';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -88,7 +88,7 @@ interface CreatePaymentBody {
   fromAddress: string; // User's wallet address
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const authUser = await authenticate(req);
   const userId = authUser.dbUserId!;
 
@@ -141,4 +141,4 @@ export async function POST(req: NextRequest) {
       amountUSD,
     },
   });
-}
+});

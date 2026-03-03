@@ -60,7 +60,11 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import { addPublicReadHeaders, publicRateLimit } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  withErrorHandling,
+} from '@babylon/api';
 import { StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -74,7 +78,7 @@ import { NextResponse } from 'next/server';
  *
  * @returns {Promise<NextResponse>} Organizations data
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const { error, rateLimitInfo } = await publicRateLimit(request);
   if (error) return error;
 
@@ -105,4 +109,4 @@ export async function GET(request: NextRequest) {
   });
   if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
   return res;
-}
+});

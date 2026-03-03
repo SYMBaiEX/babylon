@@ -68,12 +68,18 @@
  * ```
  */
 
-import { authenticate, requireUserByIdentifier } from '@babylon/api';
+import {
+  authenticate,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   const authUser = await authenticate(request);
   const user = await requireUserByIdentifier(authUser.userId, {
     id: true,
@@ -185,4 +191,4 @@ export async function POST(request: NextRequest) {
     tweet: responseData,
     tweetUrl: `https://x.com/${user.twitterUsername || 'i'}/status/${responseData.data?.id}`,
   });
-}
+});

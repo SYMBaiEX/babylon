@@ -78,6 +78,7 @@
  * @see {@link /lib/logger} Logging utilities
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
@@ -93,7 +94,7 @@ import { NextResponse } from 'next/server';
  *
  * @returns {Promise<NextResponse>} Historical statistics
  */
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ actorId: string }> }
 ) {
@@ -152,4 +153,4 @@ export async function GET(
   };
 
   return NextResponse.json(stats);
-}
+});

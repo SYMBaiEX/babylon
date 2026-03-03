@@ -24,6 +24,7 @@ import {
   issueRealtimeToken,
   publicRateLimit,
   type RealtimeChannel,
+  withErrorHandling,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -42,7 +43,7 @@ const PUBLIC_TOKEN_USER_ID = '__public__';
 /** 15 minutes; balance between reducing token refresh traffic and limiting exposure if token leaks. */
 const TTL_SECONDS = 900;
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const { error, rateLimitInfo } = await publicRateLimit(request, 'firehose');
   if (error) return error;
 
@@ -67,4 +68,4 @@ export async function GET(request: NextRequest) {
   });
   if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
   return res;
-}
+});

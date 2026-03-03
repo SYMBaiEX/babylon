@@ -56,7 +56,7 @@
  */
 
 import { X402Manager } from '@babylon/a2a';
-import { requireAdmin } from '@babylon/api';
+import { requireAdmin, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -77,7 +77,7 @@ const VerifyEscrowPaymentSchema = z.object({
   amount: z.string().min(1, 'Amount is required'),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const adminUser = await requireAdmin(req);
   const adminId = adminUser.userId;
 
@@ -250,4 +250,4 @@ export async function POST(req: NextRequest) {
       paymentTxHash: verificationResult.escrow.paymentTxHash,
     },
   });
-}
+});

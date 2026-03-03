@@ -84,6 +84,7 @@ import {
   RateLimiter,
 } from '@babylon/a2a';
 import { getAgentConfig } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -217,7 +218,7 @@ async function getAgentJsonRpcHandler(
   return agentJsonRpcHandlers.get(agentId)!;
 }
 
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -629,9 +630,9 @@ export async function POST(
     },
     { status: 404 }
   );
-}
+});
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -687,4 +688,4 @@ export async function GET(
       },
     }
   );
-}
+});

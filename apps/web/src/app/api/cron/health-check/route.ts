@@ -53,7 +53,7 @@
  * ```
  */
 
-import { withCronAuth } from '@babylon/api';
+import { withCronAuth, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -89,4 +89,4 @@ async function handler(_request: NextRequest) {
   });
 }
 
-export const GET = withCronAuth('HealthCheck', handler);
+export const GET = withErrorHandling(withCronAuth('HealthCheck', handler));

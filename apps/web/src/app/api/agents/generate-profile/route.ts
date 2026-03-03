@@ -91,6 +91,7 @@ import {
   authenticateUser,
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
+  withErrorHandling,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -98,7 +99,7 @@ import { NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   // Apply rate limiting - 5 generations per minute
@@ -251,4 +252,4 @@ Respond ONLY with valid JSON, no markdown formatting.`;
     success: true,
     ...generated,
   });
-}
+});

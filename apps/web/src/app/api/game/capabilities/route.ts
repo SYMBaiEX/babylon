@@ -8,6 +8,7 @@
  */
 
 import { babylonAgentCard } from '@babylon/a2a';
+import { withErrorHandling } from '@babylon/api';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic';
  * GET /api/game/capabilities
  * Returns detailed game capabilities
  */
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   const capabilities = {
@@ -92,4 +93,4 @@ export async function GET() {
       'Content-Type': 'application/json',
     },
   });
-}
+});

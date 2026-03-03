@@ -22,11 +22,6 @@ import {
 } from '@babylon/api';
 import type { ArcStateType } from '@babylon/db';
 import {
-  calculateArcStateMultiplier,
-  calculateResolutionBoost,
-  calculateStoryScore,
-} from './scoring';
-import {
   and,
   arcStates,
   db,
@@ -48,6 +43,11 @@ import {
 import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import {
+  calculateArcStateMultiplier,
+  calculateResolutionBoost,
+  calculateStoryScore,
+} from './scoring';
 
 // Query limits
 const MAX_CANDIDATE_POSTS = 500;
@@ -484,8 +484,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     finalStories = result.stories.map((story) => ({
       ...story,
       hasUserPosition:
-        story.questionNumber !== null &&
-        positionSet.has(story.questionNumber),
+        story.questionNumber !== null && positionSet.has(story.questionNumber),
       posts: story.posts.map((post) => ({
         ...post,
         isLiked: likedSet.has(post.id),

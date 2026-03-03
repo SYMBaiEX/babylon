@@ -12,6 +12,7 @@
  */
 
 import { getAllTemplates, getTemplateIds } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
 import { NextResponse } from 'next/server';
 
 /**
@@ -21,7 +22,7 @@ import { NextResponse } from 'next/server';
  *
  * @returns {Promise<NextResponse>} Templates data
  */
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   const templates = getAllTemplates();
   const templateIds = getTemplateIds();
 
@@ -29,4 +30,4 @@ export async function GET() {
     templates: Array.from(templateIds),
     templatesData: templates,
   });
-}
+});

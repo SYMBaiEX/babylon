@@ -17,12 +17,10 @@ describe('scroll-utils', () => {
   });
 
   test('shows jump-to-latest only above threshold', () => {
-    expect(
-      shouldShowScrollToLatest(SCROLL_TO_LATEST_THRESHOLD_PX + 1)
-    ).toBe(true);
-    expect(
-      shouldShowScrollToLatest(SCROLL_TO_LATEST_THRESHOLD_PX)
-    ).toBe(false);
+    expect(shouldShowScrollToLatest(SCROLL_TO_LATEST_THRESHOLD_PX + 1)).toBe(
+      true
+    );
+    expect(shouldShowScrollToLatest(SCROLL_TO_LATEST_THRESHOLD_PX)).toBe(false);
     expect(shouldShowScrollToLatest(10)).toBe(false);
   });
 

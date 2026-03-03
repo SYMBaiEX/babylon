@@ -40,7 +40,7 @@
  *                   type: string
  */
 
-import { generateAutoSpec } from '@babylon/api';
+import { generateAutoSpec, withErrorHandling } from '@babylon/api';
 import { NextResponse } from 'next/server';
 
 /**
@@ -58,7 +58,7 @@ import { NextResponse } from 'next/server';
  * console.log(spec.paths); // All API paths
  * ```
  */
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   const spec = (await generateAutoSpec()) as {
     openapi?: string;
     swagger?: string;
@@ -76,4 +76,4 @@ export async function GET() {
       'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
     },
   });
-}
+});

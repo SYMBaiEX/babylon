@@ -69,7 +69,7 @@
  */
 
 import { X402Manager } from '@babylon/a2a';
-import { authenticate, PointsService } from '@babylon/api';
+import { authenticate, PointsService, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -89,7 +89,7 @@ interface VerifyPaymentBody {
   amount: string;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const authUser = await authenticate(req);
   const userId = authUser.dbUserId!;
 
@@ -156,4 +156,4 @@ export async function POST(req: NextRequest) {
     newTotal: result.newTotal,
     txHash,
   });
-}
+});

@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  getReferralUrl,
-  logger,
-  POINTS,
-} from '@babylon/shared';
+import { getReferralUrl, logger, POINTS } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Check,
@@ -36,7 +32,6 @@ import {
 import { MarketingFooter } from '@/components/shared/MarketingFooter';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
-import { getAuthToken } from '@/lib/auth';
 import { EXTERNAL_LINKS } from '@/lib/constants';
 import type {
   EligibilityApiResponse,

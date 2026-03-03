@@ -60,6 +60,7 @@ import {
   getDeploymentEnvironment,
   recordCronExecution,
   verifyCronAuth,
+  withErrorHandling,
 } from '@babylon/api';
 import { db, generateSnowflakeId, systemMetricsSnapshots } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -88,11 +89,13 @@ function getHourBoundary(date: Date = new Date()): Date {
   );
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   return POST(request);
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   // Verify cron authorization
   if (!verifyCronAuth(request, { jobName: 'MetricsSnapshot' })) {
     logger.warn(
@@ -235,7 +238,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * Collect platform metrics from database

@@ -48,12 +48,13 @@
  * ```
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ gameId: string }> }
 ) {
@@ -184,4 +185,4 @@ export async function GET(
       safetyNote: 'This data is only available after game completion',
     },
   });
-}
+});

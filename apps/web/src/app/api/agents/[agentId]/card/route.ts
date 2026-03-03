@@ -63,13 +63,14 @@
 
 import type { AgentCard } from '@babylon/agents';
 import { agentRegistry } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -134,4 +135,4 @@ export async function GET(
   );
 
   return NextResponse.json(agentCard, { status: 200 });
-}
+});

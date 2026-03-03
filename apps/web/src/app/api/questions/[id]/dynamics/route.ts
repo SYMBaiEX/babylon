@@ -46,13 +46,17 @@
  * ```
  */
 
-import { addPublicReadHeaders, publicRateLimit } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  withErrorHandling,
+} from '@babylon/api';
 import { PredictionPricing } from '@babylon/core/markets/prediction';
 import { db } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -229,4 +233,4 @@ export async function GET(
   });
   if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
   return res;
-}
+});

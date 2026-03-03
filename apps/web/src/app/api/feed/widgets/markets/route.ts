@@ -43,6 +43,7 @@ import {
   DEFAULT_TTLS,
   getCacheOrFetch,
   optionalAuth,
+  withErrorHandling,
 } from '@babylon/api';
 import { asPublic, asUser, getDbInstance } from '@babylon/db';
 import type { NextRequest } from 'next/server';
@@ -53,7 +54,7 @@ export const dynamic = 'force-dynamic';
 // Cache config (60 seconds)
 export const revalidate = 60;
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   // Optional auth - markets are public but RLS still applies
   const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(
     () => null
@@ -340,4 +341,4 @@ export async function GET(request: NextRequest) {
     success: true,
     markets: formattedMarkets,
   });
-}
+});

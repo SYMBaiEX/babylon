@@ -9,7 +9,12 @@
  */
 
 import { agentRegistry } from '@babylon/agents';
-import { authenticate, isAuthenticationError, isUserAdmin } from '@babylon/api';
+import {
+  authenticate,
+  isAuthenticationError,
+  isUserAdmin,
+  withErrorHandling,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -18,7 +23,10 @@ interface RouteParams {
   params: Promise<{ externalId: string }>;
 }
 
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
+export const DELETE = withErrorHandling(async function DELETE(
+  req: NextRequest,
+  { params }: RouteParams
+) {
   try {
     // Authenticate the request
     const authUser = await authenticate(req);
@@ -117,4 +125,4 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
