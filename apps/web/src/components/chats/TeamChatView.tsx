@@ -224,6 +224,10 @@ export function TeamChatView({
     []
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chatDetails?.chat?.id,
+  // chatDetails?.messages?.length, and loading are intentional trigger deps —
+  // they re-run the effect on conversation switch / new message arrival even
+  // though they aren't referenced inside the callback body.
   React.useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) {
@@ -342,7 +346,7 @@ export function TeamChatView({
        * children of a scrolling container are anchored to the full content
        * height, so the button would be invisible when scrolled up.
        */}
-      <div className="relative min-h-0 flex-1 flex flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           data-chat-messages-container
           ref={messagesContainerRef}
