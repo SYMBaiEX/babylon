@@ -487,7 +487,3 @@ class TokenStatsServiceImpl {
 
 // Export singleton instance (camelCase for consistency with other services)
 export const tokenStatsService = new TokenStatsServiceImpl();
-
-// Backward-compatible alias (PascalCase)
-/** @deprecated Use tokenStatsService instead */
-export const TokenStatsService = tokenStatsService;

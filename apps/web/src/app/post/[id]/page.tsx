@@ -200,7 +200,7 @@ export default function PostPage({ params }: PostPageProps) {
         noPadding
         className="!overflow-visible flex w-full flex-col"
       >
-        <div className="relative flex min-h-screen flex-1">
+        <div className="relative flex min-h-dvh flex-1 md:min-h-screen">
           {/* Desktop loading */}
           <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
             <div className="flex-1 bg-background">
@@ -233,7 +233,7 @@ export default function PostPage({ params }: PostPageProps) {
         noPadding
         className="!overflow-visible flex w-full flex-col"
       >
-        <div className="relative flex min-h-screen flex-1">
+        <div className="relative flex min-h-dvh flex-1 md:min-h-screen">
           {/* Desktop error */}
           <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
             <div className="flex flex-1 flex-col items-center justify-center bg-background">
@@ -274,7 +274,7 @@ export default function PostPage({ params }: PostPageProps) {
 
   return (
     <PageContainer noPadding className="!overflow-visible flex w-full flex-col">
-      <div className="relative flex min-h-screen flex-1">
+      <div className="relative flex min-h-dvh flex-1 md:min-h-screen">
         {/* Desktop: Post content area */}
         <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
           {/* Desktop: Top bar with back button */}

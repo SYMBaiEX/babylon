@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  cn,
-  formatCompactCurrency,
-  getActorProfileUrl,
-  getUserProfileUrl,
-} from '@babylon/shared';
+import { cn, getActorProfileUrl, getUserProfileUrl } from '@babylon/shared';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -18,6 +13,8 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
+import { formatCurrencyCompact } from '@/lib/format';
+import { getUserDisplayName } from '@/lib/user-display';
 
 /**
  * Trade type discriminator for trade card display.
@@ -192,11 +189,7 @@ export function TradeCard({ trade }: TradeCardProps) {
     return 'Just now';
   };
 
-  /** Use shared formatCompactCurrency for currency formatting */
-  const formatCurrency = (value: string | number) => {
-    const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
-  };
+  const formatCurrency = formatCurrencyCompact;
 
   const timestamp = formatTime(trade.timestamp);
 
@@ -239,7 +232,7 @@ export function TradeCard({ trade }: TradeCardProps) {
         <Link href={profileUrl} className="shrink-0">
           <Avatar
             id={trade.user.id}
-            name={trade.user.displayName || trade.user.username || 'User'}
+            name={getUserDisplayName(trade.user, 'User')}
             type={trade.user.isActor ? 'actor' : undefined}
             size="sm"
             src={trade.user.profileImageUrl || undefined}
@@ -557,8 +550,7 @@ function TransferTradeContent({
   timestamp: string;
 }) {
   const isSent = trade.direction === 'sent';
-  const otherPartyName =
-    trade.otherParty?.displayName || trade.otherParty?.username || 'Unknown';
+  const otherPartyName = getUserDisplayName(trade.otherParty, 'Unknown');
 
   const handleOtherPartyClick = (e: React.MouseEvent) => {
     e.stopPropagation();

@@ -23,6 +23,7 @@ export const POINTS = {
   DISCORD_LINK: 300, // Link Discord account
   DISCORD_JOIN: 100, // Join Babylon Discord server
   WALLET_CONNECT: 300,
+  EMAIL_SUBMIT: 100,
   SHARE_ACTION: 500,
   SHARE_TO_TWITTER: 500,
   REFERRAL_SIGNUP: 100, // Reward for referrer when someone signs up
@@ -95,4 +96,5 @@ export type PointsReason =
   | 'report_reward' // Reward for successful reporting of CSAM/scammer
   | 'trading_pnl' // Points from trading profit/loss
   | 'daily_login' // Points from daily login streak reward
-  | 'onchain_registration'; // Points deducted for on-chain ERC-8004 registration
+  | 'onchain_registration' // Points deducted for on-chain ERC-8004 registration
+  | 'email_submit'; // Points for providing email address

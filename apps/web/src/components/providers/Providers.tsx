@@ -269,7 +269,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     {children}
                   </Fragment>
                 ) : (
-                  <div className="min-h-screen bg-sidebar" />
+                  <div className="min-h-dvh bg-sidebar md:min-h-screen" />
                 )}
               </WidgetRefreshProvider>
             </QueryClientProvider>
@@ -315,7 +315,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                                   {mounted ? (
                                     <Fragment>{children}</Fragment>
                                   ) : (
-                                    <div className="min-h-screen bg-sidebar" />
+                                    <div className="min-h-dvh bg-sidebar md:min-h-screen" />
                                   )}
                                 </WidgetRefreshProvider>
                               </GameGuideProvider>

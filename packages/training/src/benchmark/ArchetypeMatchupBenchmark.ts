@@ -17,6 +17,7 @@ import {
   createMultiModelOrchestrator,
   type MultiModelOrchestrator,
 } from '../training/MultiModelOrchestrator';
+import { formatCurrency } from '../utils';
 import { logger } from '../utils/logger';
 import {
   type BenchmarkConfig,
@@ -732,7 +733,7 @@ Respond with a JSON object containing:
         `Completed ${condition} market benchmark`,
         {
           topArchetype: rankings[0]?.archetype,
-          avgPnl: rankings[0]?.avgPnl.toFixed(2),
+          avgPnl: formatCurrency(rankings[0]?.avgPnl ?? 0),
         },
         'ArchetypeMatchupBenchmark'
       );
@@ -773,7 +774,7 @@ Respond with a JSON object containing:
       lines.push('|------|-----------|---------|----------|');
       for (const ranking of result.archetypeRankings) {
         lines.push(
-          `| ${ranking.avgRank.toFixed(1)} | ${ranking.archetype} | ${ranking.avgPnl.toFixed(2)} | ${(ranking.winRate * 100).toFixed(1)}% |`
+          `| ${ranking.avgRank.toFixed(1)} | ${ranking.archetype} | ${formatCurrency(ranking.avgPnl)} | ${(ranking.winRate * 100).toFixed(1)}% |`
         );
       }
       lines.push('');

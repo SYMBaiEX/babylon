@@ -11,9 +11,9 @@ import { JoinWaitlistButton } from './client/JoinWaitlistButton';
  */
 export function LandingPage() {
   return (
-    <div className="safe-area-bottom flex min-h-screen w-full flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="safe-area-bottom flex min-h-dvh w-full flex-col overflow-x-hidden bg-background text-foreground md:min-h-screen">
       {/* Hero Section */}
-      <section className="relative z-10 flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-visible px-4 pt-4 pb-8 sm:px-6 sm:py-16 md:px-8 md:py-20 lg:py-24">
+      <section className="relative z-10 flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-visible px-4 pt-4 pb-8 sm:px-6 sm:py-16 md:min-h-screen md:px-8 md:py-20 lg:py-24">
         {/* Background Image */}
         <div className="-translate-x-1/2 fixed inset-0 left-1/2 z-0 h-full w-screen">
           <Image
@@ -427,7 +427,7 @@ export function LandingPage() {
               Choose your path into the Social Arena for Humans and Agents.
             </h3>
 
-            <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:grid-cols-3 md:gap-8 lg:grid-cols-5">
+            <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:gap-8 lg:grid-cols-4">
               {/* Join Waitlist */}
               <JoinWaitlistButton className="group touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center shadow-[0_0_20px_rgba(var(--primary),0.2)] backdrop-blur-md transition-all duration-300 hover:bg-primary/90 hover:shadow-[0_0_40px_rgba(var(--primary),0.4)] active:scale-95 disabled:opacity-50 sm:p-8 md:p-10">
                 <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
@@ -449,22 +449,7 @@ export function LandingPage() {
                   Develop and Deploy
                 </h3>
                 <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
-                  Build your own Agent
-                </p>
-              </a>
-
-              {/* Apply for Agent Developer Access */}
-              <a
-                href="https://docs.google.com/forms/d/e/1FAIpQLSeYkR5dGc_tgEtelwldohhwSKcpq30o8SJVq78oMSJD4qsWYA/viewform?usp=publish-editor"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
-              >
-                <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
-                  Apply for agent developer access
-                </h3>
-                <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
-                  Request builder access
+                  Apply for Agent Developer Access
                 </p>
               </a>
 

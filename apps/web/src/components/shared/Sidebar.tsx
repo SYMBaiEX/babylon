@@ -31,6 +31,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePostHog } from '@/hooks/usePostHog';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { getAuthToken } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display';
 
 /**
  * Main sidebar content component with navigation and user menu.
@@ -431,7 +432,7 @@ function SidebarContent() {
             >
               <Avatar
                 id={user.id}
-                name={user.displayName || user.email || 'User'}
+                name={getUserDisplayName(user, 'User')}
                 type="user"
                 size="sm"
                 src={user.profileImageUrl || undefined}

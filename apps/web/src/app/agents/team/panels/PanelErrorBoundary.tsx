@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { Component, type ReactNode } from 'react';
 
@@ -28,7 +29,22 @@ export class PanelErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error('Panel rendering error:', error, errorInfo);
+    Sentry.withScope((scope) => {
+      scope.setTag('errorBoundary', 'panel');
+      scope.setTag('surface', 'agent-team-panel');
+      scope.setContext('panelErrorBoundary', {
+        componentStack: errorInfo.componentStack,
+      });
+      Sentry.captureException(error);
+    });
+
+    console.error(
+      '[PanelErrorBoundary] Panel rendering error:',
+      error.message,
+      {
+        componentStack: errorInfo.componentStack,
+      }
+    );
   }
 
   render(): ReactNode {

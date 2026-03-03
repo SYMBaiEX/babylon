@@ -570,7 +570,6 @@ describe('Whitelist-scoped batch operations', () => {
   ): MockUser[] {
     const baseFiltered = allUsers.filter(
       (u) =>
-        !u.isAgent &&
         !u.isActor &&
         u.totalPoints === '0' &&
         Number.parseFloat(u.virtualBalance) > 0
@@ -673,7 +672,7 @@ describe('Whitelist-scoped batch operations', () => {
     expect(ids).toContain('wl-user-2');
     expect(ids).not.toContain('regular-1');
     expect(ids).not.toContain('regular-2');
-    expect(ids).not.toContain('agent-1');
+    expect(ids).not.toContain('agent-1'); // not on whitelist
     expect(ids).not.toContain('actor-1');
     expect(ids).not.toContain('revoked-1'); // revoked whitelist entry
     expect(ids).not.toContain('already-set'); // totalPoints already set
@@ -686,26 +685,26 @@ describe('Whitelist-scoped batch operations', () => {
     const candidates = getBackfillCandidates(mockUsers, mockWhitelist);
     const ids = candidates.map((c) => c.id);
 
-    // All non-agent, non-actor users with totalPoints=0 and balance > 0
+    // All non-actor users with totalPoints=0 and balance > 0 (agents now included)
     expect(ids).toContain('wl-user-1');
     expect(ids).toContain('wl-user-2');
     expect(ids).toContain('regular-1');
     expect(ids).toContain('regular-2');
     expect(ids).toContain('revoked-1');
-    expect(ids).not.toContain('agent-1'); // still excluded (isAgent)
+    expect(ids).toContain('agent-1'); // NOW included (agents are no longer excluded)
     expect(ids).not.toContain('actor-1'); // still excluded (isActor)
     expect(ids).not.toContain('already-set'); // totalPoints != 0
-    expect(candidates.length).toBe(5);
+    expect(candidates.length).toBe(6);
   });
 
-  it('should always exclude agents and actors regardless of flag', () => {
+  it('should include agents but still exclude actors', () => {
     process.env.POINTS_WHITELIST_ONLY = 'false';
 
     const candidates = getBackfillCandidates(mockUsers, mockWhitelist);
     const hasAgent = candidates.some((c) => c.isAgent);
     const hasActor = candidates.some((c) => c.isActor);
 
-    expect(hasAgent).toBe(false);
+    expect(hasAgent).toBe(true);
     expect(hasActor).toBe(false);
   });
 
