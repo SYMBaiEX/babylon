@@ -26,7 +26,6 @@ type WithErrorHandlingFn = <TContext = unknown>(
     captureError?: ErrorCapture;
   }
 ) => (req: NextRequestLike, context?: TContext) => Promise<Response>;
-
 let AuthenticationError: new (message?: string) => Error;
 let BadRequestError: new (message: string) => Error;
 let ValidationError: new (message: string) => Error;

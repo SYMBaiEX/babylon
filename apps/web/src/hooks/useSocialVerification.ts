@@ -1,6 +1,7 @@
 'use client';
 
-import { logger, signInWithFarcaster } from '@babylon/shared';
+import { logger } from '@babylon/shared';
+import { useLinkAccount } from '@privy-io/react-auth';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +23,7 @@ interface UseSocialVerificationReturn {
   hasFarcasterFollow: boolean;
   isVerifyingFollow: boolean;
   showVerifyFollowButton: boolean;
-  handleFarcasterOAuth: () => Promise<void>;
+  handleFarcasterOAuth: () => void;
   handleFarcasterFollow: () => void;
   handleVerifyFollow: () => Promise<void>;
   // Twitter
@@ -53,6 +54,51 @@ export function useSocialVerification({
   onPointsAwarded,
 }: UseSocialVerificationOptions): UseSocialVerificationReturn {
   const { getAccessToken, refresh } = useAuth();
+
+  const { linkFarcaster, linkTwitter } = useLinkAccount({
+    onSuccess: async ({ linkedAccount }) => {
+      const linkedType = String(linkedAccount.type);
+      if (
+        linkedType !== 'farcaster' &&
+        linkedType !== 'farcaster_account' &&
+        linkedType !== 'twitter_oauth'
+      )
+        return;
+
+      await refresh();
+      await onPointsAwarded();
+
+      if (linkedType === 'farcaster' || linkedType === 'farcaster_account') {
+        toast.success('Farcaster account linked successfully!');
+      } else {
+        toast.success('X account linked successfully!');
+      }
+    },
+    onError: (error) => {
+      const rawError = error as unknown;
+      const errorMessage =
+        rawError instanceof Error ? rawError.message : String(rawError);
+
+      if (
+        error === 'exited_auth_flow' ||
+        errorMessage === 'Authentication cancelled'
+      ) {
+        logger.info(
+          'Social account linking cancelled by user',
+          { userId },
+          'useSocialVerification'
+        );
+        return;
+      }
+
+      logger.error(
+        'Failed to link social account via Privy',
+        { error: errorMessage, userId },
+        'useSocialVerification'
+      );
+      toast.error('Failed to link account. Please try again.');
+    },
+  });
 
   // Farcaster state
   const [hasFarcasterFollow, setHasFarcasterFollow] = useState(false);
@@ -107,9 +153,8 @@ export function useSocialVerification({
       return;
     }
 
-    sessionStorage.setItem('oauth_return_url', window.location.pathname);
-    window.location.href = '/api/auth/twitter/initiate';
-  }, [userId]);
+    linkTwitter();
+  }, [linkTwitter, userId]);
 
   const handleDiscordOAuth = useCallback(() => {
     if (!userId) {
@@ -126,7 +171,7 @@ export function useSocialVerification({
     window.location.href = '/api/auth/discord/initiate';
   }, [userId]);
 
-  const handleFarcasterOAuth = useCallback(async () => {
+  const handleFarcasterOAuth = useCallback(() => {
     if (!userId) {
       toast.error('Please complete your profile first');
       logger.warn(
@@ -137,95 +182,8 @@ export function useSocialVerification({
       return;
     }
 
-    try {
-      const result = await signInWithFarcaster({
-        userId,
-        onStatusUpdate: (status) => {
-          logger.debug(
-            'Farcaster auth status',
-            { status },
-            'useSocialVerification'
-          );
-        },
-      });
-
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(userId)}/link-farcaster`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            message: result.message,
-            signature: result.signature,
-            fid: result.fid,
-            username: result.username,
-            displayName: result.displayName,
-            pfpUrl: result.pfpUrl,
-            state: result.state,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        await refresh();
-        await onPointsAwarded();
-
-        if (data.pointsAwarded > 0) {
-          toast.success(
-            `Farcaster linked! +${data.pointsAwarded} points awarded`
-          );
-        } else {
-          toast.success('Farcaster account linked successfully!');
-        }
-      } else {
-        const errorMessage = data.error || 'Failed to link Farcaster account';
-        if (response.status === 409) {
-          toast.error(
-            errorMessage.includes('already linked')
-              ? errorMessage
-              : 'This Farcaster account is already linked to another user'
-          );
-        } else {
-          toast.error(errorMessage);
-        }
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      if (errorMessage === 'Authentication cancelled') {
-        logger.info(
-          'Farcaster auth cancelled by user',
-          { userId },
-          'useSocialVerification'
-        );
-        return;
-      }
-
-      if (errorMessage.includes('popup')) {
-        toast.error('Please allow popups to connect Farcaster');
-        logger.warn(
-          'Farcaster popup blocked',
-          { userId },
-          'useSocialVerification'
-        );
-        return;
-      }
-
-      logger.error(
-        'Error during Farcaster authentication',
-        { error: errorMessage, userId },
-        'useSocialVerification'
-      );
-      toast.error('Failed to connect Farcaster. Please try again.');
-    }
-  }, [userId, getAccessToken, refresh, onPointsAwarded]);
+    linkFarcaster();
+  }, [linkFarcaster, userId]);
 
   // Farcaster follow handlers
   const handleFarcasterFollow = useCallback(() => {

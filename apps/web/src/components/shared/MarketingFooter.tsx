@@ -159,14 +159,6 @@ export function MarketingFooter({ className }: MarketingFooterProps) {
                 >
                   GitHub
                 </a>
-                <a
-                  href={EXTERNAL_LINKS.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="touch-manipulation transition-colors duration-200 hover:text-primary"
-                >
-                  Website
-                </a>
               </nav>
             </div>
 

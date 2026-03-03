@@ -43,7 +43,7 @@ function getEndpointFromUrl(url: string | undefined): string | undefined {
   try {
     return new URL(url).pathname;
   } catch {
-    return url;
+    return url.split('?')[0];
   }
 }
 

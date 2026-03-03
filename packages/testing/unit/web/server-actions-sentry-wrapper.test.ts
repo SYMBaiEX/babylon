@@ -14,17 +14,10 @@ const startSpanMock = mock(
     callback: () => Promise<unknown>
   ) => callback()
 );
-const captureExceptionMock = mock((_error: unknown) => {});
 const setTagMock = mock((_key: string, _value: string) => {});
 const setContextMock = mock(
   (_key: string, _value: Record<string, unknown>) => {}
 );
-const withScopeMock = mock((callback: (scope: unknown) => void) => {
-  callback({
-    setTag: setTagMock,
-    setContext: setContextMock,
-  });
-});
 
 let wrapServerActionWithSentry: <T extends unknown[], R>(
   actionName: string,
@@ -35,8 +28,8 @@ describe('wrapServerActionWithSentry', () => {
   beforeAll(async () => {
     mock.module('@sentry/nextjs', () => ({
       startSpan: startSpanMock,
-      withScope: withScopeMock,
-      captureException: captureExceptionMock,
+      setTag: setTagMock,
+      setContext: setContextMock,
     }));
 
     ({ wrapServerActionWithSentry } = await import(
@@ -46,8 +39,6 @@ describe('wrapServerActionWithSentry', () => {
 
   beforeEach(() => {
     startSpanMock.mockClear();
-    captureExceptionMock.mockClear();
-    withScopeMock.mockClear();
     setTagMock.mockClear();
     setContextMock.mockClear();
   });
@@ -71,10 +62,10 @@ describe('wrapServerActionWithSentry', () => {
       op: 'server.action',
       name: 'server-action.doubleValue',
     });
-    expect(captureExceptionMock).toHaveBeenCalledTimes(0);
+    expect(setTagMock).toHaveBeenCalledTimes(0);
   });
 
-  it('captures, tags, and rethrows errors with sanitized args', async () => {
+  it('enriches scope with action context, rethrows, and does not double-capture', async () => {
     const actionError = new Error('action failed');
     const action = mock(
       async (_input: { token: string; amount: number }, _message: string) => {
@@ -88,10 +79,10 @@ describe('wrapServerActionWithSentry', () => {
     ).rejects.toThrow('action failed');
 
     expect(startSpanMock).toHaveBeenCalledTimes(1);
-    expect(withScopeMock).toHaveBeenCalledTimes(1);
-    expect(captureExceptionMock).toHaveBeenCalledWith(actionError);
+
     expect(setTagMock).toHaveBeenCalledWith('surface', 'server-action');
     expect(setTagMock).toHaveBeenCalledWith('action', 'failingAction');
+    expect(setTagMock).toHaveBeenCalledWith('runtime', 'nodejs');
 
     const serverActionContextCall = setContextMock.mock.calls.find(
       (call) => call[0] === 'serverAction'

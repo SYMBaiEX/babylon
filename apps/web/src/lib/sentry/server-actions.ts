@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 
 const SENSITIVE_KEY_PATTERN =
-  /(token|secret|password|authorization|cookie|jwt|api[-_]?key|signature)/i;
+  /(token|secret|password|authorization|cookie|jwt|api[-_]?key|signature|session|credential|wallet|private[-_]?key)/i;
 
 function sanitizeValue(value: unknown, depth = 0): unknown {
   if (value === null || value === undefined) {
@@ -62,6 +62,11 @@ function sanitizeActionArgs(args: unknown[]): Record<string, unknown> {
 /**
  * Wrap a server action with Sentry performance + exception instrumentation.
  * Argument metadata is sanitized to avoid leaking secrets/PII.
+ *
+ * On error: enriches the active Sentry scope with action context, then rethrows.
+ * The actual exception capture is delegated to Next.js's onRequestError hook
+ * (instrumentation.ts: `export const onRequestError = Sentry.captureRequestError`)
+ * to avoid double-counting the same error event.
  */
 export function wrapServerActionWithSentry<T extends unknown[], R>(
   actionName: string,
@@ -81,13 +86,10 @@ export function wrapServerActionWithSentry<T extends unknown[], R>(
         try {
           return await action(...args);
         } catch (error) {
-          Sentry.withScope((scope) => {
-            scope.setTag('runtime', 'nodejs');
-            scope.setTag('surface', 'server-action');
-            scope.setTag('action', actionName);
-            scope.setContext('serverAction', sanitizeActionArgs(args));
-            Sentry.captureException(error);
-          });
+          Sentry.setTag('runtime', 'nodejs');
+          Sentry.setTag('surface', 'server-action');
+          Sentry.setTag('action', actionName);
+          Sentry.setContext('serverAction', sanitizeActionArgs(args));
           throw error;
         }
       }

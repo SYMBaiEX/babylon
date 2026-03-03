@@ -15,6 +15,7 @@ import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { verifyAgentSession } from './agent-auth';
+import { getPrivyAppIdFromEnv, getTrimmedEnv } from './env';
 import {
   AuthenticationError,
   AuthorizationError,
@@ -34,9 +35,8 @@ let privyClient: PrivyClient | null = null;
 
 export function getPrivyClient(): PrivyClient {
   if (!privyClient) {
-    const privyAppId =
-      process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-    const privyAppSecret = process.env.PRIVY_APP_SECRET;
+    const privyAppId = getPrivyAppIdFromEnv();
+    const privyAppSecret = getTrimmedEnv('PRIVY_APP_SECRET');
 
     if (!privyAppId || !privyAppSecret) {
       throw new Error('Privy credentials not configured');

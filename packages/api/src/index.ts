@@ -102,6 +102,12 @@ export {
   isValidDevAdminToken,
   logDevCredentials,
 } from './dev-credentials';
+// Env helpers (server-only)
+export {
+  getNotificationEmailFromEnv,
+  getPrivyAppIdFromEnv,
+  getTrimmedEnv,
+} from './env';
 // Error Handler (Next.js specific)
 export {
   asyncHandler,
