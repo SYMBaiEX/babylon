@@ -43,6 +43,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
+// Coordinator may dispatch to child agents via DISPATCH_TO_AGENT:
+// coordinator (3 iters ≈ 3s) + agent dispatch (4 iters ≈ 8s) + summary (≈ 2s) ≈ 13s total
+// Without this, Vercel's 10s default kills any dispatch request.
+export const maxDuration = 60;
+
 // =============================================================================
 // Coordinator Prompt Templates
 // =============================================================================
@@ -57,8 +62,13 @@ const coordinatorDecisionTemplate = `# Your Role
 
 ---
 
-# Conversation History
+# Conversation History (You ↔ User)
 {{recentMessages}}
+
+---
+
+# What Your Agents Have Said Recently
+{{dispatchHistory}}
 
 ---
 
@@ -89,13 +99,25 @@ No actions taken yet.
 
 # Decision Guide
 
-**Use an action** when you need data to answer the user's question.
-**Skip actions** when: user wants to trade (guide to @agent), general questions, or you already have the data.
+**Use DISPATCH_TO_AGENT** when the user wants to execute a trade, post, comment, or any agent action.
+  - Select the agent using their [id: ...] from the Team Members list above
+  - Write the command clearly as the exact instruction for the agent
+  - If no agents exist in the team, skip this action and tell the user to create one at /agents
+
+**Use a data-fetch action** (CHECK_PERPS, CHECK_PREDICTIONS, CHECK_USER_PNL, etc.) when you need information to answer the user's question.
+
+**Skip all actions (set action to "" and isFinish to true)** when:
+  - The question is conversational or you already have the data needed
+  - The user is asking about a previous turn's result (e.g., "why didn't I see X") — just answer directly
+  - You have already dispatched or fetched what was needed this turn
+
+**NEVER repeat the same action with the same parameters.**
+**NEVER include action names or action syntax in a text response — actions are separate from your final reply.**
 
 Use plain @username for mentions. No markdown links.
 
 <keys>
-"thought" Your reasoning about what the user needs
+"thought" Your reasoning about what the user needs and which action (if any) to take
 "action" Action name from available actions above, or empty string "" if no action needed
 "parameters" JSON parameters for the action, or {} if no parameters needed
 "isFinish" Set to true when ready to respond to user
@@ -121,8 +143,13 @@ const coordinatorSummaryTemplate = `# Your Role
 
 ---
 
-# Conversation History
+# Conversation History (You ↔ User)
 {{recentMessages}}
+
+---
+
+# What Your Agents Have Said Recently
+{{dispatchHistory}}
 
 ---
 
@@ -139,7 +166,7 @@ const coordinatorSummaryTemplate = `# Your Role
 {{#if actionCount}}
 {{actionResults}}
 {{else}}
-No actions were needed.
+No actions were taken this turn.
 {{/if}}
 
 ---
@@ -152,9 +179,26 @@ No actions were needed.
 
 **Feed/social:** "Here's what's trending: @user1 posted about NVDAI earnings (42 likes), @user2 shared their prediction strategy..."
 
-**Trade/post requests:** "To trade: \`@agent open long TSLAI $100\` | To post: \`@agent post about the market\`"
+**Agent dispatched — include a brief summary of what the agent did:**
+"I dispatched to @trading_bot to open a long TSLAI position for $50. They confirmed: [brief quote from agent's response]."
+
+**Agent dispatch failed:** "I wasn't able to dispatch that — [reason]. You can @mention your agent directly to retry."
+
+**No agents:** "You don't have any agents yet. Create one at /agents to get started."
+
+**User asks why they didn't see a previous response:** Tell them the message was sent and may still be loading, or suggest they scroll up. Do NOT re-dispatch unless they explicitly ask you to.
 
 Use plain @username. No markdown links.
+
+---
+
+# CRITICAL RULES — You MUST follow these:
+1. This is your FINAL text response. All actions for this turn have already been executed above.
+2. Do NOT include action names (DISPATCH_TO_AGENT, CHECK_PERPS, etc.) or action syntax in your text.
+3. Do NOT say "let me dispatch", "I'll try again", or promise future actions you have not already taken.
+4. Do NOT make up information — only reference data from the Actions You Completed section.
+5. If you dispatched to an agent, include a brief quote or summary of what the agent actually did or said.
+6. Keep your response concise and factual.
 
 Output ONLY this XML:
 
@@ -235,7 +279,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Coordinator uses small model (free, no points deduction)
   const modelType = ModelType.TEXT_SMALL;
 
-  // Get coordinator runtime
+  // Get coordinator runtime.
+  //
+  // Multi-user safety: the coordinator runtime is shared across all concurrent
+  // requests, but is safe because:
+  // 1. All per-request data (actionResults, state.values, state.data) lives in
+  //    local variables — nothing user-specific is written to the runtime itself.
+  // 2. The ElizaOS adapter is stubbed, so no runtime-level memory DB writes occur.
+  // 3. stateCache is keyed by elizaMessage.id (UUID per request), so concurrent
+  //    requests never collide. We delete the key at the end of each request to
+  //    prevent unbounded memory growth.
+  // 4. Providers read from state.values (ownerId, teamChatId) that are set fresh
+  //    each iteration, so different users get different DB query results.
   const runtime = await agentRuntimeManager.getCoordinatorRuntime();
 
   // Fetch user info for context
@@ -281,6 +336,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // Compose state with providers
     const providers = [
       'RECENT_MESSAGES',
+      'DISPATCH_HISTORY',
       'ACTION_STATE',
       'ACTIONS',
       'TEAM_MEMBERS',
@@ -404,10 +460,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       }
     }
 
-    // Store params in state for action handler
+    // Store params and inject broadcastFn so DISPATCH_TO_AGENT can broadcast
+    // broadcastFn is injected here (not imported inside packages/agents) to
+    // maintain architectural separation between @babylon/api and @babylon/agents
     state.data = {
       ...state.data,
       actionParams,
+      broadcastFn: broadcastChatMessage,
     };
 
     // Build action content for processActions
@@ -514,6 +573,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!finalResponse) {
     const summaryProviders = [
       'RECENT_MESSAGES',
+      'DISPATCH_HISTORY',
       'ACTION_STATE',
       'TEAM_MEMBERS',
       'COORDINATOR_CONTEXT',
@@ -627,6 +687,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       'CoordinatorChat'
     );
   });
+
+  // Clean up this request's stateCache entry to prevent unbounded growth on
+  // the shared coordinator runtime (see multi-user safety note above).
+  const stateCacheKey = `${elizaMessage.id}_action_results`;
+  (
+    runtime as unknown as { stateCache?: Map<string, unknown> }
+  ).stateCache?.delete(stateCacheKey);
 
   // Note: Coordinator uses free model, no points deduction
 
