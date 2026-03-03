@@ -648,7 +648,7 @@ export default function SettingsPage() {
                       <div>
                         <div className="font-semibold text-sm">Profile</div>
                         <div className="text-muted-foreground text-xs">
-                          Update your public info and images.
+                          Update your public info, images, and social accounts.
                         </div>
                       </div>
                       <button
@@ -657,7 +657,7 @@ export default function SettingsPage() {
                         className="flex min-h-[44px] items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/30"
                       >
                         <LinkIcon className="h-4 w-4" />
-                        Link accounts
+                        Manage social accounts
                       </button>
                     </div>
 
