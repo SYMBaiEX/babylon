@@ -20,6 +20,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import type { ArcStateType } from '@babylon/db';
 import {
   and,
   arcStates,
@@ -28,8 +29,10 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lte,
+  positions,
   posts,
   questions,
   reactions,
@@ -37,7 +40,6 @@ import {
   sql,
   users,
 } from '@babylon/db';
-import type { ArcStateType } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -86,6 +88,7 @@ export interface NarrativeStory {
   storyScore: number;
   postCount: number;
   posts: NarrativePost[];
+  hasUserPosition: boolean;
 }
 
 export interface NarrativeFeedResponse {
@@ -155,6 +158,20 @@ export function calculateArcStateMultiplier(
       // 'setup', 'morning', 'midday', 'afternoon', 'evening', null
       return 1.0;
   }
+}
+
+/**
+ * Resolution proximity boost — urgency multiplier for stories nearing resolution.
+ * Questions resolving soon have peak uncertainty and reader interest.
+ */
+export function calculateResolutionBoost(resolutionDate: Date): number {
+  const hoursUntil =
+    (resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60);
+  if (hoursUntil <= 0) return 1.0; // already resolved/expired
+  if (hoursUntil <= 6) return 1.4;
+  if (hoursUntil <= 24) return 1.25;
+  if (hoursUntil <= 72) return 1.1;
+  return 1.0;
 }
 
 function toISOStringStrict(
@@ -325,6 +342,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         title: string;
         status: string;
         arcState: ArcStateType | null;
+        resolutionDate: Date;
       }
       const questionMetaMap = new Map<number, QuestionMeta>();
       if (questionNumbers.length > 0) {
@@ -334,6 +352,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             text: questions.text,
             status: questions.status,
             arcState: arcStates.currentState,
+            resolutionDate: questions.resolutionDate,
           })
           .from(questions)
           .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
@@ -343,6 +362,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             title: q.text,
             status: q.status ?? 'active',
             arcState: (q.arcState as ArcStateType | null) ?? null,
+            resolutionDate: q.resolutionDate,
           })
         );
       }
@@ -354,7 +374,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const likeCount = reactionMap.get(post.id) ?? 0;
         const commentCount = commentMap.get(post.id) ?? 0;
         const shareCount = shareMap.get(post.id) ?? 0;
-        const timestamp = toISOStringStrict(post.timestamp, 'timestamp', post.id);
+        const timestamp = toISOStringStrict(
+          post.timestamp,
+          'timestamp',
+          post.id
+        );
 
         const authorUser = userMap.get(post.authorId);
         const actorRecord = StaticDataRegistry.getActor(post.authorId);
@@ -446,8 +470,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           storyPosts.length,
           newestTimestamp
         );
+        const resolutionBoost = meta?.resolutionDate
+          ? calculateResolutionBoost(meta.resolutionDate)
+          : 1.0;
         const storyScoreValue =
-          baseScore * calculateArcStateMultiplier(arcState);
+          baseScore * calculateArcStateMultiplier(arcState) * resolutionBoost;
 
         stories.push({
           storyKey,
@@ -457,6 +484,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           storyScore: Math.round(storyScoreValue * 10000) / 10000,
           postCount: storyPosts.length,
           posts: storyPosts,
+          hasUserPosition: false,
         });
       }
 
@@ -472,43 +500,83 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     { namespace: 'feed', ttl: 60 }
   );
 
-  // Per-user isLiked / isShared enrichment — live, bypasses cache
+  // Per-user enrichment — isLiked, isShared, hasUserPosition — live, bypasses cache
   let finalStories: NarrativeStory[] = result.stories;
 
-  if (user?.userId && result.postIds.length > 0) {
-    const [userLikes, userShares] = await Promise.all([
-      db
-        .select({ postId: reactions.postId })
-        .from(reactions)
-        .where(
-          and(
-            inArray(reactions.postId, result.postIds),
-            eq(reactions.userId, user.userId),
-            eq(reactions.type, 'like')
-          )
-        ),
-      db
-        .select({ postId: shares.postId })
-        .from(shares)
-        .where(
-          and(
-            inArray(shares.postId, result.postIds),
-            eq(shares.userId, user.userId)
-          )
-        ),
+  if (user?.userId) {
+    const userId = user.userId;
+    const questionNumbersInResult = result.stories
+      .map((s) => s.questionNumber)
+      .filter((n): n is number => n !== null);
+
+    const [userLikes, userShares, userPositions] = await Promise.all([
+      result.postIds.length > 0
+        ? db
+            .select({ postId: reactions.postId })
+            .from(reactions)
+            .where(
+              and(
+                inArray(reactions.postId, result.postIds),
+                eq(reactions.userId, userId),
+                eq(reactions.type, 'like')
+              )
+            )
+        : Promise.resolve([]),
+      result.postIds.length > 0
+        ? db
+            .select({ postId: shares.postId })
+            .from(shares)
+            .where(
+              and(
+                inArray(shares.postId, result.postIds),
+                eq(shares.userId, userId)
+              )
+            )
+        : Promise.resolve([]),
+      questionNumbersInResult.length > 0
+        ? db
+            .select({ questionId: positions.questionId })
+            .from(positions)
+            .where(
+              and(
+                eq(positions.userId, userId),
+                isNotNull(positions.questionId),
+                inArray(positions.questionId, questionNumbersInResult)
+              )
+            )
+        : Promise.resolve([]),
     ]);
 
     const likedSet = new Set(userLikes.map((l) => l.postId));
     const sharedSet = new Set(userShares.map((s) => s.postId));
+    const positionSet = new Set(
+      userPositions
+        .map((p) => p.questionId)
+        .filter((id): id is number => id !== null)
+    );
 
     finalStories = result.stories.map((story) => ({
       ...story,
+      hasUserPosition:
+        story.questionNumber !== null &&
+        positionSet.has(story.questionNumber),
       posts: story.posts.map((post) => ({
         ...post,
         isLiked: likedSet.has(post.id),
         isShared: sharedSet.has(post.id),
       })),
     }));
+
+    // Re-sort: stories with user positions first (within non-general tier),
+    // then by score descending, general story always last.
+    finalStories.sort((a, b) => {
+      const aIsGeneral = a.questionNumber === null;
+      const bIsGeneral = b.questionNumber === null;
+      if (aIsGeneral !== bIsGeneral) return aIsGeneral ? 1 : -1;
+      if (a.hasUserPosition !== b.hasUserPosition)
+        return a.hasUserPosition ? -1 : 1;
+      return b.storyScore - a.storyScore;
+    });
   }
 
   return successResponse({
