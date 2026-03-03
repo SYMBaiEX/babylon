@@ -88,6 +88,8 @@ type PositionWithUnrealizedPnL = {
   unrealizedPnL: number;
   isAgentPosition?: boolean;
   agentId?: string | null;
+  resolved?: boolean;
+  status?: string;
 };
 
 interface PositionsApiResponse {
@@ -104,6 +106,115 @@ function isAbortError(e: unknown): boolean {
   if (e instanceof DOMException && e.name === 'AbortError') return true;
   if (e instanceof Error && e.name === 'AbortError') return true;
   return false;
+}
+
+function isOpenPredictionPosition(
+  position: PositionWithUnrealizedPnL
+): boolean {
+  return position.resolved === false && position.status === 'active';
+}
+
+export function buildTeamTradingSummary({
+  ownerId,
+  ownerName,
+  ownerBalance,
+  positions,
+  agents,
+}: {
+  ownerId: string;
+  ownerName: string;
+  ownerBalance: {
+    balance: string | number;
+    lifetimePnL: string | number;
+  };
+  positions: PositionsApiResponse;
+  agents: Array<{
+    id: string;
+    username?: string | null;
+    name?: string | null;
+    virtualBalance?: number;
+    lifetimePnL?: string | number;
+  }>;
+}): TeamTradingSummary {
+  const byMember = new Map<
+    string,
+    { unrealizedPnL: number; openPositions: number }
+  >();
+
+  const addPosition = (memberId: string, unrealized: number) => {
+    const cur = byMember.get(memberId) ?? {
+      unrealizedPnL: 0,
+      openPositions: 0,
+    };
+    byMember.set(memberId, {
+      unrealizedPnL: cur.unrealizedPnL + unrealized,
+      openPositions: cur.openPositions + 1,
+    });
+  };
+
+  const perpPositions = positions.perpetuals?.positions ?? [];
+  for (const p of perpPositions) {
+    const memberId = p.isAgentPosition ? (p.agentId ?? ownerId) : ownerId;
+    addPosition(memberId, toNumber(p.unrealizedPnL));
+  }
+
+  const predictionPositions = positions.predictions?.positions ?? [];
+  for (const p of predictionPositions) {
+    if (!isOpenPredictionPosition(p)) continue;
+    const memberId = p.isAgentPosition ? (p.agentId ?? ownerId) : ownerId;
+    addPosition(memberId, toNumber(p.unrealizedPnL));
+  }
+
+  const ownerWallet = toNumber(ownerBalance.balance);
+  const ownerLifetime = toNumber(ownerBalance.lifetimePnL);
+  const ownerUnrealized = byMember.get(ownerId)?.unrealizedPnL ?? 0;
+  const ownerOpenPositions = byMember.get(ownerId)?.openPositions ?? 0;
+
+  const ownerRow: TeamMemberTradingSummary = {
+    entityType: 'owner',
+    id: ownerId,
+    name: ownerName,
+    username: null,
+    walletBalance: ownerWallet,
+    lifetimePnL: ownerLifetime,
+    unrealizedPnL: ownerUnrealized,
+    currentPnL: ownerLifetime + ownerUnrealized,
+    openPositions: ownerOpenPositions,
+  };
+
+  const agentRows: TeamMemberTradingSummary[] = agents.map((a) => {
+    const id = a.id;
+    const unrealized = byMember.get(id)?.unrealizedPnL ?? 0;
+    const openPositions = byMember.get(id)?.openPositions ?? 0;
+    const walletBalance = toNumber(a.virtualBalance);
+    const lifetimePnL = toNumber(a.lifetimePnL);
+    const name = a.name ?? 'Agent';
+
+    return {
+      entityType: 'agent',
+      id,
+      name,
+      username: a.username ?? null,
+      walletBalance,
+      lifetimePnL,
+      unrealizedPnL: unrealized,
+      currentPnL: lifetimePnL + unrealized,
+      openPositions,
+    };
+  });
+
+  const members = [ownerRow, ...agentRows];
+  const totals = sumMemberTotals(members);
+  const agentsOnlyTotals = sumMemberTotals(agentRows);
+
+  return {
+    ownerId,
+    ownerName,
+    members,
+    totals,
+    agentsOnlyTotals,
+    updatedAt: positions.timestamp ?? null,
+  };
 }
 
 export function useTeamTradingSummary({
@@ -227,86 +338,13 @@ export function useTeamTradingSummary({
   const summary = useMemo<TeamTradingSummary | null>(() => {
     if (!ownerId) return null;
     if (!ownerBalance || !positions || !agents) return null;
-
-    // Aggregate unrealized PnL and counts per member (ownerId for owner).
-    const byMember = new Map<
-      string,
-      { unrealizedPnL: number; openPositions: number }
-    >();
-
-    const addPosition = (memberId: string, unrealized: number) => {
-      const cur = byMember.get(memberId) ?? {
-        unrealizedPnL: 0,
-        openPositions: 0,
-      };
-      byMember.set(memberId, {
-        unrealizedPnL: cur.unrealizedPnL + unrealized,
-        openPositions: cur.openPositions + 1,
-      });
-    };
-
-    const perpPositions = positions.perpetuals?.positions ?? [];
-    for (const p of perpPositions) {
-      const memberId = p.isAgentPosition ? (p.agentId ?? ownerId) : ownerId;
-      addPosition(memberId, toNumber(p.unrealizedPnL));
-    }
-
-    const predictionPositions = positions.predictions?.positions ?? [];
-    for (const p of predictionPositions) {
-      const memberId = p.isAgentPosition ? (p.agentId ?? ownerId) : ownerId;
-      addPosition(memberId, toNumber(p.unrealizedPnL));
-    }
-
-    const ownerWallet = toNumber(ownerBalance.balance);
-    const ownerLifetime = toNumber(ownerBalance.lifetimePnL);
-    const ownerUnrealized = byMember.get(ownerId)?.unrealizedPnL ?? 0;
-    const ownerOpenPositions = byMember.get(ownerId)?.openPositions ?? 0;
-
-    const ownerRow: TeamMemberTradingSummary = {
-      entityType: 'owner',
-      id: ownerId,
-      name: ownerName,
-      username: null,
-      walletBalance: ownerWallet,
-      lifetimePnL: ownerLifetime,
-      unrealizedPnL: ownerUnrealized,
-      currentPnL: ownerLifetime + ownerUnrealized,
-      openPositions: ownerOpenPositions,
-    };
-
-    const agentRows: TeamMemberTradingSummary[] = agents.map((a) => {
-      const id = a.id;
-      const unrealized = byMember.get(id)?.unrealizedPnL ?? 0;
-      const openPositions = byMember.get(id)?.openPositions ?? 0;
-      const walletBalance = toNumber(a.virtualBalance);
-      const lifetimePnL = toNumber(a.lifetimePnL);
-      const name = a.name ?? 'Agent';
-
-      return {
-        entityType: 'agent',
-        id,
-        name,
-        username: a.username ?? null,
-        walletBalance,
-        lifetimePnL,
-        unrealizedPnL: unrealized,
-        currentPnL: lifetimePnL + unrealized,
-        openPositions,
-      };
-    });
-
-    const members = [ownerRow, ...agentRows];
-    const totals = sumMemberTotals(members);
-    const agentsOnlyTotals = sumMemberTotals(agentRows);
-
-    return {
+    return buildTeamTradingSummary({
       ownerId,
       ownerName,
-      members,
-      totals,
-      agentsOnlyTotals,
-      updatedAt: positions.timestamp ?? null,
-    };
+      ownerBalance,
+      positions,
+      agents,
+    });
   }, [ownerId, ownerName, ownerBalance, positions, agents]);
 
   return { summary, loading, error, refresh };
