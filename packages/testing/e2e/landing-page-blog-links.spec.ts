@@ -16,6 +16,7 @@ const BASE_URL =
 
 const EXPECTED_BLOG_URL =
   process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.babylon.market';
+const EXPECTED_GITHUB_URL = 'https://github.com/BabylonSocial/babylon';
 
 test.describe('Landing Page Blog Links', () => {
   test.beforeEach(async ({ page }) => {
@@ -49,6 +50,28 @@ test.describe('Landing Page Blog Links', () => {
     // Verify subtext is present
     const subtextLocator = blogCard.locator('text=Explore our innovation');
     await expect(subtextLocator).toBeVisible();
+  });
+
+  test('should render a single combined develop and deploy card', async ({
+    page,
+  }) => {
+    const developCard = page
+      .locator('a')
+      .filter({ has: page.locator('h3:has-text("Develop and Deploy")') })
+      .first();
+
+    await expect(developCard).toBeVisible({ timeout: 10000 });
+    await expect(
+      developCard.locator('p:has-text("Apply for Agent Developer Access")')
+    ).toBeVisible();
+
+    const href = await developCard.getAttribute('href');
+    expect(href).toBe(EXPECTED_GITHUB_URL);
+
+    const separateApplyHeading = page.locator(
+      'a h3:has-text("Apply for agent developer access")'
+    );
+    await expect(separateApplyHeading).toHaveCount(0);
   });
 
   test('should display blog link in desktop footer resources section', async ({
