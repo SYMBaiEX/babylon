@@ -12,11 +12,9 @@ import {
   Copy,
   ExternalLink,
   Gift,
-  Link as LinkIcon,
   Share2,
   Shield,
   TrendingUp,
-  Twitter,
   UserPlus,
   Users,
   Wallet,
@@ -25,7 +23,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DailyStreakCard } from '@/components/daily-login';
-import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton';
 import { Avatar } from '@/components/shared/Avatar';
 import { ExternalShareButton } from '@/components/shared/ExternalShareButton';
@@ -34,6 +31,7 @@ import { Separator } from '@/components/shared/Separator';
 import { ShareEarnModal } from '@/components/shared/ShareEarnModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
+import { buildRewardTasks, type RewardTaskDefinition } from './reward-tasks';
 
 interface ReferredUser {
   id: string;
@@ -98,7 +96,6 @@ export default function RewardsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [showLinkSocialModal, setShowLinkSocialModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [livePortfolio, setLivePortfolio] = useState<{
     totalPoints: number;
@@ -236,85 +233,30 @@ export default function RewardsPage() {
     return total;
   };
 
-  const rewardTasks = referralData
-    ? [
-        {
-          id: 'profile',
-          title: 'Complete Profile',
-          description: (() => {
-            if (referralData.user.pointsAwardedForProfile) {
-              return 'Username, image, and bio complete! ✓';
-            }
-            const missing = [];
-            if (!referralData.user.username) missing.push('username');
-            if (!referralData.user.profileImageUrl) missing.push('image');
-            if (!referralData.user.bio || referralData.user.bio.length < 50)
-              missing.push('bio (50+ chars)');
-            return `Set ${missing.join(', ')}`;
-          })(),
-          points: POINTS.PROFILE_COMPLETION,
-          completed: referralData.user.pointsAwardedForProfile,
-          action: 'profile-settings',
-          icon: UserPlus,
-          color: 'text-purple-500',
-        },
-        {
-          id: 'twitter',
-          title: 'Link X Account',
-          description: referralData.user.twitterUsername
-            ? `@${referralData.user.twitterUsername}`
-            : 'Connect your X account',
-          points: POINTS.TWITTER_LINK,
-          completed: referralData.user.pointsAwardedForTwitter,
-          action: 'link-social',
-          icon: Twitter,
-          color: 'text-blue-400',
-        },
-        {
-          id: 'farcaster',
-          title: 'Link Farcaster',
-          description: referralData.user.farcasterUsername
-            ? `@${referralData.user.farcasterUsername}`
-            : 'Connect Farcaster account',
-          points: POINTS.FARCASTER_LINK,
-          completed: referralData.user.pointsAwardedForFarcaster,
-          action: 'link-social',
-          icon: LinkIcon,
-          color: 'text-purple-400',
-        },
-        {
-          id: 'wallet',
-          title: 'Connect Wallet',
-          description: referralData.user.walletAddress
-            ? `${referralData.user.walletAddress.slice(0, 6)}...${referralData.user.walletAddress.slice(-4)}`
-            : 'Link your wallet',
-          points: POINTS.WALLET_CONNECT,
-          completed: referralData.user.pointsAwardedForWallet,
-          action: 'wallet-connect',
-          icon: Wallet,
-          color: 'text-orange-500',
-        },
-        {
-          id: 'onchain-registration',
-          title: 'Register On-Chain',
-          description: referralData.user.onChainRegistered
-            ? 'ERC-8004 verified identity ✓'
-            : 'Get verified with ERC-8004 on Ethereum',
-          points: -POINTS.ONCHAIN_REGISTRATION,
-          completed: referralData.user.onChainRegistered,
-          action: 'register-onchain',
-          icon: Shield,
-          color: 'text-emerald-500',
-        },
-      ]
-    : [];
+  const rewardTasks = buildRewardTasks(referralData?.user ?? null);
+
+  const rewardTaskVisuals: Record<
+    RewardTaskDefinition['id'],
+    { icon: typeof UserPlus; color: string }
+  > = {
+    profile: {
+      icon: UserPlus,
+      color: 'text-purple-500',
+    },
+    wallet: {
+      icon: Wallet,
+      color: 'text-orange-500',
+    },
+    'onchain-registration': {
+      icon: Shield,
+      color: 'text-emerald-500',
+    },
+  };
 
   const [registeringOnchain, setRegisteringOnchain] = useState(false);
 
   const handleTaskClick = async (_taskId: string, action: string) => {
-    if (action === 'link-social') {
-      setShowLinkSocialModal(true);
-    } else if (action === 'profile-settings') {
+    if (action === 'profile-settings') {
       window.location.href = '/settings';
     } else if (action === 'wallet-connect') {
       if (authenticated) {
@@ -390,6 +332,16 @@ export default function RewardsPage() {
               </h1>
               <p className="text-muted-foreground">
                 Complete tasks and invite friends to earn points
+              </p>
+              <p className="mt-1 text-muted-foreground text-sm">
+                Manage X and Farcaster connections in{' '}
+                <a
+                  href="/settings?tab=profile"
+                  className="text-primary hover:underline"
+                >
+                  Profile settings
+                </a>
+                .
               </p>
             </div>
 
@@ -489,7 +441,7 @@ export default function RewardsPage() {
 
               <div className="grid gap-3">
                 {rewardTasks.map((task) => {
-                  const Icon = task.icon;
+                  const { icon: Icon, color } = rewardTaskVisuals[task.id];
                   return (
                     <button
                       key={task.id}
@@ -503,7 +455,7 @@ export default function RewardsPage() {
                           : 'cursor-pointer border-border hover:bg-muted/50 disabled:cursor-wait disabled:opacity-60'
                       }`}
                     >
-                      <div className={`shrink-0 ${task.color}`}>
+                      <div className={`shrink-0 ${color}`}>
                         <Icon className="h-6 w-6" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -722,6 +674,16 @@ export default function RewardsPage() {
               <p className="text-muted-foreground">
                 Complete tasks and invite friends to earn points
               </p>
+              <p className="mt-1 text-muted-foreground text-sm">
+                Manage X and Farcaster connections in{' '}
+                <a
+                  href="/settings?tab=profile"
+                  className="text-primary hover:underline"
+                >
+                  Profile settings
+                </a>
+                .
+              </p>
             </div>
 
             {/* Stats Row */}
@@ -820,7 +782,7 @@ export default function RewardsPage() {
 
               <div className="space-y-2">
                 {rewardTasks.map((task) => {
-                  const Icon = task.icon;
+                  const { icon: Icon, color } = rewardTaskVisuals[task.id];
                   return (
                     <button
                       key={task.id}
@@ -834,7 +796,7 @@ export default function RewardsPage() {
                           : 'cursor-pointer border-border hover:bg-muted/50 disabled:cursor-wait disabled:opacity-60'
                       }`}
                     >
-                      <div className={`shrink-0 ${task.color}`}>
+                      <div className={`shrink-0 ${color}`}>
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -1027,18 +989,6 @@ export default function RewardsPage() {
           </div>
         </div>
       )}
-
-      {/* Link Social Accounts Modal */}
-      <LinkSocialAccountsModal
-        isOpen={showLinkSocialModal}
-        onClose={() => {
-          setShowLinkSocialModal(false);
-          // Refresh data to update the UI
-          if (user?.id && authenticated) {
-            fetchReferralData();
-          }
-        }}
-      />
 
       {/* Share & Earn Modal */}
       <ShareEarnModal
