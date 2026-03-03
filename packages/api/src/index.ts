@@ -150,6 +150,12 @@ export {
 export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
 export * from './monitoring/monitored-cache';
 export * from './monitoring/monitored-storage';
+// Env helpers (server-only)
+export {
+  getNotificationEmailFromEnv,
+  getPrivyAppIdFromEnv,
+  getTrimmedEnv,
+} from './env';
 // Performance monitoring (moved from @babylon/shared)
 export { performanceMonitor } from './monitoring/performance-monitor';
 // Profile utilities

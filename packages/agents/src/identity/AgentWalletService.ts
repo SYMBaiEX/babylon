@@ -9,6 +9,7 @@
  */
 
 import { agentLogs, db, eq, type JsonValue, users } from '@babylon/db';
+import { getPrivyAppIdFromEnv, getTrimmedEnv } from '@babylon/api';
 import { PrivyClient } from '@privy-io/server-auth';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
@@ -78,11 +79,19 @@ interface ExtendedPrivyClient extends PrivyClient {
   ): Promise<PrivySignedTransaction>;
 }
 
-// Initialize Privy server client
-const privy = new PrivyClient(
-  process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-  process.env.PRIVY_APP_SECRET!
-) as ExtendedPrivyClient;
+let privyClient: ExtendedPrivyClient | null = null;
+
+function getPrivyServerClient(): ExtendedPrivyClient | null {
+  const appId = getPrivyAppIdFromEnv();
+  const appSecret = getTrimmedEnv('PRIVY_APP_SECRET');
+  if (!appId || !appSecret) return null;
+
+  if (!privyClient) {
+    privyClient = new PrivyClient(appId, appSecret) as ExtendedPrivyClient;
+  }
+
+  return privyClient;
+}
 
 export class AgentWalletService {
   /**
@@ -123,18 +132,17 @@ export class AgentWalletService {
     }
 
     // Check if Privy is configured and if createUser method exists
-    const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-    const privyAppSecret = process.env.PRIVY_APP_SECRET;
-    const hasPrivyConfig = !!(privyAppId && privyAppSecret);
+    const privy = getPrivyServerClient();
+    const hasPrivyConfig = !!privy;
 
     // Check if createUser method exists (it may not in newer Privy SDK versions)
     // PrivyClient may have createUser method that's not in the type definition
     interface PrivyClientWithCreateUser {
       createUser?: (params: PrivyCreateUserParams) => Promise<PrivyUser>;
     }
-    const privyWithCreateUser = privy as PrivyClientWithCreateUser;
+    const privyWithCreateUser = privy as PrivyClientWithCreateUser | null;
     const hasCreateUserMethod =
-      typeof privyWithCreateUser.createUser === 'function';
+      typeof privyWithCreateUser?.createUser === 'function';
 
     // If Privy is not available, skip directly to dev wallet (no error)
     if (!hasPrivyConfig || !hasCreateUserMethod) {
@@ -174,7 +182,7 @@ export class AgentWalletService {
 
     // Step 1: Create Privy user for the agent (server-side)
     // Privy allows server-side user creation without user interaction
-    if (!privyWithCreateUser.createUser) {
+    if (!privyWithCreateUser?.createUser) {
       throw new Error('Privy createUser method not available');
     }
     const privyUser = await privyWithCreateUser.createUser({
@@ -408,6 +416,11 @@ export class AgentWalletService {
 
     if (!agent.privyId) {
       throw new Error('Agent does not have Privy wallet');
+    }
+
+    const privy = getPrivyServerClient();
+    if (!privy) {
+      throw new Error('Privy credentials not configured');
     }
 
     // Use Privy server client to sign transaction (no user interaction needed)
