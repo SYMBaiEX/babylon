@@ -1,4 +1,12 @@
 import { describe, expect, it } from 'bun:test';
+import {
+  calculateActivityBonus,
+  calculateArcStateMultiplier,
+  calculateRecencyScore,
+  calculateResolutionBoost,
+  calculateStoryScore,
+  calculateTotalEngagement,
+} from './scoring';
 
 /**
  * Tests for Narrative Feed API - Story Scoring Algorithm
@@ -13,64 +21,6 @@ import { describe, expect, it } from 'bun:test';
  *   activityBonus   = Math.min(postCount / 10, 1)
  */
 
-const ENGAGEMENT_WEIGHT = 0.5;
-const RECENCY_WEIGHT = 0.35;
-const ACTIVITY_WEIGHT = 0.15;
-const RECENCY_HALF_LIFE_HOURS = 12;
-const LIKE_WEIGHT = 1;
-const COMMENT_WEIGHT = 2;
-const SHARE_WEIGHT = 3;
-
-function calculateTotalEngagement(l: number, c: number, s: number): number {
-  return l * LIKE_WEIGHT + c * COMMENT_WEIGHT + s * SHARE_WEIGHT;
-}
-
-function calculateRecencyScore(newest: Date): number {
-  const hoursOld = (Date.now() - newest.getTime()) / (1000 * 60 * 60);
-  return Math.exp((-Math.LN2 * hoursOld) / RECENCY_HALF_LIFE_HOURS);
-}
-
-function calculateActivityBonus(postCount: number): number {
-  return Math.min(postCount / 10, 1);
-}
-
-function calculateStoryScore(
-  l: number,
-  c: number,
-  s: number,
-  n: number,
-  t: Date
-): number {
-  return (
-    calculateTotalEngagement(l, c, s) * ENGAGEMENT_WEIGHT +
-    calculateRecencyScore(t) * RECENCY_WEIGHT +
-    calculateActivityBonus(n) * ACTIVITY_WEIGHT
-  );
-}
-
-function calculateArcStateMultiplier(arcState: string | null): number {
-  switch (arcState) {
-    case 'crisis':
-      return 1.4;
-    case 'revelation':
-      return 1.3;
-    case 'climax':
-      return 1.35;
-    case 'escalation':
-      return 1.15;
-    case 'active':
-    case 'live':
-      return 1.1;
-    case 'tension':
-      return 1.05;
-    case 'resolving':
-      return 0.9;
-    case 'resolution':
-      return 0.85;
-    default:
-      return 1.0;
-  }
-}
 
 describe('calculateTotalEngagement', () => {
   it('weights shares > comments > likes', () => {
@@ -152,16 +102,6 @@ describe('calculateStoryScore', () => {
     );
   });
 });
-
-function calculateResolutionBoost(resolutionDate: Date): number {
-  const hoursUntil =
-    (resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60);
-  if (hoursUntil <= 0) return 1.0;
-  if (hoursUntil <= 6) return 1.4;
-  if (hoursUntil <= 24) return 1.25;
-  if (hoursUntil <= 72) return 1.1;
-  return 1.0;
-}
 
 describe('calculateArcStateMultiplier', () => {
   it('returns 1.0 for null (no arc data)', () => {
