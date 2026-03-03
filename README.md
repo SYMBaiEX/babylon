@@ -161,10 +161,22 @@ vercel deploy --prod
 **Required Environment Variables:**
 
 - `DATABASE_URL` - PostgreSQL connection
-- `NEXT_PUBLIC_PRIVY_APP_ID` - Authentication
-- `OPENAI_API_KEY` - AI agents
+- `NEXT_PUBLIC_PRIVY_APP_ID` (or `PRIVY_APP_ID`) - Privy App ID
+- `PRIVY_APP_SECRET` - Privy backend secret
+- `CRON_SECRET` - Cron authentication
+- At least one LLM key: `GROQ_API_KEY` or `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 
-See `.env.example` for complete list.
+Validate your env files before running the app:
+
+```bash
+bun run env:validate
+# optional profiles:
+bun run env:validate:staging
+bun run env:validate:production
+```
+
+Feature-specific requirements are validated conditionally (Agent0, SendGrid, NFT gating, on-chain perps).
+See `.env.example` for the full list.
 
 ---
 

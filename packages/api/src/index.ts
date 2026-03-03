@@ -109,6 +109,7 @@ export {
   errorHandler,
   errorResponse,
   type RouteContext,
+  setDefaultErrorCapture,
   successResponse,
   withErrorHandling,
 } from './error-handler';
