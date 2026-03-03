@@ -27,6 +27,7 @@ import {
   coordinatorActionStateProvider,
   coordinatorActionsProvider,
   coordinatorContextProvider,
+  coordinatorDispatchHistoryProvider,
   coordinatorRecentMessagesProvider,
   coordinatorTeamMembersProvider,
 } from './providers';
@@ -71,6 +72,7 @@ export const userCorePlugin: Plugin = {
     coordinatorActionStateProvider,
     coordinatorTeamMembersProvider,
     coordinatorContextProvider,
+    coordinatorDispatchHistoryProvider,
   ],
 };
 
@@ -88,6 +90,7 @@ export {
   coordinatorActionStateProvider,
   coordinatorActionsProvider,
   coordinatorContextProvider,
+  coordinatorDispatchHistoryProvider,
   coordinatorRecentMessagesProvider,
   coordinatorTeamMembersProvider,
 } from './providers';
