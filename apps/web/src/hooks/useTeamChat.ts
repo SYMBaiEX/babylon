@@ -1193,9 +1193,16 @@ export function useTeamChat(): UseTeamChatReturn {
           conversations: ConversationInfo[];
         };
         setConversations(data.conversations);
+      } else {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        console.error('Failed to fetch conversations:', response.status, errorData);
+        toast.error(errorData.error || 'Failed to load conversations');
       }
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
+      toast.error('Failed to load conversations');
     } finally {
       setConversationsLoading(false);
     }
@@ -1394,26 +1401,32 @@ export function useTeamChat(): UseTeamChatReturn {
             newActiveChatId: string | null;
           };
 
-          // Remove from conversations list
-          setConversations((prev) => prev.filter((c) => c.id !== chatId));
-
-          // If we switched to a new active chat, update state
-          if (data.newActiveChatId) {
-            setConversations((prev) =>
-              prev.map((c) => ({
-                ...c,
-                isActive: c.id === data.newActiveChatId,
-              }))
+          if (!data.newActiveChatId) {
+            // Unexpected: backend couldn't determine a replacement active chat
+            // (e.g. race condition where another session deleted conversations).
+            // Refresh the full list so the UI recovers to a consistent state.
+            toast.error(
+              'Conversation deleted, but could not determine the new active chat. Refreshing...'
             );
-            setTeamChat((prev) =>
-              prev ? { ...prev, chatId: data.newActiveChatId! } : prev
-            );
-            clearMessages();
+            await refreshConversations();
+            return;
           }
 
+          // Single atomic update: remove deleted + mark new active in one pass
+          setConversations((prev) =>
+            prev
+              .filter((c) => c.id !== chatId)
+              .map((c) => ({ ...c, isActive: c.id === data.newActiveChatId }))
+          );
+          setTeamChat((prev) =>
+            prev ? { ...prev, chatId: data.newActiveChatId! } : prev
+          );
+          clearMessages();
           toast.success('Conversation deleted');
         } else {
-          const errorData = (await response.json()) as { error?: string };
+          const errorData = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
           toast.error(errorData.error || 'Failed to delete conversation');
         }
       } catch (err) {

@@ -46,4 +46,24 @@ describe('conversation-utils', () => {
     expect(canDeleteConversation(2)).toBe(true);
     expect(canDeleteConversation(5)).toBe(true);
   });
+
+  test('disallows delete when conversation count is zero (degenerate state)', () => {
+    expect(canDeleteConversation(0)).toBe(false);
+  });
+
+  test('treats empty string name as absent and falls back to date format', () => {
+    const label = getConversationDisplayName(
+      { name: '', createdAt: '2026-03-01T10:30:00.000Z' },
+      'en-US'
+    );
+    expect(label.startsWith('New Chat -')).toBe(true);
+  });
+
+  test('produces a fallback label without throwing when no locale is provided', () => {
+    const label = getConversationDisplayName({
+      name: null,
+      createdAt: '2026-03-01T10:30:00.000Z',
+    });
+    expect(label.startsWith('New Chat -')).toBe(true);
+  });
 });

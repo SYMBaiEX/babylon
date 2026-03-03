@@ -105,6 +105,8 @@ export function ConversationList({
     setDeletingId(conversation.id);
     try {
       await onDeleteConversation(conversation.id);
+    } catch {
+      // onDeleteConversation is responsible for user-facing error feedback
     } finally {
       setDeletingId(null);
     }
@@ -119,6 +121,8 @@ export function ConversationList({
     setIsSaving(true);
     try {
       await onRenameConversation(editingId, editValue.trim());
+    } catch {
+      // onRenameConversation is responsible for user-facing error feedback
     } finally {
       setIsSaving(false);
       setEditingId(null);

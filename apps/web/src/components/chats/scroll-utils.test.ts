@@ -25,4 +25,14 @@ describe('scroll-utils', () => {
     ).toBe(false);
     expect(shouldShowScrollToLatest(10)).toBe(false);
   });
+
+  test('returns zero for uninitialized scroll container (all-zero dimensions)', () => {
+    expect(getDistanceFromBottom(0, 0, 0)).toBe(0);
+  });
+
+  test('respects a custom threshold override', () => {
+    expect(shouldShowScrollToLatest(50, 40)).toBe(true);
+    expect(shouldShowScrollToLatest(40, 40)).toBe(false);
+    expect(shouldShowScrollToLatest(30, 40)).toBe(false);
+  });
 });

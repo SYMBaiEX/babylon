@@ -226,9 +226,13 @@ export function TeamChatView({
 
   React.useEffect(() => {
     const container = messagesContainerRef.current;
-    if (!container) return;
+    if (!container) {
+      setShowScrollToLatest(false);
+      return;
+    }
     updateScrollToLatestVisibility(container);
   }, [
+    chatDetails?.chat?.id,
     chatDetails?.messages?.length,
     loading,
     updateScrollToLatestVisibility,
@@ -330,36 +334,45 @@ export function TeamChatView({
         </div>
       )}
 
-      {/* Messages - Scrollable */}
-      <div
-        data-chat-messages-container
-        ref={messagesContainerRef}
-        className={cn(
-          'relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden',
-          compact ? 'space-y-2 px-3 py-2' : 'space-y-4 px-4 py-3'
-        )}
-        onScroll={(e) => {
-          onScroll?.(e.currentTarget);
-          updateScrollToLatestVisibility(e.currentTarget);
-        }}
-      >
-        <MessageList
-          messages={chatDetails.messages || []}
-          participants={chatDetails.participants || []}
-          currentUserId={currentUserId}
-          loading={loading}
-          isLoadingMore={isLoadingMore}
-          hasMore={hasMore}
-          authenticated={authenticated}
-          topSentinelRef={topSentinelRef}
-          messagesEndRef={messagesEndRef}
-          density={density}
-          onTagClick={onTagClick}
-          onToggleReaction={onToggleReaction}
-          compactActions
-          agentIds={agentIds}
-          onViewSettings={onViewSettings}
-        />
+      {/* Messages - Scrollable + jump-to-latest overlay */}
+      {/*
+       * The outer div is `relative` so the jump button can be absolutely
+       * positioned against the VISIBLE viewport of the chat area, not the
+       * scroll content area.  The inner div owns overflow-y-auto; absolute
+       * children of a scrolling container are anchored to the full content
+       * height, so the button would be invisible when scrolled up.
+       */}
+      <div className="relative min-h-0 flex-1 flex flex-col">
+        <div
+          data-chat-messages-container
+          ref={messagesContainerRef}
+          className={cn(
+            'flex-1 overflow-y-auto overflow-x-hidden',
+            compact ? 'space-y-2 px-3 py-2' : 'space-y-4 px-4 py-3'
+          )}
+          onScroll={(e) => {
+            onScroll?.(e.currentTarget);
+            updateScrollToLatestVisibility(e.currentTarget);
+          }}
+        >
+          <MessageList
+            messages={chatDetails.messages || []}
+            participants={chatDetails.participants || []}
+            currentUserId={currentUserId}
+            loading={loading}
+            isLoadingMore={isLoadingMore}
+            hasMore={hasMore}
+            authenticated={authenticated}
+            topSentinelRef={topSentinelRef}
+            messagesEndRef={messagesEndRef}
+            density={density}
+            onTagClick={onTagClick}
+            onToggleReaction={onToggleReaction}
+            compactActions
+            agentIds={agentIds}
+            onViewSettings={onViewSettings}
+          />
+        </div>
 
         {showScrollToLatest && (
           <button
