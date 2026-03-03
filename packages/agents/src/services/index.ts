@@ -6,6 +6,7 @@
  * @packageDocumentation
  */
 
+export * from './AgentChatService';
 export * from './AgentPnLService';
 export * from './AgentService';
 export * from './agent-lock-service';
