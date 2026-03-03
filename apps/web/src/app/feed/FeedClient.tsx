@@ -15,8 +15,13 @@ import { useErrorToasts } from '@/hooks/useErrorToasts';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
-import { EmptyFeed, PostList } from './components';
-import { useFeedPosts, useFollowingPosts, useHotPosts } from './hooks';
+import { EmptyFeed, NarrativeStoryList, PostList } from './components';
+import {
+  useFeedPosts,
+  useFollowingPosts,
+  useHotPosts,
+  useNarrativeFeed,
+} from './hooks';
 
 // Performance: Lazy load heavy components
 const WidgetSidebar = dynamic(
@@ -38,7 +43,7 @@ const TradesFeed = dynamic(
   { ssr: false }
 );
 
-type FeedTab = 'latest' | 'hot' | 'following' | 'trades';
+type FeedTab = 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
 
 /**
  * FeedClient - Main feed page orchestrator
@@ -90,6 +95,9 @@ export function FeedClient() {
   const { posts: hotPosts, loading: hotLoading } = useHotPosts({
     enabled: tab === 'hot',
   });
+
+  const { stories: narrativeStories, loading: narrativeLoading } =
+    useNarrativeFeed({ enabled: tab === 'narrative' });
 
   // Game timeline posts (viewer mode fallback)
   const { allGames, startTime, currentTimeMs } = useGameStore();
@@ -152,6 +160,7 @@ export function FeedClient() {
   const isLoading =
     (tab === 'latest' && latestLoading) ||
     (tab === 'hot' && hotLoading) ||
+    (tab === 'narrative' && narrativeLoading) ||
     (tab === 'following' && followingLoading);
 
   // Load actor names
@@ -269,6 +278,12 @@ export function FeedClient() {
           <FeedSkeleton count={5} />
         </div>
       );
+    }
+
+    if (tab === 'narrative') {
+      if (narrativeStories.length === 0)
+        return <EmptyFeed variant="narrative" />;
+      return <NarrativeStoryList stories={narrativeStories} />;
     }
 
     if (currentPosts.length === 0) {

@@ -1,12 +1,12 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Flame } from 'lucide-react';
+import { Flame, ScrollText } from 'lucide-react';
 
 /**
  * Feed toggle component for switching between feed views.
  *
- * Provides tab navigation between Latest, Hot, Following, and Trades feed views.
+ * Provides tab navigation between Latest, Hot, Narrative, Following, and Trades feed views.
  * Shows active tab with underline indicator and hover states.
  *
  * @param props - FeedToggle component props
@@ -21,8 +21,8 @@ import { Flame } from 'lucide-react';
  * ```
  */
 interface FeedToggleProps {
-  activeTab: 'latest' | 'hot' | 'following' | 'trades';
-  onTabChange: (tab: 'latest' | 'hot' | 'following' | 'trades') => void;
+  activeTab: 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
+  onTabChange: (tab: 'latest' | 'hot' | 'narrative' | 'following' | 'trades') => void;
 }
 
 export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
@@ -52,6 +52,21 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
           Hot
         </span>
         {activeTab === 'hot' && (
+          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
+        )}
+      </button>
+      <button
+        onClick={() => onTabChange('narrative')}
+        className={cn(
+          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
+          activeTab === 'narrative' ? 'text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        <span className="flex items-center justify-center gap-1">
+          <ScrollText className="h-4 w-4" />
+          Stories
+        </span>
+        {activeTab === 'narrative' && (
           <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
         )}
       </button>
