@@ -209,6 +209,7 @@ export default function TeamChatPage() {
     createConversation,
     switchConversation,
     renameConversation,
+    deleteConversation,
   } = useTeamChat();
 
   // Mobile view state - which tab is active on mobile
@@ -840,6 +841,7 @@ export default function TeamChatPage() {
                 setMobileView('chat');
               }}
               onRenameConversation={renameConversation}
+              onDeleteConversation={deleteConversation}
             />
           </div>
 
@@ -1039,6 +1041,7 @@ export default function TeamChatPage() {
                   onNewChat={() => createConversation()}
                   onSelectConversation={switchConversation}
                   onRenameConversation={renameConversation}
+                  onDeleteConversation={deleteConversation}
                 />
               </div>
 

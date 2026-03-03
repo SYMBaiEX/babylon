@@ -1,20 +1,23 @@
 'use client';
 
-import { cn, signInWithFarcaster } from '@babylon/shared';
-import { Check, ExternalLink, Shield, X as XIcon } from 'lucide-react';
+import { cn, logger } from '@babylon/shared';
+import { useLinkAccount, usePrivy } from '@privy-io/react-auth';
+import { Check, ExternalLink, Mail, Shield, X as XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { isLinkEmailFlowCancellationError } from '@/components/profile/link-email-utils';
 import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
  * Link social accounts modal component for connecting social accounts.
  *
- * Provides a modal interface for linking Twitter and Farcaster accounts
- * via OAuth. Handles OAuth callbacks and updates user profile with linked
- * account information. Awards reputation points for linking accounts.
+ * Provides a modal interface for linking email, Twitter, and Farcaster
+ * accounts. Handles account-link callbacks and updates user profile with
+ * linked account information. Awards reputation points for social linking.
  *
  * Features:
+ * - Email linking via Privy
  * - Twitter OAuth linking
  * - Farcaster OAuth linking
  * - OAuth callback handling
@@ -44,9 +47,36 @@ export function LinkSocialAccountsModal({
   onClose,
 }: LinkSocialAccountsModalProps) {
   const { user, setUser } = useAuthStore();
+  const { user: privyUser } = usePrivy();
   const [linking, setLinking] = useState<string | null>(null);
   const [confirmUnlinkTwitter, setConfirmUnlinkTwitter] = useState(false);
   const [unlinkingTwitter, setUnlinkingTwitter] = useState(false);
+
+  // Only treat the email as verified/linked when Privy holds it — the stored
+  // user.email may be unverified (e.g. imported from a previous auth method).
+  const privyEmail = privyUser?.email?.address?.trim() || null;
+
+  const { linkEmail, linkFarcaster } = useLinkAccount({
+    onSuccess: ({ linkedAccount }) => {
+      setLinking(null);
+      if (linkedAccount.type === 'farcaster_account') {
+        toast.success('Farcaster account linked successfully!');
+      } else {
+        toast.success('Email linked successfully');
+      }
+      onClose();
+    },
+    onError: (error) => {
+      setLinking(null);
+      if (isLinkEmailFlowCancellationError(error)) return;
+      logger.error(
+        'Failed to link account via Privy',
+        { error: String(error) },
+        'LinkSocialAccountsModal'
+      );
+      toast.error('Failed to link account. Please try again.');
+    },
+  });
 
   useEffect(() => {
     if (isOpen) return;
@@ -57,18 +87,19 @@ export function LinkSocialAccountsModal({
 
   if (!isOpen) return null;
 
+  const handleEmailLink = () => {
+    if (!user?.id) return;
+    setLinking('email');
+    linkEmail();
+  };
+
   const handleTwitterOAuth = async () => {
     if (!user?.id) return;
 
     setLinking('twitter');
 
-    // Redirect to OAuth initiation endpoint
-    const initiateUrl = `/api/auth/twitter/initiate`;
-
-    // Store current URL to return to
     sessionStorage.setItem('oauth_return_url', window.location.pathname);
-
-    window.location.href = initiateUrl;
+    window.location.href = `/api/auth/twitter/initiate`;
   };
 
   const handleTwitterDisconnect = async () => {
@@ -113,70 +144,10 @@ export function LinkSocialAccountsModal({
     }
   };
 
-  const handleFarcasterAuth = async () => {
+  const handleFarcasterAuth = () => {
     if (!user?.id) return;
-
     setLinking('farcaster');
-
-    // Use the proper SIWF protocol via relay.farcaster.xyz
-    const result = await signInWithFarcaster({
-      userId: user.id,
-    });
-
-    // Send authentication data to backend for verification and linking
-    const token = getAuthToken();
-    const response = await fetch('/api/auth/farcaster/callback', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        message: result.message,
-        signature: result.signature,
-        fid: result.fid,
-        username: result.username,
-        displayName: result.displayName,
-        pfpUrl: result.pfpUrl,
-        state: result.state,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      setUser({
-        ...user,
-        hasFarcaster: true,
-        farcasterUsername: result.username,
-        reputationPoints: data.newTotal || user.reputationPoints,
-      });
-
-      // Dispatch event to notify other components (like UserMenu) to refresh
-      window.dispatchEvent(new CustomEvent('rewards-updated'));
-
-      if (data.pointsAwarded > 0) {
-        toast.success(
-          `Farcaster linked! +${data.pointsAwarded} points awarded`
-        );
-      } else {
-        toast.success('Farcaster account linked successfully!');
-      }
-
-      onClose();
-    } else {
-      const errorMessage = data.error || 'Failed to link Farcaster account';
-      if (response.status === 409) {
-        toast.error(
-          errorMessage.includes('already linked')
-            ? errorMessage
-            : 'This Farcaster account is already linked to another user'
-        );
-      } else {
-        toast.error(errorMessage);
-      }
-    }
-    setLinking(null);
+    linkFarcaster();
   };
 
   return (
@@ -192,7 +163,7 @@ export function LinkSocialAccountsModal({
         <div className="flex shrink-0 items-start justify-between border-border border-b p-6">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            <h2 className="font-bold text-xl">Link Social Accounts</h2>
+            <h2 className="font-bold text-xl">Link Accounts</h2>
           </div>
           <button
             onClick={onClose}
@@ -204,6 +175,56 @@ export function LinkSocialAccountsModal({
 
         {/* Content */}
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6">
+          {/* Email */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              <h3 className="font-semibold">Email</h3>
+              {privyEmail && (
+                <span className="ml-auto flex items-center gap-1 text-green-500 text-sm">
+                  <Check className="h-4 w-4" />
+                  Verified
+                </span>
+              )}
+            </div>
+
+            {privyEmail ? (
+              <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
+                <Check className="h-4 w-4 text-green-500" />
+                <span className="font-medium text-sm">{privyEmail}</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
+                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                  <p className="text-muted-foreground text-xs">
+                    Link a verified email in Privy to enable notification emails
+                    and account recovery.
+                  </p>
+                </div>
+                <button
+                  onClick={handleEmailLink}
+                  disabled={linking === 'email'}
+                  className={cn(
+                    'w-full rounded-lg px-4 py-2 font-semibold transition-colors',
+                    'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+                    'disabled:cursor-not-allowed disabled:opacity-50',
+                    'flex items-center justify-center gap-2'
+                  )}
+                >
+                  {linking === 'email' ? (
+                    <span>Opening Privy...</span>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4" />
+                      <span>Link my email to Privy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Twitter/X */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -390,8 +411,8 @@ export function LinkSocialAccountsModal({
             <div className="flex items-start gap-2">
               <Shield className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <p className="text-muted-foreground text-sm">
-                OAuth authentication verifies your account ownership and earns
-                you reputation points!
+                Account linking verifies ownership and can unlock features like
+                notifications and reputation rewards.
               </p>
             </div>
           </div>
