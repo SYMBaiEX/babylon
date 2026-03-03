@@ -83,21 +83,28 @@ const buildState = (teamChatId?: string): State =>
 const MOCK_RUNTIME = {} as IAgentRuntime;
 const MOCK_MESSAGE = {} as Memory;
 
-const MOCK_OWNER = {
+type Participant = {
+  id: string;
+  displayName: string | null;
+  username: string | null;
+  isAgent: boolean;
+};
+
+const MOCK_OWNER: Participant = {
   id: OWNER_ID,
   displayName: 'Alice Smith',
   username: 'alice',
   isAgent: false,
 };
 
-const MOCK_AGENT_1 = {
+const MOCK_AGENT_1: Participant = {
   id: AGENT_ID_1,
   displayName: 'Trading Bot',
   username: 'trading_bot',
   isAgent: true,
 };
 
-const MOCK_AGENT_2 = {
+const MOCK_AGENT_2: Participant = {
   id: AGENT_ID_2,
   displayName: 'Social Bot',
   username: 'social_bot',
@@ -106,7 +113,7 @@ const MOCK_AGENT_2 = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function setupDbResult(participants: (typeof MOCK_OWNER)[]) {
+function setupDbResult(participants: Participant[]) {
   mockDbQuery.mockResolvedValue(participants);
 }
 
@@ -489,7 +496,7 @@ describe('coordinatorTeamMembersProvider', () => {
         buildState(TEAM_CHAT_ID)
       );
 
-      expect(result.text).toBe(result.values!.teamMembers);
+      expect(result.text).toBe(result.values!.teamMembers as string);
     });
   });
 });

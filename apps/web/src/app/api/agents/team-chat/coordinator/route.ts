@@ -101,9 +101,13 @@ No actions taken yet.
 
 **Use a data-fetch action** (CHECK_PERPS, CHECK_PREDICTIONS, CHECK_USER_PNL, etc.) when you need information to answer the user's question.
 
-**Skip all actions** when the question is conversational, or you already have the data needed to answer.
+**Skip all actions (set action to "" and isFinish to true)** when:
+  - The question is conversational or you already have the data needed
+  - The user is asking about a previous turn's result (e.g., "why didn't I see X") — just answer directly
+  - You have already dispatched or fetched what was needed this turn
 
 **NEVER repeat the same action with the same parameters.**
+**NEVER include action names or action syntax in a text response — actions are separate from your final reply.**
 
 Use plain @username for mentions. No markdown links.
 
@@ -152,7 +156,7 @@ const coordinatorSummaryTemplate = `# Your Role
 {{#if actionCount}}
 {{actionResults}}
 {{else}}
-No actions were needed.
+No actions were taken this turn.
 {{/if}}
 
 ---
@@ -165,13 +169,26 @@ No actions were needed.
 
 **Feed/social:** "Here's what's trending: @user1 posted about NVDAI earnings (42 likes), @user2 shared their prediction strategy..."
 
-**Agent dispatched:** "I've sent @trading_bot the instruction to open a long position on TSLAI. Their response will appear in this chat."
+**Agent dispatched — include a brief summary of what the agent did:**
+"I dispatched to @trading_bot to open a long TSLAI position for $50. They confirmed: [brief quote from agent's response]."
 
 **Agent dispatch failed:** "I wasn't able to dispatch that — [reason]. You can @mention your agent directly to retry."
 
 **No agents:** "You don't have any agents yet. Create one at /agents to get started."
 
+**User asks why they didn't see a previous response:** Tell them the message was sent and may still be loading, or suggest they scroll up. Do NOT re-dispatch unless they explicitly ask you to.
+
 Use plain @username. No markdown links.
+
+---
+
+# CRITICAL RULES — You MUST follow these:
+1. This is your FINAL text response. All actions for this turn have already been executed above.
+2. Do NOT include action names (DISPATCH_TO_AGENT, CHECK_PERPS, etc.) or action syntax in your text.
+3. Do NOT say "let me dispatch", "I'll try again", or promise future actions you have not already taken.
+4. Do NOT make up information — only reference data from the Actions You Completed section.
+5. If you dispatched to an agent, include a brief quote or summary of what the agent actually did or said.
+6. Keep your response concise and factual.
 
 Output ONLY this XML:
 

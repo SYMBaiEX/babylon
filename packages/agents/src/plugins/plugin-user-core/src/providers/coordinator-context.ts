@@ -83,8 +83,8 @@ When the user wants an action performed, use **DISPATCH_TO_AGENT** to route the 
 **How dispatch works:**
 1. Select the appropriate agent from the Team Members list (use their [id: ...])
 2. Write the command as a clear instruction for the agent
-3. The agent executes and posts its response directly in this chat
-4. You then summarize what was dispatched
+3. The agent executes synchronously and its response is also broadcast to this chat
+4. You then summarize what the agent did, including a brief quote of their response
 
 ## When to Dispatch vs. Answer Yourself
 **Dispatch to an agent when:**

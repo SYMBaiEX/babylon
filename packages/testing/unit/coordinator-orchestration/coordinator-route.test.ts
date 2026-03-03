@@ -53,7 +53,14 @@ const SUMMARY_DISPATCHED = `<response><thought>done</thought><text>I dispatched 
 const mockGetCoordinatorRuntime = mock();
 const mockComposeState = mock(async () => ({ values: {}, data: {} }));
 const mockUseModel = mock(async () => DECISION_NO_ACTION);
-const mockProcessActions = mock(async () => undefined);
+const mockProcessActions = mock<
+  (
+    msg: unknown,
+    actions: unknown,
+    state: { data?: Record<string, unknown> },
+    callback: (results: unknown) => Promise<unknown[]>
+  ) => Promise<void>
+>(async () => {});
 const mockValidateTeamChatOwnership = mock(async () => true);
 
 const mockRuntime = {
@@ -72,11 +79,12 @@ mock.module('@babylon/agents', () => ({
 
 // @babylon/api
 const mockAuthenticateUser = mock();
-const mockBroadcastChatMessage = mock(async () => undefined);
-const mockCheckRateLimitAsync = mock(async () => ({
-  allowed: true,
-  retryAfter: null,
-}));
+const mockBroadcastChatMessage = mock<
+  (chatId: string, msg: Record<string, unknown>) => Promise<void>
+>(async () => {});
+const mockCheckRateLimitAsync = mock<
+  () => Promise<{ allowed: boolean; retryAfter?: number | null }>
+>(async () => ({ allowed: true, retryAfter: null }));
 
 mock.module('@babylon/api', () => ({
   authenticateUser: mockAuthenticateUser,
@@ -94,7 +102,9 @@ const mockDbSelectLimit = mock(async () => [
 const mockDbSelectWhere = mock(() => ({ limit: mockDbSelectLimit }));
 const mockDbSelectFrom = mock(() => ({ where: mockDbSelectWhere }));
 const mockDbSelect = mock(() => ({ from: mockDbSelectFrom }));
-const mockDbInsertValues = mock(async () => []);
+const mockDbInsertValues = mock<
+  (vals: Record<string, unknown>) => Promise<unknown[]>
+>(async () => []);
 const mockDbInsert = mock(() => ({ values: mockDbInsertValues }));
 
 mock.module('@babylon/db', () => ({
@@ -113,7 +123,9 @@ mock.module('@babylon/db', () => ({
 }));
 
 // @babylon/shared
-const mockCheckUserInput = mock(() => ({ safe: true, reason: undefined }));
+const mockCheckUserInput = mock<
+  () => { safe: boolean; reason?: string; category?: string }
+>(() => ({ safe: true }));
 const mockGenerateSnowflakeId = mock(async () => 'snowflake-coord-123');
 const mockLogger = { info: mock(), warn: mock(), error: mock(), debug: mock() };
 
