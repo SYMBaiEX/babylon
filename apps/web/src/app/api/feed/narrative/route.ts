@@ -53,9 +53,9 @@ import {
 const MAX_CANDIDATE_POSTS = 500;
 const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
 
-export const GENERAL_STORY_KEY = '__general__';
+const GENERAL_STORY_KEY = '__general__';
 
-export interface NarrativePost {
+interface NarrativePost {
   id: string;
   content: string;
   fullContent: string | null;
@@ -76,7 +76,7 @@ export interface NarrativePost {
   relatedQuestion: number | null;
 }
 
-export interface NarrativeStory {
+interface NarrativeStory {
   storyKey: string;
   storyTitle: string;
   questionNumber: number | null;
@@ -87,17 +87,11 @@ export interface NarrativeStory {
   hasUserPosition: boolean;
 }
 
-export interface NarrativeFeedResponse {
+interface NarrativeFeedResponse {
   success: true;
   stories: NarrativeStory[];
   generatedAt: string;
 }
-
-export {
-  calculateArcStateMultiplier,
-  calculateResolutionBoost,
-  calculateStoryScore,
-} from './scoring';
 
 function toISOStringStrict(
   date: Date | string | null | undefined,

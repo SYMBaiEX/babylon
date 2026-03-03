@@ -46,6 +46,7 @@ Unexpected server errors are captured.
   - `SENTRY_AUTH_TOKEN` (CI/Vercel only)
   - `SENTRY_ORG`, `SENTRY_PROJECT`
   - Recommended: `SENTRY_RELEASE`, `NEXT_PUBLIC_SENTRY_RELEASE`
+  - If release env vars are not set, runtime fallback uses Vercel commit SHA (`VERCEL_GIT_COMMIT_SHA` / `NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA`)
 
 ## Known gaps / follow-up
 
