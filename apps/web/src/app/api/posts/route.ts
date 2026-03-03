@@ -235,6 +235,7 @@ import {
   DUPLICATE_DETECTION_CONFIGS,
   ensureUserForAuth,
   getCacheOrFetch,
+  invalidateCache,
   notifyMention,
   publicRateLimit,
   RATE_LIMIT_CONFIGS,
@@ -1388,6 +1389,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       timestamp: post.timestamp.toISOString(),
     },
   });
+
+  // Invalidate the narrative feed cache so the new post appears in story scoring
+  // immediately rather than waiting for the 120s TTL to expire. Fire-and-forget.
+  void invalidateCache('feed:narrative:v1', { namespace: 'feed' });
   logger.info(
     'Broadcast new user post to feed channel',
     { postId: post.id },

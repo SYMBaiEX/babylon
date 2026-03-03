@@ -15,8 +15,11 @@
  * that always sorts last.
  */
 import {
+  addPublicReadHeaders,
+  getCache,
   getCacheOrFetch,
-  optionalAuth,
+  publicRateLimit,
+  setCache,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -104,11 +107,23 @@ interface CachedResult {
   postIds: string[];
 }
 
+// Per-user enrichment cache TTL (seconds). Short enough to stay fresh;
+// long enough to dramatically reduce DB load at scale.
+const USER_ENRICHMENT_TTL_S = 30;
+
+interface UserEnrichmentCache {
+  likedPostIds: string[];
+  sharedPostIds: string[];
+  positionQuestionIds: number[];
+}
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const user = await optionalAuth(request).catch((err) => {
-    logger.debug('optionalAuth failed', { error: err }, 'NarrativeFeedAPI');
-    return null;
-  });
+  const {
+    error: rateLimitErr,
+    user,
+    rateLimitInfo,
+  } = await publicRateLimit(request, 'read');
+  if (rateLimitErr) return rateLimitErr;
 
   const cacheKey = 'feed:narrative:v1';
 
@@ -388,10 +403,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
       return { stories, postIds };
     },
-    { namespace: 'feed', ttl: 60 }
+    // 120s TTL — cache invalidation on new post creation (posts/route.ts) keeps
+    // this fresh in practice; TTL is a safety net, not the freshness mechanism.
+    { namespace: 'feed', ttl: 120 }
   );
 
-  // Per-user enrichment — isLiked, isShared, hasUserPosition — live, bypasses cache
+  // Per-user enrichment — isLiked, isShared, hasUserPosition.
+  // Results are cached per-user for USER_ENRICHMENT_TTL_S seconds to avoid
+  // 3 DB round-trips × N concurrent authenticated users on every request.
   let finalStories: NarrativeStory[] = result.stories;
 
   if (user?.userId) {
@@ -400,52 +419,70 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .map((s) => s.questionNumber)
       .filter((n): n is number => n !== null);
 
-    const [userLikes, userShares, userPositions] = await Promise.all([
-      result.postIds.length > 0
-        ? db
-            .select({ postId: reactions.postId })
-            .from(reactions)
-            .where(
-              and(
-                inArray(reactions.postId, result.postIds),
-                eq(reactions.userId, userId),
-                eq(reactions.type, 'like')
-              )
-            )
-        : Promise.resolve([]),
-      result.postIds.length > 0
-        ? db
-            .select({ postId: shares.postId })
-            .from(shares)
-            .where(
-              and(
-                inArray(shares.postId, result.postIds),
-                eq(shares.userId, userId)
-              )
-            )
-        : Promise.resolve([]),
-      questionNumbersInResult.length > 0
-        ? db
-            .select({ questionId: positions.questionId })
-            .from(positions)
-            .where(
-              and(
-                eq(positions.userId, userId),
-                eq(positions.status, 'active'),
-                isNotNull(positions.questionId),
-                inArray(positions.questionId, questionNumbersInResult)
-              )
-            )
-        : Promise.resolve([]),
-    ]);
+    const enrichCacheKey = `narrative:enrichment:${userId}`;
+    let enrichment = await getCache<UserEnrichmentCache>(enrichCacheKey, {
+      namespace: 'feed',
+    });
 
-    const likedSet = new Set(userLikes.map((l) => l.postId));
-    const sharedSet = new Set(userShares.map((s) => s.postId));
-    const positionSet = new Set(
-      userPositions
-        .map((p) => p.questionId)
-        .filter((id): id is number => id !== null)
-    );
+    if (!enrichment) {
+      // Cache miss — fetch from DB and populate cache
+      const [userLikes, userShares, userPositions] = await Promise.all([
+        result.postIds.length > 0
+          ? db
+              .select({ postId: reactions.postId })
+              .from(reactions)
+              .where(
+                and(
+                  inArray(reactions.postId, result.postIds),
+                  eq(reactions.userId, userId),
+                  eq(reactions.type, 'like')
+                )
+              )
+          : Promise.resolve([]),
+        result.postIds.length > 0
+          ? db
+              .select({ postId: shares.postId })
+              .from(shares)
+              .where(
+                and(
+                  inArray(shares.postId, result.postIds),
+                  eq(shares.userId, userId)
+                )
+              )
+          : Promise.resolve([]),
+        questionNumbersInResult.length > 0
+          ? db
+              .select({ questionId: positions.questionId })
+              .from(positions)
+              .where(
+                and(
+                  eq(positions.userId, userId),
+                  eq(positions.status, 'active'),
+                  isNotNull(positions.questionId),
+                  inArray(positions.questionId, questionNumbersInResult)
+                )
+              )
+          : Promise.resolve([]),
+      ]);
+
+      enrichment = {
+        likedPostIds: userLikes.map((l) => l.postId),
+        sharedPostIds: userShares.map((s) => s.postId),
+        positionQuestionIds: userPositions
+          .map((p) => p.questionId)
+          .filter((id): id is number => id !== null),
+      };
+
+      // Fire-and-forget cache write — don't block the response
+      void setCache(enrichCacheKey, enrichment, {
+        namespace: 'feed',
+        ttl: USER_ENRICHMENT_TTL_S,
+      });
+    }
+
+    const likedSet = new Set(enrichment.likedPostIds);
+    const sharedSet = new Set(enrichment.sharedPostIds);
+    const positionSet = new Set(enrichment.positionQuestionIds);
 
     finalStories = result.stories.map((story) => ({
       ...story,
@@ -470,9 +507,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  return successResponse({
+  const response = successResponse({
     success: true,
     stories: finalStories,
     generatedAt: new Date().toISOString(),
   } satisfies NarrativeFeedResponse);
+
+  if (rateLimitInfo) addPublicReadHeaders(response, rateLimitInfo);
+  return response;
 });

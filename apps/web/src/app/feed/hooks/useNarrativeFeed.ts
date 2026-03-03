@@ -1,6 +1,7 @@
 import type { NarrativeStory } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSSEChannel } from '@/hooks/useSSE';
 
 interface UseNarrativeFeedOptions {
   enabled?: boolean;
@@ -15,18 +16,26 @@ interface UseNarrativeFeedResult {
   refresh: () => Promise<void>;
 }
 
-const REFRESH_INTERVAL_MS = 60_000;
+// Fallback polling interval — SSE `feed` channel events trigger immediate
+// refreshes, so this only fires when the SSE connection is down.
+const FALLBACK_INTERVAL_MS = 300_000; // 5 minutes
+
+// Debounce SSE-triggered refreshes so a burst of new posts resolves once.
+const SSE_DEBOUNCE_MS = 2_000;
 
 /**
  * Hook for fetching the narrative feed — story-grouped posts ranked by
  * engagement, recency, arc state, and resolution proximity.
  *
+ * Refresh strategy (in priority order):
+ * 1. SSE `feed` channel event → debounced 2 s refresh (real-time)
+ * 2. Pull-to-refresh via `refresh()` (user-initiated)
+ * 3. 5-minute fallback interval (SSE down / unauthenticated)
+ *
  * Error handling:
  * - Initial fetch failure: sets `error`, shows error screen with retry.
- * - Background refresh failure (60s interval or pull-to-refresh) when live
- *   stories are already visible: logs only — does NOT replace the content
- *   the user is reading with an error screen. The user sees a non-blocking
- *   warning; the next successful refresh will update the view.
+ * - Background refresh failure when live stories are visible: logs only —
+ *   does NOT replace content the user is reading with an error screen.
  *
  * Race condition prevention:
  * - `refresh()` cancels any in-flight interval request before starting.
@@ -55,6 +64,7 @@ export function useNarrativeFeed(
   // Tracks current stories so fetchStories can decide whether background
   // failures should surface as blocking errors (when empty) or just log.
   const storiesRef = useRef<NarrativeStory[]>([]);
+  const sseDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchStories = useCallback(
     async (isInitial: boolean, signal?: AbortSignal) => {
@@ -138,6 +148,19 @@ export function useNarrativeFeed(
     }
   }, [fetchStories]);
 
+  // SSE subscription — new posts on the `feed` channel invalidate the
+  // narrative cache server-side (see posts/route.ts); debounce the client
+  // refresh to coalesce rapid-fire posts into a single fetch.
+  useSSEChannel(
+    enabled ? 'feed' : null,
+    useCallback(() => {
+      if (sseDebounceRef.current) clearTimeout(sseDebounceRef.current);
+      sseDebounceRef.current = setTimeout(() => {
+        void refresh();
+      }, SSE_DEBOUNCE_MS);
+    }, [refresh])
+  );
+
   // Initial fetch when enabled
   useEffect(() => {
     if (!enabled) {
@@ -150,6 +173,10 @@ export function useNarrativeFeed(
       refreshControllerRef.current = null;
       intervalControllerRef.current?.abort();
       intervalControllerRef.current = null;
+      if (sseDebounceRef.current) {
+        clearTimeout(sseDebounceRef.current);
+        sseDebounceRef.current = null;
+      }
       return;
     }
     if (hasFetched.current) return;
@@ -168,10 +195,15 @@ export function useNarrativeFeed(
       controller.abort();
       refreshControllerRef.current?.abort();
       if (isManualRefreshRef.current) isManualRefreshRef.current = false;
+      if (sseDebounceRef.current) {
+        clearTimeout(sseDebounceRef.current);
+        sseDebounceRef.current = null;
+      }
     };
   }, [enabled, fetchStories]);
 
-  // Auto-refresh interval — skips if a manual refresh is already in-flight
+  // Fallback polling — fires only when SSE is unavailable or not connected.
+  // Skips tick when a manual refresh is already in-flight.
   useEffect(() => {
     if (!enabled) return;
 
@@ -184,7 +216,7 @@ export function useNarrativeFeed(
       const controller = new AbortController();
       intervalControllerRef.current = controller;
       void fetchStories(false, controller.signal);
-    }, REFRESH_INTERVAL_MS);
+    }, FALLBACK_INTERVAL_MS);
 
     return () => {
       clearInterval(id);

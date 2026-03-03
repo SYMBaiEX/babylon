@@ -1,4 +1,4 @@
-import type { ArcStateType } from '@babylon/db';
+import type { ArcStateType } from '@babylon/shared';
 
 // Scoring weights
 const ENGAGEMENT_WEIGHT = 0.5;
