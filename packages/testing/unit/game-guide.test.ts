@@ -65,7 +65,7 @@ describe('Game Guide - Slide Content', () => {
   });
 
   test('last slide should be the CTA slide', () => {
-    const lastSlide = GAME_GUIDE_SLIDES[GAME_GUIDE_SLIDES.length - 1];
+    const lastSlide = GAME_GUIDE_SLIDES[GAME_GUIDE_SLIDES.length - 1]!;
     expect(lastSlide.title).toContain('Trade');
     expect('ctas' in lastSlide).toBe(true);
     if (!('ctas' in lastSlide)) {
