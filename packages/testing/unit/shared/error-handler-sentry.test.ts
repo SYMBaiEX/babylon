@@ -17,11 +17,7 @@ type NextRequestLike = Request & {
   ua?: unknown;
 };
 
-let AuthenticationError: new (message?: string) => Error;
-let BadRequestError: new (message: string) => Error;
-let ValidationError: new (message: string) => Error;
-let setDefaultErrorCapture: (captureError?: ErrorCapture) => void;
-let withErrorHandling: <TContext = unknown>(
+type WithErrorHandlingFn = <TContext = unknown>(
   handler: (
     req: NextRequestLike,
     context?: TContext
@@ -30,6 +26,12 @@ let withErrorHandling: <TContext = unknown>(
     captureError?: ErrorCapture;
   }
 ) => (req: NextRequestLike, context?: TContext) => Promise<Response>;
+
+let AuthenticationError: new (message?: string) => Error;
+let BadRequestError: new (message: string) => Error;
+let ValidationError: new (message: string) => Error;
+let setDefaultErrorCapture: (captureError?: ErrorCapture) => void;
+let withErrorHandling: unknown;
 
 function createRequest(): NextRequestLike {
   return new Request('http://localhost/api/test', {
@@ -108,7 +110,7 @@ describe('withErrorHandling + default Sentry capture', () => {
     );
     setDefaultErrorCapture(captureError);
 
-    const handler = withErrorHandling(async () => {
+    const handler = (withErrorHandling as WithErrorHandlingFn)(async () => {
       throw new Error('boom');
     });
 
@@ -126,7 +128,7 @@ describe('withErrorHandling + default Sentry capture', () => {
     );
     setDefaultErrorCapture(globalCapture);
 
-    const handler = withErrorHandling(
+    const handler = (withErrorHandling as WithErrorHandlingFn)(
       async () => {
         throw new Error('route override');
       },
@@ -145,7 +147,7 @@ describe('withErrorHandling + default Sentry capture', () => {
     );
     setDefaultErrorCapture(captureError);
 
-    const handler = withErrorHandling(async () => {
+    const handler = (withErrorHandling as WithErrorHandlingFn)(async () => {
       throw new ValidationError('Validation failed');
     });
 
@@ -160,7 +162,7 @@ describe('withErrorHandling + default Sentry capture', () => {
     );
     setDefaultErrorCapture(captureError);
 
-    const handler = withErrorHandling(async () => {
+    const handler = (withErrorHandling as WithErrorHandlingFn)(async () => {
       throw new AuthenticationError('Authentication required');
     });
 
@@ -175,7 +177,7 @@ describe('withErrorHandling + default Sentry capture', () => {
     );
     setDefaultErrorCapture(captureError);
 
-    const handler = withErrorHandling(async () => {
+    const handler = (withErrorHandling as WithErrorHandlingFn)(async () => {
       throw new BadRequestError('Invalid request');
     });
 
