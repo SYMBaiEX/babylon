@@ -62,8 +62,13 @@ const coordinatorDecisionTemplate = `# Your Role
 
 ---
 
-# Conversation History
+# Conversation History (You ↔ User)
 {{recentMessages}}
+
+---
+
+# What Your Agents Have Said Recently
+{{dispatchHistory}}
 
 ---
 
@@ -138,8 +143,13 @@ const coordinatorSummaryTemplate = `# Your Role
 
 ---
 
-# Conversation History
+# Conversation History (You ↔ User)
 {{recentMessages}}
+
+---
+
+# What Your Agents Have Said Recently
+{{dispatchHistory}}
 
 ---
 
@@ -269,7 +279,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Coordinator uses small model (free, no points deduction)
   const modelType = ModelType.TEXT_SMALL;
 
-  // Get coordinator runtime
+  // Get coordinator runtime.
+  //
+  // Multi-user safety: the coordinator runtime is shared across all concurrent
+  // requests, but is safe because:
+  // 1. All per-request data (actionResults, state.values, state.data) lives in
+  //    local variables — nothing user-specific is written to the runtime itself.
+  // 2. The ElizaOS adapter is stubbed, so no runtime-level memory DB writes occur.
+  // 3. stateCache is keyed by elizaMessage.id (UUID per request), so concurrent
+  //    requests never collide. We delete the key at the end of each request to
+  //    prevent unbounded memory growth.
+  // 4. Providers read from state.values (ownerId, teamChatId) that are set fresh
+  //    each iteration, so different users get different DB query results.
   const runtime = await agentRuntimeManager.getCoordinatorRuntime();
 
   // Fetch user info for context
@@ -315,6 +336,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // Compose state with providers
     const providers = [
       'RECENT_MESSAGES',
+      'DISPATCH_HISTORY',
       'ACTION_STATE',
       'ACTIONS',
       'TEAM_MEMBERS',
@@ -551,6 +573,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!finalResponse) {
     const summaryProviders = [
       'RECENT_MESSAGES',
+      'DISPATCH_HISTORY',
       'ACTION_STATE',
       'TEAM_MEMBERS',
       'COORDINATOR_CONTEXT',
@@ -664,6 +687,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       'CoordinatorChat'
     );
   });
+
+  // Clean up this request's stateCache entry to prevent unbounded growth on
+  // the shared coordinator runtime (see multi-user safety note above).
+  const stateCacheKey = `${elizaMessage.id}_action_results`;
+  (
+    runtime as unknown as { stateCache?: Map<string, unknown> }
+  ).stateCache?.delete(stateCacheKey);
 
   // Note: Coordinator uses free model, no points deduction
 
