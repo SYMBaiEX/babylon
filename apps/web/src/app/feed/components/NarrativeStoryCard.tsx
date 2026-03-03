@@ -13,20 +13,62 @@ const ARC_STATE_CONFIG: Record<
   ArcStateType,
   { label: string; className: string }
 > = {
-  crisis: { label: 'Crisis', className: 'bg-red-500/15 text-red-500 border-red-500/30' },
-  climax: { label: 'Climax', className: 'bg-orange-500/15 text-orange-500 border-orange-500/30' },
-  revelation: { label: 'Revelation', className: 'bg-purple-500/15 text-purple-500 border-purple-500/30' },
-  escalation: { label: 'Escalation', className: 'bg-yellow-500/15 text-yellow-600 border-yellow-500/30' },
-  active: { label: 'Active', className: 'bg-green-500/15 text-green-600 border-green-500/30' },
-  live: { label: 'Live', className: 'bg-green-600/15 text-green-600 border-green-600/30' },
-  tension: { label: 'Tension', className: 'bg-blue-500/15 text-blue-500 border-blue-500/30' },
-  resolving: { label: 'Resolving', className: 'bg-muted text-muted-foreground border-border' },
-  resolution: { label: 'Resolved', className: 'bg-muted text-muted-foreground border-border' },
-  setup: { label: 'Setup', className: 'bg-muted text-muted-foreground border-border' },
-  morning: { label: 'Morning', className: 'bg-sky-500/15 text-sky-600 border-sky-500/30' },
-  midday: { label: 'Midday', className: 'bg-amber-500/15 text-amber-600 border-amber-500/30' },
-  afternoon: { label: 'Afternoon', className: 'bg-orange-400/15 text-orange-500 border-orange-400/30' },
-  evening: { label: 'Evening', className: 'bg-indigo-500/15 text-indigo-500 border-indigo-500/30' },
+  crisis: {
+    label: 'Crisis',
+    className: 'bg-red-500/15 text-red-500 border-red-500/30',
+  },
+  climax: {
+    label: 'Climax',
+    className: 'bg-orange-500/15 text-orange-500 border-orange-500/30',
+  },
+  revelation: {
+    label: 'Revelation',
+    className: 'bg-purple-500/15 text-purple-500 border-purple-500/30',
+  },
+  escalation: {
+    label: 'Escalation',
+    className: 'bg-yellow-500/15 text-yellow-600 border-yellow-500/30',
+  },
+  active: {
+    label: 'Active',
+    className: 'bg-green-500/15 text-green-600 border-green-500/30',
+  },
+  live: {
+    label: 'Live',
+    className: 'bg-green-600/15 text-green-600 border-green-600/30',
+  },
+  tension: {
+    label: 'Tension',
+    className: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
+  },
+  resolving: {
+    label: 'Resolving',
+    className: 'bg-muted text-muted-foreground border-border',
+  },
+  resolution: {
+    label: 'Resolved',
+    className: 'bg-muted text-muted-foreground border-border',
+  },
+  setup: {
+    label: 'Setup',
+    className: 'bg-muted text-muted-foreground border-border',
+  },
+  morning: {
+    label: 'Morning',
+    className: 'bg-sky-500/15 text-sky-600 border-sky-500/30',
+  },
+  midday: {
+    label: 'Midday',
+    className: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  },
+  afternoon: {
+    label: 'Afternoon',
+    className: 'bg-orange-400/15 text-orange-500 border-orange-400/30',
+  },
+  evening: {
+    label: 'Evening',
+    className: 'bg-indigo-500/15 text-indigo-500 border-indigo-500/30',
+  },
 };
 
 const POSTS_COLLAPSED_COUNT = 3;

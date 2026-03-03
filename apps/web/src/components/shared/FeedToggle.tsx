@@ -22,7 +22,9 @@ import { Flame, ScrollText } from 'lucide-react';
  */
 interface FeedToggleProps {
   activeTab: 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
-  onTabChange: (tab: 'latest' | 'hot' | 'narrative' | 'following' | 'trades') => void;
+  onTabChange: (
+    tab: 'latest' | 'hot' | 'narrative' | 'following' | 'trades'
+  ) => void;
 }
 
 export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
@@ -59,7 +61,9 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
         onClick={() => onTabChange('narrative')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'narrative' ? 'text-foreground' : 'text-muted-foreground'
+          activeTab === 'narrative'
+            ? 'text-foreground'
+            : 'text-muted-foreground'
         )}
       >
         <span className="flex items-center justify-center gap-1">

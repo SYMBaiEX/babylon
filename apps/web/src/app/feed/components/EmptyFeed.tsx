@@ -3,7 +3,12 @@
 import { BookOpen, Clock, FileText, Flame, Users } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 
-type EmptyFeedVariant = 'latest' | 'hot' | 'narrative' | 'following' | 'default';
+type EmptyFeedVariant =
+  | 'latest'
+  | 'hot'
+  | 'narrative'
+  | 'following'
+  | 'default';
 
 interface EmptyFeedProps {
   variant: EmptyFeedVariant;
