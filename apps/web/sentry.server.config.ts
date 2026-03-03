@@ -61,7 +61,11 @@ Sentry.init({
   dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Environment detection
-  environment: process.env.NODE_ENV || 'development',
+  environment:
+    process.env.SENTRY_ENVIRONMENT ??
+    process.env.VERCEL_ENV ??
+    process.env.NODE_ENV ??
+    'development',
 
   // Release tracking (set via environment variable or CI/CD)
   release: process.env.SENTRY_RELEASE || process.env.NEXT_PUBLIC_SENTRY_RELEASE,

@@ -40,3 +40,13 @@ Unexpected server errors are captured.
 ## Known gaps / follow-up
 
 - Any new API route handler exports must remain wrapped; `packages/testing/unit/web/api-routes-with-error-handling.test.ts` enforces this.
+
+## Required environment variables
+
+- Runtime:
+  - `SENTRY_DSN` (server/edge/CLI) and/or `NEXT_PUBLIC_SENTRY_DSN` (browser)
+  - Recommended: `SENTRY_ENVIRONMENT` and `NEXT_PUBLIC_SENTRY_ENVIRONMENT` (so staging/prod don’t mix in a single Sentry project)
+- Build (source maps/releases):
+  - `SENTRY_AUTH_TOKEN` (CI/Vercel only)
+  - `SENTRY_ORG`, `SENTRY_PROJECT`
+  - Recommended: `SENTRY_RELEASE`, `NEXT_PUBLIC_SENTRY_RELEASE`
