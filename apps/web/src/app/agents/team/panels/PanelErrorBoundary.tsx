@@ -38,9 +38,13 @@ export class PanelErrorBoundary extends Component<Props, State> {
       Sentry.captureException(error);
     });
 
-    console.error('[PanelErrorBoundary] Panel rendering error:', error.message, {
-      componentStack: errorInfo.componentStack,
-    });
+    console.error(
+      '[PanelErrorBoundary] Panel rendering error:',
+      error.message,
+      {
+        componentStack: errorInfo.componentStack,
+      }
+    );
   }
 
   render(): ReactNode {

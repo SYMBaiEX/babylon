@@ -349,7 +349,9 @@ export function errorHandler(
     try {
       options.captureError(error, context);
     } catch (captureErr) {
-      logger.warn('Error capture callback threw', { error: String(captureErr) });
+      logger.warn('Error capture callback threw', {
+        error: String(captureErr),
+      });
     }
   }
 
