@@ -27,6 +27,7 @@ import {
   recordCronExecution,
   relayCronToStaging,
   verifyCronAuth,
+  withErrorHandling,
 } from '@babylon/api';
 import { db, eq, games } from '@babylon/db';
 import {
@@ -120,9 +121,9 @@ const MAX_CONSECUTIVE_ERRORS = NPC_TICK_CONFIG.maxConsecutiveErrors;
  * GET /api/cron/npc-tick
  * Alias for POST endpoint to support GET requests from cron services.
  */
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   return POST(req);
-}
+});
 
 /**
  * POST /api/cron/npc-tick
@@ -130,7 +131,7 @@ export async function GET(req: NextRequest) {
  * Executes NPC autonomous tick with game awareness.
  * Rotates through NPCs to ensure all get processed over time.
  */
-export async function POST(_req: NextRequest) {
+export const POST = withErrorHandling(async function POST(_req: NextRequest) {
   // Verify cron authorization
   if (!verifyCronAuth(_req, { jobName: 'NPCTick' })) {
     logger.warn('Unauthorized npc-tick request attempt', undefined, 'NPCTick');
@@ -969,7 +970,7 @@ export async function POST(_req: NextRequest) {
     // Always release global lock
     await DistributedLockService.releaseLock('npc-tick-global', processId);
   }
-}
+});
 
 /**
  * Determine investment strategy from NPC personality

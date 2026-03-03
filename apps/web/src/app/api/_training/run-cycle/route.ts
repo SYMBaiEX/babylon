@@ -49,10 +49,11 @@
  *                   type: string
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { NextResponse } from 'next/server';
 
-export async function POST() {
+export const POST = withErrorHandling(async function POST() {
   logger.info('Training cycle endpoint called (currently disabled)');
 
   return NextResponse.json({
@@ -60,12 +61,12 @@ export async function POST() {
     message: 'Manual training cycles are currently disabled',
     hint: 'Training is handled by separate Eliza agent processes',
   });
-}
+});
 
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   return NextResponse.json({
     enabled: false,
     message: 'Training automation is currently disabled',
     hint: 'Training is handled by separate Eliza agent processes',
   });
-}
+});

@@ -41,7 +41,7 @@
  * ```
  */
 
-import { withCronAuth } from '@babylon/api';
+import { withCronAuth, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -56,4 +56,4 @@ async function handler(_request: NextRequest) {
   });
 }
 
-export const GET = withCronAuth('TrainingCron', handler);
+export const GET = withErrorHandling(withCronAuth('TrainingCron', handler));

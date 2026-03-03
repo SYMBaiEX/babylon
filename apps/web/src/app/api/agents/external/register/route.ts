@@ -17,6 +17,7 @@ import {
   generateApiKey,
   hashApiKey,
   RATE_LIMIT_CONFIGS,
+  withErrorHandling,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -83,7 +84,7 @@ const ExternalAgentRegisterSchema = z.object({
     .optional(),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   // Authenticate the request (requires valid Privy session)
   const authUser = await authenticate(req);
 
@@ -196,4 +197,4 @@ export async function POST(req: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

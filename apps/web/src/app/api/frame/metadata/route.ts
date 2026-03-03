@@ -45,11 +45,12 @@
  * ```
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   const metadata = {
     name: 'Babylon',
     icon: 'https://babylon.market/assets/logos/logo.svg',
@@ -64,4 +65,4 @@ export async function GET() {
       'Cache-Control': 'public, max-age=3600',
     },
   });
-}
+});

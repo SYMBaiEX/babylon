@@ -73,7 +73,7 @@
  * ```
  */
 
-import { authenticate } from '@babylon/api';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -90,7 +90,7 @@ interface CreateCheckoutSessionBody {
   amountUSD: number;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const authUser = await authenticate(req);
 
   // Ensure user has a database record
@@ -197,4 +197,4 @@ export async function POST(req: NextRequest) {
     sessionId: session.id,
     url: session.url,
   });
-}
+});

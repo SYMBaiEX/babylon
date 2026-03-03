@@ -2,6 +2,7 @@ import {
   authenticate,
   issueRealtimeToken,
   type RealtimeChannel,
+  withErrorHandling,
 } from '@babylon/api';
 import { and, db, eq, inArray, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -45,7 +46,9 @@ const isDmChatId = (id: string, userId: string): boolean => {
   return parts.includes(userId);
 };
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   const user = await authenticate(request);
 
   let body: unknown = {};
@@ -202,4 +205,4 @@ export async function POST(request: NextRequest) {
     channels: finalChannels,
     expiresAt,
   });
-}
+});

@@ -7,6 +7,7 @@ import {
   streamRead,
   toStreamKey,
   verifyRealtimeToken,
+  withErrorHandling,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -39,7 +40,7 @@ const parseCursor = (raw: string | null): CursorMap => {
   return parsed && typeof parsed === 'object' ? parsed : {};
 };
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const { error } = await publicRateLimit(request, 'firehose');
   if (error) return error;
 
@@ -388,4 +389,4 @@ export async function GET(request: NextRequest) {
       'X-Accel-Buffering': 'no',
     },
   });
-}
+});

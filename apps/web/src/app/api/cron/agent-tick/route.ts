@@ -66,6 +66,7 @@ import {
   recordCronExecution,
   relayCronToStaging,
   verifyCronAuth,
+  withErrorHandling,
 } from '@babylon/api';
 import type { User, UserAgentConfig } from '@babylon/db';
 import { db, eq, inArray, userAgentConfigs, users } from '@babylon/db';
@@ -119,9 +120,9 @@ const TICK_POINTS_COST = 0;
  * @param req - Next.js request
  * @returns Same response as POST endpoint
  */
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   return POST(req);
-}
+});
 
 /**
  * POST /api/cron/agent-tick
@@ -135,7 +136,7 @@ export async function GET(req: NextRequest) {
  * @returns Execution result with agents processed, paused, errors, and timing metrics
  * @throws {401} Invalid or missing CRON_SECRET
  */
-export async function POST(_req: NextRequest) {
+export const POST = withErrorHandling(async function POST(_req: NextRequest) {
   ensureEngineServices();
 
   // 0. Verify cron authorization using centralized auth
@@ -677,4 +678,4 @@ export async function POST(_req: NextRequest) {
     // Always release global lock
     await DistributedLockService.releaseLock('agent-tick-global', processId);
   }
-}
+});

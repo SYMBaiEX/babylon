@@ -15,10 +15,7 @@ let BadRequestError: new (message: string) => Error;
 let ValidationError: new (message: string) => Error;
 let setDefaultErrorCapture: (captureError?: ErrorCapture) => void;
 let withErrorHandling: <TContext = unknown>(
-  handler: (
-    req: Request,
-    context?: TContext
-  ) => Promise<Response> | Response,
+  handler: (req: Request, context?: TContext) => Promise<Response> | Response,
   options?: {
     captureError?: ErrorCapture;
   }
@@ -53,7 +50,9 @@ describe('withErrorHandling + default Sentry capture', () => {
       ZodError: class ZodError extends Error {
         issues: Array<{ code: string; message: string; path: string[] }>;
 
-        constructor(issues: Array<{ code: string; message: string; path: string[] }> = []) {
+        constructor(
+          issues: Array<{ code: string; message: string; path: string[] }> = []
+        ) {
           super('ZodError');
           this.name = 'ZodError';
           this.issues = issues;
@@ -94,7 +93,9 @@ describe('withErrorHandling + default Sentry capture', () => {
   });
 
   it('captures unexpected errors through the global capture callback', async () => {
-    const captureError = mock((_error: Error, _context: Record<string, unknown>) => {});
+    const captureError = mock(
+      (_error: Error, _context: Record<string, unknown>) => {}
+    );
     setDefaultErrorCapture(captureError);
 
     const handler = withErrorHandling(async () => {
@@ -107,8 +108,12 @@ describe('withErrorHandling + default Sentry capture', () => {
   });
 
   it('keeps route-level captureError precedence over the global callback', async () => {
-    const globalCapture = mock((_error: Error, _context: Record<string, unknown>) => {});
-    const routeCapture = mock((_error: Error, _context: Record<string, unknown>) => {});
+    const globalCapture = mock(
+      (_error: Error, _context: Record<string, unknown>) => {}
+    );
+    const routeCapture = mock(
+      (_error: Error, _context: Record<string, unknown>) => {}
+    );
     setDefaultErrorCapture(globalCapture);
 
     const handler = withErrorHandling(
@@ -125,7 +130,9 @@ describe('withErrorHandling + default Sentry capture', () => {
   });
 
   it('does not capture expected validation errors', async () => {
-    const captureError = mock((_error: Error, _context: Record<string, unknown>) => {});
+    const captureError = mock(
+      (_error: Error, _context: Record<string, unknown>) => {}
+    );
     setDefaultErrorCapture(captureError);
 
     const handler = withErrorHandling(async () => {
@@ -138,7 +145,9 @@ describe('withErrorHandling + default Sentry capture', () => {
   });
 
   it('does not capture authentication errors', async () => {
-    const captureError = mock((_error: Error, _context: Record<string, unknown>) => {});
+    const captureError = mock(
+      (_error: Error, _context: Record<string, unknown>) => {}
+    );
     setDefaultErrorCapture(captureError);
 
     const handler = withErrorHandling(async () => {
@@ -151,7 +160,9 @@ describe('withErrorHandling + default Sentry capture', () => {
   });
 
   it('does not capture expected 4xx operational errors', async () => {
-    const captureError = mock((_error: Error, _context: Record<string, unknown>) => {});
+    const captureError = mock(
+      (_error: Error, _context: Record<string, unknown>) => {}
+    );
     setDefaultErrorCapture(captureError);
 
     const handler = withErrorHandling(async () => {

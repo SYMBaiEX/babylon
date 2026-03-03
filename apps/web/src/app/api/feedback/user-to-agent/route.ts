@@ -208,7 +208,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 /**
  * GET endpoint to retrieve feedback for an agent
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const agentIdParam = searchParams.get('agentId')!;
   const limitParam = searchParams.get('limit');
@@ -276,4 +276,4 @@ export async function GET(request: NextRequest) {
       hasMore: offset + limit < total,
     },
   });
-}
+});

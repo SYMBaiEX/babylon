@@ -10,6 +10,7 @@
  */
 
 import { agentRegistry } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -21,7 +22,7 @@ const ConnectSchema = z.object({
   apiKey: z.string().regex(/^bab_(live|test)_[a-f0-9]{64}$/),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   // Parse and validate request body
   const body = await req.json();
   const { externalId, apiKey } = ConnectSchema.parse(body);
@@ -125,4 +126,4 @@ export async function POST(req: NextRequest) {
     },
     { status: 200 }
   );
-}
+});

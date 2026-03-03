@@ -121,7 +121,7 @@
  * ```
  */
 
-import { authenticate } from '@babylon/api';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -129,7 +129,7 @@ import { NextResponse } from 'next/server';
 /**
  * GET - Get single goal
  */
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string; goalId: string }> }
 ) {
@@ -168,12 +168,12 @@ export async function GET(
       target: goal.target ? JSON.parse(JSON.stringify(goal.target)) : null,
     },
   });
-}
+});
 
 /**
  * PUT - Update goal
  */
-export async function PUT(
+export const PUT = withErrorHandling(async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string; goalId: string }> }
 ) {
@@ -269,12 +269,12 @@ export async function PUT(
         : null,
     },
   });
-}
+});
 
 /**
  * DELETE - Delete goal
  */
-export async function DELETE(
+export const DELETE = withErrorHandling(async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string; goalId: string }> }
 ) {
@@ -310,4 +310,4 @@ export async function DELETE(
     success: true,
     message: 'Goal deleted successfully',
   });
-}
+});

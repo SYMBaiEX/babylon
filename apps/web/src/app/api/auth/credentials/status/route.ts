@@ -45,9 +45,10 @@
  * @see {@link /api/auth/farcaster/callback} Farcaster callback
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   const twitterAvailable = Boolean(
     process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET
   );
@@ -58,4 +59,4 @@ export async function GET() {
     twitter: twitterAvailable,
     farcaster: farcasterAvailable,
   });
-}
+});

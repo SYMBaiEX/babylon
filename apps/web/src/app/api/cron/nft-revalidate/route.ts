@@ -17,6 +17,7 @@ import {
   NFTVerificationService,
   removeUserFromNftChat,
   verifyCronAuth,
+  withErrorHandling,
 } from '@babylon/api';
 import {
   and,
@@ -49,7 +50,9 @@ const MAX_CHATS_PER_RUN = 5;
  * POST /api/cron/nft-revalidate
  * Revalidate NFT access for all NFT-gated chats
  */
-export async function POST(request: NextRequest): Promise<NextResponse> {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+): Promise<NextResponse> {
   const startTime = Date.now();
 
   // Verify cron authorization using centralized auth (fail-closed in production)
@@ -176,7 +179,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * Revalidate NFT access for a single chat

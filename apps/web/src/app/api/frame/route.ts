@@ -53,13 +53,16 @@
  * ```
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   const body = await request.json();
 
   logger.info('Frame action received', { body }, 'FrameAPI');
@@ -92,9 +95,9 @@ export async function POST(request: NextRequest) {
   };
 
   return NextResponse.json(frameResponse);
-}
+});
 
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   // Return Frame metadata for GET requests
   return new NextResponse(
     `<!DOCTYPE html>
@@ -120,4 +123,4 @@ export async function GET() {
       },
     }
   );
-}
+});

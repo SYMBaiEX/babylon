@@ -35,7 +35,7 @@
  * @see {@link https://developer.twitter.com/en/docs/authentication/oauth-2-0} Twitter OAuth 2.0
  */
 
-import { authenticate } from '@babylon/api';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import {
   generateSnowflakeId,
@@ -60,7 +60,7 @@ function generateCodeChallenge(verifier: string): string {
   return crypto.createHash('sha256').update(verifier).digest('base64url');
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const authUser = await authenticate(request);
   const userId = authUser.userId;
 
@@ -116,4 +116,4 @@ export async function GET(request: NextRequest) {
   );
 
   return NextResponse.redirect(authUrl.toString());
-}
+});

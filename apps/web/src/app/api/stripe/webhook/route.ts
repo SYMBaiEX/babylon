@@ -41,7 +41,7 @@
  * - charge.refunded: Deduct points (Phase 2)
  */
 
-import { PointsService } from '@babylon/api';
+import { PointsService, withErrorHandling } from '@babylon/api';
 import { and, balanceTransactions, db, eq } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { NextResponse } from 'next/server';
@@ -67,7 +67,7 @@ interface WebhookHandlerResult {
  * - Return 200 for events we intentionally skip (non-points purchases, etc.)
  * - Return 500 for unexpected errors so Stripe will retry
  */
-export async function POST(req: Request) {
+export const POST = withErrorHandling(async function POST(req: Request) {
   const body = await req.text();
   const signature = req.headers.get('stripe-signature');
 
@@ -221,7 +221,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ received: true });
-}
+});
 
 /**
  * Handle successful checkout session completion

@@ -1,22 +1,25 @@
 # Sentry Observability Contract
 
-This document defines Babylon's baseline Sentry contract for web/API/server-action surfaces.
+This document defines Babylon's baseline Sentry contract for web/API/server-action/worker surfaces.
 
 ## Scope covered
 
-- Next.js API routes that use `withErrorHandling` from `@babylon/api`
+- Next.js App Router API route exports (`GET`, `POST`, etc.) wrapped with `withErrorHandling` from `@babylon/api`
 - Next.js server actions wrapped with `wrapServerActionWithSentry`
 - App error boundaries, including `PanelErrorBoundary`
+- Babylon CLI runtime (Bun) via `@sentry/bun`
+- Envio indexer runtime (Node.js) via `@sentry/node`
 
 ## Tagging contract
 
 All captured events should include:
 
 - `runtime`: runtime origin (`nodejs`, etc.)
-- `surface`: logical surface (`api-route`, `server-action`, `agent-team-panel`)
+- `surface`: logical surface (`api-route`, `server-action`, `agent-team-panel`, `cli`, `indexer`)
 - Surface-specific tag:
   - API routes: `endpoint`, `method`, optional `requestId`
   - Server actions: `action`
+  - CLI: `cli.domain`, `cli.command`
 
 ## Context contract
 
@@ -36,5 +39,4 @@ Unexpected server errors are captured.
 
 ## Known gaps / follow-up
 
-- Some API endpoints do not use `withErrorHandling` yet and need dedicated migration.
-- CLI and indexer runtime instrumentation should be tracked as follow-up slices.
+- Any new API route handler exports must remain wrapped; `packages/testing/unit/web/api-routes-with-error-handling.test.ts` enforces this.

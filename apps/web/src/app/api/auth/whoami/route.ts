@@ -52,7 +52,7 @@
  * ```
  */
 
-import { validateUserApiKey } from '@babylon/api';
+import { validateUserApiKey, withErrorHandling } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -60,7 +60,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const apiKey = request.headers.get('x-babylon-api-key');
 
   // Headers for auth responses - prevent caching of sensitive identity data
@@ -111,4 +111,4 @@ export async function GET(request: NextRequest) {
     { userId: user.id, username: user.username },
     { headers: noCacheHeaders }
   );
-}
+});

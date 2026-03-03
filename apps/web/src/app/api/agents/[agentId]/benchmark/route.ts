@@ -101,7 +101,7 @@
  */
 
 import { AutonomousCoordinator, agentRuntimeManager } from '@babylon/agents';
-import { authenticateUser } from '@babylon/api';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, type JsonValue } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { BenchmarkGameSnapshot } from '@babylon/training';
@@ -117,7 +117,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import * as path from 'path';
 
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -311,7 +311,7 @@ export async function POST(
       outputDir,
     },
   });
-}
+});
 
 async function runSingleBenchmark(
   agentId: string,
