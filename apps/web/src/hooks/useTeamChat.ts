@@ -1197,7 +1197,11 @@ export function useTeamChat(): UseTeamChatReturn {
         const errorData = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        console.error('Failed to fetch conversations:', response.status, errorData);
+        console.error(
+          'Failed to fetch conversations:',
+          response.status,
+          errorData
+        );
         toast.error(errorData.error || 'Failed to load conversations');
       }
     } catch (err) {
@@ -1434,7 +1438,7 @@ export function useTeamChat(): UseTeamChatReturn {
         toast.error('Failed to delete conversation');
       }
     },
-    [user, getAccessToken, clearMessages]
+    [user, getAccessToken, clearMessages, refreshConversations]
   );
 
   // Fetch conversations when team chat loads
