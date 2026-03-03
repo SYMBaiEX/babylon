@@ -28,19 +28,31 @@ describe('link-email-utils', () => {
   });
 
   describe('isLinkEmailFlowCancellationError', () => {
-    it('detects exited/cancelled flow errors', () => {
-      expect(
-        isLinkEmailFlowCancellationError(
-          new Error('User exited link email flow')
-        )
-      ).toBe(true);
+    it('detects the exited_auth_flow string code from useLinkAccount onError', () => {
+      expect(isLinkEmailFlowCancellationError('exited_auth_flow')).toBe(true);
     });
 
-    it('returns false for non-cancellation errors', () => {
-      expect(
-        isLinkEmailFlowCancellationError(new Error('Network failure'))
-      ).toBe(false);
+    it('detects a PrivyClientError-shaped object with code exited_auth_flow', () => {
+      const err = Object.assign(new Error('User exited link email flow'), {
+        code: 'exited_auth_flow',
+      });
+      expect(isLinkEmailFlowCancellationError(err)).toBe(true);
+    });
+
+    it('returns false when the thrown value is not an Error instance', () => {
       expect(isLinkEmailFlowCancellationError('exited')).toBe(false);
+      expect(isLinkEmailFlowCancellationError(null)).toBe(false);
+      expect(isLinkEmailFlowCancellationError(42)).toBe(false);
+    });
+
+    it('returns false for plain Error without a matching code', () => {
+      expect(isLinkEmailFlowCancellationError(new Error('Network failure'))).toBe(
+        false
+      );
+      const errWrongCode = Object.assign(new Error('other'), {
+        code: 'network_error',
+      });
+      expect(isLinkEmailFlowCancellationError(errWrongCode)).toBe(false);
     });
   });
 });

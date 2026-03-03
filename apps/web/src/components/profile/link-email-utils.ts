@@ -9,7 +9,16 @@ export function getLinkedEmail(
   return normalizedStored || null;
 }
 
+/**
+ * Returns true when the Privy link-email flow was cancelled by the user.
+ *
+ * Handles two shapes:
+ * - The string error code `'exited_auth_flow'` passed to `useLinkAccount` onError callbacks.
+ * - A PrivyClientError (or similar) thrown synchronously with `code === 'exited_auth_flow'`.
+ */
 export function isLinkEmailFlowCancellationError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return error.message.toLowerCase().includes('exited');
+  if (error === 'exited_auth_flow') return true;
+  if (error instanceof Error && (error as { code?: string }).code === 'exited_auth_flow')
+    return true;
+  return false;
 }

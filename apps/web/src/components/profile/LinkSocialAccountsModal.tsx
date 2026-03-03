@@ -1,15 +1,12 @@
 'use client';
 
-import { cn, signInWithFarcaster } from '@babylon/shared';
+import { cn, logger, signInWithFarcaster } from '@babylon/shared';
 import { useLinkAccount, usePrivy } from '@privy-io/react-auth';
 import { Check, ExternalLink, Mail, Shield, X as XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { getAuthToken } from '@/lib/auth';
-import {
-  getLinkedEmail,
-  isLinkEmailFlowCancellationError,
-} from '@/components/profile/link-email-utils';
+import { isLinkEmailFlowCancellationError } from '@/components/profile/link-email-utils';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -51,12 +48,31 @@ export function LinkSocialAccountsModal({
 }: LinkSocialAccountsModalProps) {
   const { user, setUser } = useAuthStore();
   const { user: privyUser } = usePrivy();
-  const { linkEmail } = useLinkAccount();
   const [linking, setLinking] = useState<string | null>(null);
   const [confirmUnlinkTwitter, setConfirmUnlinkTwitter] = useState(false);
   const [unlinkingTwitter, setUnlinkingTwitter] = useState(false);
-  const linkedEmail = getLinkedEmail(privyUser?.email?.address, user?.email);
-  const hasLinkedEmail = Boolean(linkedEmail);
+
+  // Only treat the email as verified/linked when Privy holds it — the stored
+  // user.email may be unverified (e.g. imported from a previous auth method).
+  const privyEmail = privyUser?.email?.address?.trim() || null;
+
+  const { linkEmail } = useLinkAccount({
+    onSuccess: () => {
+      toast.success('Email linked to Privy');
+      setLinking(null);
+      onClose();
+    },
+    onError: (error) => {
+      setLinking(null);
+      if (isLinkEmailFlowCancellationError(error)) return;
+      logger.error(
+        'Failed to link email via Privy',
+        { error: String(error) },
+        'LinkSocialAccountsModal'
+      );
+      toast.error('Failed to link email. Please try again.');
+    },
+  });
 
   useEffect(() => {
     if (isOpen) return;
@@ -67,19 +83,10 @@ export function LinkSocialAccountsModal({
 
   if (!isOpen) return null;
 
-  const handleEmailLink = async () => {
+  const handleEmailLink = () => {
     if (!user?.id) return;
-
     setLinking('email');
-    try {
-      await linkEmail();
-      toast.success('Email linked to Privy');
-    } catch (error) {
-      if (isLinkEmailFlowCancellationError(error)) return;
-      toast.error('Failed to link email. Please try again.');
-    } finally {
-      setLinking(null);
-    }
+    linkEmail();
   };
 
   const handleTwitterOAuth = async () => {
@@ -234,7 +241,7 @@ export function LinkSocialAccountsModal({
             <div className="flex items-center gap-2">
               <Mail className="h-5 w-5" />
               <h3 className="font-semibold">Email</h3>
-              {hasLinkedEmail && (
+              {privyEmail && (
                 <span className="ml-auto flex items-center gap-1 text-green-500 text-sm">
                   <Check className="h-4 w-4" />
                   Verified
@@ -242,10 +249,10 @@ export function LinkSocialAccountsModal({
               )}
             </div>
 
-            {hasLinkedEmail ? (
+            {privyEmail ? (
               <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
                 <Check className="h-4 w-4 text-green-500" />
-                <span className="font-medium text-sm">{linkedEmail}</span>
+                <span className="font-medium text-sm">{privyEmail}</span>
               </div>
             ) : (
               <div className="space-y-2">
@@ -257,7 +264,7 @@ export function LinkSocialAccountsModal({
                   </p>
                 </div>
                 <button
-                  onClick={() => void handleEmailLink()}
+                  onClick={handleEmailLink}
                   disabled={linking === 'email'}
                   className={cn(
                     'w-full rounded-lg px-4 py-2 font-semibold transition-colors',
