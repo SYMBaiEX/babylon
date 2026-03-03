@@ -23,6 +23,8 @@ export {
   isNetworkError,
   isValidationError,
 } from './errors';
+// Narrative feed types (NarrativePost, NarrativeStory, ArcStateType)
+export * from './feed';
 // Group types (tiers, alpha levels)
 export * from './groups';
 // Social interaction types
@@ -39,5 +41,3 @@ export * from './payments';
 export * from './profile';
 // Profile types (user/actor profiles)
 export * from './profiles';
-// Narrative feed types (NarrativePost, NarrativeStory, ArcStateType)
-export * from './feed';
