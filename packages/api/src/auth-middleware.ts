@@ -20,6 +20,7 @@ import {
   AuthorizationError,
   isAuthenticationError,
 } from './errors';
+import { getPrivyAppIdFromEnv, getTrimmedEnv } from './env';
 import { hasNftAccessForAuthUser } from './services/nft-access-service';
 
 // Re-export types from shared for backwards compatibility
@@ -34,9 +35,8 @@ let privyClient: PrivyClient | null = null;
 
 export function getPrivyClient(): PrivyClient {
   if (!privyClient) {
-    const privyAppId =
-      process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-    const privyAppSecret = process.env.PRIVY_APP_SECRET;
+    const privyAppId = getPrivyAppIdFromEnv();
+    const privyAppSecret = getTrimmedEnv('PRIVY_APP_SECRET');
 
     if (!privyAppId || !privyAppSecret) {
       throw new Error('Privy credentials not configured');
