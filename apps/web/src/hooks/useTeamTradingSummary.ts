@@ -111,9 +111,7 @@ function isAbortError(e: unknown): boolean {
 function isOpenPredictionPosition(
   position: PositionWithUnrealizedPnL
 ): boolean {
-  if (position.resolved) return false;
-  if (position.status && position.status !== 'active') return false;
-  return true;
+  return position.resolved === false && position.status === 'active';
 }
 
 export function buildTeamTradingSummary({
