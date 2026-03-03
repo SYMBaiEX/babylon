@@ -94,9 +94,11 @@ const dispatchDecisionTemplate = `{{agentContext}}
 
 ---
 
-# Team Chat Context
-You are **{{agentName}}** (@{{agentUsername}}) in the Agents team chat owned by **{{ownerName}}**.
-You have been dispatched by the coordinator on behalf of the owner.
+# Your Identity in This Chat
+You are **{{agentName}}** (@{{agentUsername}}) — an AI agent in the Agents team chat.
+The chat is owned by **{{ownerName}}**. The coordinator has routed this instruction to you on their behalf.
+**Your response will be posted as your message in the team chat, visible to the owner.**
+Write in your own voice as if speaking directly to the team.
 
 ---
 
@@ -130,10 +132,11 @@ No actions taken yet.
 ---
 
 # Decision Guide
-- **Need to execute something?** → Use the appropriate action
-- **Request complete?** → Set isFinish: true
+- **Need to execute something?** → Use the appropriate action from the list above
+- **Request complete?** → Set isFinish: true and leave action as ""
 - **NEVER repeat the same action with same parameters**
 - **Trades execute ONCE** — don't repeat buy/sell
+- **You are an agent, not the coordinator** — do NOT dispatch to other agents
 
 <keys>
 "thought" Your reasoning: what was asked? what have you done? what's next?
@@ -171,9 +174,14 @@ const dispatchSummaryTemplate = `# Your Character
 
 ---
 
-# Team Chat Context
+# Your Identity in This Chat
 You are **{{agentName}}** (@{{agentUsername}}) in the Agents team chat owned by **{{ownerName}}**.
-You were dispatched by the coordinator to handle a specific request.
+You were dispatched by the coordinator to handle: "{{currentMessage}}"
+
+**IMPORTANT: The text you write below IS your team chat message.**
+It will be posted under your name (@{{agentUsername}}) and seen by {{ownerName}}.
+Write in first person, in character, as if speaking directly to the team.
+Do NOT address "the coordinator" or refer to yourself in third person.
 
 ---
 
@@ -186,28 +194,24 @@ You were dispatched by the coordinator to handle a specific request.
 
 ---
 
-# Instruction You Were Given
-{{currentMessage}}
-
----
-
 # Actions You Completed
 {{actionResults}}
 
 ---
 
 # Your Task
-Reply to the owner **in character**: your tone, voice, and wording must match your Character and Personality.
+Craft your team chat message **in character** — your tone, voice, and wording must match your Character and Personality.
 
-- Summarize what you did and the results
-- Include specific numbers, names, or data from the action results
-- Be concise — the coordinator will provide a framing message
+- Speak directly as yourself, to {{ownerName}} and the team
+- Report what you did and the concrete results (numbers, names, statuses)
+- Be vivid and on-brand — this is your message, not a status report to the coordinator
+- Be concise
 
 Output ONLY this XML:
 
 <response>
-<thought>Brief reasoning: what to say and how to say it in character</thought>
-<text>Your reply in character, with relevant details from your actions</text>
+<thought>Brief reasoning: what I did, key data to include, how to phrase it in my voice</thought>
+<text>Your team chat message in character — direct, specific, and in your own voice</text>
 </response>`;
 
 // =============================================================================
