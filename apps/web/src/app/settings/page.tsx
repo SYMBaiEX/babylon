@@ -648,7 +648,7 @@ export default function SettingsPage() {
                       <div>
                         <div className="font-semibold text-sm">Profile</div>
                         <div className="text-muted-foreground text-xs">
-                          Update your public info and images.
+                          Update your public info, images, and social accounts.
                         </div>
                       </div>
                       <button
@@ -657,7 +657,7 @@ export default function SettingsPage() {
                         className="flex min-h-[44px] items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/30"
                       >
                         <LinkIcon className="h-4 w-4" />
-                        Link accounts
+                        Manage social accounts
                       </button>
                     </div>
 
@@ -873,7 +873,20 @@ export default function SettingsPage() {
                           {user.emailVerified ? 'verified' : 'unverified'})
                         </>
                       ) : (
-                        'No email linked yet. Enabling email notifications will try to sync a verified email from Privy.'
+                        <div className="space-y-2">
+                          <p>
+                            No email linked yet. Enabling email notifications
+                            requires a verified email in Privy.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowLinkAccountsModal(true)}
+                            className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-border px-2.5 py-1.5 font-medium text-xs transition-colors hover:bg-muted/30"
+                          >
+                            <LinkIcon className="h-3.5 w-3.5" />
+                            <span>Link my email to Privy</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                     <div className="mt-4 space-y-3">

@@ -15,6 +15,7 @@ import {
 } from '@babylon/api/services/nft-mint-service';
 import { logger, ValidationError } from '@babylon/shared';
 import type { Address, Hex } from 'viem';
+import { wrapServerActionWithSentry } from '@/lib/sentry/server-actions';
 
 import { requirePrivyTokenBundle } from './utils';
 
@@ -135,7 +136,7 @@ function backoffSleep(
  *
  * @returns MintNftActionResult with either 'confirmed' (includes NFT data) or 'pending' status
  */
-export async function mintNftAction(input?: {
+async function mintNftActionImpl(input?: {
   userJwt?: string;
 }): Promise<MintNftActionResult> {
   // Step 1: Auth
@@ -330,3 +331,8 @@ export async function mintNftAction(input?: {
       'Your NFT should appear shortly. You can track the transaction on a block explorer.',
   };
 }
+
+export const mintNftAction = wrapServerActionWithSentry(
+  'mintNftAction',
+  mintNftActionImpl
+);

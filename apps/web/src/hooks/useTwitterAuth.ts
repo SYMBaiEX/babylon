@@ -121,8 +121,8 @@ export function useTwitterAuth(): UseTwitterAuthReturn {
         return;
       }
 
-      // Redirect to OAuth 2.0 flow
-      window.location.href = '/api/auth/twitter/initiate';
+      // Explicit "API scopes" flow for posting to X
+      window.location.href = '/api/auth/twitter/scopes/initiate';
     },
     [user?.id]
   );
