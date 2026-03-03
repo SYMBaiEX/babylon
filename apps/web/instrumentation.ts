@@ -26,10 +26,19 @@ export async function register() {
     const {
       setPointsService,
       setNotificationService,
+      setDefaultErrorCapture,
       PointsService,
       createNotification,
       logDevCredentials,
     } = await import('@babylon/api');
+    const { createSentryApiRouteCapture } = await import(
+      './src/lib/sentry/api-route-capture'
+    );
+
+    // Route-level captureError options still override this default.
+    setDefaultErrorCapture(
+      sentryDisabled ? undefined : createSentryApiRouteCapture()
+    );
 
     // Log development credentials at startup (only in dev mode)
     // This makes it easy for developers to authenticate with admin APIs
