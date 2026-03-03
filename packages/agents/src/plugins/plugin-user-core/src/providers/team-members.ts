@@ -112,7 +112,8 @@ export const coordinatorTeamMembersProvider: Provider = {
           const name = agent.displayName || agent.username || 'Unknown';
           // Only include handle portion when username exists
           const handleSuffix = agent.username ? ` (@${agent.username})` : '';
-          return `- ${name}${handleSuffix} - Available for tasks`;
+          // Include agent ID so the LLM can use it in DISPATCH_TO_AGENT parameters
+          return `- ${name}${handleSuffix} [id: ${agent.id}] - Available for tasks`;
         })
         .join('\n');
     } else {
