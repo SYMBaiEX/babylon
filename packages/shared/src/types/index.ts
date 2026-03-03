@@ -39,3 +39,5 @@ export * from './payments';
 export * from './profile';
 // Profile types (user/actor profiles)
 export * from './profiles';
+// Narrative feed types (NarrativePost, NarrativeStory, ArcStateType)
+export * from './feed';

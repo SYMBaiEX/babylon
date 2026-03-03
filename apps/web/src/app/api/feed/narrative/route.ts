@@ -20,7 +20,6 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import type { ArcStateType } from '@babylon/db';
 import {
   and,
   arcStates,
@@ -41,6 +40,11 @@ import {
   users,
 } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
+import type {
+  ArcStateType,
+  NarrativePost,
+  NarrativeStory,
+} from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import {
@@ -54,38 +58,6 @@ const MAX_CANDIDATE_POSTS = 500;
 const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
 
 const GENERAL_STORY_KEY = '__general__';
-
-interface NarrativePost {
-  id: string;
-  content: string;
-  fullContent: string | null;
-  articleTitle: string | null;
-  category: string | null;
-  imageUrl: string | null;
-  type: string | null;
-  timestamp: string;
-  authorId: string;
-  authorName: string;
-  authorUsername: string | null;
-  authorProfileImageUrl: string | null;
-  likeCount: number;
-  commentCount: number;
-  shareCount: number;
-  isLiked: boolean;
-  isShared: boolean;
-  relatedQuestion: number | null;
-}
-
-interface NarrativeStory {
-  storyKey: string;
-  storyTitle: string;
-  questionNumber: number | null;
-  arcState: ArcStateType | null;
-  storyScore: number;
-  postCount: number;
-  posts: NarrativePost[];
-  hasUserPosition: boolean;
-}
 
 interface NarrativeFeedResponse {
   success: true;
