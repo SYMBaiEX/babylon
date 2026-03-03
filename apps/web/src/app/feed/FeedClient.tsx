@@ -15,6 +15,7 @@ import { useErrorToasts } from '@/hooks/useErrorToasts';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
+import { AlertCircle } from 'lucide-react';
 import { EmptyFeed, NarrativeStoryList, PostList } from './components';
 import {
   useFeedPosts,
@@ -44,6 +45,26 @@ const TradesFeed = dynamic(
 );
 
 type FeedTab = 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
+
+function NarrativeFeedError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+      <AlertCircle className="mb-4 h-12 w-12 text-destructive opacity-60" />
+      <h3 className="mb-2 font-semibold text-lg">Failed to load Stories</h3>
+      <p className="mb-6 max-w-sm text-muted-foreground text-sm">
+        Something went wrong fetching the narrative feed. Check your connection
+        and try again.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
 
 /**
  * FeedClient - Main feed page orchestrator
@@ -96,8 +117,12 @@ export function FeedClient() {
     enabled: tab === 'hot',
   });
 
-  const { stories: narrativeStories, loading: narrativeLoading } =
-    useNarrativeFeed({ enabled: tab === 'narrative' });
+  const {
+    stories: narrativeStories,
+    loading: narrativeLoading,
+    error: narrativeError,
+    refresh: refreshNarrative,
+  } = useNarrativeFeed({ enabled: tab === 'narrative' });
 
   // Game timeline posts (viewer mode fallback)
   const { allGames, startTime, currentTimeMs } = useGameStore();
@@ -201,8 +226,10 @@ export function FeedClient() {
     if (tab === 'latest') {
       await refreshLatest();
       refreshWidgets();
+    } else if (tab === 'narrative') {
+      await refreshNarrative();
     }
-  }, [tab, refreshLatest, refreshWidgets]);
+  }, [tab, refreshLatest, refreshWidgets, refreshNarrative]);
 
   const {
     pullDistance,
@@ -210,7 +237,7 @@ export function FeedClient() {
     containerRef: scrollContainerCallbackRef,
   } = usePullToRefresh({
     onRefresh: handleRefresh,
-    enabled: tab === 'latest' || tab === 'trades',
+    enabled: tab === 'latest' || tab === 'trades' || tab === 'narrative',
   });
 
   const scrollContainerRef = useCallback(
@@ -281,6 +308,12 @@ export function FeedClient() {
     }
 
     if (tab === 'narrative') {
+      if (narrativeError)
+        return (
+          <NarrativeFeedError
+            onRetry={() => void refreshNarrative()}
+          />
+        );
       if (narrativeStories.length === 0)
         return <EmptyFeed variant="narrative" />;
       return <NarrativeStoryList stories={narrativeStories} />;

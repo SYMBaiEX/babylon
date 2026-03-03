@@ -73,6 +73,9 @@ export function useNarrativeFeed(
 
   const refresh = useCallback(() => {
     refreshControllerRef.current?.abort();
+    // Also cancel any in-flight interval request to prevent stale data race
+    intervalControllerRef.current?.abort();
+    intervalControllerRef.current = null;
     const controller = new AbortController();
     refreshControllerRef.current = controller;
     return fetchStories(false, controller.signal);
@@ -99,6 +102,8 @@ export function useNarrativeFeed(
     void fetchStories(true, controller.signal);
 
     return () => {
+      // Reset so Strict Mode double-invoke and re-enables re-fetch correctly
+      hasFetched.current = false;
       controller.abort();
       refreshControllerRef.current?.abort();
     };

@@ -162,6 +162,8 @@ export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
       {/* Expand / collapse toggle */}
       {hasMore && (
         <button
+          type="button"
+          aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
           className="flex w-full items-center justify-center gap-1.5 border-border border-t py-2.5 text-muted-foreground text-sm transition-colors hover:bg-muted/20 hover:text-foreground"
         >
