@@ -12,6 +12,14 @@ function isSentryDisabled(): boolean {
 function hasDsn(): boolean {
   return Boolean(process.env.SENTRY_DSN);
 }
+function resolveCliRelease(): string | undefined {
+  return (
+    process.env.SENTRY_RELEASE ??
+    process.env.VERCEL_GIT_COMMIT_SHA ??
+    process.env.NEXT_PUBLIC_SENTRY_RELEASE ??
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+  );
+}
 
 export function initCliSentry(context: CliSentryContext): void {
   if (isSentryDisabled() || !hasDsn()) {
@@ -22,7 +30,7 @@ export function initCliSentry(context: CliSentryContext): void {
     dsn: process.env.SENTRY_DSN,
     environment:
       process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',
-    release: process.env.SENTRY_RELEASE,
+    release: resolveCliRelease(),
     tracesSampleRate: 0,
   });
 

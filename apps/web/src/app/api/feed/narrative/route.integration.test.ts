@@ -13,7 +13,47 @@
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { NextRequest } from 'next/server';
-import type { NarrativeFeedResponse, NarrativeStory } from './route';
+import {
+  calculateArcStateMultiplier,
+  calculateResolutionBoost,
+  calculateStoryScore,
+} from './scoring';
+
+type NarrativeStory = {
+  storyKey: string;
+  storyTitle: string;
+  questionNumber: number | null;
+  arcState: string | null;
+  storyScore: number;
+  postCount: number;
+  posts: Array<{
+    id: string;
+    content: string;
+    fullContent: string | null;
+    articleTitle: string | null;
+    category: string | null;
+    imageUrl: string | null;
+    type: string | null;
+    timestamp: string;
+    authorId: string;
+    authorName: string;
+    authorUsername: string | null;
+    authorProfileImageUrl: string | null;
+    likeCount: number;
+    commentCount: number;
+    shareCount: number;
+    isLiked: boolean;
+    isShared: boolean;
+    relatedQuestion: number | null;
+  }>;
+  hasUserPosition: boolean;
+};
+
+type NarrativeFeedResponse = {
+  success: true;
+  stories: NarrativeStory[];
+  generatedAt: string;
+};
 
 // ─── Chainable Drizzle query builder mock ─────────────────────────────────────
 
@@ -168,13 +208,8 @@ mock.module('@babylon/db', () => ({
 
 // ─── Route import (after all mocks are registered) ───────────────────────────
 
-const {
-  GET,
-  GENERAL_STORY_KEY,
-  calculateStoryScore,
-  calculateArcStateMultiplier,
-  calculateResolutionBoost,
-} = await import('./route');
+const { GET } = await import('./route');
+const GENERAL_STORY_KEY = '__general__';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 

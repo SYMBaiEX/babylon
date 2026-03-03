@@ -18,6 +18,9 @@ import * as Sentry from '@sentry/nextjs';
 const sentryDisabled =
   process.env.NEXT_PUBLIC_DISABLE_SENTRY === 'true' ||
   process.env.DISABLE_SENTRY === 'true';
+const sentryClientRelease =
+  process.env.NEXT_PUBLIC_SENTRY_RELEASE ??
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA;
 
 // Log initialization status in development
 if (process.env.NODE_ENV === 'development') {
@@ -46,7 +49,7 @@ if (!sentryDisabled) {
       'development',
 
     // Release tracking (set via environment variable or CI/CD)
-    release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
+    release: sentryClientRelease,
 
     // Debug mode disabled to suppress verbose logging
     debug: false,
