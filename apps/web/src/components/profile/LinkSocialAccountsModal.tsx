@@ -5,8 +5,8 @@ import { useLinkAccount, usePrivy } from '@privy-io/react-auth';
 import { Check, ExternalLink, Mail, Shield, X as XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { getAuthToken } from '@/lib/auth';
 import { isLinkEmailFlowCancellationError } from '@/components/profile/link-email-utils';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -259,8 +259,8 @@ export function LinkSocialAccountsModal({
                 <div className="flex items-start gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
                   <Shield className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
                   <p className="text-muted-foreground text-xs">
-                    Link a verified email in Privy to enable notification
-                    emails and account recovery.
+                    Link a verified email in Privy to enable notification emails
+                    and account recovery.
                   </p>
                 </div>
                 <button

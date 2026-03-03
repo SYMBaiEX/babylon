@@ -18,7 +18,10 @@ export function getLinkedEmail(
  */
 export function isLinkEmailFlowCancellationError(error: unknown): boolean {
   if (error === 'exited_auth_flow') return true;
-  if (error instanceof Error && (error as { code?: string }).code === 'exited_auth_flow')
+  if (
+    error instanceof Error &&
+    (error as { code?: string }).code === 'exited_auth_flow'
+  )
     return true;
   return false;
 }

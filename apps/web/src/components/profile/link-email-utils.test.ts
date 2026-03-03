@@ -7,9 +7,9 @@ import {
 describe('link-email-utils', () => {
   describe('getLinkedEmail', () => {
     it('prefers Privy email when present', () => {
-      expect(
-        getLinkedEmail('linked@example.com', 'stored@example.com')
-      ).toBe('linked@example.com');
+      expect(getLinkedEmail('linked@example.com', 'stored@example.com')).toBe(
+        'linked@example.com'
+      );
     });
 
     it('falls back to stored email when Privy email is missing', () => {
@@ -46,9 +46,9 @@ describe('link-email-utils', () => {
     });
 
     it('returns false for plain Error without a matching code', () => {
-      expect(isLinkEmailFlowCancellationError(new Error('Network failure'))).toBe(
-        false
-      );
+      expect(
+        isLinkEmailFlowCancellationError(new Error('Network failure'))
+      ).toBe(false);
       const errWrongCode = Object.assign(new Error('other'), {
         code: 'network_error',
       });
