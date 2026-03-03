@@ -153,6 +153,16 @@ describe('calculateStoryScore', () => {
   });
 });
 
+function calculateResolutionBoost(resolutionDate: Date): number {
+  const hoursUntil =
+    (resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60);
+  if (hoursUntil <= 0) return 1.0;
+  if (hoursUntil <= 6) return 1.4;
+  if (hoursUntil <= 24) return 1.25;
+  if (hoursUntil <= 72) return 1.1;
+  return 1.0;
+}
+
 describe('calculateArcStateMultiplier', () => {
   it('returns 1.0 for null (no arc data)', () => {
     expect(calculateArcStateMultiplier(null)).toBe(1.0);
@@ -202,5 +212,32 @@ describe('calculateArcStateMultiplier', () => {
     expect(calculateArcStateMultiplier('midday')).toBe(1.0);
     expect(calculateArcStateMultiplier('afternoon')).toBe(1.0);
     expect(calculateArcStateMultiplier('evening')).toBe(1.0);
+  });
+});
+
+describe('calculateResolutionBoost', () => {
+  it('returns 1.0 for a date in the past (expired)', () => {
+    const past = new Date(Date.now() - 1000 * 60 * 60);
+    expect(calculateResolutionBoost(past)).toBe(1.0);
+  });
+
+  it('returns 1.4 for a date within 6 hours (peak urgency)', () => {
+    const soon = new Date(Date.now() + 1000 * 60 * 60 * 3); // 3h from now
+    expect(calculateResolutionBoost(soon)).toBe(1.4);
+  });
+
+  it('returns 1.25 for a date within 24 hours (imminent)', () => {
+    const tomorrow = new Date(Date.now() + 1000 * 60 * 60 * 12); // 12h from now
+    expect(calculateResolutionBoost(tomorrow)).toBe(1.25);
+  });
+
+  it('returns 1.1 for a date within 72 hours (approaching)', () => {
+    const twodays = new Date(Date.now() + 1000 * 60 * 60 * 48); // 48h from now
+    expect(calculateResolutionBoost(twodays)).toBe(1.1);
+  });
+
+  it('returns 1.0 for a date far in the future (no urgency)', () => {
+    const nextWeek = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    expect(calculateResolutionBoost(nextWeek)).toBe(1.0);
   });
 });
