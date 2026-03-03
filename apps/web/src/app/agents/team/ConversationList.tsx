@@ -1,8 +1,20 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Check, Loader2, MessageCircle, Pencil, Plus, X } from 'lucide-react';
+import {
+  Check,
+  Loader2,
+  MessageCircle,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import {
+  canDeleteConversation,
+  getConversationDisplayName,
+} from './conversation-utils';
 
 /** Conversation info */
 interface ConversationInfo {
@@ -13,41 +25,13 @@ interface ConversationInfo {
   isActive: boolean;
 }
 
-/**
- * Get display name for a conversation.
- * Returns the actual name if set, or a fallback using createdAt timestamp.
- */
-function getConversationDisplayName(conversation: ConversationInfo): string {
-  if (conversation.name) return conversation.name;
-
-  // Fallback: "New Chat - Jan 30, 1:55 AM"
-  // Guard against invalid/missing createdAt
-  const date = new Date(conversation.createdAt);
-  if (isNaN(date.getTime())) {
-    return 'New Chat';
-  }
-
-  // Use browser locale if available, otherwise undefined for system default
-  const locale =
-    typeof navigator !== 'undefined' ? navigator.language : undefined;
-  const dateStr = date.toLocaleDateString(locale, {
-    month: 'short',
-    day: 'numeric',
-  });
-  const timeStr = date.toLocaleTimeString(locale, {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-  return `New Chat - ${dateStr}, ${timeStr}`;
-}
-
 interface ConversationListProps {
   conversations: ConversationInfo[];
   loading?: boolean;
   onNewChat: () => void;
   onSelectConversation: (chatId: string) => void;
   onRenameConversation?: (chatId: string, newName: string) => Promise<void>;
+  onDeleteConversation?: (chatId: string) => Promise<void>;
   /** Called when a link is clicked (for closing drawer on mobile) */
   onClose?: () => void;
 }
@@ -65,11 +49,13 @@ export function ConversationList({
   onNewChat,
   onSelectConversation,
   onRenameConversation,
+  onDeleteConversation,
   onClose,
 }: ConversationListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when editing starts
@@ -97,6 +83,35 @@ export function ConversationList({
     setEditValue(getConversationDisplayName(conversation));
   };
 
+  const handleDeleteConversation = async (
+    e: React.MouseEvent,
+    conversation: ConversationInfo
+  ) => {
+    e.stopPropagation();
+    if (!onDeleteConversation) return;
+    if (!canDeleteConversation(conversations.length)) return;
+    if (deletingId) return;
+
+    const confirmed = window.confirm(
+      'Delete this conversation? This action cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    if (editingId === conversation.id) {
+      setEditingId(null);
+      setEditValue('');
+    }
+
+    setDeletingId(conversation.id);
+    try {
+      await onDeleteConversation(conversation.id);
+    } catch {
+      // onDeleteConversation is responsible for user-facing error feedback
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleSaveRename = async () => {
     if (!editingId || !onRenameConversation || !editValue.trim()) {
       setEditingId(null);
@@ -106,6 +121,8 @@ export function ConversationList({
     setIsSaving(true);
     try {
       await onRenameConversation(editingId, editValue.trim());
+    } catch {
+      // onRenameConversation is responsible for user-facing error feedback
     } finally {
       setIsSaving(false);
       setEditingId(null);
@@ -207,15 +224,43 @@ export function ConversationList({
                   >
                     {getConversationDisplayName(conversation)}
                   </button>
-                  {onRenameConversation && (
-                    <button
-                      type="button"
-                      onClick={(e) => handleStartEdit(e, conversation)}
-                      className="shrink-0 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                      title="Rename"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
+                  {(onRenameConversation || onDeleteConversation) && (
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      {onRenameConversation && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleStartEdit(e, conversation)}
+                          className="rounded p-0.5 text-muted-foreground opacity-100 transition-opacity hover:text-foreground md:opacity-0 md:group-hover:opacity-100"
+                          title="Rename"
+                          aria-label="Rename conversation"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      )}
+                      {onDeleteConversation && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteConversation(e, conversation)}
+                          disabled={
+                            deletingId !== null ||
+                            !canDeleteConversation(conversations.length)
+                          }
+                          className="rounded p-0.5 text-muted-foreground opacity-100 transition-opacity hover:text-destructive disabled:cursor-not-allowed disabled:text-muted-foreground/40 md:opacity-0 md:group-hover:opacity-100"
+                          title={
+                            canDeleteConversation(conversations.length)
+                              ? 'Delete'
+                              : 'Cannot delete the only conversation'
+                          }
+                          aria-label="Delete conversation"
+                        >
+                          {deletingId === conversation.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </>
               )}
