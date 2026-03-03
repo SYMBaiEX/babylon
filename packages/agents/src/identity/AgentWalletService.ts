@@ -8,8 +8,8 @@
  * @packageDocumentation
  */
 
-import { agentLogs, db, eq, type JsonValue, users } from '@babylon/db';
 import { getPrivyAppIdFromEnv, getTrimmedEnv } from '@babylon/api';
+import { agentLogs, db, eq, type JsonValue, users } from '@babylon/db';
 import { PrivyClient } from '@privy-io/server-auth';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
