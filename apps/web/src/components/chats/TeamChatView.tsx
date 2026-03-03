@@ -224,10 +224,7 @@ export function TeamChatView({
     []
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: chatDetails?.chat?.id,
-  // chatDetails?.messages?.length, and loading are intentional trigger deps —
-  // they re-run the effect on conversation switch / new message arrival even
-  // though they aren't referenced inside the callback body.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chatDetails?.chat?.id, chatDetails?.messages?.length, and loading are intentional trigger deps — they re-run the effect on conversation switch / new message arrival even though they aren't referenced inside the callback body.
   React.useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) {
