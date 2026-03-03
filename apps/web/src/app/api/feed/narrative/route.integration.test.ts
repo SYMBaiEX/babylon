@@ -909,7 +909,10 @@ describe('GET /api/feed/narrative — integration', () => {
       // arc=null→1.0, boost→1.0
       const expectedScore =
         Math.round(
-          expectedBase * calculateArcStateMultiplier(null) * calculateResolutionBoost(FAR_FUTURE) * 10000
+          expectedBase *
+            calculateArcStateMultiplier(null) *
+            calculateResolutionBoost(FAR_FUTURE) *
+            10000
         ) / 10000;
 
       expect(story.storyScore).toBeCloseTo(expectedScore, 3);
@@ -1034,7 +1037,10 @@ describe('GET /api/feed/narrative — integration', () => {
       authUser = null; // not authenticated
 
       selectQueue[0] = [makePost('p1', 1, 1), makePost('p2', 2, 1, 'author-2')];
-      executeResult = [makeEngagement('p1', 5, 2, 1), makeEngagement('p2', 3, 1, 0)];
+      executeResult = [
+        makeEngagement('p1', 5, 2, 1),
+        makeEngagement('p2', 3, 1, 0),
+      ];
       selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
       selectQueue[2] = [
         makeQuestion(1, 'Story One'),

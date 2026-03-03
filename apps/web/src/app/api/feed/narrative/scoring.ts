@@ -16,7 +16,9 @@ export function calculateTotalEngagement(
   comments: number,
   shares: number
 ): number {
-  return likes * LIKE_WEIGHT + comments * COMMENT_WEIGHT + shares * SHARE_WEIGHT;
+  return (
+    likes * LIKE_WEIGHT + comments * COMMENT_WEIGHT + shares * SHARE_WEIGHT
+  );
 }
 
 export function calculateRecencyScore(newest: Date): number {
@@ -78,8 +80,7 @@ export function calculateArcStateMultiplier(
  * Questions resolving soon have peak uncertainty and reader interest.
  */
 export function calculateResolutionBoost(resolutionDate: Date): number {
-  const hoursUntil =
-    (resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60);
+  const hoursUntil = (resolutionDate.getTime() - Date.now()) / (1000 * 60 * 60);
   if (hoursUntil <= 0) return 1.0; // already resolved/expired
   if (hoursUntil <= 6) return 1.4;
   if (hoursUntil <= 24) return 1.25;

@@ -21,7 +21,6 @@ import {
  *   activityBonus   = Math.min(postCount / 10, 1)
  */
 
-
 describe('calculateTotalEngagement', () => {
   it('weights shares > comments > likes', () => {
     expect(calculateTotalEngagement(0, 0, 1)).toBeGreaterThan(
