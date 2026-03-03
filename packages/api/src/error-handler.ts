@@ -62,7 +62,7 @@ function serializeErrorCause(cause: unknown): Record<string, JsonValue> | null {
 }
 
 const SENSITIVE_CONTEXT_KEY_PATTERN =
-  /(token|secret|password|authorization|cookie|jwt|api[-_]?key|signature|session|credential|wallet)/i;
+  /(token|secret|password|authorization|cookie|jwt|api[-_]?key|signature|session|credential|wallet|private[-_]?key)/i;
 
 /**
  * Shallow-sanitizes a BabylonError context object before sending to Sentry.

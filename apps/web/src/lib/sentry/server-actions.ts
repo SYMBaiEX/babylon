@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 
 const SENSITIVE_KEY_PATTERN =
-  /(token|secret|password|authorization|cookie|jwt|api[-_]?key|signature)/i;
+  /(token|secret|password|authorization|cookie|jwt|api[-_]?key|signature|session|credential|wallet|private[-_]?key)/i;
 
 function sanitizeValue(value: unknown, depth = 0): unknown {
   if (value === null || value === undefined) {
