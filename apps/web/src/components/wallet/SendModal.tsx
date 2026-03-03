@@ -143,9 +143,7 @@ export function SendModal({
       const result = await sendTokenAction({
         recipientAddress: recipient.trim(),
         amount: amount.trim(),
-        decimals: selectedAsset.decimals,
         tokenAddress: selectedAsset.address,
-        tokenSymbol: selectedAsset.symbol,
         userJwt: jwt ?? undefined,
       });
 

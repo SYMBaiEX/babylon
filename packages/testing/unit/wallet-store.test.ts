@@ -10,9 +10,19 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 // Mock fetch globally before importing the store
-const mockFetch = mock(() =>
+type MockFetchResponse = {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+  text: () => Promise<string>;
+};
+
+type MockFetch = (input: string) => Promise<MockFetchResponse>;
+
+const mockFetch = mock<MockFetch>(() =>
   Promise.resolve({
     ok: true,
+    status: 200,
     json: () =>
       Promise.resolve({
         native: {
@@ -21,7 +31,7 @@ const mockFetch = mock(() =>
           decimals: 18,
           usdValue: null,
         },
-        tokens: [],
+        tokens: [] as Array<Record<string, unknown>>,
       }),
     text: () => Promise.resolve(''),
   })
@@ -62,6 +72,7 @@ beforeEach(() => {
   mockFetch.mockImplementation(() =>
     Promise.resolve({
       ok: true,
+      status: 200,
       json: () =>
         Promise.resolve({
           native: {
@@ -275,7 +286,7 @@ describe('Onchain Wallet Store — fetchTokens', () => {
     await useOnchainWalletStore.getState().fetchTokens('0xtest');
 
     expect(mockFetch).toHaveBeenCalled();
-    const url = mockFetch.mock.calls[0]?.[0] as string;
+    const url = String(mockFetch.mock.calls[0]?.[0] ?? '');
     expect(url).toContain('/api/wallet/tokens');
     expect(url).toContain('address=0xtest');
 
@@ -315,6 +326,7 @@ describe('Onchain Wallet Store — fetchTokens', () => {
       Promise.resolve({
         ok: false,
         status: 500,
+        json: () => Promise.resolve(null),
         text: () => Promise.resolve('Internal Server Error'),
       })
     );
@@ -368,28 +380,29 @@ describe('Onchain Wallet Store — fetchTokens', () => {
   test('ignores response if address changed during fetch', async () => {
     // Set up a slow response
     mockFetch.mockImplementationOnce(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(
-            () =>
-              resolve({
-                ok: true,
-                json: () =>
-                  Promise.resolve({
-                    native: {
-                      symbol: 'ETH',
+	      () =>
+	        new Promise((resolve) =>
+	          setTimeout(
+	            () =>
+	              resolve({
+	                ok: true,
+	                status: 200,
+	                json: () =>
+	                  Promise.resolve({
+	                    native: {
+	                      symbol: 'ETH',
                       balance: '999',
                       decimals: 18,
-                      usdValue: null,
-                    },
-                    tokens: [],
-                  }),
-                text: () => Promise.resolve(''),
-              }),
-            50
-          )
-        )
-    );
+	                      usdValue: null,
+	                    },
+	                    tokens: [] as Array<Record<string, unknown>>,
+	                  }),
+	                text: () => Promise.resolve(''),
+	              }),
+	            50
+	          )
+	        )
+	    );
 
     useOnchainWalletStore.getState().setAddress('0xold', 8453);
     const fetchPromise = useOnchainWalletStore.getState().fetchTokens('0xold');
@@ -411,14 +424,15 @@ describe('Onchain Wallet Store — fetchTokens', () => {
 // ---------------------------------------------------------------------------
 
 describe('Onchain Wallet Store — fetchNfts', () => {
-  beforeEach(() => {
-    mockFetch.mockImplementation(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            collections: [
-              {
+	  beforeEach(() => {
+	    mockFetch.mockImplementation(() =>
+	      Promise.resolve({
+	        ok: true,
+	        status: 200,
+	        json: () =>
+	          Promise.resolve({
+	            collections: [
+	              {
                 name: 'ProtoMonkeys',
                 contractAddress: '0xnft',
                 items: [
@@ -461,6 +475,7 @@ describe('Onchain Wallet Store — fetchNfts', () => {
     mockFetch.mockImplementationOnce(() =>
       Promise.resolve({
         ok: true,
+        status: 200,
         json: () => Promise.resolve({ collections: [], totalCount: 0 }),
         text: () => Promise.resolve(''),
       })
@@ -484,6 +499,7 @@ describe('Onchain Wallet Store — fetchTransactions', () => {
     mockFetch.mockImplementation(() =>
       Promise.resolve({
         ok: true,
+        status: 200,
         json: () =>
           Promise.resolve({
             transactions: [
@@ -519,7 +535,7 @@ describe('Onchain Wallet Store — fetchTransactions', () => {
     useOnchainWalletStore.getState().setAddress('0xtest', 8453);
     await useOnchainWalletStore.getState().fetchTransactions('0xtest', true, 3);
 
-    const url = mockFetch.mock.calls[0]?.[0] as string;
+    const url = String(mockFetch.mock.calls[0]?.[0] ?? '');
     expect(url).toContain('page=3');
     expect(url).toContain('limit=20');
   });
@@ -529,6 +545,7 @@ describe('Onchain Wallet Store — fetchTransactions', () => {
       Promise.resolve({
         ok: false,
         status: 429,
+        json: () => Promise.resolve(null),
         text: () => Promise.resolve('Too many requests'),
       })
     );

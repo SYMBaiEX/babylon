@@ -2,6 +2,8 @@
 
 import {
   getAuthedUserContextFromPrivyTokenBundle,
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
   requireFreshToken,
   sendSponsoredEvmTransaction,
 } from '@babylon/api';
@@ -11,6 +13,7 @@ import {
   CHAIN_ID,
   ERC20_ABI,
   ERC721_TRANSFER_ABI,
+  getTokenListForChain,
   generateSnowflakeId,
   logger,
   WALLET_ERROR_MESSAGES,
@@ -124,9 +127,7 @@ async function recordDailySpending(
 async function sendTokenActionImpl(input: {
   recipientAddress: string;
   amount: string; // human-readable (e.g. "1.5")
-  decimals: number;
   tokenAddress?: string; // undefined = native ETH
-  tokenSymbol?: string;
   userJwt?: string;
 }): Promise<{ txHash: string; explorerUrl: string }> {
   const bundle = await requirePrivyTokenBundle(input.userJwt);
@@ -145,6 +146,17 @@ async function sendTokenActionImpl(input: {
     throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
   }
 
+  const rateLimit = await checkRateLimitAsync(
+    ctx.dbUserId,
+    RATE_LIMIT_CONFIGS.WALLET_TRANSFER
+  );
+  if (!rateLimit.allowed) {
+    const retryAfterSeconds = rateLimit.retryAfter || 60;
+    throw new Error(
+      `Too many transfers. Please try again in ${retryAfterSeconds} seconds.`
+    );
+  }
+
   // Validate recipient
   if (!isAddress(input.recipientAddress)) {
     throw new Error('Invalid recipient address');
@@ -159,8 +171,30 @@ async function sendTokenActionImpl(input: {
     throw new Error('Cannot send to the zero address');
   }
 
+  const tokenAddressNormalized = input.tokenAddress
+    ? input.tokenAddress.toLowerCase()
+    : undefined;
+
+  const tokenConfig = tokenAddressNormalized
+    ? getTokenListForChain(CHAIN_ID).find(
+        (t) => t.address.toLowerCase() === tokenAddressNormalized
+      )
+    : null;
+
+  if (tokenAddressNormalized) {
+    if (!isAddress(tokenAddressNormalized)) {
+      throw new Error('Invalid token address');
+    }
+    if (!tokenConfig) {
+      throw new Error('Unsupported token');
+    }
+  }
+
+  const decimals = tokenConfig?.decimals ?? CHAIN.nativeCurrency.decimals;
+  const tokenSymbol = tokenConfig?.symbol ?? CHAIN.nativeCurrency.symbol;
+
   // Parse amount
-  const amountWei = parseUnits(input.amount, input.decimals);
+  const amountWei = parseUnits(input.amount, decimals);
   if (amountWei <= 0n) {
     throw new Error('Amount must be positive');
   }
@@ -180,53 +214,57 @@ async function sendTokenActionImpl(input: {
     userId: ctx.dbUserId,
     fromAddress: senderAddress,
     toAddress: recipient,
-    tokenAddress: input.tokenAddress ?? null,
+    tokenAddress: tokenAddressNormalized ?? null,
     amount: amountWei.toString(),
     chainId: CHAIN_ID,
     status: 'pending',
-    type: input.tokenAddress ? 'erc20' : 'native',
+    type: tokenAddressNormalized ? 'erc20' : 'native',
   });
 
   let txHash: Hex;
 
-  if (input.tokenAddress) {
-    // ERC-20 transfer
-    const tokenAddr = input.tokenAddress as Address;
-    const data = encodeFunctionData({
-      abi: erc20Abi,
-      functionName: 'transfer',
-      args: [recipient, amountWei],
-    });
+  try {
+    if (tokenAddressNormalized) {
+      // ERC-20 transfer
+      const tokenAddr = tokenAddressNormalized as Address;
+      const data = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [recipient, amountWei],
+      });
 
-    const result = await sendSponsoredEvmTransaction({
-      walletId: ctx.privyWalletId,
-      to: tokenAddr,
-      data,
-      valueWei: 0n,
-      caip2: `eip155:${CHAIN.id}`,
-      chainId: CHAIN.id,
-    });
-    txHash = result.hash;
-  } else {
-    // Native ETH transfer
-    const result = await sendSponsoredEvmTransaction({
-      walletId: ctx.privyWalletId,
-      to: recipient,
-      valueWei: amountWei,
-      caip2: `eip155:${CHAIN.id}`,
-      chainId: CHAIN.id,
-    });
-    txHash = result.hash;
+      const result = await sendSponsoredEvmTransaction({
+        walletId: ctx.privyWalletId,
+        to: tokenAddr,
+        data,
+        valueWei: 0n,
+        caip2: `eip155:${CHAIN.id}`,
+        chainId: CHAIN.id,
+      });
+      txHash = result.hash;
+    } else {
+      // Native ETH transfer
+      const result = await sendSponsoredEvmTransaction({
+        walletId: ctx.privyWalletId,
+        to: recipient,
+        valueWei: amountWei,
+        caip2: `eip155:${CHAIN.id}`,
+        chainId: CHAIN.id,
+      });
+      txHash = result.hash;
+    }
+  } catch (error) {
+    await db
+      .update(walletTransferLog)
+      .set({ status: 'failed' })
+      .where(eq(walletTransferLog.id, logId));
+    throw error;
   }
 
-  // Update audit log with tx hash and confirmed status
+  // Update audit log with tx hash (still pending until confirmed on-chain)
   await db
     .update(walletTransferLog)
-    .set({
-      txHash,
-      status: 'confirmed',
-      confirmedAt: new Date(),
-    })
+    .set({ txHash })
     .where(eq(walletTransferLog.id, logId));
 
   // Record spending (using $0 since USD pricing not yet implemented)
@@ -240,7 +278,7 @@ async function sendTokenActionImpl(input: {
       userId: ctx.dbUserId,
       from: senderAddress,
       to: recipient,
-      token: input.tokenSymbol ?? 'ETH',
+      token: tokenSymbol,
       amount: input.amount,
       txHash,
     },
@@ -279,6 +317,17 @@ async function sendNftActionImpl(input: {
     throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
   }
 
+  const rateLimit = await checkRateLimitAsync(
+    ctx.dbUserId,
+    RATE_LIMIT_CONFIGS.WALLET_TRANSFER
+  );
+  if (!rateLimit.allowed) {
+    const retryAfterSeconds = rateLimit.retryAfter || 60;
+    throw new Error(
+      `Too many transfers. Please try again in ${retryAfterSeconds} seconds.`
+    );
+  }
+
   // Validate addresses
   if (!isAddress(input.recipientAddress)) {
     throw new Error('Invalid recipient address');
@@ -289,7 +338,7 @@ async function sendNftActionImpl(input: {
 
   const recipient = input.recipientAddress.toLowerCase() as Address;
   const senderAddress = ctx.walletAddress.toLowerCase() as Address;
-  const contractAddr = input.contractAddress as Address;
+  const contractAddr = input.contractAddress.toLowerCase() as Address;
 
   if (recipient === senderAddress) {
     throw new Error('Cannot send to your own address');
@@ -322,25 +371,30 @@ async function sendNftActionImpl(input: {
     type: 'erc721',
   });
 
-  const result = await sendSponsoredEvmTransaction({
-    walletId: ctx.privyWalletId,
-    to: contractAddr,
-    data,
-    valueWei: 0n,
-    caip2: `eip155:${CHAIN.id}`,
-    chainId: CHAIN.id,
-  });
+  let txHash: Hex;
+  try {
+    const result = await sendSponsoredEvmTransaction({
+      walletId: ctx.privyWalletId,
+      to: contractAddr,
+      data,
+      valueWei: 0n,
+      caip2: `eip155:${CHAIN.id}`,
+      chainId: CHAIN.id,
+    });
 
-  const txHash = result.hash;
+    txHash = result.hash;
+  } catch (error) {
+    await db
+      .update(walletTransferLog)
+      .set({ status: 'failed' })
+      .where(eq(walletTransferLog.id, logId));
+    throw error;
+  }
 
-  // Update audit log
+  // Update audit log with tx hash (still pending until confirmed on-chain)
   await db
     .update(walletTransferLog)
-    .set({
-      txHash,
-      status: 'confirmed',
-      confirmedAt: new Date(),
-    })
+    .set({ txHash })
     .where(eq(walletTransferLog.id, logId));
 
   const explorerUrl = getTxExplorerUrl(txHash);
