@@ -26,6 +26,7 @@ import { runModelCommand } from './commands/model.js';
 import { runStatusCommand } from './commands/status.js';
 import { runTestCommand } from './commands/test.js';
 import { runTrainCommand } from './commands/train.js';
+import { captureCliExceptionAndFlush, initCliSentry } from './sentry.js';
 
 const VERSION = '0.2.0';
 
@@ -103,6 +104,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  initCliSentry({ domain, command: commandArgs[0] });
+
   switch (domain) {
     case 'db':
       await runDbCommand(commandArgs);
@@ -149,7 +152,14 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  main();
+  main().catch(async (error) => {
+    await captureCliExceptionAndFlush(error, {
+      domain: process.argv.slice(2)[0],
+      command: process.argv.slice(3)[0],
+    });
+    console.error(error);
+    process.exit(1);
+  });
 }
 
 export { main };

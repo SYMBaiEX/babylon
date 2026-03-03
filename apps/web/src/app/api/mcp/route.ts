@@ -13,6 +13,7 @@ import {
   getServerApiKey,
   validateApiKeyAsync,
 } from '@babylon/a2a';
+import { withErrorHandling } from '@babylon/api';
 import {
   getMCPServerInfo,
   getServerCapabilities,
@@ -72,7 +73,7 @@ async function checkApiKey(request: NextRequest): Promise<{
  * GET /api/mcp
  * Returns MCP service information and capabilities
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const { error } = await checkApiKey(request);
   if (error) return error;
 
@@ -96,13 +97,15 @@ export async function GET(request: NextRequest) {
       },
     }
   );
-}
+});
 
 /**
  * POST /api/mcp
  * Handles JSON-RPC 2.0 MCP protocol requests
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   const { error, authResult } = await checkApiKey(request);
   if (error) return error;
 
@@ -159,4 +162,4 @@ export async function POST(request: NextRequest) {
       'Content-Type': 'application/json',
     },
   });
-}
+});

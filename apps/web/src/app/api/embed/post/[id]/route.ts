@@ -76,12 +76,13 @@
  * @see {@link https://miniapps.farcaster.xyz/docs/guides/sharing} Farcaster embed docs
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import { PostIdParamSchema } from '@babylon/shared';
 import { type NextRequest, NextResponse } from 'next/server';
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
@@ -174,4 +175,4 @@ export async function GET(
     },
     image: `${baseUrl}/assets/images/og-image.png`,
   });
-}
+});

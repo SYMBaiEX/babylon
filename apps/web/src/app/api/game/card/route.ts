@@ -8,6 +8,7 @@
  */
 
 import { babylonAgentCard } from '@babylon/a2a';
+import { withErrorHandling } from '@babylon/api';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -16,11 +17,11 @@ export const dynamic = 'force-dynamic';
  * GET /api/game/card
  * Returns the Babylon game agent card
  */
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   return NextResponse.json(babylonAgentCard, {
     headers: {
       'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
       'Content-Type': 'application/json',
     },
   });
-}
+});

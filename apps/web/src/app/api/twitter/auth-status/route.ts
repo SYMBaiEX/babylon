@@ -50,11 +50,15 @@
  * ```
  */
 
-import { authenticate, requireUserByIdentifier } from '@babylon/api';
+import {
+  authenticate,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const authUser = await authenticate(request);
   const user = await requireUserByIdentifier(authUser.userId, {
     id: true,
@@ -72,4 +76,4 @@ export async function GET(request: NextRequest) {
     screenName: user.twitterUsername,
     connectedAt: user.updatedAt,
   });
-}
+});

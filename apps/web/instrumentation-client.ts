@@ -18,6 +18,9 @@ import * as Sentry from '@sentry/nextjs';
 const sentryDisabled =
   process.env.NEXT_PUBLIC_DISABLE_SENTRY === 'true' ||
   process.env.DISABLE_SENTRY === 'true';
+const sentryClientRelease =
+  process.env.NEXT_PUBLIC_SENTRY_RELEASE ??
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA;
 
 // Log initialization status in development
 if (process.env.NODE_ENV === 'development') {
@@ -40,10 +43,13 @@ if (!sentryDisabled) {
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
     // Environment detection
-    environment: process.env.NODE_ENV || 'development',
+    environment:
+      process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ??
+      process.env.NODE_ENV ??
+      'development',
 
     // Release tracking (set via environment variable or CI/CD)
-    release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
+    release: sentryClientRelease,
 
     // Debug mode disabled to suppress verbose logging
     debug: false,
@@ -126,10 +132,14 @@ if (!sentryDisabled) {
         blockAllMedia: true,
         // Performance settings
         networkDetailAllowUrls: [
-          // Only capture network details for your API
-          new RegExp(process.env.NEXT_PUBLIC_API_URL || '.*'),
+          // Only capture network details for Babylon API calls by default.
+          // If NEXT_PUBLIC_API_URL is configured, we allow that origin as well.
+          /\/api\//,
+          ...(process.env.NEXT_PUBLIC_API_URL
+            ? [new RegExp(process.env.NEXT_PUBLIC_API_URL)]
+            : []),
         ],
-        networkCaptureBodies: true,
+        networkCaptureBodies: false,
       }),
       Sentry.captureConsoleIntegration({
         levels: ['error'], // Only capture console.error

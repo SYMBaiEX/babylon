@@ -69,7 +69,7 @@
  */
 
 import { X402Manager } from '@babylon/a2a';
-import { requireAdmin } from '@babylon/api';
+import { requireAdmin, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { parseEther } from 'ethers';
@@ -108,7 +108,7 @@ const CreateEscrowPaymentSchema = z.object({
     .min(1, 'Recipient wallet address is required'),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const _adminUser = await requireAdmin(req);
   const adminId = _adminUser.userId;
 
@@ -286,4 +286,4 @@ export async function POST(req: NextRequest) {
       expiresAt: paymentRequest.expiresAt,
     },
   });
-}
+});

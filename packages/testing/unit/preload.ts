@@ -11,8 +11,9 @@
 import { mock } from 'bun:test';
 
 // Set test environment
-process.env.NODE_ENV = 'test';
-process.env.BUN_ENV = 'test';
+const env = process.env as Record<string, string | undefined>;
+env.NODE_ENV = 'test';
+env.BUN_ENV = 'test';
 
 // Mock server-only so tests can import Next.js route handlers that use it
 mock.module('server-only', () => ({}));

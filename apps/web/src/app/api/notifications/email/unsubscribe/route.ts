@@ -1,4 +1,7 @@
-import { verifyNotificationUnsubscribeToken } from '@babylon/api';
+import {
+  verifyNotificationUnsubscribeToken,
+  withErrorHandling,
+} from '@babylon/api';
 import { and, db, eq, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -88,7 +91,9 @@ async function processUnsubscribe(
 /**
  * GET handler — browser link click from email.
  */
-export async function GET(request: NextRequest): Promise<Response> {
+export const GET = withErrorHandling(async function GET(
+  request: NextRequest
+): Promise<Response> {
   try {
     const token = new URL(request.url).searchParams.get('token');
     if (!token) {
@@ -110,13 +115,15 @@ export async function GET(request: NextRequest): Promise<Response> {
       500
     );
   }
-}
+});
 
 /**
  * POST handler — RFC 8058 one-click unsubscribe (used by Gmail, Apple Mail, etc.).
  * Email clients POST with body `List-Unsubscribe=One-Click` to the List-Unsubscribe URL.
  */
-export async function POST(request: NextRequest): Promise<Response> {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+): Promise<Response> {
   try {
     const token = new URL(request.url).searchParams.get('token');
     if (!token) {
@@ -132,4 +139,4 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
     return new Response('Internal server error', { status: 500 });
   }
-}
+});

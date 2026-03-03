@@ -45,13 +45,15 @@
  * ```
  */
 
-import { verifyCronAuth } from '@babylon/api';
+import { verifyCronAuth, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { huggingFaceIntegration } from '@babylon/training';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   // Security: Verify cron authorization (fail-closed in production)
   if (!verifyCronAuth(request, { jobName: 'WeeklyDatasetUpload' })) {
     logger.warn('Unauthorized cron request', undefined, 'WeeklyDatasetUpload');
@@ -93,4 +95,4 @@ export async function POST(request: NextRequest) {
       errors: result.errors,
     },
   });
-}
+});

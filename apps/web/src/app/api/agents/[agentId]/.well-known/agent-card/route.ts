@@ -54,6 +54,7 @@
 
 import { generateAgentCardSync } from '@babylon/a2a';
 import { getAgentConfig } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { NextResponse } from 'next/server';
 
@@ -84,7 +85,7 @@ type Agent0Extensions = {
 
 type ExtendedAgentCard = AgentCard & Agent0Extensions;
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _req: Request,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -165,4 +166,4 @@ export async function GET(
       'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
     },
   });
-}
+});

@@ -28,6 +28,7 @@ import {
   recordCronExecution,
   relayCronToStaging,
   verifyCronAuth,
+  withErrorHandling,
 } from '@babylon/api';
 import { db, eq, games } from '@babylon/db';
 import {
@@ -213,9 +214,9 @@ async function persistArticleFromGenerator(
  * GET /api/cron/article-tick
  * Alias for POST endpoint to support GET requests from cron services.
  */
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   return POST(req);
-}
+});
 
 /**
  * POST /api/cron/article-tick
@@ -223,7 +224,7 @@ export async function GET(req: NextRequest) {
  * Generates articles based on active events and questions.
  * Rate limited to prevent feed flooding.
  */
-export async function POST(_req: NextRequest) {
+export const POST = withErrorHandling(async function POST(_req: NextRequest) {
   // Verify cron authorization
   if (!verifyCronAuth(_req, { jobName: 'ArticleTick' })) {
     logger.warn(
@@ -509,7 +510,7 @@ export async function POST(_req: NextRequest) {
   } finally {
     await DistributedLockService.releaseLock('article-tick-global', processId);
   }
-}
+});
 
 /**
  * Generate an article about a specific event using ArticleGenerator.

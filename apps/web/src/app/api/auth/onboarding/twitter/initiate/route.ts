@@ -30,12 +30,12 @@
  * ```
  */
 
-import { authenticate } from '@babylon/api';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const user = await authenticate(request);
   const userId = user.userId;
 
@@ -63,4 +63,4 @@ export async function GET(request: NextRequest) {
   );
 
   return NextResponse.redirect(twitterAuthUrl.toString());
-}
+});

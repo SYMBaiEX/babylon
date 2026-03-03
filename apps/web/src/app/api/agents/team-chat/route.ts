@@ -59,7 +59,7 @@
  */
 
 import { teamChatService } from '@babylon/agents';
-import { authenticateUser } from '@babylon/api';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
 import {
   chatParticipants,
   chats,
@@ -80,7 +80,7 @@ import { NextResponse } from 'next/server';
  * GET /api/agents/team-chat
  * Get user's team chat info with member list
  */
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   const user = await authenticateUser(req);
 
   const teamChatWithMembers = await teamChatService.getTeamChatWithMembers(
@@ -142,13 +142,13 @@ export async function GET(req: NextRequest) {
       agentCount: teamChatWithMembers.agents.length,
     },
   });
-}
+});
 
 /**
  * POST /api/agents/team-chat
  * Ensure team chat exists (creates if needed) and sync existing agents
  */
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   // Always create Agents chat - even with 0 agents
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
     },
     syncedAgents: syncedCount,
   });
-}
+});
 
 /**
  * DELETE /api/agents/team-chat
@@ -231,7 +231,9 @@ export async function POST(req: NextRequest) {
  * The team chat will be recreated automatically when the user
  * visits Agents again or when an agent is created.
  */
-export async function DELETE(req: NextRequest) {
+export const DELETE = withErrorHandling(async function DELETE(
+  req: NextRequest
+) {
   // Gate destructive endpoint to development only
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json(
@@ -295,4 +297,4 @@ export async function DELETE(req: NextRequest) {
     success: true,
     message: 'Team chat deleted. Visit Agents again to create a fresh one.',
   });
-}
+});

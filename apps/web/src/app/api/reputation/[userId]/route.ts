@@ -77,6 +77,7 @@ import {
   addPublicReadHeaders,
   publicRateLimit,
   requireUserByIdentifier,
+  withErrorHandling,
 } from '@babylon/api';
 import { db } from '@babylon/db';
 import { getReputationBreakdown } from '@babylon/engine';
@@ -89,7 +90,10 @@ interface RouteParams {
   }>;
 }
 
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withErrorHandling(async function GET(
+  request: NextRequest,
+  { params }: RouteParams
+) {
   const { error, rateLimitInfo } = await publicRateLimit(request);
   if (error) return error;
 
@@ -148,4 +152,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   });
   if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
   return res;
-}
+});

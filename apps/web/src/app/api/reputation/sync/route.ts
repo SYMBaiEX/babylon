@@ -157,7 +157,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
  * GET /api/reputation/sync/status
  * Get sync status and current reputation for a user
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId')!;
 
@@ -194,4 +194,4 @@ export async function GET(request: NextRequest) {
       totalFeedback: reputation!.metrics.totalFeedbackCount,
     },
   });
-}
+});

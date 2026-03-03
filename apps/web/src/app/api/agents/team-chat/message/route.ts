@@ -50,6 +50,7 @@ import {
   broadcastChatMessage,
   checkRateLimitAsync,
   RATE_LIMIT_CONFIGS,
+  withErrorHandling,
 } from '@babylon/api';
 import { db, generateSnowflakeId, messages } from '@babylon/db';
 import { COORDINATOR_SENDER_ID, logger } from '@babylon/shared';
@@ -170,7 +171,7 @@ const messageSchema = z.object({
   targetIds: z.array(z.string()).optional(),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   // Rate limit to prevent spam (especially important with agent auto-responses)
@@ -306,4 +307,4 @@ export async function POST(req: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

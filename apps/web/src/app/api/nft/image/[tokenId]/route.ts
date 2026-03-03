@@ -14,6 +14,7 @@ import {
   checkRateLimitAsync,
   getClientIp,
   RATE_LIMIT_CONFIGS,
+  withErrorHandling,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -219,7 +220,7 @@ export const runtime = 'nodejs';
  * GET /api/nft/image/[tokenId]
  * Proxy NFT image from IPFS with caching and distributed rate limiting
  */
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   request: NextRequest,
   context: { params: Promise<{ tokenId: string }> }
 ) {
@@ -329,4 +330,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

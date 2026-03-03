@@ -105,13 +105,14 @@ import {
   getAgent0SDK,
   type SearchFilters,
 } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
 import { getBaseUrl, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
   // Parse query parameters
@@ -302,4 +303,4 @@ export async function GET(req: NextRequest) {
     },
     { status: 200 }
   );
-}
+});

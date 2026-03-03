@@ -57,24 +57,27 @@ export function useSocialVerification({
 
   const { linkFarcaster, linkTwitter } = useLinkAccount({
     onSuccess: async ({ linkedAccount }) => {
+      const linkedType = String(linkedAccount.type);
       if (
-        linkedAccount.type !== 'farcaster_account' &&
-        linkedAccount.type !== 'twitter_oauth'
+        linkedType !== 'farcaster' &&
+        linkedType !== 'farcaster_account' &&
+        linkedType !== 'twitter_oauth'
       )
         return;
 
       await refresh();
       await onPointsAwarded();
 
-      if (linkedAccount.type === 'farcaster_account') {
+      if (linkedType === 'farcaster' || linkedType === 'farcaster_account') {
         toast.success('Farcaster account linked successfully!');
       } else {
         toast.success('X account linked successfully!');
       }
     },
     onError: (error) => {
+      const rawError = error as unknown;
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        rawError instanceof Error ? rawError.message : String(rawError);
 
       if (
         error === 'exited_auth_flow' ||

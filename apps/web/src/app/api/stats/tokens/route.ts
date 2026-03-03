@@ -112,6 +112,7 @@ import {
   DEFAULT_TTLS,
   getCacheOrFetch,
   rateLimitError,
+  withErrorHandling,
 } from '@babylon/api';
 import { and, db, desc, gte, tickTokenStats } from '@babylon/db';
 import { tokenStatsService } from '@babylon/engine';
@@ -159,7 +160,7 @@ function checkIpRateLimit(ip: string): {
   return { allowed: true };
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   // Get client IP for rate limiting
   const ip =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
@@ -450,4 +451,4 @@ export async function GET(request: NextRequest) {
     success: true,
     ...stats,
   });
-}
+});

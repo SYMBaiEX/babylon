@@ -36,6 +36,7 @@
     "@babylon/engine": "workspace:*",
     "@babylon/testing": "workspace:*",
     "@babylon/training": "workspace:*",
+    "@sentry/bun": "^10.29.0",
     "@fal-ai/client": "^1.7.2",
     "@vercel/blob": "^2.0.0",
     "dotenv": "^16.4.5",

@@ -49,7 +49,7 @@
  * @see {@link /lib/training/AutomationPipeline} Automation pipeline
  */
 
-import { withCronAuth } from '@babylon/api';
+import { withCronAuth, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { automationPipeline } from '@babylon/training';
 import type { NextRequest } from 'next/server';
@@ -119,4 +119,6 @@ async function handler(_request: NextRequest) {
   });
 }
 
-export const GET = withCronAuth('TrainingStatusCron', handler);
+export const GET = withErrorHandling(
+  withCronAuth('TrainingStatusCron', handler)
+);
