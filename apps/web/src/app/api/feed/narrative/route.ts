@@ -420,12 +420,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .filter((n): n is number => n !== null);
 
     const enrichCacheKey = `narrative:enrichment:${userId}`;
-    let enrichment = await getCache<UserEnrichmentCache>(enrichCacheKey, {
-      namespace: 'feed',
-    });
+    const cachedEnrichment = await getCache<UserEnrichmentCache>(
+      enrichCacheKey,
+      { namespace: 'feed' }
+    );
 
-    if (!enrichment) {
-      // Cache miss — fetch from DB and populate cache
+    let enrichment: UserEnrichmentCache;
+
+    if (cachedEnrichment) {
+      enrichment = cachedEnrichment;
+    } else {
+      // Cache miss — fetch from DB in parallel and populate cache
       const [userLikes, userShares, userPositions] = await Promise.all([
         result.postIds.length > 0
           ? db
@@ -466,8 +471,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       ]);
 
       enrichment = {
-        likedPostIds: userLikes.map((l) => l.postId),
-        sharedPostIds: userShares.map((s) => s.postId),
+        likedPostIds: userLikes
+          .map((l) => l.postId)
+          .filter((id): id is string => id !== null),
+        sharedPostIds: userShares
+          .map((s) => s.postId)
+          .filter((id): id is string => id !== null),
         positionQuestionIds: userPositions
           .map((p) => p.questionId)
           .filter((id): id is number => id !== null),
