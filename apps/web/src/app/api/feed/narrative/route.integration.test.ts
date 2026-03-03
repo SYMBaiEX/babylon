@@ -52,6 +52,7 @@ const makeChain = (data: unknown[]) => {
  * If authenticated (outside factory, via Promise.all):
  *   3 — user reactions
  *   4 — user shares
+ *   5 — user positions (Promise.all fires all 3 simultaneously; unset defaults to [])
  */
 let selectQueue: unknown[][] = [];
 let executeResult: unknown[] = []; // returned by db.execute (CTE engagement query)
@@ -70,8 +71,8 @@ mock.module('@babylon/api', () => ({
   // Return data directly so tests can inspect it without parsing a Response
   successResponse: (data: unknown) => data,
   // Strip error handling wrapper so the handler is called directly
-  withErrorHandling:
-    (handler: (req: NextRequest) => Promise<unknown>) => handler,
+  withErrorHandling: (handler: (req: NextRequest) => Promise<unknown>) =>
+    handler,
 }));
 
 mock.module('@babylon/engine', () => ({
@@ -135,6 +136,11 @@ const arcStatesMock = {
   questionId: 'arcStates.questionId',
   currentState: 'arcStates.currentState',
 };
+const positionsMock = {
+  _t: 'positions',
+  userId: 'positions.userId',
+  questionId: 'positions.questionId',
+};
 
 mock.module('@babylon/db', () => ({
   db: { select: mockDbSelect, execute: mockDbExecute },
@@ -143,6 +149,7 @@ mock.module('@babylon/db', () => ({
   eq: (a: unknown, b: unknown) => [a, b],
   gte: (a: unknown, b: unknown) => [a, b],
   inArray: (col: unknown, arr: unknown) => ({ col, arr }),
+  isNotNull: (col: unknown) => col,
   isNull: (col: unknown) => col,
   lte: (a: unknown, b: unknown) => [a, b],
   // sql tagged template — returns a sentinel; db.execute mock ignores it
@@ -156,6 +163,7 @@ mock.module('@babylon/db', () => ({
   reactions: reactionsMock,
   shares: sharesMock,
   arcStates: arcStatesMock,
+  positions: positionsMock,
 }));
 
 // ─── Route import (after all mocks are registered) ───────────────────────────
@@ -165,6 +173,7 @@ const {
   GENERAL_STORY_KEY,
   calculateStoryScore,
   calculateArcStateMultiplier,
+  calculateResolutionBoost,
 } = await import('./route');
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -181,8 +190,7 @@ const callGet = (req?: NextRequest): Promise<NarrativeFeedResponse> =>
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const now = new Date();
-const hoursAgo = (h: number) =>
-  new Date(now.getTime() - h * 3_600_000);
+const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000);
 
 interface PostFixture {
   id: string;
@@ -234,12 +242,16 @@ const makeUser = (id: string) => ({
   profileImageUrl: null,
 });
 
+// Default resolution date far in future → 1.0 boost (preserves existing score expectations)
+const FAR_FUTURE = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
+
 const makeQuestion = (
   questionNumber: number,
   text: string,
   status = 'active',
-  arcState: string | null = null
-) => ({ questionNumber, text, status, arcState });
+  arcState: string | null = null,
+  resolutionDate: Date = FAR_FUTURE
+) => ({ questionNumber, text, status, arcState, resolutionDate });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -292,7 +304,10 @@ describe('GET /api/feed/narrative — integration', () => {
   describe('story grouping', () => {
     it('groups posts sharing the same relatedQuestion into one story', async () => {
       selectQueue[0] = [makePost('p1', 42, 1), makePost('p2', 42, 2)];
-      executeResult = [makeEngagement('p1', 5, 2, 1), makeEngagement('p2', 3, 0, 0)];
+      executeResult = [
+        makeEngagement('p1', 5, 2, 1),
+        makeEngagement('p2', 3, 0, 0),
+      ];
       selectQueue[1] = [makeUser('author-1')];
       selectQueue[2] = [makeQuestion(42, 'Will Bitcoin hit 100k?')];
 
@@ -312,7 +327,10 @@ describe('GET /api/feed/narrative — integration', () => {
         makePost('p1', 1, 1, 'author-1'),
         makePost('p2', 2, 1, 'author-2'),
       ];
-      executeResult = [makeEngagement('p1', 10, 5, 2), makeEngagement('p2', 8, 3, 1)];
+      executeResult = [
+        makeEngagement('p1', 10, 5, 2),
+        makeEngagement('p2', 8, 3, 1),
+      ];
       selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
       selectQueue[2] = [
         makeQuestion(1, 'Question One'),
@@ -424,7 +442,7 @@ describe('GET /api/feed/narrative — integration', () => {
         makePost('p-gen', null, 1, 'author-2'),
       ];
       executeResult = [
-        makeEngagement('p-story', 1, 0, 0),       // minimal engagement
+        makeEngagement('p-story', 1, 0, 0), // minimal engagement
         makeEngagement('p-gen', 9999, 9999, 9999), // massive engagement
       ];
       selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
@@ -474,8 +492,8 @@ describe('GET /api/feed/narrative — integration', () => {
       ];
       selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
       selectQueue[2] = [
-        makeQuestion(1, 'Crisis Story', 'active', 'crisis'),   // 1.4× multiplier
-        makeQuestion(2, 'Setup Story', 'active', 'setup'),     // 1.0× multiplier
+        makeQuestion(1, 'Crisis Story', 'active', 'crisis'), // 1.4× multiplier
+        makeQuestion(2, 'Setup Story', 'active', 'setup'), // 1.0× multiplier
       ];
 
       const response = await callGet();
@@ -498,7 +516,7 @@ describe('GET /api/feed/narrative — integration', () => {
       selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
       selectQueue[2] = [
         makeQuestion(1, 'Resolution Story', 'active', 'resolution'), // 0.85×
-        makeQuestion(2, 'Setup Story', 'active', 'setup'),           // 1.0×
+        makeQuestion(2, 'Setup Story', 'active', 'setup'), // 1.0×
       ];
 
       const response = await callGet();
@@ -511,7 +529,9 @@ describe('GET /api/feed/narrative — integration', () => {
       selectQueue[0] = [makePost('p1', 42, hoursOld)];
       executeResult = [makeEngagement('p1', 10, 5, 2)];
       selectQueue[1] = [makeUser('author-1')];
-      selectQueue[2] = [makeQuestion(42, 'Escalation Story', 'active', 'escalation')];
+      selectQueue[2] = [
+        makeQuestion(42, 'Escalation Story', 'active', 'escalation'),
+      ];
 
       const response = await callGet();
 
@@ -519,7 +539,9 @@ describe('GET /api/feed/narrative — integration', () => {
       const timestamp = new Date(story.posts[0]!.timestamp);
       const expectedBase = calculateStoryScore(10, 5, 2, 1, timestamp);
       const expectedScore =
-        Math.round(expectedBase * calculateArcStateMultiplier('escalation') * 10000) / 10000;
+        Math.round(
+          expectedBase * calculateArcStateMultiplier('escalation') * 10000
+        ) / 10000;
 
       expect(story.storyScore).toBeCloseTo(expectedScore, 3);
     });
@@ -556,7 +578,10 @@ describe('GET /api/feed/narrative — integration', () => {
         makePost('p1', 1, 1, 'author-1'),
         makePost('p2', 2, 1, 'author-2'),
       ];
-      executeResult = [makeEngagement('p1', 5, 2, 0), makeEngagement('p2', 3, 1, 0)];
+      executeResult = [
+        makeEngagement('p1', 5, 2, 0),
+        makeEngagement('p2', 3, 1, 0),
+      ];
       selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
       selectQueue[2] = [
         makeQuestion(1, 'Active Q1', 'active'),
@@ -611,7 +636,12 @@ describe('GET /api/feed/narrative — integration', () => {
       selectQueue[0] = [makePost('p1', 42, 1, 'author-1')];
       executeResult = [makeEngagement('p1')];
       selectQueue[1] = [
-        { id: 'author-1', username: 'alice', displayName: 'Alice Smith', profileImageUrl: null },
+        {
+          id: 'author-1',
+          username: 'alice',
+          displayName: 'Alice Smith',
+          profileImageUrl: null,
+        },
       ];
       selectQueue[2] = [makeQuestion(42, 'Test')];
 
@@ -657,11 +687,14 @@ describe('GET /api/feed/narrative — integration', () => {
       authUser = { userId: 'user-123' };
 
       selectQueue[0] = [makePost('p1', 42, 1), makePost('p2', 42, 2)];
-      executeResult = [makeEngagement('p1', 5, 0, 0), makeEngagement('p2', 3, 0, 0)];
+      executeResult = [
+        makeEngagement('p1', 5, 0, 0),
+        makeEngagement('p2', 3, 0, 0),
+      ];
       selectQueue[1] = [makeUser('author-1')];
       selectQueue[2] = [makeQuestion(42, 'Likes Test')];
       selectQueue[3] = [{ postId: 'p1' }]; // user liked only p1
-      selectQueue[4] = [];                  // user shared nothing
+      selectQueue[4] = []; // user shared nothing
 
       const response = await callGet();
       const posts = response.stories[0]!.posts;
@@ -674,10 +707,13 @@ describe('GET /api/feed/narrative — integration', () => {
       authUser = { userId: 'user-123' };
 
       selectQueue[0] = [makePost('p1', 42, 1), makePost('p2', 42, 2)];
-      executeResult = [makeEngagement('p1', 0, 0, 3), makeEngagement('p2', 0, 0, 0)];
+      executeResult = [
+        makeEngagement('p1', 0, 0, 3),
+        makeEngagement('p2', 0, 0, 0),
+      ];
       selectQueue[1] = [makeUser('author-1')];
       selectQueue[2] = [makeQuestion(42, 'Shares Test')];
-      selectQueue[3] = [];                  // user liked nothing
+      selectQueue[3] = []; // user liked nothing
       selectQueue[4] = [{ postId: 'p1' }]; // user shared p1
 
       const response = await callGet();
@@ -721,7 +757,10 @@ describe('GET /api/feed/narrative — integration', () => {
     it('sums likes, comments, and shares across all posts in the story for scoring', async () => {
       // 2 posts in same story: total engagement = (10+3) likes, (5+1) comments, (2+0) shares
       selectQueue[0] = [makePost('p1', 42, 1), makePost('p2', 42, 2)];
-      executeResult = [makeEngagement('p1', 10, 5, 2), makeEngagement('p2', 3, 1, 0)];
+      executeResult = [
+        makeEngagement('p1', 10, 5, 2),
+        makeEngagement('p2', 3, 1, 0),
+      ];
       selectQueue[1] = [makeUser('author-1')];
       selectQueue[2] = [makeQuestion(42, 'Multi-Post Story')];
 
@@ -732,7 +771,8 @@ describe('GET /api/feed/narrative — integration', () => {
       const newestTimestamp = new Date(story.posts[0]!.timestamp); // newest first
       const expectedBase = calculateStoryScore(13, 6, 2, 2, newestTimestamp);
       const expectedScore =
-        Math.round(expectedBase * calculateArcStateMultiplier(null) * 10000) / 10000;
+        Math.round(expectedBase * calculateArcStateMultiplier(null) * 10000) /
+        10000;
 
       expect(story.storyScore).toBeCloseTo(expectedScore, 3);
     });
@@ -743,7 +783,11 @@ describe('GET /api/feed/narrative — integration', () => {
         makePost('p2', 42, 2),
         makePost('p3', 42, 3),
       ];
-      executeResult = [makeEngagement('p1'), makeEngagement('p2'), makeEngagement('p3')];
+      executeResult = [
+        makeEngagement('p1'),
+        makeEngagement('p2'),
+        makeEngagement('p3'),
+      ];
       selectQueue[1] = [makeUser('author-1')];
       selectQueue[2] = [makeQuestion(42, 'Three Posts')];
 
@@ -774,7 +818,9 @@ describe('GET /api/feed/narrative — integration', () => {
       selectQueue[0] = [makePost('p1', 42, 1)];
       executeResult = [makeEngagement('p1', 3, 1, 0)];
       selectQueue[1] = [makeUser('author-1')];
-      selectQueue[2] = [makeQuestion(42, 'Shape Check', 'active', 'escalation')];
+      selectQueue[2] = [
+        makeQuestion(42, 'Shape Check', 'active', 'escalation'),
+      ];
 
       const response = await callGet();
       const story = response.stories[0]! as NarrativeStory;
@@ -786,6 +832,7 @@ describe('GET /api/feed/narrative — integration', () => {
       expect(Array.isArray(story.posts)).toBe(true);
       expect('arcState' in story).toBe(true);
       expect('questionNumber' in story).toBe(true);
+      expect(typeof story.hasUserPosition).toBe('boolean');
     });
 
     it('storyScore is rounded to at most 4 decimal places', async () => {
@@ -815,19 +862,206 @@ describe('GET /api/feed/narrative — integration', () => {
     });
   });
 
+  // ── Resolution proximity boost ────────────────────────────────────────────
+
+  describe('resolution proximity boost', () => {
+    it('applies 1.4x boost when question resolves within 6 hours', async () => {
+      const nearFuture = new Date(Date.now() + 1000 * 60 * 60 * 3); // 3h from now
+
+      selectQueue[0] = [
+        makePost('p1', 1, 2, 'author-1'), // near resolution story
+        makePost('p2', 2, 2, 'author-2'), // far future resolution (control)
+      ];
+      executeResult = [
+        makeEngagement('p1', 10, 5, 2),
+        makeEngagement('p2', 10, 5, 2), // identical engagement
+      ];
+      selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
+      selectQueue[2] = [
+        makeQuestion(1, 'Near Resolution', 'active', null, nearFuture), // 1.4x boost
+        makeQuestion(2, 'Far Resolution', 'active', null), // 1.0x boost (30 days)
+      ];
+
+      const response = await callGet();
+
+      expect(response.stories[0]!.questionNumber).toBe(1); // near resolution wins
+      expect(response.stories[0]!.storyScore).toBeGreaterThan(
+        response.stories[1]!.storyScore
+      );
+      // Score should be ~1.4x the far resolution score
+      expect(response.stories[0]!.storyScore).toBeCloseTo(
+        response.stories[1]!.storyScore * 1.4,
+        2
+      );
+    });
+
+    it('applies no boost when question has far future resolution date', async () => {
+      selectQueue[0] = [makePost('p1', 1, 2)];
+      executeResult = [makeEngagement('p1', 10, 5, 2)];
+      selectQueue[1] = [makeUser('author-1')];
+      selectQueue[2] = [makeQuestion(1, 'Far Future', 'active', null)]; // 30 days out → 1.0
+
+      const response = await callGet();
+      const story = response.stories[0]!;
+
+      const ts = new Date(story.posts[0]!.timestamp);
+      const expectedBase = calculateStoryScore(10, 5, 2, 1, ts);
+      // arc=null→1.0, boost→1.0
+      const expectedScore =
+        Math.round(
+          expectedBase * calculateArcStateMultiplier(null) * calculateResolutionBoost(FAR_FUTURE) * 10000
+        ) / 10000;
+
+      expect(story.storyScore).toBeCloseTo(expectedScore, 3);
+    });
+
+    it('applies no boost when resolutionDate is in the past', async () => {
+      const pastDate = new Date(Date.now() - 1000 * 60 * 60 * 24); // 24h ago
+
+      selectQueue[0] = [
+        makePost('p1', 1, 2, 'author-1'), // past resolution
+        makePost('p2', 2, 2, 'author-2'), // far future (control)
+      ];
+      executeResult = [
+        makeEngagement('p1', 10, 5, 2),
+        makeEngagement('p2', 10, 5, 2), // identical engagement
+      ];
+      selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
+      selectQueue[2] = [
+        makeQuestion(1, 'Past Resolution', 'active', null, pastDate), // 1.0x (expired)
+        makeQuestion(2, 'Far Resolution', 'active', null), // 1.0x (30 days)
+      ];
+
+      const response = await callGet();
+
+      // Both should have identical scores (both 1.0 boost)
+      expect(response.stories[0]!.storyScore).toBeCloseTo(
+        response.stories[1]!.storyScore,
+        3
+      );
+    });
+  });
+
+  // ── Per-user position signal ───────────────────────────────────────────────
+
+  describe('per-user position signal', () => {
+    it('sets hasUserPosition: true for stories where user holds a position', async () => {
+      authUser = { userId: 'user-123' };
+
+      selectQueue[0] = [makePost('p1', 1, 1)];
+      executeResult = [makeEngagement('p1', 5, 2, 1)];
+      selectQueue[1] = [makeUser('author-1')];
+      selectQueue[2] = [makeQuestion(1, 'Question With Position')];
+      selectQueue[3] = []; // user reactions
+      selectQueue[4] = []; // user shares
+      selectQueue[5] = [{ questionId: 1 }]; // user has position on question 1
+
+      const response = await callGet();
+
+      expect(response.stories[0]!.hasUserPosition).toBe(true);
+    });
+
+    it('sets hasUserPosition: false for stories with no user position', async () => {
+      authUser = { userId: 'user-123' };
+
+      selectQueue[0] = [makePost('p1', 1, 1)];
+      executeResult = [makeEngagement('p1', 5, 2, 1)];
+      selectQueue[1] = [makeUser('author-1')];
+      selectQueue[2] = [makeQuestion(1, 'Question No Position')];
+      selectQueue[3] = []; // user reactions
+      selectQueue[4] = []; // user shares
+      selectQueue[5] = []; // user has no positions
+
+      const response = await callGet();
+
+      expect(response.stories[0]!.hasUserPosition).toBe(false);
+    });
+
+    it('re-sorts stories with positions to the top', async () => {
+      authUser = { userId: 'user-123' };
+
+      selectQueue[0] = [
+        makePost('p1', 1, 1, 'author-1'), // lower engagement
+        makePost('p2', 2, 1, 'author-2'), // higher engagement
+      ];
+      executeResult = [
+        makeEngagement('p1', 1, 0, 0), // low
+        makeEngagement('p2', 100, 50, 20), // high
+      ];
+      selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
+      selectQueue[2] = [
+        makeQuestion(1, 'Low Score Story'),
+        makeQuestion(2, 'High Score Story'),
+      ];
+      selectQueue[3] = []; // no likes
+      selectQueue[4] = []; // no shares
+      selectQueue[5] = [{ questionId: 1 }]; // position on story 1 (lower score)
+
+      const response = await callGet();
+
+      // Story 1 (lower score but has position) should be first
+      expect(response.stories[0]!.questionNumber).toBe(1);
+      expect(response.stories[0]!.hasUserPosition).toBe(true);
+      expect(response.stories[1]!.hasUserPosition).toBe(false);
+    });
+
+    it('general story always sorts last even when user has positions', async () => {
+      authUser = { userId: 'user-123' };
+
+      selectQueue[0] = [
+        makePost('p1', 1, 1, 'author-1'),
+        makePost('p-gen', null, 1, 'author-2'),
+      ];
+      executeResult = [
+        makeEngagement('p1', 5, 2, 1),
+        makeEngagement('p-gen', 5, 2, 1),
+      ];
+      selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
+      selectQueue[2] = [makeQuestion(1, 'Question Story')];
+      selectQueue[3] = []; // no likes
+      selectQueue[4] = []; // no shares
+      selectQueue[5] = [{ questionId: 1 }]; // position on question 1
+
+      const response = await callGet();
+
+      const last = response.stories[response.stories.length - 1]!;
+      expect(last.storyKey).toBe(GENERAL_STORY_KEY);
+      // General stories never have positions (questionNumber is null)
+      expect(last.hasUserPosition).toBe(false);
+    });
+
+    it('unauthenticated request has hasUserPosition: false on all stories', async () => {
+      authUser = null; // not authenticated
+
+      selectQueue[0] = [makePost('p1', 1, 1), makePost('p2', 2, 1, 'author-2')];
+      executeResult = [makeEngagement('p1', 5, 2, 1), makeEngagement('p2', 3, 1, 0)];
+      selectQueue[1] = [makeUser('author-1'), makeUser('author-2')];
+      selectQueue[2] = [
+        makeQuestion(1, 'Story One'),
+        makeQuestion(2, 'Story Two'),
+      ];
+
+      const response = await callGet();
+
+      for (const story of response.stories) {
+        expect(story.hasUserPosition).toBe(false);
+      }
+    });
+  });
+
   // ── Mixed: multiple stories with various arc states ────────────────────────
 
   describe('full pipeline — mixed stories', () => {
     it('correctly orders 3 stories: active arc state, resolved excluded, general last', async () => {
       selectQueue[0] = [
-        makePost('p-crisis', 1, 2, 'author-1'),   // crisis arc — should rank first
-        makePost('p-setup', 2, 2, 'author-2'),    // setup arc — should rank second
+        makePost('p-crisis', 1, 2, 'author-1'), // crisis arc — should rank first
+        makePost('p-setup', 2, 2, 'author-2'), // setup arc — should rank second
         makePost('p-resolved', 3, 2, 'author-3'), // resolved — should be excluded
         makePost('p-general', null, 1, 'author-4'), // general — always last
       ];
       executeResult = [
         makeEngagement('p-crisis', 20, 10, 5),
-        makeEngagement('p-setup', 20, 10, 5),   // same engagement as crisis
+        makeEngagement('p-setup', 20, 10, 5), // same engagement as crisis
         makeEngagement('p-resolved', 100, 50, 25),
         makeEngagement('p-general', 1, 0, 0),
       ];
