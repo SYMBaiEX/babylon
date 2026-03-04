@@ -22,4 +22,5 @@ export * from './training';
 export * from './user-agent-configs';
 export * from './users';
 export * from './users-relations';
+export * from './wallet';
 export * from './whitelist';
