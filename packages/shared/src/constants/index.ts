@@ -13,3 +13,4 @@ export * from './markets';
 export * from './models';
 export * from './onboarding';
 export * from './points';
+export * from './token-list';

@@ -242,15 +242,18 @@ export async function listWhitelistEntries(options?: {
   includeRevoked?: boolean;
   search?: string;
 }) {
-  const conditions = [];
+  const sourceCondition = options?.source
+    ? eq(whitelist.source, options.source)
+    : undefined;
 
-  if (options?.source) {
-    conditions.push(eq(whitelist.source, options.source));
-  }
+  const revokedCondition = options?.includeRevoked
+    ? undefined
+    : isNull(whitelist.revokedAt);
 
-  if (!options?.includeRevoked) {
-    conditions.push(isNull(whitelist.revokedAt));
-  }
+  const whereClause =
+    sourceCondition && revokedCondition
+      ? and(sourceCondition, revokedCondition)
+      : (sourceCondition ?? revokedCondition);
 
   let query = db
     .select({
@@ -270,8 +273,8 @@ export async function listWhitelistEntries(options?: {
     .leftJoin(users, eq(whitelist.userId, users.id))
     .$dynamic();
 
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions));
+  if (whereClause) {
+    query = query.where(whereClause);
   }
 
   const results = await query.orderBy(desc(whitelist.grantedAt));

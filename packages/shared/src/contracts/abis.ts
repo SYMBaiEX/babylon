@@ -404,3 +404,18 @@ export const PRICE_STORAGE_FACET_ABI = [
   'event PriceBatchSubmitted(bytes32 indexed marketId, uint256 startTick, uint256 endTick, bytes32 merkleRoot)',
   'event AuthorizedUpdaterSet(bytes32 indexed marketId, address indexed updater, bool authorized)',
 ] as const;
+
+// Minimal ERC-20 ABI for balance reads and transfers
+export const ERC20_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+  'function transfer(address to, uint256 value) returns (bool)',
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function name() view returns (string)',
+] as const;
+
+// ERC-721 transfer ABI (for NFT sends in Phase 4)
+export const ERC721_TRANSFER_ABI = [
+  'function safeTransferFrom(address from, address to, uint256 tokenId)',
+  'function ownerOf(uint256 tokenId) view returns (address)',
+] as const;

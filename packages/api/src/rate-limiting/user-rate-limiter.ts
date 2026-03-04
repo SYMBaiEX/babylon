@@ -248,6 +248,29 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'public_firehose_anonymous',
   },
 
+  // Wallet read endpoints (authenticated, per-user)
+  WALLET_READ: {
+    maxRequests: 60,
+    windowMs: 60000,
+    actionType: 'wallet_read',
+  }, // 60 reads per minute per user (tokens, nfts, transactions)
+
+  // Wallet write endpoints (sendToken, sendNft)
+  WALLET_TRANSFER: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'wallet_transfer',
+  }, // 10 transfers per minute per user
+
+  // Step-up auth / limit elevation requests
+  // Reserved for the elevated-limit step-up auth flow (WalletTransferLimit.elevatedUntil).
+  // Wire to a dedicated endpoint when limit elevation UI is built.
+  WALLET_STEP_UP: {
+    maxRequests: 5,
+    windowMs: 300000,
+    actionType: 'wallet_step_up',
+  }, // 5 step-up requests per 5 minutes
+
   // Default fallback
   DEFAULT: { maxRequests: 30, windowMs: 60000, actionType: 'default' }, // 30 requests per minute
 } as const;

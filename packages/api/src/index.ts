@@ -81,6 +81,7 @@ export {
   getCacheStats,
   invalidateCache,
   invalidateCachePattern,
+  narrativeEnrichmentKey,
   setCache,
   warmCache,
 } from './cache';
@@ -246,7 +247,10 @@ export {
   type PrivyApiDiagnostics,
   redactJwtLikeTokens,
 } from './services/privy/error-diagnostics';
-export { sendSponsoredEvmTransaction } from './services/privy/evm-send-transaction';
+export {
+  safeDecodeJwtPayload,
+  sendSponsoredEvmTransaction,
+} from './services/privy/evm-send-transaction';
 export { ensureOfflineWalletReady } from './services/privy/offline-wallet-provisioning';
 // Privy (embedded wallet server-side helpers)
 export {
@@ -319,3 +323,8 @@ export {
   validateUserApiKey,
   verifyApiKey,
 } from './utils';
+// Wallet auth utilities
+export {
+  requireFreshToken,
+  type TokenFreshnessResult,
+} from './wallet-auth';
