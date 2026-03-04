@@ -47,20 +47,24 @@ const TradesFeed = dynamic(
 
 type FeedTab = 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
 
-function NarrativeFeedError({
-  onRetry,
-}: {
-  onRetry: () => Promise<void>;
-}) {
+function NarrativeFeedError({ onRetry }: { onRetry: () => Promise<void> }) {
   const [isRetrying, setIsRetrying] = useState(false);
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleRetry = async () => {
     setIsRetrying(true);
     try {
       await onRetry();
     } finally {
-      // Component may unmount if retry succeeds (error clears) — fine.
-      setIsRetrying(false);
+      // Guard against state update on unmounted component: if onRetry
+      // succeeds the error clears and this component unmounts before finally.
+      if (isMountedRef.current) setIsRetrying(false);
     }
   };
 

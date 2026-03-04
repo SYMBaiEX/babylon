@@ -4,7 +4,7 @@ import type { ArcStateType } from '@babylon/db';
 import { cn } from '@babylon/shared';
 import { BookOpen, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { NarrativePost, NarrativeStory } from '@/app/feed/types/narrative';
 import { PostCard } from '@/components/posts/PostCard';
 
@@ -102,10 +102,12 @@ export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const arcConfig = story.arcState ? ARC_STATE_CONFIG[story.arcState] : null;
-  const visiblePosts = expanded
-    ? story.posts
-    : story.posts.slice(0, POSTS_COLLAPSED_COUNT);
   const hasMore = story.posts.length > POSTS_COLLAPSED_COUNT;
+  const visiblePosts = useMemo(
+    () =>
+      expanded ? story.posts : story.posts.slice(0, POSTS_COLLAPSED_COUNT),
+    [expanded, story.posts]
+  );
 
   return (
     <div className="border-border border-b">
