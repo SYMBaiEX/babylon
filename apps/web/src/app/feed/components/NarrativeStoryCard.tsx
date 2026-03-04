@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
+import { NewMarketCard } from './NewMarketCard';
 
 // Arc state display config: label + Tailwind classes
 const ARC_STATE_CONFIG: Record<
@@ -134,6 +135,11 @@ export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
       expanded ? story.posts : story.posts.slice(0, POSTS_COLLAPSED_COUNT),
     [expanded, story.posts]
   );
+
+  // New market cards render a dedicated trade CTA card
+  if (story.isNewMarket) {
+    return <NewMarketCard story={story} />;
+  }
 
   // Standalone posts render as plain feed cards — no story header wrapper
   if (isStandalonePost(story.storyKey) && story.posts.length === 1) {

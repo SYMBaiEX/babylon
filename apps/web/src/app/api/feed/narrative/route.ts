@@ -34,7 +34,9 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
+  not,
   positions,
   posts,
   questions,
@@ -59,8 +61,10 @@ import {
 
 // Query limits
 const MAX_CANDIDATE_POSTS = 500;
-// 72-hour window: captures enough content for active stories AND recent user posts
-const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
+// 12-hour window: markets change frequently; this keeps the feed current
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+// New market lookback: questions opened in this window get a "New Market" card
+const NEW_MARKET_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Top-N general (non-question) posts surfaced as individual story cards.
 // These compete on score alongside question stories to create the
@@ -142,7 +146,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     cacheKey,
     async () => {
       const now = new Date();
-      const cutoff = new Date(now.getTime() - SEVENTY_TWO_HOURS_MS);
+      const cutoff = new Date(now.getTime() - TWELVE_HOURS_MS);
+      const newMarketCutoff = new Date(now.getTime() - NEW_MARKET_WINDOW_MS);
 
       const recentPosts = await db
         .select({
@@ -450,6 +455,59 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       // Active question stories naturally float above standalone posts because
       // the arc state and resolution proximity multipliers boost their score.
       stories.sort((a, b) => b.storyScore - a.storyScore);
+
+      // Inject "New Market" cards for questions opened in the last 24h.
+      // These appear even if the question has no posts yet, giving users a
+      // chance to discover and trade on fresh markets directly from the feed.
+      const existingQuestionNumbers = new Set(
+        stories.map((s) => s.questionNumber).filter((n): n is number => n !== null)
+      );
+
+      const newMarketQuestions = await db
+        .select({
+          questionNumber: questions.questionNumber,
+          text: questions.text,
+          resolutionDate: questions.resolutionDate,
+          createdAt: questions.createdAt,
+          arcState: arcStates.currentState,
+        })
+        .from(questions)
+        .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
+        .where(
+          and(
+            eq(questions.status, 'active'),
+            gte(questions.createdAt, newMarketCutoff),
+            lt(questions.resolutionDate, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)), // resolves within 30 days
+            not(inArray(questions.questionNumber, existingQuestionNumbers.size > 0 ? [...existingQuestionNumbers] : [-1]))
+          )
+        )
+        .orderBy(desc(questions.createdAt))
+        .limit(5);
+
+      for (const q of newMarketQuestions) {
+        // New market cards score on recency alone — they float near top on open day
+        const hoursSinceOpen = (now.getTime() - q.createdAt.getTime()) / (1000 * 60 * 60);
+        const recencyScore = Math.exp((-Math.LN2 * hoursSinceOpen) / 6); // 6h half-life
+        const arcMultiplier = calculateArcStateMultiplier((q.arcState as ArcStateType | null) ?? null);
+
+        stories.push({
+          storyKey: `market:${q.questionNumber}`,
+          storyTitle: q.text,
+          questionNumber: q.questionNumber,
+          arcState: (q.arcState as ArcStateType | null) ?? null,
+          storyScore: Math.round(recencyScore * arcMultiplier * 10000) / 10000,
+          postCount: 0,
+          posts: [],
+          hasUserPosition: false,
+          isNewMarket: true,
+          resolutionDate: q.resolutionDate.toISOString(),
+        });
+      }
+
+      // Re-sort after injecting new market cards
+      if (newMarketQuestions.length > 0) {
+        stories.sort((a, b) => b.storyScore - a.storyScore);
+      }
 
       return { stories, postIds };
     },
