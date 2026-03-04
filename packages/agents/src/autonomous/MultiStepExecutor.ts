@@ -35,9 +35,7 @@ import {
   executeDirectTrade,
   executeDirectUnfollow,
 } from './DirectExecutors';
-import { trackAgentTradeExecuted } from './track-agent-trade';
 import { topicDiversityService } from './TopicDiversityService';
-
 import {
   Actions,
   type ActionTraceResult,
@@ -47,6 +45,7 @@ import {
   getRequiredFeature,
   type MultiStepDecision,
 } from './templates/multi-step-decision';
+import { trackAgentTradeExecuted } from './track-agent-trade';
 
 // Import utilities
 import {

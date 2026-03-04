@@ -11,12 +11,12 @@ import { db, eq, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import type { BabylonRuntime } from '../plugins/babylon/types';
 import { agentPnLService } from '../services/AgentPnLService';
-import { trackAgentTradeExecuted } from './track-agent-trade';
 import {
   getAgentConfig,
   isAutonomousTradingEnabled,
 } from '../shared/agent-config';
 import { logger } from '../shared/logger';
+import { trackAgentTradeExecuted } from './track-agent-trade';
 
 /**
  * Type guard to check if runtime has A2A client
@@ -351,14 +351,14 @@ Your JSON response:`;
         leverage: perpLeverage,
       })) as { positionId?: string; entryPrice?: number };
 
-    logger.info('A2A LLM-based perp trade executed', {
-      agentUserId,
-      ticker,
-      side,
-      size,
-      leverage: perpLeverage,
-      reasoning,
-    });
+      logger.info('A2A LLM-based perp trade executed', {
+        agentUserId,
+        ticker,
+        side,
+        size,
+        leverage: perpLeverage,
+        reasoning,
+      });
 
       // Record trade via shared service (DRY - same as DirectExecutors)
       await agentPnLService.recordTrade({

@@ -878,7 +878,11 @@ export const POST = withErrorHandling(
       points_cost: actualPointsCost,
       model_used: modelUsed,
     }).catch((err) => {
-      logger.warn('Failed to track agent_message_sent', { error: err }, 'AgentChat');
+      logger.warn(
+        'Failed to track agent_message_sent',
+        { error: err },
+        'AgentChat'
+      );
     });
 
     return NextResponse.json({
