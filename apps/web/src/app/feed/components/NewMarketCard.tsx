@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import type { NarrativeStory } from '@/app/feed/types/narrative';
@@ -133,9 +134,10 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
         </Link>
         <Link
           href={viewHref}
-          className="ml-auto text-muted-foreground text-sm transition-colors hover:text-foreground"
+          className="ml-auto inline-flex items-center gap-1 text-muted-foreground text-sm transition-colors hover:text-foreground"
         >
-          View market →
+          View market
+          <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
     </div>

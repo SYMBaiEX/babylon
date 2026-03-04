@@ -12,34 +12,7 @@ import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner';
 import { useAuthStore } from '@/stores/authStore';
 import { NewMarketCard } from './NewMarketCard';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type MixedItem =
-  | { type: 'post'; post: FeedPost }
-  | { type: 'market'; market: NewMarketEntry };
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function mergeChronologically(
-  posts: FeedPost[],
-  markets: NewMarketEntry[]
-): MixedItem[] {
-  const all: MixedItem[] = [
-    ...posts.map((p) => ({ type: 'post' as const, post: p })),
-    ...markets.map((m) => ({ type: 'market' as const, market: m })),
-  ];
-  return all.sort((a, b) => {
-    const ta =
-      a.type === 'post'
-        ? new Date(a.post.timestamp).getTime()
-        : new Date(a.market.createdAt).getTime();
-    const tb =
-      b.type === 'post'
-        ? new Date(b.post.timestamp).getTime()
-        : new Date(b.market.createdAt).getTime();
-    return tb - ta;
-  });
-}
+import { mergeChronologically } from '@/app/feed/utils/feedAlgorithms';
 
 function marketToNarrativeStory(m: NewMarketEntry): NarrativeStory {
   return {
