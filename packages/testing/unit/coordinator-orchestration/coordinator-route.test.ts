@@ -10,7 +10,7 @@
  * tests exercise real parsing paths.
  *
  * Coverage:
- * - maxDuration=60 is exported (Vercel timeout guard)
+ * - maxDuration=120 is exported (Vercel timeout guard — 120s for parallel multi-agent dispatch)
  * - Unsafe input returns 400 before auth or DB call
  * - Auth errors propagate without hitting LLM
  * - Rate limit exceeded returns 429 with Retry-After header
@@ -226,9 +226,9 @@ describe('POST /api/agents/team-chat/coordinator', () => {
   // ── maxDuration export ──────────────────────────────────────────────────
 
   describe('Vercel timeout guard', () => {
-    it('exports maxDuration = 60', () => {
+    it('exports maxDuration = 120', () => {
       const { maxDuration } = routeModule as { maxDuration?: number };
-      expect(maxDuration).toBe(60);
+      expect(maxDuration).toBe(120);
     });
   });
 

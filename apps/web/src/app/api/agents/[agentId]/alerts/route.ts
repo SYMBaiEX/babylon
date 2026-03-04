@@ -16,6 +16,16 @@ import type { PriceAlert } from '@babylon/db/schema';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+const createAlertSchema = z.object({
+  tokenSymbol: z.string().trim().min(1).max(20),
+  condition: z.enum(['above', 'below']),
+  threshold: z.number().positive(),
+  deliveryChannel: z.enum(['team_chat', 'group']).optional(),
+  deliveryChatId: z.string().optional(),
+  cooldownMinutes: z.number().int().positive().max(1440).optional(),
+});
 
 /**
  * Verify agent exists, is an agent, and is managed by the authenticated user.
@@ -113,7 +123,19 @@ export const POST = withErrorHandling(async function POST(
 
   if ('error' in result) return result.error;
 
-  const body = (await req.json()) as Record<string, unknown>;
+  const raw = await req.json();
+  const parsed = createAlertSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid input',
+        details: parsed.error.flatten().fieldErrors,
+      },
+      { status: 400 }
+    );
+  }
+
   const {
     tokenSymbol,
     condition,
@@ -121,26 +143,9 @@ export const POST = withErrorHandling(async function POST(
     deliveryChannel,
     deliveryChatId,
     cooldownMinutes,
-  } = body;
+  } = parsed.data;
 
-  // Validate required fields
-  if (
-    typeof tokenSymbol !== 'string' ||
-    !tokenSymbol.trim() ||
-    (condition !== 'above' && condition !== 'below') ||
-    typeof threshold !== 'number' ||
-    threshold <= 0
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          'Invalid input. Required: tokenSymbol (string), condition ("above"|"below"), threshold (positive number)',
-      },
-      { status: 400 }
-    );
-  }
-
-  if (deliveryChannel === 'group' && typeof deliveryChatId !== 'string') {
+  if (deliveryChannel === 'group' && !deliveryChatId) {
     return NextResponse.json(
       { error: 'deliveryChatId is required when deliveryChannel is "group"' },
       { status: 400 }
@@ -165,16 +170,9 @@ export const POST = withErrorHandling(async function POST(
     alert = {
       ...existing,
       threshold,
-      deliveryChannel:
-        (deliveryChannel as 'team_chat' | 'group') ?? existing.deliveryChannel,
-      deliveryChatId:
-        typeof deliveryChatId === 'string'
-          ? deliveryChatId
-          : existing.deliveryChatId,
-      cooldownMinutes:
-        typeof cooldownMinutes === 'number'
-          ? cooldownMinutes
-          : existing.cooldownMinutes,
+      deliveryChannel: deliveryChannel ?? existing.deliveryChannel,
+      deliveryChatId: deliveryChatId ?? existing.deliveryChatId,
+      cooldownMinutes: cooldownMinutes ?? existing.cooldownMinutes,
       enabled: true,
       lastTriggeredAt: undefined, // Reset cooldown on update
     };
@@ -185,15 +183,12 @@ export const POST = withErrorHandling(async function POST(
     alert = {
       id: await generateSnowflakeId(),
       tokenSymbol: upperSymbol,
-      condition: condition as 'above' | 'below',
+      condition,
       threshold,
-      deliveryChannel:
-        (deliveryChannel as 'team_chat' | 'group') ?? 'team_chat',
-      deliveryChatId:
-        typeof deliveryChatId === 'string' ? deliveryChatId : undefined,
+      deliveryChannel: deliveryChannel ?? 'team_chat',
+      deliveryChatId,
       enabled: true,
-      cooldownMinutes:
-        typeof cooldownMinutes === 'number' ? cooldownMinutes : 15,
+      cooldownMinutes: cooldownMinutes ?? 15,
       createdAt: now,
     };
     alerts.push(alert);

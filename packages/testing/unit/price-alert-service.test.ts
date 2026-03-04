@@ -242,10 +242,6 @@ describe('PriceAlertService', () => {
       ]);
       // Call 3: owner lookup
       mockDbSelectLimit.mockResolvedValueOnce([{ managedBy: 'owner-001' }]);
-      // Call 4: timestamp update config fetch
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'config-001', priceAlerts: [alert] },
-      ]);
 
       const result = await service.checkAlerts('agent-001');
       expect(result).toBe(1);
@@ -273,9 +269,6 @@ describe('PriceAlertService', () => {
         { markPrice: 0.5, currentPrice: 0.6 },
       ]);
       mockDbSelectLimit.mockResolvedValueOnce([{ managedBy: 'owner-001' }]);
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: [alert] },
-      ]);
 
       const result = await service.checkAlerts('agent-001');
       expect(result).toBe(1);
@@ -302,9 +295,6 @@ describe('PriceAlertService', () => {
         { markPrice: 2.5, currentPrice: 2.4 },
       ]);
       mockDbSelectLimit.mockResolvedValueOnce([{ managedBy: 'owner-001' }]);
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: [alert] },
-      ]);
 
       const result = await service.checkAlerts('agent-001');
       expect(result).toBe(1);
@@ -336,9 +326,6 @@ describe('PriceAlertService', () => {
         { markPrice: 0.5, currentPrice: 0.5 },
       ]);
       // No owner lookup needed — goes directly to group chat
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: [alert] },
-      ]);
 
       const result = await service.checkAlerts('agent-001');
       expect(result).toBe(1);
@@ -361,9 +348,6 @@ describe('PriceAlertService', () => {
       ]);
       // Falls through to team chat lookup
       mockDbSelectLimit.mockResolvedValueOnce([{ managedBy: 'owner-001' }]);
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: [alert] },
-      ]);
 
       const result = await service.checkAlerts('agent-001');
       expect(result).toBe(1);
@@ -429,11 +413,6 @@ describe('PriceAlertService', () => {
         messageId: 'msg-456',
       });
 
-      // Timestamp update for alert2
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: [alert1, alert2] },
-      ]);
-
       const result = await service.checkAlerts('agent-001');
       // Only 1 success (alert2), alert1 failed
       expect(result).toBe(1);
@@ -470,18 +449,12 @@ describe('PriceAlertService', () => {
         { markPrice: 0.8, currentPrice: 0.9 },
       ]);
       mockDbSelectLimit.mockResolvedValueOnce([{ managedBy: 'owner-001' }]);
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: alerts },
-      ]);
 
       // alert2: price check (above threshold)
       mockDbSelectLimit.mockResolvedValueOnce([
         { markPrice: 0.7, currentPrice: 0.6 },
       ]);
       mockDbSelectLimit.mockResolvedValueOnce([{ managedBy: 'owner-001' }]);
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: alerts },
-      ]);
 
       // alert3 is disabled, should be skipped
 
@@ -666,72 +639,38 @@ describe('PriceAlertService', () => {
   });
 
   // ═══ updateAlertTimestamp ══════════════════════════════════════════════
+  // The implementation uses an atomic SQL JSONB update (no SELECT needed).
 
   describe('updateAlertTimestamp', () => {
-    test('updates lastTriggeredAt for matching alert', async () => {
-      const alerts = [
-        makeAlert({ id: 'a1' }),
-        makeAlert({ id: 'a2', tokenSymbol: 'TSLAI' }),
-      ];
-
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: alerts },
-      ]);
-
+    test('issues atomic UPDATE with SQL expression', async () => {
       await (service as unknown as ServicePrivate).updateAlertTimestamp(
         'agent-001',
         'a1'
       );
 
+      // Should call db.update().set().where() — single atomic operation, no SELECT
       expect(mockDbUpdateSet).toHaveBeenCalledTimes(1);
+      expect(mockDbSelect).not.toHaveBeenCalled();
+
       const setArg = mockDbUpdateSet.mock.calls[0]![0] as Record<
         string,
         unknown
       >;
-      const updatedAlerts = setArg.priceAlerts as Array<
-        Record<string, unknown>
-      >;
-      // a1 should have lastTriggeredAt updated
-      const a1 = updatedAlerts.find((a) => a.id === 'a1');
-      expect(a1?.lastTriggeredAt).toBeDefined();
-      // a2 should be unchanged
-      const a2 = updatedAlerts.find((a) => a.id === 'a2');
-      expect(a2?.lastTriggeredAt).toBeUndefined();
+      // priceAlerts is now a SQL template expression (not a plain array)
+      expect(setArg.priceAlerts).toBeDefined();
+      expect(setArg.updatedAt).toBeInstanceOf(Date);
     });
 
-    test('silently returns when config not found', async () => {
-      mockDbSelectLimit.mockResolvedValueOnce([]);
-
-      await (service as unknown as ServicePrivate).updateAlertTimestamp(
-        'agent-001',
-        'a1'
-      );
-      // Should not throw and should not call update
-      expect(mockDbUpdateSet).not.toHaveBeenCalled();
-    });
-
-    test('does not modify other alerts when target not found', async () => {
-      const alerts = [makeAlert({ id: 'a1' })];
-
-      mockDbSelectLimit.mockResolvedValueOnce([
-        { id: 'cfg-1', priceAlerts: alerts },
-      ]);
-
-      await (service as unknown as ServicePrivate).updateAlertTimestamp(
-        'agent-001',
-        'nonexistent'
-      );
+    test('does not throw when no matching config exists', async () => {
+      // Atomic UPDATE on non-existent row simply affects 0 rows — no error
+      await expect(
+        (service as unknown as ServicePrivate).updateAlertTimestamp(
+          'nonexistent',
+          'a1'
+        )
+      ).resolves.toBeUndefined();
 
       expect(mockDbUpdateSet).toHaveBeenCalledTimes(1);
-      const setArg = mockDbUpdateSet.mock.calls[0]![0] as Record<
-        string,
-        unknown
-      >;
-      const updatedAlerts = setArg.priceAlerts as Array<
-        Record<string, unknown>
-      >;
-      // a1 should NOT have lastTriggeredAt modified
-      expect(updatedAlerts[0]?.lastTriggeredAt).toBeUndefined();
     });
   });
 });

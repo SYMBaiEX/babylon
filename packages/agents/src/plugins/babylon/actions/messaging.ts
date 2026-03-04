@@ -275,6 +275,8 @@ export const sendMessageAction: Action = {
       }
 
       // Strategy 3: Recipient @username
+      // resolveUserByUsername only resolves the ID — authorization (owner-DM block,
+      // recipient existence) is enforced downstream in executeDirectMessage.
       const username = parseRecipientUsername(content);
       if (username) {
         const recipientId = await resolveUserByUsername(username);
