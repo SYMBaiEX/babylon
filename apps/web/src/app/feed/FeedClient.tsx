@@ -19,8 +19,8 @@ import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
 import {
   EmptyFeed,
+  MixedFeedList,
   NarrativeStoryList,
-  NewMarketCard,
   PostList,
 } from './components';
 import {
@@ -155,9 +155,9 @@ export function FeedClient() {
   } = useNarrativeFeed({ enabled: tab === 'narrative' });
 
   // New market cards shown at the top of Latest and Hot tabs
-  const { markets: newMarkets } = useNewMarkets(
-    tab === 'latest' || tab === 'hot'
-  );
+  // New market cards only appear on the Latest tab, chronologically merged.
+  // Hot and Following tabs show no market cards.
+  const { markets: newMarkets } = useNewMarkets(tab === 'latest');
 
   // Game timeline posts (viewer mode fallback)
   const { allGames, startTime, currentTimeMs } = useGameStore();
@@ -372,38 +372,28 @@ export function FeedClient() {
       return <EmptyFeed variant="default" />;
     }
 
-    return (
-      <>
-        {/* New market cards pinned above posts when markets just opened */}
-        {newMarkets.length > 0 && (
-          <div>
-            {newMarkets.map((m) => (
-              <NewMarketCard
-                key={`new-market-${m.questionNumber}`}
-                story={{
-                  storyKey: `market:${m.questionNumber}`,
-                  storyTitle: m.text,
-                  questionNumber: m.questionNumber,
-                  arcState: m.arcState,
-                  storyScore: 0,
-                  postCount: 0,
-                  posts: [],
-                  hasUserPosition: false,
-                  isNewMarket: true,
-                  resolutionDate: m.resolutionDate,
-                }}
-              />
-            ))}
-          </div>
-        )}
-        <PostList
+    // Latest tab: merge new market cards chronologically into the post stream
+    if (tab === 'latest') {
+      return (
+        <MixedFeedList
           posts={currentPosts}
+          newMarkets={newMarkets}
           actorNames={actorNames}
-          hasMore={tab === 'latest' && hasMore}
+          hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={handleLoadMore}
         />
-      </>
+      );
+    }
+
+    return (
+      <PostList
+        posts={currentPosts}
+        actorNames={actorNames}
+        hasMore={false}
+        loadingMore={loadingMore}
+        onLoadMore={handleLoadMore}
+      />
     );
   };
 
