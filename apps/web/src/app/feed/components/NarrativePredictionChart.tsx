@@ -1,27 +1,33 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
+import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
+import type { MarketTimeRange } from '@/types/markets';
 
 interface NarrativePredictionChartProps {
   marketId: string;
+  /** Live share counts used to seed the chart for markets with no API history yet */
+  yesShares?: number;
+  noShares?: number;
 }
 
 /**
- * Compact probability chart attached below a regular feed post card when the
- * post is related to a prediction market.
+ * Compact prediction probability chart for inline use on feed post cards.
  *
- * Defers the history fetch via IntersectionObserver so concurrent requests
- * don't saturate the rate limiter when 20 cards are visible at once.
+ * Uses the same PredictionProbabilityChart as the markets terminal for visual
+ * consistency. Defers history fetch via IntersectionObserver (100px rootMargin)
+ * to prevent 429 cascades when many cards are visible at once. Passes seed
+ * data from live share counts so markets with no API history still render.
  */
 export function NarrativePredictionChart({
   marketId,
+  yesShares = 500,
+  noShares = 500,
 }: NarrativePredictionChartProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
-  const [chartWidth, setChartWidth] = useState(300);
+  const [timeRange, setTimeRange] = useState<MarketTimeRange>('1H');
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -39,49 +45,30 @@ export function NarrativePredictionChart({
     return () => io.disconnect();
   }, []);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || !inView) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w) setChartWidth(Math.floor(w));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [inView]);
-
   const { history } = usePredictionHistory(inView ? marketId : '', {
-    limit: 40,
+    limit: 200,
+    range: timeRange,
+    seed: { yesShares, noShares },
   });
 
-  if (!inView || history.length === 0) {
-    // 1px sentinel keeps scroll position stable; no visible placeholder on posts
+  if (!inView) {
+    // 1px sentinel preserves scroll position; no visible placeholder on posts
     return <div ref={wrapperRef} className="h-px" />;
   }
-
-  const latest = history[history.length - 1];
-  const yesPercent = Math.round((latest?.yesPrice ?? 0.5) * 100);
-  const noPercent = 100 - yesPercent;
 
   return (
     <div
       ref={wrapperRef}
       className="mx-4 mb-3 overflow-hidden rounded-md border border-border bg-muted/20"
     >
-      {/* Probability header */}
-      <div className="flex items-center justify-between border-border border-b px-3 py-1.5">
-        <span className="font-semibold text-green-500 text-xs">
-          {yesPercent}% YES
-        </span>
-        <span className="text-[10px] text-muted-foreground">probability</span>
-        <span className="font-semibold text-red-500 text-xs">
-          {noPercent}% NO
-        </span>
-      </div>
-      {/* Sparkline */}
-      <div ref={containerRef} className="w-full">
-        <PredictionSparkline data={history} width={chartWidth} height={56} />
-      </div>
+      <PredictionProbabilityChart
+        data={history}
+        marketId={marketId}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
+        showHeader={true}
+        height="fixed"
+      />
     </div>
   );
 }

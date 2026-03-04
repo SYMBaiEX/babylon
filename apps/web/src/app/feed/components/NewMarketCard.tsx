@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { NarrativeStory } from '@/app/feed/types/narrative';
 import { InteractionBar } from '@/components/interactions/InteractionBar';
-import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
+import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import { PredictionTradingModal } from '@/components/markets/PredictionTradingModal';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
-import type { PredictionMarket } from '@/types/markets';
+import type { MarketTimeRange, PredictionMarket } from '@/types/markets';
 
 interface NewMarketCardProps {
   story: NarrativeStory;
@@ -41,14 +41,26 @@ function computePercentages(
 }
 
 /**
- * Lazy-loading probability chart for market cards in the feed.
- * Only fetches price history once scrolled into view to avoid 429 cascades.
+ * Prediction probability chart for market cards in the feed.
+ *
+ * Uses the same PredictionProbabilityChart as the markets terminal so the
+ * visual language is consistent. Lazy-loads history via IntersectionObserver
+ * to prevent 429 cascades, and passes seed data from the market's live share
+ * counts so brand-new markets (no API history yet) show a flat line at the
+ * current probability instead of a black placeholder.
  */
-function MarketChart({ marketId }: { marketId: string }) {
+function MarketChart({
+  marketId,
+  yesShares,
+  noShares,
+}: {
+  marketId: string;
+  yesShares: number;
+  noShares: number;
+}) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
-  const [chartWidth, setChartWidth] = useState(300);
+  const [timeRange, setTimeRange] = useState<MarketTimeRange>('1H');
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -66,30 +78,27 @@ function MarketChart({ marketId }: { marketId: string }) {
     return () => io.disconnect();
   }, []);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || !inView) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w) setChartWidth(Math.floor(w));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [inView]);
-
   const { history } = usePredictionHistory(inView ? marketId : '', {
-    limit: 60,
+    limit: 200,
+    range: timeRange,
+    // Seed ensures brand-new markets (no API history) show a flat probability
+    // line rather than a black placeholder — same pattern as the terminal.
+    seed: { yesShares, noShares },
   });
 
   return (
     <div ref={wrapperRef} className="w-full">
-      {inView && history.length > 0 ? (
-        <div ref={containerRef} className="w-full">
-          <PredictionSparkline data={history} width={chartWidth} height={72} />
-        </div>
+      {inView ? (
+        <PredictionProbabilityChart
+          data={history}
+          marketId={marketId}
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          showHeader={false}
+          height="fixed"
+        />
       ) : (
-        // Placeholder maintains layout height while loading
-        <div className="h-[72px] w-full animate-pulse rounded bg-muted/40" />
+        <div className="h-[160px] w-full animate-pulse rounded bg-muted/40" />
       )}
     </div>
   );
@@ -154,7 +163,11 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
       {/* Probability chart — only rendered when marketId is available */}
       {story.marketId && (
         <div className="mb-3 overflow-hidden rounded-md border border-border bg-muted/20">
-          <MarketChart marketId={story.marketId} />
+          <MarketChart
+            marketId={story.marketId}
+            yesShares={story.yesShares ?? 0}
+            noShares={story.noShares ?? 0}
+          />
         </div>
       )}
 
