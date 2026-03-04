@@ -1,23 +1,35 @@
 'use server';
 
 import {
-  getAuthedUserContextFromPrivyTokenBundle,
   checkRateLimitAsync,
+  getAuthedUserContextFromPrivyTokenBundle,
+  getCache,
+  getClientIp,
   RATE_LIMIT_CONFIGS,
   requireFreshToken,
   sendSponsoredEvmTransaction,
+  setCache,
 } from '@babylon/api';
-import { db, eq, walletTransferLimit, walletTransferLog } from '@babylon/db';
+import {
+  and,
+  db,
+  eq,
+  nftOwnership,
+  walletTransferLimit,
+  walletTransferLog,
+} from '@babylon/db';
 import {
   CHAIN,
   CHAIN_ID,
   ERC20_ABI,
   ERC721_TRANSFER_ABI,
-  getTokenListForChain,
   generateSnowflakeId,
+  getTokenListForChain,
+  getTxExplorerUrl,
   logger,
   WALLET_ERROR_MESSAGES,
 } from '@babylon/shared';
+import { headers } from 'next/headers';
 import {
   type Address,
   encodeFunctionData,
@@ -33,93 +45,141 @@ import { requirePrivyTokenBundle } from './utils';
 const erc20Abi = parseAbi(ERC20_ABI);
 const erc721Abi = parseAbi(ERC721_TRANSFER_ABI);
 
-function getTxExplorerUrl(txHash: string): string {
-  switch (CHAIN_ID) {
-    case 1:
-      return `https://etherscan.io/tx/${txHash}`;
-    case 11155111:
-      return `https://sepolia.etherscan.io/tx/${txHash}`;
-    case 8453:
-      return `https://basescan.org/tx/${txHash}`;
-    case 84532:
-      return `https://sepolia.basescan.org/tx/${txHash}`;
-    default:
-      return '';
+// Stablecoin symbols that are pegged 1:1 to USD — no oracle needed.
+const STABLECOIN_SYMBOLS = new Set([
+  'USDC',
+  'USDT',
+  'DAI',
+  'FRAX',
+  'LUSD',
+  'PYUSD',
+]);
+
+// Conservative fallback price used when the price oracle is unavailable.
+// Errs on the side of over-counting so limits are never bypassed silently.
+const FALLBACK_ETH_PRICE_USD = 5_000;
+
+/**
+ * Fetch a token's current USD price, caching in Redis for 5 minutes.
+ * Uses CoinGecko's free simple-price endpoint (no API key required).
+ * Falls back to a conservative estimate when the request fails.
+ */
+async function fetchTokenUsdPrice(coingeckoId: string): Promise<number> {
+  const cacheKey = `price:${coingeckoId}`;
+  const cached = await getCache<number>(cacheKey, { namespace: 'prices' });
+  if (cached !== null && cached > 0) return cached;
+
+  try {
+    const resp = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`,
+      { signal: AbortSignal.timeout(3_000) }
+    );
+    if (resp.ok) {
+      const data = (await resp.json()) as Record<string, { usd?: number }>;
+      const price = data[coingeckoId]?.usd;
+      if (price && price > 0) {
+        void setCache(cacheKey, price, { namespace: 'prices', ttl: 300 });
+        return price;
+      }
+    }
+  } catch {
+    // Network error or timeout — fall through to fallback
   }
+
+  logger.warn(
+    'CoinGecko price fetch failed, using fallback',
+    { coingeckoId },
+    'wallet/pricing'
+  );
+  return coingeckoId === 'ethereum'
+    ? FALLBACK_ETH_PRICE_USD
+    : FALLBACK_ETH_PRICE_USD;
 }
 
 /**
- * Check daily transfer limit using check-on-read pattern.
- * Resets daily counter if UTC day has rolled over.
+ * Compute the approximate USD value of a token transfer.
+ * Stablecoins are resolved exactly (1:1). Other tokens use CoinGecko prices
+ * with a Redis-backed 5-minute cache.
  */
-async function checkDailyLimit(
+async function getTransferUsdValue(
+  amountWei: bigint,
+  decimals: number,
+  tokenAddress?: string
+): Promise<number> {
+  const amount = Number(amountWei) / 10 ** decimals;
+
+  if (!tokenAddress) {
+    // Native ETH
+    const price = await fetchTokenUsdPrice('ethereum');
+    return amount * price;
+  }
+
+  const token = getTokenListForChain(CHAIN_ID).find(
+    (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
+  );
+
+  if (!token) return amount * FALLBACK_ETH_PRICE_USD;
+  if (STABLECOIN_SYMBOLS.has(token.symbol)) return amount; // 1:1 USD
+  if (token.coingeckoId) {
+    const price = await fetchTokenUsdPrice(token.coingeckoId);
+    return amount * price;
+  }
+  return amount * FALLBACK_ETH_PRICE_USD;
+}
+
+/**
+ * Atomically check and reserve daily spending capacity for a user.
+ * Uses SELECT FOR UPDATE inside a transaction to prevent race conditions
+ * when concurrent transfers would otherwise bypass the limit.
+ */
+async function checkAndReserveDailyLimit(
   userId: string,
   transferUsdValue: number
 ): Promise<{ allowed: boolean; dailySpent: number; dailyLimit: number }> {
-  // Get or create limit record
-  let limitRow = await db
-    .select()
-    .from(walletTransferLimit)
-    .where(eq(walletTransferLimit.userId, userId))
-    .then((rows) => rows[0]);
-
-  if (!limitRow) {
-    const [created] = await db
+  return await db.transaction(async (tx) => {
+    // Upsert so the row always exists before we lock it
+    await tx
       .insert(walletTransferLimit)
       .values({ userId })
-      .returning();
-    limitRow = created!;
-  }
+      .onConflictDoNothing();
 
-  const now = new Date();
-  const lastReset = new Date(limitRow.lastResetAt);
-  const isNewDay =
-    now.toISOString().slice(0, 10) !== lastReset.toISOString().slice(0, 10);
+    const [row] = await tx
+      .select()
+      .from(walletTransferLimit)
+      .where(eq(walletTransferLimit.userId, userId))
+      .for('update');
 
-  let dailySpent = Number(limitRow.dailySpentUsd);
-  if (isNewDay) {
-    dailySpent = 0;
-    await db
+    if (!row) throw new Error('Failed to initialize limit record');
+
+    const now = new Date();
+    const isNewDay =
+      now.toISOString().slice(0, 10) !==
+      new Date(row.lastResetAt).toISOString().slice(0, 10);
+
+    const dailySpent = isNewDay ? 0 : Number(row.dailySpentUsd);
+
+    const effectiveLimit =
+      row.elevatedUntil &&
+      new Date(row.elevatedUntil) > now &&
+      row.elevatedLimitUsd
+        ? Number(row.elevatedLimitUsd)
+        : Number(row.dailyLimitUsd);
+
+    const newSpent = dailySpent + transferUsdValue;
+    if (newSpent > effectiveLimit) {
+      return { allowed: false, dailySpent, dailyLimit: effectiveLimit };
+    }
+
+    await tx
       .update(walletTransferLimit)
-      .set({ dailySpentUsd: '0.00', lastResetAt: now })
+      .set({
+        dailySpentUsd: newSpent.toFixed(2),
+        ...(isNewDay ? { lastResetAt: now } : {}),
+      })
       .where(eq(walletTransferLimit.userId, userId));
-  }
 
-  // Check if elevated limit applies
-  let effectiveLimit = Number(limitRow.dailyLimitUsd);
-  if (
-    limitRow.elevatedUntil &&
-    new Date(limitRow.elevatedUntil) > now &&
-    limitRow.elevatedLimitUsd
-  ) {
-    effectiveLimit = Number(limitRow.elevatedLimitUsd);
-  }
-
-  const allowed = dailySpent + transferUsdValue <= effectiveLimit;
-
-  return { allowed, dailySpent, dailyLimit: effectiveLimit };
-}
-
-/**
- * Record daily spending after a transfer.
- */
-async function recordDailySpending(
-  userId: string,
-  usdValue: number
-): Promise<void> {
-  const limitRow = await db
-    .select()
-    .from(walletTransferLimit)
-    .where(eq(walletTransferLimit.userId, userId))
-    .then((rows) => rows[0]);
-
-  if (limitRow) {
-    const newSpent = Number(limitRow.dailySpentUsd) + usdValue;
-    await db
-      .update(walletTransferLimit)
-      .set({ dailySpentUsd: String(newSpent) })
-      .where(eq(walletTransferLimit.userId, userId));
-  }
+    return { allowed: true, dailySpent: newSpent, dailyLimit: effectiveLimit };
+  });
 }
 
 // ─── Send Native ETH or ERC-20 Token ─────────────────────────────────────────
@@ -193,19 +253,28 @@ async function sendTokenActionImpl(input: {
   const decimals = tokenConfig?.decimals ?? CHAIN.nativeCurrency.decimals;
   const tokenSymbol = tokenConfig?.symbol ?? CHAIN.nativeCurrency.symbol;
 
-  // Parse amount
+  // Parse amount using server-side decimals (never trust client-provided decimals)
   const amountWei = parseUnits(input.amount, decimals);
   if (amountWei <= 0n) {
     throw new Error('Amount must be positive');
   }
 
-  // Check daily limit (using $0 for now since USD pricing isn't implemented yet)
-  const limitCheck = await checkDailyLimit(ctx.dbUserId, 0);
-  if (!limitCheck.allowed) {
+  // Compute USD value and atomically check + reserve daily limit
+  const usdValue = await getTransferUsdValue(
+    amountWei,
+    decimals,
+    tokenAddressNormalized
+  );
+  const limitResult = await checkAndReserveDailyLimit(ctx.dbUserId, usdValue);
+  if (!limitResult.allowed) {
     throw new Error(
-      `Daily transfer limit reached ($${limitCheck.dailyLimit}). Try again tomorrow.`
+      `Daily transfer limit of $${limitResult.dailyLimit.toFixed(0)} reached. Try again tomorrow.`
     );
   }
+
+  // Capture IP for audit log
+  const reqHeaders = await headers();
+  const ipAddress = getClientIp(reqHeaders) ?? null;
 
   // Create audit log entry (pending)
   const logId = await generateSnowflakeId();
@@ -219,6 +288,8 @@ async function sendTokenActionImpl(input: {
     chainId: CHAIN_ID,
     status: 'pending',
     type: tokenAddressNormalized ? 'erc20' : 'native',
+    usdValueAtTime: usdValue.toFixed(2),
+    ipAddress,
   });
 
   let txHash: Hex;
@@ -261,25 +332,24 @@ async function sendTokenActionImpl(input: {
     throw error;
   }
 
-  // Update audit log with tx hash (still pending until confirmed on-chain)
+  // Update log with submitted tx hash. Status stays 'pending' until confirmed on-chain.
+  // confirmedAt is set by a future webhook/polling job when the tx is mined.
   await db
     .update(walletTransferLog)
     .set({ txHash })
     .where(eq(walletTransferLog.id, logId));
 
-  // Record spending (using $0 since USD pricing not yet implemented)
-  await recordDailySpending(ctx.dbUserId, 0);
-
   const explorerUrl = getTxExplorerUrl(txHash);
 
   logger.info(
-    'Token transfer completed',
+    'Token transfer submitted',
     {
       userId: ctx.dbUserId,
       from: senderAddress,
       to: recipient,
       token: tokenSymbol,
       amount: input.amount,
+      usdValue: usdValue.toFixed(2),
       txHash,
     },
     'sendTokenAction'
@@ -347,6 +417,24 @@ async function sendNftActionImpl(input: {
     throw new Error('Cannot send to the zero address');
   }
 
+  // Verify the sender owns this NFT before submitting to avoid a guaranteed
+  // on-chain revert that wastes rate limit budget and logs a spurious entry.
+  const tokenIdNum = Number(input.tokenId);
+  const owned = await db
+    .select({ tokenId: nftOwnership.tokenId })
+    .from(nftOwnership)
+    .where(
+      and(
+        eq(nftOwnership.tokenId, tokenIdNum),
+        eq(nftOwnership.ownerAddress, senderAddress)
+      )
+    )
+    .limit(1);
+
+  if (!owned.length) {
+    throw new Error('You do not own this NFT');
+  }
+
   const tokenIdBigint = BigInt(input.tokenId);
 
   // Encode safeTransferFrom(from, to, tokenId)
@@ -355,6 +443,10 @@ async function sendNftActionImpl(input: {
     functionName: 'safeTransferFrom',
     args: [senderAddress, recipient, tokenIdBigint],
   });
+
+  // Capture IP for audit log
+  const reqHeaders = await headers();
+  const ipAddress = getClientIp(reqHeaders) ?? null;
 
   // Create audit log entry (pending)
   const logId = await generateSnowflakeId();
@@ -369,6 +461,7 @@ async function sendNftActionImpl(input: {
     chainId: CHAIN_ID,
     status: 'pending',
     type: 'erc721',
+    ipAddress,
   });
 
   let txHash: Hex;
@@ -391,7 +484,7 @@ async function sendNftActionImpl(input: {
     throw error;
   }
 
-  // Update audit log with tx hash (still pending until confirmed on-chain)
+  // Update log with submitted tx hash. Status stays 'pending' until confirmed on-chain.
   await db
     .update(walletTransferLog)
     .set({ txHash })
@@ -400,7 +493,7 @@ async function sendNftActionImpl(input: {
   const explorerUrl = getTxExplorerUrl(txHash);
 
   logger.info(
-    'NFT transfer completed',
+    'NFT transfer submitted',
     {
       userId: ctx.dbUserId,
       from: senderAddress,

@@ -10,6 +10,9 @@
  *   - walletTransferLog table (token/ETH/NFT transfers initiated through Babylon)
  *   - NFT mint events from nftClaims table
  *   - NFT ownership transfers from nftOwnership table
+ *
+ * Each source is capped at MAX_RECORDS_PER_SOURCE before the in-memory
+ * merge-sort to prevent unbounded memory allocation for heavy users.
  */
 
 import {
@@ -29,10 +32,29 @@ import {
   or,
   walletTransferLog,
 } from '@babylon/db';
-import { CHAIN_ID, logger } from '@babylon/shared';
+import {
+  CHAIN_ID,
+  getTokenListForChain,
+  getTxExplorerUrl,
+  logger,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { isAddress } from 'viem';
+
+// Maximum records fetched per source before in-memory merge. Prevents
+// unbounded queries for users with large transaction histories.
+const MAX_RECORDS_PER_SOURCE = 500;
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticateUser(request);
@@ -69,6 +91,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const walletAddress = address.toLowerCase();
 
+  // Build a lookup map from the token list for ERC-20 metadata enrichment
+  const tokenMap = new Map(
+    getTokenListForChain(CHAIN_ID).map((t) => [t.address.toLowerCase(), t])
+  );
+
   // Collect transactions from available sources
   const transactions: TransactionRecord[] = [];
   const seenTxHashes = new Set<string>();
@@ -83,7 +110,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         eq(walletTransferLog.toAddress, walletAddress)
       )
     )
-    .orderBy(desc(walletTransferLog.createdAt));
+    .orderBy(desc(walletTransferLog.createdAt))
+    .limit(MAX_RECORDS_PER_SOURCE);
 
   for (const record of transferRecords) {
     const isSend = record.fromAddress === walletAddress;
@@ -99,10 +127,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     };
 
     if (record.type === 'erc20' && record.tokenAddress) {
+      const tokenMeta = tokenMap.get(record.tokenAddress.toLowerCase());
       tx.token = {
-        symbol: '',
+        symbol: tokenMeta?.symbol ?? '',
         address: record.tokenAddress,
-        decimals: 18,
+        decimals: tokenMeta?.decimals ?? 18,
       };
     }
     if (record.type === 'erc721' && record.tokenId) {
@@ -131,7 +160,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .from(nftClaims)
     .leftJoin(nftCollection, eq(nftClaims.tokenId, nftCollection.tokenId))
     .where(eq(nftClaims.claimerAddress, walletAddress))
-    .orderBy(desc(nftClaims.claimedAt));
+    .orderBy(desc(nftClaims.claimedAt))
+    .limit(MAX_RECORDS_PER_SOURCE);
 
   for (const mint of mintRecords) {
     if (seenTxHashes.has(mint.txHash)) continue;
@@ -167,9 +197,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .from(nftOwnership)
     .leftJoin(nftCollection, eq(nftOwnership.tokenId, nftCollection.tokenId))
     .where(eq(nftOwnership.ownerAddress, walletAddress))
-    .orderBy(desc(nftOwnership.acquiredAt));
+    .orderBy(desc(nftOwnership.acquiredAt))
+    .limit(MAX_RECORDS_PER_SOURCE);
 
-  // Add ownership records that aren't already captured
   for (const record of ownershipRecords) {
     if (record.txHash && !seenTxHashes.has(record.txHash)) {
       seenTxHashes.add(record.txHash);
@@ -192,23 +222,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  // Sort all transactions by timestamp descending
+  // Sort all merged transactions by timestamp descending, then paginate
   transactions.sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
 
-  // Paginate
   const total = transactions.length;
   const paginated = transactions.slice(offset, offset + limit);
 
   logger.debug(
     'Wallet transactions fetched',
-    {
-      address: walletAddress,
-      total,
-      page,
-      limit,
-    },
+    { address: walletAddress, total, page, limit },
     'GET /api/wallet/transactions'
   );
 
@@ -234,19 +258,4 @@ interface TransactionRecord {
   timestamp: string;
   status: 'confirmed' | 'pending' | 'failed';
   explorerUrl: string;
-}
-
-function getTxExplorerUrl(txHash: string): string {
-  switch (CHAIN_ID) {
-    case 1:
-      return `https://etherscan.io/tx/${txHash}`;
-    case 11155111:
-      return `https://sepolia.etherscan.io/tx/${txHash}`;
-    case 8453:
-      return `https://basescan.org/tx/${txHash}`;
-    case 84532:
-      return `https://sepolia.basescan.org/tx/${txHash}`;
-    default:
-      return '';
-  }
 }

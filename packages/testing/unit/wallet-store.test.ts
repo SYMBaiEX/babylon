@@ -380,29 +380,29 @@ describe('Onchain Wallet Store — fetchTokens', () => {
   test('ignores response if address changed during fetch', async () => {
     // Set up a slow response
     mockFetch.mockImplementationOnce(
-	      () =>
-	        new Promise((resolve) =>
-	          setTimeout(
-	            () =>
-	              resolve({
-	                ok: true,
-	                status: 200,
-	                json: () =>
-	                  Promise.resolve({
-	                    native: {
-	                      symbol: 'ETH',
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                ok: true,
+                status: 200,
+                json: () =>
+                  Promise.resolve({
+                    native: {
+                      symbol: 'ETH',
                       balance: '999',
                       decimals: 18,
-	                      usdValue: null,
-	                    },
-	                    tokens: [] as Array<Record<string, unknown>>,
-	                  }),
-	                text: () => Promise.resolve(''),
-	              }),
-	            50
-	          )
-	        )
-	    );
+                      usdValue: null,
+                    },
+                    tokens: [] as Array<Record<string, unknown>>,
+                  }),
+                text: () => Promise.resolve(''),
+              }),
+            50
+          )
+        )
+    );
 
     useOnchainWalletStore.getState().setAddress('0xold', 8453);
     const fetchPromise = useOnchainWalletStore.getState().fetchTokens('0xold');
@@ -424,15 +424,15 @@ describe('Onchain Wallet Store — fetchTokens', () => {
 // ---------------------------------------------------------------------------
 
 describe('Onchain Wallet Store — fetchNfts', () => {
-	  beforeEach(() => {
-	    mockFetch.mockImplementation(() =>
-	      Promise.resolve({
-	        ok: true,
-	        status: 200,
-	        json: () =>
-	          Promise.resolve({
-	            collections: [
-	              {
+  beforeEach(() => {
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            collections: [
+              {
                 name: 'ProtoMonkeys',
                 contractAddress: '0xnft',
                 items: [

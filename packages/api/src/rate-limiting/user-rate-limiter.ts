@@ -263,6 +263,8 @@ export const RATE_LIMIT_CONFIGS = {
   }, // 10 transfers per minute per user
 
   // Step-up auth / limit elevation requests
+  // Reserved for the elevated-limit step-up auth flow (WalletTransferLimit.elevatedUntil).
+  // Wire to a dedicated endpoint when limit elevation UI is built.
   WALLET_STEP_UP: {
     maxRequests: 5,
     windowMs: 300000,

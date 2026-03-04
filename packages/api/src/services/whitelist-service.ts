@@ -253,7 +253,7 @@ export async function listWhitelistEntries(options?: {
   const whereClause =
     sourceCondition && revokedCondition
       ? and(sourceCondition, revokedCondition)
-      : sourceCondition ?? revokedCondition;
+      : (sourceCondition ?? revokedCondition);
 
   let query = db
     .select({

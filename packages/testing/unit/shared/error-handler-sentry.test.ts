@@ -9,7 +9,6 @@ import {
 } from 'bun:test';
 
 type ErrorHandlerModule = typeof import('../../../api/src/error-handler');
-type ErrorCapture = Parameters<ErrorHandlerModule['setDefaultErrorCapture']>[0];
 
 let AuthenticationError: new (message?: string) => Error;
 let BadRequestError: new (message: string) => Error;
