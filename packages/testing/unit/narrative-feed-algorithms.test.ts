@@ -90,7 +90,7 @@ describe('flattenStories', () => {
     });
   });
 
-  it('gives top story BURST_LEAD posts on first pass', () => {
+  it('gives top story BURST_LEAD posts before rotating', () => {
     const storyA = makeStory('A', 10);
     const storyB = makeStory('B', 10);
     const items = flattenStories([storyA, storyB]);
@@ -119,13 +119,17 @@ describe('flattenStories', () => {
     expect(items.filter((i) => i.key.startsWith('C:')).length).toBe(6);
   });
 
-  it('emits a new market card once at its scored position', () => {
+  it('injects market card after post rotation, not before', () => {
     const market = makeStory('market:1', 0, {
       isNewMarket: true,
       storyKey: 'market:1',
     });
     const posts = makeStory('posts', 4);
+    // market has score ~1.0 (new), but should appear AFTER the first post burst
     const items = flattenStories([market, posts]);
+
+    // First item must be a post (market card deferred to after first rotation)
+    expect(items[0]!.type).toBe('post');
 
     const marketItems = items.filter((i) => i.type === 'market');
     expect(marketItems.length).toBe(1);
@@ -207,9 +211,9 @@ describe('mergeChronologically', () => {
       [post(t(30)), post(t(10))],
       [market(t(20))]
     );
-    expect(result[0]!.type).toBe('post');   // 10min
+    expect(result[0]!.type).toBe('post'); // 10min
     expect(result[1]!.type).toBe('market'); // 20min
-    expect(result[2]!.type).toBe('post');   // 30min
+    expect(result[2]!.type).toBe('post'); // 30min
   });
 
   it('places market card at correct chronological position between posts', () => {
@@ -217,9 +221,9 @@ describe('mergeChronologically', () => {
       [post(t(5)), post(t(35))],
       [market(t(20))]
     );
-    expect(result[0]!.type).toBe('post');   // 5min
+    expect(result[0]!.type).toBe('post'); // 5min
     expect(result[1]!.type).toBe('market'); // 20min
-    expect(result[2]!.type).toBe('post');   // 35min
+    expect(result[2]!.type).toBe('post'); // 35min
   });
 
   it('handles multiple market cards', () => {
@@ -228,7 +232,7 @@ describe('mergeChronologically', () => {
     const result = mergeChronologically([post(t(15))], [m1, m2]);
 
     expect(result[0]!.type).toBe('market'); // 5min
-    expect(result[1]!.type).toBe('post');   // 15min
+    expect(result[1]!.type).toBe('post'); // 15min
     expect(result[2]!.type).toBe('market'); // 30min
   });
 
