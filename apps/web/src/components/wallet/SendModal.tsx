@@ -1,5 +1,6 @@
 'use client';
 
+import { formatTokenBalance } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -92,17 +93,9 @@ export function SendModal({
     }
   }
 
-  const formatBalance = (raw: string, decimals: number): string => {
-    if (raw === '0') return '0';
-    const val = BigInt(raw);
-    const divisor = 10n ** BigInt(decimals);
-    const whole = val / divisor;
-    const remainder = val % divisor;
-    if (remainder === 0n) return whole.toString();
-    const remainderStr = remainder.toString().padStart(decimals, '0');
-    const trimmed = remainderStr.slice(0, 6).replace(/0+$/, '');
-    return trimmed ? `${whole}.${trimmed}` : whole.toString();
-  };
+  // 6 fractional digits in the send modal for precision (e.g. small ETH amounts)
+  const formatBalance = (raw: string, decimals: number) =>
+    formatTokenBalance(raw, decimals, 6);
 
   const validateForm = (): string | null => {
     if (!selectedAsset) return 'Please select an asset';

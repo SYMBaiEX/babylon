@@ -417,8 +417,18 @@ async function sendNftActionImpl(input: {
     throw new Error('Cannot send to the zero address');
   }
 
-  // Verify the sender owns this NFT before submitting to avoid a guaranteed
-  // on-chain revert that wastes rate limit budget and logs a spurious entry.
+  // Best-effort ownership check against our DB index before submitting.
+  //
+  // Design decision: this is NOT a security gate — it is a UX guard that
+  // saves the user a rate-limit slot and a failed-log entry when the
+  // transfer is obviously invalid. True ownership enforcement happens on-chain:
+  // the EVM will revert `safeTransferFrom` if the caller doesn't own the token,
+  // regardless of what our DB says.
+  //
+  // The race condition (NFT transferred away between this check and on-chain
+  // execution) is intentionally accepted: the window is sub-second, the
+  // blockchain is the authoritative source, and the on-chain revert is the
+  // safety net. The resulting 'failed' log entry is correct audit behavior.
   const tokenIdNum = Number(input.tokenId);
   const owned = await db
     .select({ tokenId: nftOwnership.tokenId })

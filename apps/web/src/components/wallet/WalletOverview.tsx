@@ -1,5 +1,6 @@
 'use client';
 
+import { formatTokenBalance } from '@babylon/shared';
 import { ArrowDownLeft, ArrowUpRight, Coins } from 'lucide-react';
 import type {
   NativeBalance,
@@ -216,18 +217,9 @@ function OverviewTokenRow({
   );
 }
 
-function formatBalance(rawBalance: string, decimals: number): string {
-  const raw = BigInt(rawBalance);
-  if (raw === 0n) return '0';
-  const divisor = 10n ** BigInt(decimals);
-  const whole = raw / divisor;
-  const remainder = raw % divisor;
-  if (remainder === 0n) return whole.toString();
-  const remainderStr = remainder.toString().padStart(decimals, '0');
-  const trimmed = remainderStr.slice(0, 4).replace(/0+$/, '');
-  if (!trimmed) return whole.toString();
-  return `${whole}.${trimmed}`;
-}
+// Display balances with 4 significant fractional digits in the overview panel
+const formatBalance = (raw: string, dec: number) =>
+  formatTokenBalance(raw, dec, 4);
 
 function calculateTotalUsd(
   nativeBalance: NativeBalance | null,
