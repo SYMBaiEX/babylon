@@ -13,3 +13,5 @@ export { checkRecentMarketTradesAction } from './check-recent-market-trades';
 export { checkTeamChatAction } from './check-team-chat';
 export { checkUserPnlAction } from './check-user-pnl';
 export { dispatchToAgentAction } from './dispatch-to-agent';
+export { dispatchToAgentsAction } from './dispatch-to-agents';
+export { relayToAgentAction } from './relay-to-agent';

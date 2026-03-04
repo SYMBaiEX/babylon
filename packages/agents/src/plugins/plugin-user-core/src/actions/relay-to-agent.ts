@@ -1,18 +1,18 @@
 /**
- * DISPATCH_TO_AGENT Action
+ * RELAY_TO_AGENT Action (Context-Enriched Dispatch)
  *
- * Allows the coordinator to execute a command on behalf of the user
- * by dispatching it to a specific agent in their team.
+ * Dispatches a command to an agent with structured context from previous
+ * agent responses. This enables multi-agent workflows where one agent's
+ * output informs another agent's task.
  *
- * The broadcastFn dependency is injected via state.data from the route layer
- * to avoid importing @babylon/api from packages/agents.
+ * Example flow:
+ * 1. Coordinator dispatches to Agent A (research): "What's trending?"
+ * 2. Agent A responds with research findings
+ * 3. Coordinator relays to Agent B (trading): "Based on research: [Agent A's findings],
+ *    execute the best trade opportunity"
  *
- * Key implementation notes:
- * - Returns ActionResult AND calls _callback (so processActions can
- *   relay the result to the coordinator route's callback handler)
- * - validate() only shows this action when the team has at least one agent
- *   (reads from state.data.teamMembers populated by coordinatorTeamMembersProvider)
- * - state.data.actionParams is the established pattern for passing params to handlers
+ * The relayContext is prepended to the command so the target agent sees it
+ * as additional context in its system prompt.
  */
 
 import type {
@@ -28,23 +28,28 @@ import {
   dispatchAgentChat,
 } from '../../../../services/AgentChatService';
 
-export const dispatchToAgentAction: Action = {
-  name: 'DISPATCH_TO_AGENT',
+export const relayToAgentAction: Action = {
+  name: 'RELAY_TO_AGENT',
   description:
-    "Execute a command on the user's behalf by dispatching to a specific agent in their team. Use when the user wants to trade, post, comment, or take any agent action. Do NOT use for information queries — use CHECK_PERPS, CHECK_PREDICTIONS etc. for those.",
+    'Dispatch to an agent with context from previous agent responses. Use after gathering information from other agents to pass their findings to an execution agent.',
 
   parameters: {
     agentId: {
       type: 'string',
       required: true,
       description:
-        'The ID of the agent to dispatch to — use the [id: ...] shown in the Team Members list',
+        'The ID of the target agent — use the [id: ...] shown in Team Members',
     },
     command: {
       type: 'string',
       required: true,
+      description: 'The instruction for the target agent',
+    },
+    relayContext: {
+      type: 'string',
+      required: true,
       description:
-        'The exact instruction to send to the agent (e.g., "open a 2x long on TSLAI for $100", "post about the current market")',
+        'Structured context from other agents to pass along (e.g., "Agent A found: X, Agent B found: Y")',
     },
   },
 
@@ -52,30 +57,19 @@ export const dispatchToAgentAction: Action = {
     [
       {
         name: 'user',
-        content: { text: 'Open a long position on TSLAI with $100' },
-      },
-      {
-        name: 'coordinator',
         content: {
-          text: "I'll dispatch that trade to your trading agent.",
+          text: 'Have my research agent analyze trends, then my trader execute on it',
         },
       },
-    ],
-    [
-      {
-        name: 'user',
-        content: { text: 'Make my agent post about the NVDAI rally' },
-      },
       {
         name: 'coordinator',
         content: {
-          text: "I'll send that posting instruction to your agent now.",
+          text: "I'll relay the research findings to your trading agent for execution.",
         },
       },
     ],
   ],
 
-  // Only expose this action when the team actually has agents to dispatch to
   validate: async (
     _runtime: IAgentRuntime,
     _message: Memory,
@@ -97,32 +91,37 @@ export const dispatchToAgentAction: Action = {
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const actionParams = state?.data?.actionParams as
-      | { agentId?: string; command?: string }
+      | { agentId?: string; command?: string; relayContext?: string }
       | undefined;
 
-    // broadcastFn is injected by the coordinator route into state.data
     const broadcastFn = state?.data?.broadcastFn as BroadcastFn | undefined;
-
-    const agentId = actionParams?.agentId;
-    const command = actionParams?.command;
     const ownerId = state?.values?.ownerId as string | undefined;
     const teamChatId = state?.values?.teamChatId as string | undefined;
     const ownerName = state?.values?.ownerName as string | undefined;
     const ownerUsername = state?.values?.ownerUsername as string | undefined;
 
+    const agentId = actionParams?.agentId;
+    const command = actionParams?.command;
+    const relayContext = actionParams?.relayContext;
+
     if (!agentId || !command || !ownerId || !teamChatId || !broadcastFn) {
       const failResult: ActionResult = {
         success: false,
-        text: 'Missing required parameters for agent dispatch.',
+        text: 'Missing required parameters for relay dispatch.',
       };
       _callback?.({ content: failResult });
       return failResult;
     }
 
+    // Build enriched command with relay context prepended
+    const enrichedCommand = relayContext
+      ? `--- Context from other agents ---\n${relayContext}\n--- End context ---\n\nYour task: ${command}`
+      : command;
+
     const result = await dispatchAgentChat({
       agentId,
       ownerId,
-      message: command,
+      message: enrichedCommand,
       teamChatId,
       ownerName,
       ownerUsername,
@@ -132,8 +131,8 @@ export const dispatchToAgentAction: Action = {
     if (!result.success) {
       const failResult: ActionResult = {
         success: false,
-        text: `Failed to dispatch to agent: ${result.error ?? 'Unknown error'}`,
-        values: { agentId, command, error: result.error },
+        text: `Failed to relay to agent: ${result.error ?? 'Unknown error'}`,
+        values: { agentId, command, relayContext, error: result.error },
       };
       _callback?.({ content: failResult });
       return failResult;
@@ -141,11 +140,12 @@ export const dispatchToAgentAction: Action = {
 
     const successResult: ActionResult = {
       success: true,
-      text: `Dispatched to @${result.agentUsername ?? agentId}: "${result.response.slice(0, 300)}"`,
+      text: `Relayed to @${result.agentUsername ?? agentId} (with context from other agents): "${result.response.slice(0, 300)}"`,
       values: {
         agentId: result.agentId,
         agentUsername: result.agentUsername,
         dispatchedCommand: command,
+        relayContext,
         agentResponse: result.response,
         actionsExecuted: result.actionsExecuted,
       },

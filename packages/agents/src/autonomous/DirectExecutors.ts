@@ -14,6 +14,7 @@ import {
   cachedDb,
   type JsonValue,
   type MessageActivityData,
+  notifyGroupChatMessage,
   type PostActivityData,
 } from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
@@ -1619,6 +1620,40 @@ export async function executeDirectMessage(
         'DirectExecutors'
       );
     });
+  }
+
+  // Notify group chat members for offline/push notifications
+  // Only for group messages (no recipientId means it's a group chat message)
+  if (!recipientId && chatId) {
+    const participantRows = await db
+      .select({ userId: chatParticipants.userId })
+      .from(chatParticipants)
+      .where(eq(chatParticipants.chatId, chatId));
+    const recipientIds = participantRows
+      .map((p) => p.userId)
+      .filter((id) => id !== agentUserId);
+
+    if (recipientIds.length > 0) {
+      const [chatRecord] = await db
+        .select({ name: chats.name })
+        .from(chats)
+        .where(eq(chats.id, chatId))
+        .limit(1);
+
+      notifyGroupChatMessage(
+        recipientIds,
+        agentUserId,
+        chatId,
+        chatRecord?.name ?? 'Group Chat',
+        cleanContent.substring(0, 50)
+      ).catch((error: Error) => {
+        logger.warn(
+          `Failed to notify group chat message: ${error.message}`,
+          { chatId, messageId },
+          'DirectExecutors'
+        );
+      });
+    }
   }
 
   return {
