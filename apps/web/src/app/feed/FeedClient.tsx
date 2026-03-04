@@ -1,6 +1,8 @@
 'use client';
 
 import type { FeedPost } from '@babylon/shared';
+import { logger } from '@babylon/shared';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,8 +17,19 @@ import { useErrorToasts } from '@/hooks/useErrorToasts';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
-import { EmptyFeed, PostList } from './components';
-import { useFeedPosts, useFollowingPosts, useHotPosts } from './hooks';
+import {
+  EmptyFeed,
+  MixedFeedList,
+  NarrativeStoryList,
+  PostList,
+} from './components';
+import {
+  useFeedPosts,
+  useFollowingPosts,
+  useHotPosts,
+  useNarrativeFeed,
+  useNewMarkets,
+} from './hooks';
 
 // Performance: Lazy load heavy components
 const WidgetSidebar = dynamic(
@@ -38,7 +51,49 @@ const TradesFeed = dynamic(
   { ssr: false }
 );
 
-type FeedTab = 'latest' | 'hot' | 'following' | 'trades';
+type FeedTab = 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
+
+function NarrativeFeedError({ onRetry }: { onRetry: () => Promise<void> }) {
+  const [isRetrying, setIsRetrying] = useState(false);
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      // Guard against state update on unmounted component: if onRetry
+      // succeeds the error clears and this component unmounts before finally.
+      if (isMountedRef.current) setIsRetrying(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+      <AlertCircle className="mb-4 h-12 w-12 text-destructive opacity-60" />
+      <h3 className="mb-2 font-semibold text-lg">Failed to load Stories</h3>
+      <p className="mb-6 max-w-sm text-muted-foreground text-sm">
+        Something went wrong fetching the narrative feed. Check your connection
+        and try again.
+      </p>
+      <button
+        type="button"
+        onClick={() => void handleRetry()}
+        disabled={isRetrying}
+        className="inline-flex items-center gap-2 rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+      >
+        {isRetrying && <Loader2 className="h-4 w-4 animate-spin" />}
+        {isRetrying ? 'Retrying…' : 'Retry'}
+      </button>
+    </div>
+  );
+}
 
 /**
  * FeedClient - Main feed page orchestrator
@@ -61,7 +116,7 @@ export function FeedClient() {
     useFeedStore();
 
   // Tab state
-  const [tab, setTab] = useState<FeedTab>('latest');
+  const [tab, setTab] = useState<FeedTab>('narrative');
 
   // Actor names for display
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map());
@@ -90,6 +145,19 @@ export function FeedClient() {
   const { posts: hotPosts, loading: hotLoading } = useHotPosts({
     enabled: tab === 'hot',
   });
+
+  const {
+    stories: narrativeStories,
+    ready: narrativeReady,
+    loading: narrativeLoading,
+    error: narrativeError,
+    refresh: refreshNarrative,
+  } = useNarrativeFeed({ enabled: tab === 'narrative' });
+
+  // New market cards shown at the top of Latest and Hot tabs
+  // New market cards only appear on the Latest tab, chronologically merged.
+  // Hot and Following tabs show no market cards.
+  const { markets: newMarkets } = useNewMarkets(tab === 'latest');
 
   // Game timeline posts (viewer mode fallback)
   const { allGames, startTime, currentTimeMs } = useGameStore();
@@ -152,23 +220,38 @@ export function FeedClient() {
   const isLoading =
     (tab === 'latest' && latestLoading) ||
     (tab === 'hot' && hotLoading) ||
+    // Show skeleton while narrative tab hasn't completed its first fetch yet,
+    // preventing the "No Active Stories" flash that occurs between tab switch
+    // and the async effect firing.
+    (tab === 'narrative' && (narrativeLoading || !narrativeReady)) ||
     (tab === 'following' && followingLoading);
 
-  // Load actor names
+  // Load actor names — fire-and-forget, falls back to authorId on failure
   useEffect(() => {
     const loadActorNames = async () => {
-      const response = await fetch('/api/actors');
-      if (!response.ok) return;
-      const data = (await response.json()) as {
-        actors?: Array<{ id: string; name: string }>;
-      };
-      const nameMap = new Map<string, string>();
-      data.actors?.forEach((actor) => {
-        nameMap.set(actor.id, actor.name);
-      });
-      setActorNames(nameMap);
+      try {
+        const response = await fetch('/api/actors');
+        if (!response.ok) {
+          logger.warn(
+            'Failed to load actor names',
+            { status: response.status },
+            'FeedClient'
+          );
+          return;
+        }
+        const data = (await response.json()) as {
+          actors?: Array<{ id: string; name: string }>;
+        };
+        const nameMap = new Map<string, string>();
+        data.actors?.forEach((actor) => {
+          nameMap.set(actor.id, actor.name);
+        });
+        setActorNames(nameMap);
+      } catch (err) {
+        logger.warn('Error loading actor names', { error: err }, 'FeedClient');
+      }
     };
-    loadActorNames();
+    void loadActorNames();
   }, []);
 
   // Register optimistic post callback
@@ -192,8 +275,10 @@ export function FeedClient() {
     if (tab === 'latest') {
       await refreshLatest();
       refreshWidgets();
+    } else if (tab === 'narrative') {
+      await refreshNarrative();
     }
-  }, [tab, refreshLatest, refreshWidgets]);
+  }, [tab, refreshLatest, refreshWidgets, refreshNarrative]);
 
   const {
     pullDistance,
@@ -201,7 +286,7 @@ export function FeedClient() {
     containerRef: scrollContainerCallbackRef,
   } = usePullToRefresh({
     onRefresh: handleRefresh,
-    enabled: tab === 'latest' || tab === 'trades',
+    enabled: tab === 'latest' || tab === 'trades' || tab === 'narrative',
   });
 
   const scrollContainerRef = useCallback(
@@ -271,6 +356,14 @@ export function FeedClient() {
       );
     }
 
+    if (tab === 'narrative') {
+      if (narrativeError)
+        return <NarrativeFeedError onRetry={refreshNarrative} />;
+      if (narrativeStories.length === 0)
+        return <EmptyFeed variant="narrative" />;
+      return <NarrativeStoryList stories={narrativeStories} />;
+    }
+
     if (currentPosts.length === 0) {
       if (tab === 'latest') return <EmptyFeed variant="latest" />;
       if (tab === 'hot') return <EmptyFeed variant="hot" />;
@@ -279,11 +372,27 @@ export function FeedClient() {
       return <EmptyFeed variant="default" />;
     }
 
+    // Latest tab: merge new market cards chronologically into the post stream
+    if (tab === 'latest') {
+      return (
+        <MixedFeedList
+          posts={currentPosts}
+          newMarkets={newMarkets}
+          actorNames={actorNames}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={handleLoadMore}
+        />
+      );
+    }
+
     return (
+      // Hot and Following are single-page fetches with no cursor pagination,
+      // so hasMore is always false here. (Latest uses MixedFeedList above.)
       <PostList
         posts={currentPosts}
         actorNames={actorNames}
-        hasMore={tab === 'latest' && hasMore}
+        hasMore={false}
         loadingMore={loadingMore}
         onLoadMore={handleLoadMore}
       />

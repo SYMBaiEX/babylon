@@ -1,6 +1,11 @@
 'use client';
 
-import { calculateUnrealizedPnL, cn, formatCurrency } from '@babylon/shared';
+import {
+  calculateUnrealizedPnL,
+  cn,
+  formatCurrency,
+  logger,
+} from '@babylon/shared';
 import { AlertTriangle, Bot, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -158,7 +163,13 @@ export function PerpPositionsList({
       invalidatePerpMarketsCache();
       const refreshResult = onPositionClosed?.();
       if (refreshResult instanceof Promise) {
-        void refreshResult.catch(() => {});
+        void refreshResult.catch((err) => {
+          logger.debug(
+            'Background position refresh failed',
+            { error: err },
+            'PerpPositionsList'
+          );
+        });
       }
     } catch (err) {
       toast.error('Failed to close position', {

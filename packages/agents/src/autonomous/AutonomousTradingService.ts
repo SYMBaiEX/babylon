@@ -28,6 +28,7 @@ import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { executeDirectTrade } from './DirectExecutors';
+import { trackAgentTradeExecuted } from './track-agent-trade';
 import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 const SUGGESTED_TRADE_PERCENT = 0.25; // 25% of balance for more aggressive trading
@@ -410,6 +411,18 @@ If holding:
       undefined,
       'AutonomousTrading'
     );
+
+    const ownerId = agent?.managedBy ?? agentUserId;
+    trackAgentTradeExecuted(agentUserId, {
+      agent_id: agentUserId,
+      market_type: marketType,
+      action: side,
+      market_id: result.marketId,
+      ticker: result.ticker,
+      side: result.side,
+      amount: normalizedAmount,
+      owner_id: ownerId,
+    });
 
     return {
       tradesExecuted: 1,

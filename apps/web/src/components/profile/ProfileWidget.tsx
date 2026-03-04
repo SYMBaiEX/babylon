@@ -6,7 +6,7 @@ import type {
   PredictionPosition,
   UserProfileStats,
 } from '@babylon/shared';
-import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, logger } from '@babylon/shared';
 import {
   BarChart3,
   Coins,
@@ -266,7 +266,11 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
           return;
         }
       } catch (fetchError) {
-        console.error('Error fetching profile widget data:', fetchError);
+        logger.error(
+          'Error fetching profile widget data',
+          fetchError instanceof Error ? fetchError : { error: fetchError },
+          'ProfileWidget'
+        );
         setError(
           fetchError instanceof Error
             ? fetchError
@@ -293,7 +297,11 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       const result = await fetchProfileWidgetData(userId);
       applyFetchResult(result);
     } catch (fetchError) {
-      console.error('Error fetching profile widget data:', fetchError);
+      logger.error(
+        'Error fetching profile widget data',
+        fetchError instanceof Error ? fetchError : { error: fetchError },
+        'ProfileWidget'
+      );
       setError(
         fetchError instanceof Error
           ? fetchError
@@ -572,7 +580,13 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
             const result = await fetchProfileWidgetData(userId);
             applyFetchResult(result);
           } catch (refreshError) {
-            console.error('Error refreshing profile data:', refreshError);
+            logger.error(
+              'Error refreshing profile data',
+              refreshError instanceof Error
+                ? refreshError
+                : { error: refreshError },
+              'ProfileWidget'
+            );
             // Don't set error state here since original data is still valid
           }
         }}

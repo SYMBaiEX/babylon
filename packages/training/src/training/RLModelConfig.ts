@@ -10,6 +10,8 @@
  * - Support quantized models for efficient multi-model loading
  */
 
+import { logger } from '../utils/logger';
+
 /**
  * Quantization modes for model loading
  */
@@ -228,8 +230,10 @@ export function registerArchetypeModel(config: ArchetypeModelConfig): void {
         config.benchmarkScore > existing.benchmarkScore))
   ) {
     archetypeModelRegistry.set(config.archetype, config);
-    console.log(
-      `📦 Registered model for archetype '${config.archetype}': ${config.modelId}`
+    logger.info(
+      `Registered model for archetype '${config.archetype}': ${config.modelId}`,
+      { archetype: config.archetype, modelId: config.modelId },
+      'RLModelConfig'
     );
   }
 }
@@ -352,8 +356,10 @@ export function isRLModelAvailable(): boolean {
 
   // Need Atropos API URL to fetch RL models
   if (!config.atroposApiUrl) {
-    console.warn(
-      'RL models enabled but Atropos API URL missing. Set ATROPOS_API_URL.'
+    logger.warn(
+      'RL models enabled but Atropos API URL missing. Set ATROPOS_API_URL.',
+      undefined,
+      'RLModelConfig'
     );
     return false;
   }
@@ -373,23 +379,27 @@ export function logRLModelConfig(): void {
     config.quantization
   );
 
-  console.log('🤖 RL Model Configuration:', {
-    enabled: config.enabled,
-    available,
-    atroposConfigured: !!config.atroposApiUrl,
-    vllmPort: config.vllmPort,
-    pinnedVersion: config.modelVersion || 'latest',
-    fallbackEnabled: config.fallbackToBase,
-    baseModel: config.baseModel,
-    modelTier: config.modelTier,
-    tierName: tierConfig.name,
-    tierParams: tierConfig.params,
-    contextWindow: tierConfig.context,
-    availableVramGb: config.availableVramGb || 'auto',
-    quantization: config.quantization,
-    vramPerModel: `${vramPerModel}GB`,
-    maxConcurrentModels: config.multiModelConfig.maxConcurrentModels,
-  });
+  logger.info(
+    'RL Model Configuration',
+    {
+      enabled: config.enabled,
+      available,
+      atroposConfigured: !!config.atroposApiUrl,
+      vllmPort: config.vllmPort,
+      pinnedVersion: config.modelVersion || 'latest',
+      fallbackEnabled: config.fallbackToBase,
+      baseModel: config.baseModel,
+      modelTier: config.modelTier,
+      tierName: tierConfig.name,
+      tierParams: tierConfig.params,
+      contextWindow: tierConfig.context,
+      availableVramGb: config.availableVramGb || 'auto',
+      quantization: config.quantization,
+      vramPerModel: `${vramPerModel}GB`,
+      maxConcurrentModels: config.multiModelConfig.maxConcurrentModels,
+    },
+    'RLModelConfig'
+  );
 }
 
 /**

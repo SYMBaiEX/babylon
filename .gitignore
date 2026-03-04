@@ -23,6 +23,7 @@ dist/
 
 # Service Worker
 apps/web/public/sw.js
+apps/web/public/sw.js.map
 
 # misc
 .DS_Store

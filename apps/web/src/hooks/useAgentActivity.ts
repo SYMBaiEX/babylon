@@ -5,6 +5,7 @@
  * Provides a unified interface for displaying agent activity in the UI.
  */
 
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Channel, useSSEChannel } from './useSSE';
 
@@ -249,7 +250,11 @@ export function useAgentActivity(
     // Set up polling
     const intervalId = setInterval(() => {
       fetchActivities().catch((err: Error) => {
-        console.error('Failed to poll agent activity:', err);
+        logger.error(
+          'Failed to poll agent activity',
+          err instanceof Error ? { error: err.message } : undefined,
+          'useAgentActivity'
+        );
       });
     }, pollInterval);
 
@@ -281,7 +286,11 @@ export function useAgentActivity(
         typeof activity.timestamp !== 'number' ||
         !Number.isFinite(activity.timestamp)
       ) {
-        console.warn('Malformed SSE activity payload:', message);
+        logger.warn(
+          'Malformed SSE activity payload',
+          { message },
+          'useAgentActivity'
+        );
         return;
       }
 

@@ -197,7 +197,9 @@ export class ConfigValidator {
         { warnings: result.warnings },
         'ConfigValidator'
       );
-      result.warnings.forEach((w) => console.log(`  ⚠️  ${w}`));
+      result.warnings.forEach((w) =>
+        logger.warn(w, undefined, 'ConfigValidator')
+      );
     }
 
     if (result.errors.length > 0) {
@@ -206,7 +208,9 @@ export class ConfigValidator {
         { errors: result.errors },
         'ConfigValidator'
       );
-      result.errors.forEach((e) => console.error(`  ❌ ${e}`));
+      result.errors.forEach((e) =>
+        logger.error(e, undefined, 'ConfigValidator')
+      );
       return false;
     }
 

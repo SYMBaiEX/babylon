@@ -659,6 +659,7 @@ export class AgentRuntimeManager {
           logger.error(msg, new Error(msg), `Agent[${agentUser.displayName}]`),
         progress: (msg: string) =>
           logger.info(msg, undefined, `Agent[${agentUser.displayName}]`),
+        // biome-ignore lint/suspicious/noConsole: console.clear is not a logging call
         clear: () => (console.clear ? console.clear() : undefined),
         child: () => customLogger,
       };
@@ -1007,6 +1008,7 @@ export class AgentRuntimeManager {
           logger.error(msg, new Error(msg), `Agent[${agentName}]`),
         progress: (msg: string) =>
           logger.info(msg, undefined, `Agent[${agentName}]`),
+        // biome-ignore lint/suspicious/noConsole: console.clear is not a logging call
         clear: () => (console.clear ? console.clear() : undefined),
         child: () => customLogger,
       } as typeof runtime.logger;

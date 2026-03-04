@@ -5,6 +5,7 @@
  * Used for diagnostics and verification during deployment.
  */
 
+import { logger } from '../utils/logger';
 import { isRLModelAvailable, logRLModelConfig } from './RLModelConfig';
 
 /**
@@ -14,9 +15,17 @@ import { isRLModelAvailable, logRLModelConfig } from './RLModelConfig';
  * and verify that the RL training system is properly configured.
  */
 export async function logRLConfigOnStartup(): Promise<void> {
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🚀 RL Training System Configuration');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  logger.info(
+    '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    undefined,
+    'logRLConfig'
+  );
+  logger.info('RL Training System Configuration', undefined, 'logRLConfig');
+  logger.info(
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n',
+    undefined,
+    'logRLConfig'
+  );
 
   // Log RL configuration
   logRLModelConfig();
@@ -25,10 +34,18 @@ export async function logRLConfigOnStartup(): Promise<void> {
   const available = isRLModelAvailable();
 
   if (available) {
-    console.log('\n✅ RL Model system available');
+    logger.info('RL Model system available', undefined, 'logRLConfig');
   } else {
-    console.log('\nℹ️  RL models not available - using base model');
+    logger.info(
+      'RL models not available - using base model',
+      undefined,
+      'logRLConfig'
+    );
   }
 
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  logger.info(
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n',
+    undefined,
+    'logRLConfig'
+  );
 }

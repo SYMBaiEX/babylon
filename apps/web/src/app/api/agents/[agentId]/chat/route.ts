@@ -41,6 +41,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 // =============================================================================
 // Multi-Step Decision Template
@@ -891,6 +892,20 @@ export const POST = withErrorHandling(
       { actionsExecuted: traceActionResults.length },
       'AgentsAPI'
     );
+
+    trackServerEvent(user.id, 'agent_message_sent', {
+      agent_id: agentId,
+      message_id: responseMessageId,
+      use_pro: usePro,
+      points_cost: actualPointsCost,
+      model_used: modelUsed,
+    }).catch((err) => {
+      logger.warn(
+        'Failed to track agent_message_sent',
+        { error: err },
+        'AgentChat'
+      );
+    });
 
     return NextResponse.json({
       success: true,

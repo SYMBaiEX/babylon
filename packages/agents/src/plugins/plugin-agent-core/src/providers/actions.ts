@@ -13,6 +13,7 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
 
 /**
  * Action parameter definition
@@ -85,7 +86,14 @@ export const actionsProvider: Provider = {
           return action;
         }
       } catch (e) {
-        console.error('[ActionsProvider] validate error:', action.name, e);
+        logger.error(
+          'Validate error',
+          {
+            actionName: action.name,
+            error: e instanceof Error ? e : { error: e },
+          },
+          'AgentActions'
+        );
       }
       return null;
     });

@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   Activity,
   Bot,
@@ -76,7 +76,7 @@ export default function AgentsPage() {
     const token = await getAccessToken();
 
     if (!token) {
-      console.error('No access token available');
+      logger.error('No access token available', undefined, 'AgentsPage');
       setLoading(false);
       return;
     }
@@ -100,7 +100,11 @@ export default function AgentsPage() {
         setAgents(data.agents || []);
       }
     } catch (error) {
-      console.error('Failed to fetch agents:', error);
+      logger.error(
+        'Failed to fetch agents',
+        error instanceof Error ? error : { error },
+        'AgentsPage'
+      );
     } finally {
       setLoading(false);
     }

@@ -1,9 +1,14 @@
 'use client';
 
-import { Clock, FileText, Flame, Users } from 'lucide-react';
+import { BookOpen, Clock, FileText, Flame, Users } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 
-type EmptyFeedVariant = 'latest' | 'hot' | 'following' | 'default';
+type EmptyFeedVariant =
+  | 'latest'
+  | 'hot'
+  | 'narrative'
+  | 'following'
+  | 'default';
 
 interface EmptyFeedProps {
   variant: EmptyFeedVariant;
@@ -16,6 +21,7 @@ interface EmptyFeedProps {
  * Variants:
  * - latest: No posts in the main feed yet
  * - hot: No hot posts in the last 24 hours
+ * - narrative: No active story arcs in the feed
  * - following: User hasn't followed anyone
  * - default: Generic empty state
  */
@@ -26,6 +32,16 @@ export function EmptyFeed({ variant, isLoading = false }: EmptyFeedProps) {
         icon={FileText}
         title="No Posts Yet"
         description="Engine is generating posts. Check terminal for tick logs. Posts appear within 60 seconds."
+      />
+    );
+  }
+
+  if (variant === 'narrative') {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title="No Active Stories"
+        description="Story arcs appear here as prediction markets heat up. Engage with posts to help shape the narrative."
       />
     );
   }
