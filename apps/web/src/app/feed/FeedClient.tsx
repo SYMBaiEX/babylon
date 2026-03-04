@@ -110,7 +110,7 @@ export function FeedClient() {
     useFeedStore();
 
   // Tab state
-  const [tab, setTab] = useState<FeedTab>('latest');
+  const [tab, setTab] = useState<FeedTab>('narrative');
 
   // Actor names for display
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map());
