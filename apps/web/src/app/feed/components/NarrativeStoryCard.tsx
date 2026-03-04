@@ -1,11 +1,15 @@
 'use client';
 
-import type { ArcStateType } from '@babylon/db';
+import type {
+  ArcStateType,
+  NarrativePost,
+  NarrativeStory,
+} from '@babylon/shared';
 import { cn } from '@babylon/shared';
 import { BookOpen, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import type { NarrativePost, NarrativeStory } from '@/app/feed/types/narrative';
+import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
 
 // Arc state display config: label + Tailwind classes
@@ -93,6 +97,23 @@ function toPostCardData(post: NarrativePost) {
   };
 }
 
+function toArticleCardData(post: NarrativePost) {
+  return {
+    id: post.id,
+    type: post.type ?? undefined,
+    content: post.content,
+    fullContent: post.fullContent,
+    articleTitle: post.articleTitle,
+    category: post.category,
+    imageUrl: post.imageUrl,
+    authorId: post.authorId,
+    authorName: post.authorName,
+    authorUsername: post.authorUsername,
+    authorProfileImageUrl: post.authorProfileImageUrl,
+    timestamp: post.timestamp,
+  };
+}
+
 interface NarrativeStoryCardProps {
   story: NarrativeStory;
 }
@@ -148,17 +169,26 @@ export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
         </div>
       </div>
 
-      {/* Posts */}
+      {/* Posts — article type uses ArticleCard (renders imageUrl); others use PostCard */}
       <div className="divide-y divide-border">
-        {visiblePosts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={toPostCardData(post)}
-            density="compact"
-            showCommentInputBar={false}
-            onCommentClick={() => router.push(`/post/${post.id}`)}
-          />
-        ))}
+        {visiblePosts.map((post) =>
+          post.type === 'article' ? (
+            <ArticleCard
+              key={post.id}
+              post={toArticleCardData(post)}
+              density="compact"
+              onClick={() => router.push(`/article/${post.id}`)}
+            />
+          ) : (
+            <PostCard
+              key={post.id}
+              post={toPostCardData(post)}
+              density="compact"
+              showCommentInputBar={false}
+              onCommentClick={() => router.push(`/post/${post.id}`)}
+            />
+          )
+        )}
       </div>
 
       {/* Expand / collapse toggle */}

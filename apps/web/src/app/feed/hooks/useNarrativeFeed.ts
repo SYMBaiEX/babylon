@@ -1,6 +1,6 @@
+import type { NarrativeStory } from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { NarrativeStory } from '@/app/feed/types/narrative';
 
 interface UseNarrativeFeedOptions {
   enabled?: boolean;

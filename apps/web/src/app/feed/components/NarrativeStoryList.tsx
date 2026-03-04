@@ -1,4 +1,4 @@
-import type { NarrativeStory } from '@/app/feed/types/narrative';
+import type { NarrativeStory } from '@babylon/shared';
 import { NarrativeStoryCard } from './NarrativeStoryCard';
 
 interface NarrativeStoryListProps {
