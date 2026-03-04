@@ -18,6 +18,7 @@ import {
   getRawDrizzle,
   groups,
   gte,
+  ilike,
   inArray,
   isNull,
   lte,
@@ -301,6 +302,55 @@ export async function getAgentGroupChats(
     );
     return [];
   }
+}
+
+/**
+ * Resolve a group chat by name for an agent.
+ * Returns the chatId of the first matching group chat the agent is a member of.
+ * Used for channel resolution when agents reference groups by name rather than ID.
+ */
+export async function resolveGroupChatByName(
+  agentUserId: string,
+  groupName: string
+): Promise<string | null> {
+  // Sanitize input to prevent ilike pattern injection
+  const sanitized = groupName.replace(/[%_\\]/g, '').trim();
+  if (sanitized.length < 2) return null;
+
+  const results = await db
+    .select({ chatId: chats.id })
+    .from(chatParticipants)
+    .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+    .innerJoin(groups, eq(chats.groupId, groups.id))
+    .where(
+      and(
+        eq(chatParticipants.userId, agentUserId),
+        eq(chats.isGroup, true),
+        ilike(groups.name, `%${sanitized}%`)
+      )
+    )
+    .limit(1);
+
+  return results[0]?.chatId ?? null;
+}
+
+/**
+ * Resolve a user by their username.
+ * Returns the userId or null if not found.
+ */
+export async function resolveUserByUsername(
+  username: string
+): Promise<string | null> {
+  const clean = username.replace(/^@/, '').trim().toLowerCase();
+  if (!clean) return null;
+
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.username, clean))
+    .limit(1);
+
+  return user?.id ?? null;
 }
 
 /**
