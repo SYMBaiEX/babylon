@@ -482,7 +482,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         })
         .from(questions)
         .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
-        .leftJoin(markets, eq(markets.question, questions.text))
+        // Match on normalized text (trim + lower) to survive minor whitespace
+        // or casing differences. A proper questions.marketId FK would be better
+        // and is tracked as a follow-up schema migration.
+        .leftJoin(
+          markets,
+          sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
+        )
         .where(
           and(
             eq(questions.status, 'active'),

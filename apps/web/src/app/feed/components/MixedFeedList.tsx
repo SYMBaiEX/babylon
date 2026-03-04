@@ -69,6 +69,7 @@ interface MixedFeedListProps {
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
+  density?: 'default' | 'compact';
 }
 
 /**
@@ -85,6 +86,7 @@ export const MixedFeedList = memo(function MixedFeedList({
   hasMore,
   loadingMore,
   onLoadMore,
+  density = 'default',
 }: MixedFeedListProps) {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -207,11 +209,11 @@ export const MixedFeedList = memo(function MixedFeedList({
         return (
           <div key={`post-wrapper-${post.id}-${i}`}>
             {postData.type === 'article' ? (
-              <ArticleCard post={postData} density="default" />
+              <ArticleCard post={postData} density={density} />
             ) : (
               <PostCard
                 post={postData}
-                density="default"
+                density={density}
                 showCommentInputBar={false}
                 onCommentClick={() => {
                   const postId =

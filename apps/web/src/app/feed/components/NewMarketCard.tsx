@@ -20,10 +20,12 @@ function formatCountdown(isoDate: string): string {
 }
 
 /**
- * Compute YES/NO percentages from share counts.
- * When total = 0 (new market, no trades yet) the AMM initialises at 50/50,
- * so we display 50% — this matches the behaviour of calculateSharePercentages()
- * in apps/web/src/app/markets/_lib/formatters.ts.
+ * Compute YES/NO percentage values from AMM share counts.
+ *
+ * When total shares = 0 (brand-new market, no trades yet) the AMM opens at
+ * exact parity, so we return 50/50. This matches calculateSharePercentages()
+ * in apps/web/src/app/markets/_lib/formatters.ts which also returns 50/50
+ * for zero shares. As trades accumulate the percentages will diverge from 50.
  */
 function computePercentages(
   yesShares: number,
