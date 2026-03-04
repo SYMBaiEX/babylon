@@ -88,7 +88,10 @@ export const actionsProvider: Provider = {
       } catch (e) {
         logger.error(
           'Validate error',
-          e instanceof Error ? e : { error: e, actionName: action.name },
+          {
+            actionName: action.name,
+            error: e instanceof Error ? e : { error: e },
+          },
           'AgentActions'
         );
       }

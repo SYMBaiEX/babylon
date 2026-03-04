@@ -265,7 +265,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
           // Log for observability but don't block user flow
           logger.warn(
             'Failed to cleanup orphaned screenshot',
-            error instanceof Error ? error : { url, error },
+            { url, error },
             'GameFeedbackModal'
           );
         });
