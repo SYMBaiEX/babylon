@@ -10,7 +10,14 @@ interface UseNewMarketsResult {
 /**
  * Fetches recently opened prediction market questions (last 24h).
  * Used to inject "New Market" trade cards at the top of the Latest feed.
- * Auto-fetches once on mount; refreshes if the feed is invalidated via SSE.
+ *
+ * Fetches once on mount. The endpoint is cached for 120s server-side
+ * (new markets are infrequent; no SSE subscription needed here — users
+ * will see the card on their next tab visit or page refresh).
+ *
+ * Note: New Market cards intentionally appear on both the Latest feed
+ * (via this hook) and the Stories tab (via the narrative feed endpoint).
+ * The tabs are mutually exclusive so users never see both simultaneously.
  */
 export function useNewMarkets(enabled = true): UseNewMarketsResult {
   const [markets, setMarkets] = useState<NewMarketEntry[]>([]);

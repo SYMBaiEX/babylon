@@ -64,13 +64,15 @@ export const CACHE_KEYS = {
 } as const;
 
 /**
- * Per-user narrative feed enrichment cache key.
+ * Per-user narrative feed enrichment cache key (the key portion only).
+ *
+ * When used with `namespace: 'feed'` in getCache/setCache/invalidateCache,
+ * the actual Redis key becomes: `feed:narrative:enrichment:{userId}`.
  *
  * Caches { likedPostIds, sharedPostIds, positionQuestionIds } per user for 30s
  * to avoid 3 DB round-trips × N concurrent authenticated requests.
- *
- * Namespace: 'feed'. Invalidate on like, unlike, and share interactions
- * so users see their own interactions reflected immediately in Stories.
+ * Invalidated on like, unlike, and share interactions so users see their own
+ * interactions reflected immediately in the Stories tab.
  */
 export function narrativeEnrichmentKey(userId: string): string {
   return `narrative:enrichment:${userId}`;

@@ -10,7 +10,9 @@ interface NewMarketCardProps {
 }
 
 function formatCountdown(isoDate: string): string {
-  const ms = new Date(isoDate).getTime() - Date.now();
+  const parsed = new Date(isoDate);
+  if (isNaN(parsed.getTime())) return '';
+  const ms = parsed.getTime() - Date.now();
   if (ms <= 0) return 'Closing soon';
   const hours = Math.floor(ms / (1000 * 60 * 60));
   if (hours < 24) return `${hours}h left`;

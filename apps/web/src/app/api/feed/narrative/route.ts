@@ -483,6 +483,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               questions.resolutionDate,
               new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
             ), // resolves within 30 days
+            // inArray requires a non-empty array. When no stories exist yet,
+            // use [-1] as a sentinel (no valid questionNumber is ever -1) so
+            // the NOT IN clause is always syntactically valid.
             not(
               inArray(
                 questions.questionNumber,
