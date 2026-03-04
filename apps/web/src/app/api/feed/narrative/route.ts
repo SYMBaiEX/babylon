@@ -411,6 +411,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Per-user enrichment — isLiked, isShared, hasUserPosition.
   // Results are cached per-user for USER_ENRICHMENT_TTL_S seconds to avoid
   // 3 DB round-trips × N concurrent authenticated users on every request.
+  // On any Redis/cache error we degrade gracefully to the un-personalized feed
+  // rather than surfacing a 500 to the user.
   let finalStories: NarrativeStory[] = result.stories;
 
   if (user?.userId) {
@@ -419,101 +421,121 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .map((s) => s.questionNumber)
       .filter((n): n is number => n !== null);
 
-    const enrichCacheKey = `narrative:enrichment:${userId}`;
-    const cachedEnrichment = await getCache<UserEnrichmentCache>(
-      enrichCacheKey,
-      { namespace: 'feed' }
-    );
+    try {
+      const enrichCacheKey = `narrative:enrichment:${userId}`;
+      const cachedEnrichment = await getCache<UserEnrichmentCache>(
+        enrichCacheKey,
+        { namespace: 'feed' }
+      );
 
-    let enrichment: UserEnrichmentCache;
+      let enrichment: UserEnrichmentCache;
 
-    if (cachedEnrichment) {
-      enrichment = cachedEnrichment;
-    } else {
-      // Cache miss — fetch from DB in parallel and populate cache
-      const [userLikes, userShares, userPositions] = await Promise.all([
-        result.postIds.length > 0
-          ? db
-              .select({ postId: reactions.postId })
-              .from(reactions)
-              .where(
-                and(
-                  inArray(reactions.postId, result.postIds),
-                  eq(reactions.userId, userId),
-                  eq(reactions.type, 'like')
+      if (cachedEnrichment) {
+        enrichment = cachedEnrichment;
+      } else {
+        // Cache miss — fetch from DB in parallel and populate cache
+        const [userLikes, userShares, userPositions] = await Promise.all([
+          result.postIds.length > 0
+            ? db
+                .select({ postId: reactions.postId })
+                .from(reactions)
+                .where(
+                  and(
+                    inArray(reactions.postId, result.postIds),
+                    eq(reactions.userId, userId),
+                    eq(reactions.type, 'like')
+                  )
                 )
-              )
-          : Promise.resolve([]),
-        result.postIds.length > 0
-          ? db
-              .select({ postId: shares.postId })
-              .from(shares)
-              .where(
-                and(
-                  inArray(shares.postId, result.postIds),
-                  eq(shares.userId, userId)
+            : Promise.resolve([]),
+          result.postIds.length > 0
+            ? db
+                .select({ postId: shares.postId })
+                .from(shares)
+                .where(
+                  and(
+                    inArray(shares.postId, result.postIds),
+                    eq(shares.userId, userId)
+                  )
                 )
-              )
-          : Promise.resolve([]),
-        questionNumbersInResult.length > 0
-          ? db
-              .select({ questionId: positions.questionId })
-              .from(positions)
-              .where(
-                and(
-                  eq(positions.userId, userId),
-                  eq(positions.status, 'active'),
-                  isNotNull(positions.questionId),
-                  inArray(positions.questionId, questionNumbersInResult)
+            : Promise.resolve([]),
+          questionNumbersInResult.length > 0
+            ? db
+                .select({ questionId: positions.questionId })
+                .from(positions)
+                .where(
+                  and(
+                    eq(positions.userId, userId),
+                    eq(positions.status, 'active'),
+                    isNotNull(positions.questionId),
+                    inArray(positions.questionId, questionNumbersInResult)
+                  )
                 )
-              )
-          : Promise.resolve([]),
-      ]);
+            : Promise.resolve([]),
+        ]);
 
-      enrichment = {
-        likedPostIds: userLikes
-          .map((l) => l.postId)
-          .filter((id): id is string => id !== null),
-        sharedPostIds: userShares
-          .map((s) => s.postId)
-          .filter((id): id is string => id !== null),
-        positionQuestionIds: userPositions
-          .map((p) => p.questionId)
-          .filter((id): id is number => id !== null),
-      };
+        enrichment = {
+          likedPostIds: userLikes
+            .map((l) => l.postId)
+            .filter((id): id is string => id !== null),
+          sharedPostIds: userShares
+            .map((s) => s.postId)
+            .filter((id): id is string => id !== null),
+          positionQuestionIds: userPositions
+            .map((p) => p.questionId)
+            .filter((id): id is number => id !== null),
+        };
 
-      // Fire-and-forget cache write — don't block the response
-      void setCache(enrichCacheKey, enrichment, {
-        namespace: 'feed',
-        ttl: USER_ENRICHMENT_TTL_S,
+        // Cache write — errors logged but never block the response.
+        // Note: enrichment is scoped to the current postIds set; if the feed
+        // cache regenerates before this TTL expires, new posts will show
+        // isLiked: false until the enrichment key expires (max 30s).
+        setCache(enrichCacheKey, enrichment, {
+          namespace: 'feed',
+          ttl: USER_ENRICHMENT_TTL_S,
+        }).catch((err) => {
+          logger.error(
+            'Failed to write enrichment cache',
+            { error: err, userId, key: enrichCacheKey },
+            'NarrativeFeedAPI'
+          );
+        });
+      }
+
+      const likedSet = new Set(enrichment.likedPostIds);
+      const sharedSet = new Set(enrichment.sharedPostIds);
+      const positionSet = new Set(enrichment.positionQuestionIds);
+
+      finalStories = result.stories.map((story) => ({
+        ...story,
+        hasUserPosition:
+          story.questionNumber !== null &&
+          positionSet.has(story.questionNumber),
+        posts: story.posts.map((post) => ({
+          ...post,
+          isLiked: likedSet.has(post.id),
+          isShared: sharedSet.has(post.id),
+        })),
+      }));
+
+      // Re-sort: stories with user positions first (within non-general tier),
+      // then by score descending, general story always last.
+      finalStories.sort((a, b) => {
+        const aIsGeneral = a.questionNumber === null;
+        const bIsGeneral = b.questionNumber === null;
+        if (aIsGeneral !== bIsGeneral) return aIsGeneral ? 1 : -1;
+        if (a.hasUserPosition !== b.hasUserPosition)
+          return a.hasUserPosition ? -1 : 1;
+        return b.storyScore - a.storyScore;
       });
+    } catch (err) {
+      // Redis unavailable or DB enrichment query failed — degrade to the
+      // un-personalized base feed rather than returning HTTP 500.
+      logger.error(
+        'Enrichment failed — serving un-personalized feed',
+        { error: err, userId },
+        'NarrativeFeedAPI'
+      );
     }
-
-    const likedSet = new Set(enrichment.likedPostIds);
-    const sharedSet = new Set(enrichment.sharedPostIds);
-    const positionSet = new Set(enrichment.positionQuestionIds);
-
-    finalStories = result.stories.map((story) => ({
-      ...story,
-      hasUserPosition:
-        story.questionNumber !== null && positionSet.has(story.questionNumber),
-      posts: story.posts.map((post) => ({
-        ...post,
-        isLiked: likedSet.has(post.id),
-        isShared: sharedSet.has(post.id),
-      })),
-    }));
-
-    // Re-sort: stories with user positions first (within non-general tier),
-    // then by score descending, general story always last.
-    finalStories.sort((a, b) => {
-      const aIsGeneral = a.questionNumber === null;
-      const bIsGeneral = b.questionNumber === null;
-      if (aIsGeneral !== bIsGeneral) return aIsGeneral ? 1 : -1;
-      if (a.hasUserPosition !== b.hasUserPosition)
-        return a.hasUserPosition ? -1 : 1;
-      return b.storyScore - a.storyScore;
-    });
   }
 
   const response = successResponse({
@@ -522,6 +544,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     generatedAt: new Date().toISOString(),
   } satisfies NarrativeFeedResponse);
 
-  if (rateLimitInfo) addPublicReadHeaders(response, rateLimitInfo);
+  if (rateLimitInfo) {
+    if (user?.userId) {
+      // Personalized response — must not be shared by CDN across users
+      response.headers.set('Cache-Control', 'private, no-store');
+      response.headers.set('X-RateLimit-Limit', rateLimitInfo.limit.toString());
+      response.headers.set(
+        'X-RateLimit-Remaining',
+        rateLimitInfo.remaining.toString()
+      );
+      response.headers.set(
+        'X-RateLimit-Reset',
+        rateLimitInfo.resetAt.toISOString()
+      );
+    } else {
+      addPublicReadHeaders(response, rateLimitInfo);
+    }
+  }
   return response;
 });

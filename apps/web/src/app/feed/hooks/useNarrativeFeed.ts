@@ -55,6 +55,7 @@ export function useNarrativeFeed(
   const [error, setError] = useState<string | null>(null);
 
   const hasFetched = useRef(false);
+  const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const refreshControllerRef = useRef<AbortController | null>(null);
   const intervalControllerRef = useRef<AbortController | null>(null);
@@ -154,9 +155,10 @@ export function useNarrativeFeed(
   useSSEChannel(
     enabled ? 'feed' : null,
     useCallback(() => {
+      if (!isMountedRef.current) return;
       if (sseDebounceRef.current) clearTimeout(sseDebounceRef.current);
       sseDebounceRef.current = setTimeout(() => {
-        void refresh();
+        if (isMountedRef.current) void refresh();
       }, SSE_DEBOUNCE_MS);
     }, [refresh])
   );
@@ -192,6 +194,7 @@ export function useNarrativeFeed(
     return () => {
       // Reset so Strict Mode double-invoke and tab re-enable re-fetch correctly
       hasFetched.current = false;
+      isMountedRef.current = false;
       controller.abort();
       refreshControllerRef.current?.abort();
       if (isManualRefreshRef.current) isManualRefreshRef.current = false;

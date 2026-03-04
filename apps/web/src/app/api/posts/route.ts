@@ -1391,8 +1391,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 
   // Invalidate the narrative feed cache so the new post appears in story scoring
-  // immediately rather than waiting for the 120s TTL to expire. Fire-and-forget.
-  void invalidateCache('feed:narrative:v1', { namespace: 'feed' });
+  // immediately rather than waiting for the 120s TTL to expire.
+  invalidateCache('feed:narrative:v1', { namespace: 'feed' }).catch((err) => {
+    logger.warn(
+      'Narrative feed cache invalidation failed after new post',
+      { error: err, postId: post.id },
+      'POST /api/posts'
+    );
+  });
   logger.info(
     'Broadcast new user post to feed channel',
     { postId: post.id },
