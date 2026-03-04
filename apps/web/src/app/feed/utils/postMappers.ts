@@ -25,6 +25,12 @@ export function toPostCardData(post: NarrativePost) {
     shareCount: post.shareCount,
     isLiked: post.isLiked,
     isShared: post.isShared,
+    // Repost fields — passed through so PostCard renders the original content
+    isRepost: post.isRepost ?? false,
+    isQuote: post.isQuote ?? false,
+    quoteComment: post.quoteComment ?? null,
+    originalPostId: post.originalPostId ?? null,
+    originalPost: post.originalPost ?? null,
   };
 }
 

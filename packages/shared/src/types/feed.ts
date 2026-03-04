@@ -52,6 +52,20 @@ export interface NarrativePost {
   isLiked: boolean;
   isShared: boolean;
   relatedQuestion: number | null;
+  // Repost fields — mirrors the shape PostCard expects
+  isRepost?: boolean;
+  isQuote?: boolean;
+  quoteComment?: string | null;
+  originalPostId?: string | null;
+  originalPost?: {
+    id: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    authorUsername: string | null;
+    authorProfileImageUrl: string | null;
+    timestamp: string;
+  } | null;
 }
 
 /**
