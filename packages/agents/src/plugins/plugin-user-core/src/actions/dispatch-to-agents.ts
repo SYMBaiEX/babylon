@@ -11,7 +11,7 @@
  *
  * Implementation follows the same patterns as dispatch-to-agent.ts:
  * - broadcastFn injected via state.data from the route layer
- * - Returns ActionResult directly — callback is not invoked
+ * - Returns ActionResult AND calls _callback (so processActions can relay the result)
  * - actionParams passed via state.data.actionParams
  */
 
@@ -156,10 +156,29 @@ export const dispatchToAgentsAction: Action = {
     // Cap at 5 concurrent dispatches to prevent resource exhaustion
     const cappedDispatches = validDispatches.slice(0, 5);
 
+    const raceWithTimeout = async <T>(promise: Promise<T>): Promise<T> => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              `Agent dispatch timed out after ${DISPATCH_TIMEOUT_MS / 1000}s`
+            )
+          );
+        }, DISPATCH_TIMEOUT_MS);
+      });
+
+      try {
+        return await Promise.race([promise, timeoutPromise]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
     // Execute all dispatches in parallel with per-agent timeout
     const settledResults = await Promise.allSettled(
       cappedDispatches.map(({ agentId, command }) =>
-        Promise.race([
+        raceWithTimeout(
           dispatchAgentChat({
             agentId,
             ownerId,
@@ -168,19 +187,8 @@ export const dispatchToAgentsAction: Action = {
             ownerName,
             ownerUsername,
             broadcastFn,
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    `Agent dispatch timed out after ${DISPATCH_TIMEOUT_MS / 1000}s`
-                  )
-                ),
-              DISPATCH_TIMEOUT_MS
-            )
-          ),
-        ])
+          })
+        )
       )
     );
 

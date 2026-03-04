@@ -192,14 +192,19 @@ export class PriceAlertService {
       .update(userAgentConfigs)
       .set({
         priceAlerts: sql`(
-          SELECT jsonb_agg(
-            CASE
-              WHEN elem->>'id' = ${alertId}
-              THEN elem || jsonb_build_object('lastTriggeredAt', ${now}::text)
-              ELSE elem
-            END
+          SELECT COALESCE(
+            jsonb_agg(
+              CASE
+                WHEN elem->>'id' = ${alertId}
+                THEN elem || jsonb_build_object('lastTriggeredAt', ${now}::text)
+                ELSE elem
+              END
+            ),
+            '[]'::jsonb
           )::json
-          FROM jsonb_array_elements(${userAgentConfigs.priceAlerts}::jsonb) AS elem
+          FROM jsonb_array_elements(
+            COALESCE(${userAgentConfigs.priceAlerts}::jsonb, '[]'::jsonb)
+          ) AS elem
         )`,
         updatedAt: new Date(),
       })
