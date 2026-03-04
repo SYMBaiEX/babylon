@@ -58,6 +58,10 @@ export interface NarrativePost {
  * A narrative story — posts grouped by prediction market question,
  * scored by the narrative engine (engagement × arc state × resolution proximity).
  * Matches the shape returned by GET /api/feed/narrative.
+ *
+ * When `isNewMarket` is true the story represents a freshly opened prediction
+ * market question (no or very few posts yet). The feed renders a dedicated
+ * NewMarketCard with a "Trade" CTA instead of the normal story layout.
  */
 export interface NarrativeStory {
   storyKey: string;
@@ -68,4 +72,8 @@ export interface NarrativeStory {
   postCount: number;
   posts: NarrativePost[];
   hasUserPosition: boolean;
+  /** True when this entry is a newly-opened market (< 24h), not a post group */
+  isNewMarket?: boolean;
+  /** ISO-8601 resolution deadline, present when isNewMarket is true */
+  resolutionDate?: string;
 }
