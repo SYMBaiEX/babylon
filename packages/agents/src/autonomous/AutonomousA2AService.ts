@@ -11,6 +11,7 @@ import { db, eq, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import type { BabylonRuntime } from '../plugins/babylon/types';
 import { agentPnLService } from '../services/AgentPnLService';
+import { trackAgentTradeExecuted } from './track-agent-trade';
 import {
   getAgentConfig,
   isAutonomousTradingEnabled,
@@ -350,14 +351,14 @@ Your JSON response:`;
         leverage: perpLeverage,
       })) as { positionId?: string; entryPrice?: number };
 
-      logger.info('A2A LLM-based perp trade executed', {
-        agentUserId,
-        ticker,
-        side,
-        size,
-        leverage: perpLeverage,
-        reasoning,
-      });
+    logger.info('A2A LLM-based perp trade executed', {
+      agentUserId,
+      ticker,
+      side,
+      size,
+      leverage: perpLeverage,
+      reasoning,
+    });
 
       // Record trade via shared service (DRY - same as DirectExecutors)
       await agentPnLService.recordTrade({
@@ -370,6 +371,17 @@ Your JSON response:`;
         amount: size,
         price: tradeResult.entryPrice || 0,
         reasoning: `LLM decision (${perpLeverage}x leverage): ${reasoning}`,
+      });
+
+      const ownerId = agent?.managedBy ?? agentUserId;
+      trackAgentTradeExecuted(agentUserId, {
+        agent_id: agentUserId,
+        market_type: 'perp',
+        action: 'open',
+        ticker,
+        side,
+        amount: size,
+        owner_id: ownerId,
       });
 
       return {
@@ -432,6 +444,17 @@ Your JSON response:`;
       amount,
       price: tradeResult.avgPrice || 0,
       reasoning: `LLM decision: ${reasoning}`,
+    });
+
+    const ownerId = agent?.managedBy ?? agentUserId;
+    trackAgentTradeExecuted(agentUserId, {
+      agent_id: agentUserId,
+      market_type: 'prediction',
+      action: 'buy',
+      market_id: marketId,
+      side: outcome,
+      amount,
+      owner_id: ownerId,
     });
 
     return {

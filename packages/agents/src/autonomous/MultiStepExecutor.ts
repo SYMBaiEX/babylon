@@ -35,6 +35,7 @@ import {
   executeDirectTrade,
   executeDirectUnfollow,
 } from './DirectExecutors';
+import { trackAgentTradeExecuted } from './track-agent-trade';
 import { topicDiversityService } from './TopicDiversityService';
 
 import {
@@ -869,6 +870,25 @@ export class MultiStepExecutor {
       amount,
       reasoning,
     });
+
+    if (tradeResult.success) {
+      const [agentRow] = await db
+        .select({ managedBy: users.managedBy })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+      const ownerId = agentRow?.managedBy ?? agentUserId;
+      trackAgentTradeExecuted(agentUserId, {
+        agent_id: agentUserId,
+        market_type: marketType || 'prediction',
+        action: side,
+        market_id: tradeResult.marketId,
+        ticker: tradeResult.ticker,
+        side: tradeResult.side,
+        amount,
+        owner_id: ownerId,
+      });
+    }
 
     return {
       actionType: Actions.TRADE,

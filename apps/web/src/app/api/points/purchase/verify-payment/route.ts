@@ -106,17 +106,35 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     confirmed: true,
   });
 
-  logger.warn(
-    `Payment verification failed for request ${requestId}`,
-    { requestId, txHash, error: verificationResult.error },
-    'PointsPurchase'
-  );
+  if (!verificationResult.verified) {
+    logger.warn(
+      `Payment verification failed for request ${requestId}`,
+      { requestId, txHash, error: verificationResult.error },
+      'PointsPurchase'
+    );
+    return NextResponse.json(
+      {
+        success: false,
+        error: verificationResult.error ?? 'Payment verification failed',
+      },
+      { status: 400 }
+    );
+  }
 
   const paymentRequest = await x402Manager.getPaymentRequest(requestId);
+  if (!paymentRequest?.metadata) {
+    logger.error(
+      'Payment request or metadata missing after verification',
+      { requestId },
+      'PointsPurchase'
+    );
+    return NextResponse.json(
+      { success: false, error: 'Payment request not found' },
+      { status: 400 }
+    );
+  }
 
-  const metadata = paymentRequest!.metadata;
-  const amountUSD = metadata!.amountUSD as number;
-
+  const amountUSD = paymentRequest.metadata.amountUSD as number;
   const result = await PointsService.purchasePoints(
     userId,
     amountUSD,
@@ -124,31 +142,46 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     txHash
   );
 
-  logger.error(
-    'Failed to credit points after payment verification',
-    { userId, requestId, error: result.error },
-    'PointsPurchase'
-  );
+  if (result.error) {
+    logger.error(
+      'Failed to credit points after payment verification',
+      { userId, requestId, error: result.error },
+      'PointsPurchase'
+    );
+    return NextResponse.json(
+      { success: false, error: result.error ?? 'Failed to credit points' },
+      { status: 500 }
+    );
+  }
 
-  logger.info(
-    `Successfully credited ${result.pointsAwarded} points to user ${userId}`,
-    {
-      userId,
-      requestId,
-      txHash,
+  const actuallyCredited = !result.alreadyAwarded && result.pointsAwarded > 0;
+  if (actuallyCredited) {
+    logger.info(
+      `Successfully credited ${result.pointsAwarded} points to user ${userId}`,
+      {
+        userId,
+        requestId,
+        txHash,
+        pointsAwarded: result.pointsAwarded,
+        newTotal: result.newTotal,
+      },
+      'PointsPurchase'
+    );
+
+    trackServerEvent(userId, 'points_purchase_completed', {
+      amountUSD,
       pointsAwarded: result.pointsAwarded,
       newTotal: result.newTotal,
-    },
-    'PointsPurchase'
-  );
-
-  trackServerEvent(userId, 'points_purchase_completed', {
-    amountUSD,
-    pointsAwarded: result.pointsAwarded,
-    newTotal: result.newTotal,
-    requestId,
-    txHash,
-  });
+      requestId,
+      txHash,
+    }).catch((err) => {
+      logger.warn(
+        'Failed to track points_purchase_completed',
+        { error: err },
+        'PointsPurchase'
+      );
+    });
+  }
 
   return NextResponse.json({
     success: true,
