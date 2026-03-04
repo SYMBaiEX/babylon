@@ -58,6 +58,7 @@ import {
   ensureUserForAuth,
   invalidateCache,
   NotFoundError,
+  narrativeEnrichmentKey,
   notifyReactionOnPost,
   RATE_LIMIT_CONFIGS,
   successResponse,
@@ -224,6 +225,18 @@ export const POST = withErrorHandling(
       namespace: CACHE_KEYS.POST,
     });
 
+    // Bust the narrative enrichment cache so isLiked reflects immediately
+    // (without this, the user sees isLiked: false for up to 30s in Stories)
+    invalidateCache(narrativeEnrichmentKey(canonicalUserId), {
+      namespace: 'feed',
+    }).catch((err) =>
+      logger.warn(
+        'Failed to invalidate narrative enrichment cache on like',
+        { error: err, userId: canonicalUserId },
+        'POST /api/posts/[id]/like'
+      )
+    );
+
     logger.info(
       'Post liked successfully',
       { postId, userId: canonicalUserId, likeCount },
@@ -305,6 +318,16 @@ export const DELETE = withErrorHandling(
     await invalidateCache(`post:${postId}:interactions:*`, {
       namespace: CACHE_KEYS.POST,
     });
+
+    invalidateCache(narrativeEnrichmentKey(canonicalUserId), {
+      namespace: 'feed',
+    }).catch((err) =>
+      logger.warn(
+        'Failed to invalidate narrative enrichment cache on unlike',
+        { error: err, userId: canonicalUserId },
+        'DELETE /api/posts/[id]/like'
+      )
+    );
 
     logger.info(
       'Post unliked successfully',

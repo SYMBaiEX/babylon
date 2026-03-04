@@ -1,12 +1,17 @@
 'use client';
 
-import type { ArcStateType } from '@babylon/db';
+import type {
+  ArcStateType,
+  NarrativePost,
+  NarrativeStory,
+} from '@babylon/shared';
 import { cn } from '@babylon/shared';
 import { BookOpen, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import type { NarrativePost, NarrativeStory } from '@/app/feed/types/narrative';
+import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
+import { NewMarketCard } from './NewMarketCard';
 
 // Arc state display config: label + Tailwind classes
 const ARC_STATE_CONFIG: Record<
@@ -93,9 +98,31 @@ function toPostCardData(post: NarrativePost) {
   };
 }
 
+function toArticleCardData(post: NarrativePost) {
+  return {
+    id: post.id,
+    type: post.type ?? undefined,
+    content: post.content,
+    fullContent: post.fullContent,
+    articleTitle: post.articleTitle,
+    category: post.category,
+    imageUrl: post.imageUrl,
+    authorId: post.authorId,
+    authorName: post.authorName,
+    authorUsername: post.authorUsername,
+    authorProfileImageUrl: post.authorProfileImageUrl,
+    timestamp: post.timestamp,
+  };
+}
+
 interface NarrativeStoryCardProps {
   story: NarrativeStory;
 }
+
+// A standalone post card has storyKey prefixed with 'post:' — these are
+// high-scoring individual posts dissolved from the general bucket. They render
+// without a story header since the PostCard already shows all relevant context.
+const isStandalonePost = (storyKey: string) => storyKey.startsWith('post:');
 
 export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
   const router = useRouter();
@@ -109,9 +136,37 @@ export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
     [expanded, story.posts]
   );
 
+  // New market cards render a dedicated trade CTA card
+  if (story.isNewMarket) {
+    return <NewMarketCard story={story} />;
+  }
+
+  // Standalone posts render as plain feed cards — no story header wrapper
+  if (isStandalonePost(story.storyKey) && story.posts.length === 1) {
+    const post = story.posts[0]!;
+    return (
+      <div className="border-border border-b">
+        {post.type === 'article' ? (
+          <ArticleCard
+            post={toArticleCardData(post)}
+            density="default"
+            onClick={() => router.push(`/article/${post.id}`)}
+          />
+        ) : (
+          <PostCard
+            post={toPostCardData(post)}
+            density="default"
+            showCommentInputBar={false}
+            onCommentClick={() => router.push(`/post/${post.id}`)}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="border-border border-b">
-      {/* Story header */}
+      {/* Story header — only shown for question-linked multi-post stories */}
       <div className="flex items-start gap-3 px-4 py-3">
         <div className="mt-0.5 flex-shrink-0 rounded-full bg-primary/10 p-1.5">
           <BookOpen className="h-4 w-4 text-primary" />
@@ -148,17 +203,26 @@ export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
         </div>
       </div>
 
-      {/* Posts */}
+      {/* Posts — article type uses ArticleCard (renders imageUrl); others use PostCard */}
       <div className="divide-y divide-border">
-        {visiblePosts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={toPostCardData(post)}
-            density="compact"
-            showCommentInputBar={false}
-            onCommentClick={() => router.push(`/post/${post.id}`)}
-          />
-        ))}
+        {visiblePosts.map((post) =>
+          post.type === 'article' ? (
+            <ArticleCard
+              key={post.id}
+              post={toArticleCardData(post)}
+              density="compact"
+              onClick={() => router.push(`/article/${post.id}`)}
+            />
+          ) : (
+            <PostCard
+              key={post.id}
+              post={toPostCardData(post)}
+              density="compact"
+              showCommentInputBar={false}
+              onCommentClick={() => router.push(`/post/${post.id}`)}
+            />
+          )
+        )}
       </div>
 
       {/* Expand / collapse toggle */}

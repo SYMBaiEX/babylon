@@ -15,12 +15,15 @@
  * that always sorts last.
  */
 import {
+  addPublicReadHeaders,
+  getCache,
   getCacheOrFetch,
-  optionalAuth,
+  narrativeEnrichmentKey,
+  publicRateLimit,
+  setCache,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import type { ArcStateType } from '@babylon/db';
 import {
   and,
   arcStates,
@@ -31,7 +34,9 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
+  not,
   positions,
   posts,
   questions,
@@ -41,6 +46,11 @@ import {
   users,
 } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
+import type {
+  ArcStateType,
+  NarrativePost,
+  NarrativeStory,
+} from '@babylon/shared';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import {
@@ -51,41 +61,21 @@ import {
 
 // Query limits
 const MAX_CANDIDATE_POSTS = 500;
-const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+// 12-hour window: markets change frequently; this keeps the feed current
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+// New market lookback: questions opened in this window get a "New Market" card
+const NEW_MARKET_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Top-N general (non-question) posts surfaced as individual story cards.
+// These compete on score alongside question stories to create the
+// "stories + hot + latest" blend the feed aims for.
+const MAX_STANDALONE_POSTS = 20;
+
+// Minimum score for a standalone post card to appear in the feed.
+// Prevents spam of zero-engagement posts from drowning active stories.
+const MIN_STANDALONE_SCORE = 0.05;
 
 const GENERAL_STORY_KEY = '__general__';
-
-interface NarrativePost {
-  id: string;
-  content: string;
-  fullContent: string | null;
-  articleTitle: string | null;
-  category: string | null;
-  imageUrl: string | null;
-  type: string | null;
-  timestamp: string;
-  authorId: string;
-  authorName: string;
-  authorUsername: string | null;
-  authorProfileImageUrl: string | null;
-  likeCount: number;
-  commentCount: number;
-  shareCount: number;
-  isLiked: boolean;
-  isShared: boolean;
-  relatedQuestion: number | null;
-}
-
-interface NarrativeStory {
-  storyKey: string;
-  storyTitle: string;
-  questionNumber: number | null;
-  arcState: ArcStateType | null;
-  storyScore: number;
-  postCount: number;
-  posts: NarrativePost[];
-  hasUserPosition: boolean;
-}
 
 interface NarrativeFeedResponse {
   success: true;
@@ -132,11 +122,23 @@ interface CachedResult {
   postIds: string[];
 }
 
+// Per-user enrichment cache TTL (seconds). Short enough to stay fresh;
+// long enough to dramatically reduce DB load at scale.
+const USER_ENRICHMENT_TTL_S = 30;
+
+interface UserEnrichmentCache {
+  likedPostIds: string[];
+  sharedPostIds: string[];
+  positionQuestionIds: number[];
+}
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const user = await optionalAuth(request).catch((err) => {
-    logger.debug('optionalAuth failed', { error: err }, 'NarrativeFeedAPI');
-    return null;
-  });
+  const {
+    error: rateLimitErr,
+    user,
+    rateLimitInfo,
+  } = await publicRateLimit(request, 'read');
+  if (rateLimitErr) return rateLimitErr;
 
   const cacheKey = 'feed:narrative:v1';
 
@@ -144,7 +146,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     cacheKey,
     async () => {
       const now = new Date();
-      const cutoff = new Date(now.getTime() - FORTY_EIGHT_HOURS_MS);
+      const cutoff = new Date(now.getTime() - TWELVE_HOURS_MS);
+      const newMarketCutoff = new Date(now.getTime() - NEW_MARKET_WINDOW_MS);
 
       const recentPosts = await db
         .select({
@@ -379,8 +382,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           (questionNumber !== null ? `Story #${questionNumber}` : 'General');
         const arcState = meta?.arcState ?? null;
 
-        // Skip fully resolved questions — no remaining tension
+        // Skip resolved questions — no remaining tension
         if (meta?.status === 'resolved') continue;
+        // Skip questions whose deadline has passed even if status hasn't updated yet
+        if (meta?.resolutionDate && meta.resolutionDate <= now) continue;
 
         const baseScore = calculateStoryScore(
           totalLikes,
@@ -407,19 +412,133 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         });
       }
 
-      // Sort by score DESC, general story always last
-      stories.sort((a, b) => {
-        if (a.storyKey === GENERAL_STORY_KEY) return 1;
-        if (b.storyKey === GENERAL_STORY_KEY) return -1;
-        return b.storyScore - a.storyScore;
-      });
+      // Dissolve the __general__ bucket into individual scored post cards.
+      // Each top post competes on merit alongside question stories, creating
+      // the "stories + hot + latest" blend instead of a single dump at the bottom.
+      const generalPosts = storyPostMap.get(GENERAL_STORY_KEY) ?? [];
+      const standalonePostCards = generalPosts
+        .map((post) => ({
+          post,
+          score: calculateStoryScore(
+            post.likeCount,
+            post.commentCount,
+            post.shareCount,
+            1,
+            new Date(post.timestamp)
+          ),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, MAX_STANDALONE_POSTS)
+        .filter(({ score }) => score >= MIN_STANDALONE_SCORE);
+
+      for (const { post, score } of standalonePostCards) {
+        // Use article headline when available; otherwise truncate the social content
+        const rawTitle =
+          post.articleTitle ??
+          (post.content.length > 80
+            ? post.content.slice(0, 80).replace(/\s+\S*$/, '') + '…'
+            : post.content);
+
+        stories.push({
+          storyKey: `post:${post.id}`,
+          storyTitle: rawTitle,
+          questionNumber: null,
+          arcState: null,
+          storyScore: Math.round(score * 10000) / 10000,
+          postCount: 1,
+          posts: [post],
+          hasUserPosition: false,
+        });
+      }
+
+      // Sort all stories — question stories AND standalone posts — by score DESC.
+      // Active question stories naturally float above standalone posts because
+      // the arc state and resolution proximity multipliers boost their score.
+      stories.sort((a, b) => b.storyScore - a.storyScore);
+
+      // Inject "New Market" cards for questions opened in the last 24h.
+      // These appear even if the question has no posts yet, giving users a
+      // chance to discover and trade on fresh markets directly from the feed.
+      const existingQuestionNumbers = new Set(
+        stories
+          .map((s) => s.questionNumber)
+          .filter((n): n is number => n !== null)
+      );
+
+      const newMarketQuestions = await db
+        .select({
+          questionNumber: questions.questionNumber,
+          text: questions.text,
+          resolutionDate: questions.resolutionDate,
+          createdAt: questions.createdAt,
+          arcState: arcStates.currentState,
+        })
+        .from(questions)
+        .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
+        .where(
+          and(
+            eq(questions.status, 'active'),
+            gte(questions.createdAt, newMarketCutoff),
+            lt(
+              questions.resolutionDate,
+              new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+            ), // resolves within 30 days
+            // inArray requires a non-empty array. When no stories exist yet,
+            // use [-1] as a sentinel (no valid questionNumber is ever -1) so
+            // the NOT IN clause is always syntactically valid.
+            not(
+              inArray(
+                questions.questionNumber,
+                existingQuestionNumbers.size > 0
+                  ? [...existingQuestionNumbers]
+                  : [-1]
+              )
+            )
+          )
+        )
+        .orderBy(desc(questions.createdAt))
+        .limit(5);
+
+      for (const q of newMarketQuestions) {
+        // New market cards score on recency alone — they float near top on open day
+        const hoursSinceOpen =
+          (now.getTime() - q.createdAt.getTime()) / (1000 * 60 * 60);
+        const recencyScore = Math.exp((-Math.LN2 * hoursSinceOpen) / 6); // 6h half-life
+        const arcMultiplier = calculateArcStateMultiplier(
+          (q.arcState as ArcStateType | null) ?? null
+        );
+
+        stories.push({
+          storyKey: `market:${q.questionNumber}`,
+          storyTitle: q.text,
+          questionNumber: q.questionNumber,
+          arcState: (q.arcState as ArcStateType | null) ?? null,
+          storyScore: Math.round(recencyScore * arcMultiplier * 10000) / 10000,
+          postCount: 0,
+          posts: [],
+          hasUserPosition: false,
+          isNewMarket: true,
+          resolutionDate: q.resolutionDate.toISOString(),
+        });
+      }
+
+      // Re-sort after injecting new market cards
+      if (newMarketQuestions.length > 0) {
+        stories.sort((a, b) => b.storyScore - a.storyScore);
+      }
 
       return { stories, postIds };
     },
-    { namespace: 'feed', ttl: 60 }
+    // 120s TTL — cache invalidation on new post creation (posts/route.ts) keeps
+    // this fresh in practice; TTL is a safety net, not the freshness mechanism.
+    { namespace: 'feed', ttl: 120 }
   );
 
-  // Per-user enrichment — isLiked, isShared, hasUserPosition — live, bypasses cache
+  // Per-user enrichment — isLiked, isShared, hasUserPosition.
+  // Results are cached per-user for USER_ENRICHMENT_TTL_S seconds to avoid
+  // 3 DB round-trips × N concurrent authenticated users on every request.
+  // On any Redis/cache error we degrade gracefully to the un-personalized feed
+  // rather than surfacing a 500 to the user.
   let finalStories: NarrativeStory[] = result.stories;
 
   if (user?.userId) {
@@ -428,79 +547,145 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .map((s) => s.questionNumber)
       .filter((n): n is number => n !== null);
 
-    const [userLikes, userShares, userPositions] = await Promise.all([
-      result.postIds.length > 0
-        ? db
-            .select({ postId: reactions.postId })
-            .from(reactions)
-            .where(
-              and(
-                inArray(reactions.postId, result.postIds),
-                eq(reactions.userId, userId),
-                eq(reactions.type, 'like')
-              )
-            )
-        : Promise.resolve([]),
-      result.postIds.length > 0
-        ? db
-            .select({ postId: shares.postId })
-            .from(shares)
-            .where(
-              and(
-                inArray(shares.postId, result.postIds),
-                eq(shares.userId, userId)
-              )
-            )
-        : Promise.resolve([]),
-      questionNumbersInResult.length > 0
-        ? db
-            .select({ questionId: positions.questionId })
-            .from(positions)
-            .where(
-              and(
-                eq(positions.userId, userId),
-                eq(positions.status, 'active'),
-                isNotNull(positions.questionId),
-                inArray(positions.questionId, questionNumbersInResult)
-              )
-            )
-        : Promise.resolve([]),
-    ]);
+    try {
+      const enrichCacheKey = narrativeEnrichmentKey(userId);
+      const cachedEnrichment = await getCache<UserEnrichmentCache>(
+        enrichCacheKey,
+        { namespace: 'feed' }
+      );
 
-    const likedSet = new Set(userLikes.map((l) => l.postId));
-    const sharedSet = new Set(userShares.map((s) => s.postId));
-    const positionSet = new Set(
-      userPositions
-        .map((p) => p.questionId)
-        .filter((id): id is number => id !== null)
-    );
+      let enrichment: UserEnrichmentCache;
 
-    finalStories = result.stories.map((story) => ({
-      ...story,
-      hasUserPosition:
-        story.questionNumber !== null && positionSet.has(story.questionNumber),
-      posts: story.posts.map((post) => ({
-        ...post,
-        isLiked: likedSet.has(post.id),
-        isShared: sharedSet.has(post.id),
-      })),
-    }));
+      if (cachedEnrichment) {
+        enrichment = cachedEnrichment;
+      } else {
+        // Cache miss — fetch from DB in parallel and populate cache
+        const [userLikes, userShares, userPositions] = await Promise.all([
+          result.postIds.length > 0
+            ? db
+                .select({ postId: reactions.postId })
+                .from(reactions)
+                .where(
+                  and(
+                    inArray(reactions.postId, result.postIds),
+                    eq(reactions.userId, userId),
+                    eq(reactions.type, 'like')
+                  )
+                )
+            : Promise.resolve([]),
+          result.postIds.length > 0
+            ? db
+                .select({ postId: shares.postId })
+                .from(shares)
+                .where(
+                  and(
+                    inArray(shares.postId, result.postIds),
+                    eq(shares.userId, userId)
+                  )
+                )
+            : Promise.resolve([]),
+          questionNumbersInResult.length > 0
+            ? db
+                .select({ questionId: positions.questionId })
+                .from(positions)
+                .where(
+                  and(
+                    eq(positions.userId, userId),
+                    eq(positions.status, 'active'),
+                    isNotNull(positions.questionId),
+                    inArray(positions.questionId, questionNumbersInResult)
+                  )
+                )
+            : Promise.resolve([]),
+        ]);
 
-    // Re-sort: stories with user positions first (within non-general tier),
-    // then by score descending, general story always last.
-    finalStories.sort((a, b) => {
-      const aIsGeneral = a.questionNumber === null;
-      const bIsGeneral = b.questionNumber === null;
-      if (aIsGeneral !== bIsGeneral) return aIsGeneral ? 1 : -1;
-      if (a.hasUserPosition !== b.hasUserPosition)
-        return a.hasUserPosition ? -1 : 1;
-      return b.storyScore - a.storyScore;
-    });
+        enrichment = {
+          likedPostIds: userLikes
+            .map((l) => l.postId)
+            .filter((id): id is string => id !== null),
+          sharedPostIds: userShares
+            .map((s) => s.postId)
+            .filter((id): id is string => id !== null),
+          positionQuestionIds: userPositions
+            .map((p) => p.questionId)
+            .filter((id): id is number => id !== null),
+        };
+
+        // Cache write — errors logged but never block the response.
+        // Note: enrichment is scoped to the current postIds set; if the feed
+        // cache regenerates before this TTL expires, new posts will show
+        // isLiked: false until the enrichment key expires (max 30s).
+        setCache(enrichCacheKey, enrichment, {
+          namespace: 'feed',
+          ttl: USER_ENRICHMENT_TTL_S,
+        }).catch((err) => {
+          logger.error(
+            'Failed to write enrichment cache',
+            { error: err, userId, key: enrichCacheKey },
+            'NarrativeFeedAPI'
+          );
+        });
+      }
+
+      const likedSet = new Set(enrichment.likedPostIds);
+      const sharedSet = new Set(enrichment.sharedPostIds);
+      const positionSet = new Set(enrichment.positionQuestionIds);
+
+      finalStories = result.stories.map((story) => ({
+        ...story,
+        hasUserPosition:
+          story.questionNumber !== null &&
+          positionSet.has(story.questionNumber),
+        posts: story.posts.map((post) => ({
+          ...post,
+          isLiked: likedSet.has(post.id),
+          isShared: sharedSet.has(post.id),
+        })),
+      }));
+
+      // Re-sort: stories with user positions first (within non-general tier),
+      // then by score descending, general story always last.
+      finalStories.sort((a, b) => {
+        const aIsGeneral = a.questionNumber === null;
+        const bIsGeneral = b.questionNumber === null;
+        if (aIsGeneral !== bIsGeneral) return aIsGeneral ? 1 : -1;
+        if (a.hasUserPosition !== b.hasUserPosition)
+          return a.hasUserPosition ? -1 : 1;
+        return b.storyScore - a.storyScore;
+      });
+    } catch (err) {
+      // Redis unavailable or DB enrichment query failed — degrade to the
+      // un-personalized base feed rather than returning HTTP 500.
+      logger.error(
+        'Enrichment failed — serving un-personalized feed',
+        { error: err, userId },
+        'NarrativeFeedAPI'
+      );
+    }
   }
 
-  return successResponse({
+  const response = successResponse({
     success: true,
     stories: finalStories,
     generatedAt: new Date().toISOString(),
   } satisfies NarrativeFeedResponse);
+
+  if (rateLimitInfo) {
+    if (user?.userId) {
+      // Personalized response — must not be shared by CDN across users
+      response.headers.set('Cache-Control', 'private, no-store');
+      response.headers.set('X-RateLimit-Limit', rateLimitInfo.limit.toString());
+      response.headers.set(
+        'X-RateLimit-Remaining',
+        rateLimitInfo.remaining.toString()
+      );
+      response.headers.set(
+        'X-RateLimit-Reset',
+        rateLimitInfo.resetAt.toISOString()
+      );
+    } else {
+      addPublicReadHeaders(response, rateLimitInfo);
+    }
+  }
+  return response;
 });
