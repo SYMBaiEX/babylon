@@ -208,8 +208,7 @@ import type { NextRequest } from 'next/server';
  * Get all chats for the authenticated user
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  console.log('[API /api/chats] GET request received');
-  logger.info('GET /api/chats - Request received', undefined, 'GET /api/chats');
+  logger.info('GET /api/chats - Request received', undefined, 'ChatsRoute');
 
   // Validate query parameters
   const { searchParams } = new URL(request.url);

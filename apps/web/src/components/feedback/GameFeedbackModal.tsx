@@ -6,7 +6,7 @@
 
 'use client';
 
-import { cn, parseJsonString } from '@babylon/shared';
+import { cn, logger, parseJsonString } from '@babylon/shared';
 import { Loader2, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -263,7 +263,11 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
           body: JSON.stringify({ url }),
         }).catch((error) => {
           // Log for observability but don't block user flow
-          console.warn('Failed to cleanup orphaned screenshot:', url, error);
+          logger.warn(
+            'Failed to cleanup orphaned screenshot',
+            error instanceof Error ? error : { url, error },
+            'GameFeedbackModal'
+          );
         });
       };
 

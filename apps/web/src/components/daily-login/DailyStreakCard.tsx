@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -46,9 +47,10 @@ export function DailyStreakCard() {
         // Validate response is JSON before parsing
         const contentType = res.headers.get('content-type');
         if (!contentType?.includes('application/json')) {
-          console.warn(
-            'Daily login API returned unexpected content type:',
-            contentType
+          logger.warn(
+            'Daily login API returned unexpected content type',
+            { contentType },
+            'DailyStreakCard'
           );
           setData(null);
         } else {
@@ -58,12 +60,20 @@ export function DailyStreakCard() {
       } else {
         // Silently fail - don't show error toast, just don't render the card
         // This prevents blocking the page if the API/database isn't ready
-        console.warn('Daily login API not available:', res.status);
+        logger.warn(
+          'Daily login API not available',
+          { status: res.status },
+          'DailyStreakCard'
+        );
         setData(null);
       }
     } catch (error) {
       // Silently fail - don't show error toast (includes JSON parse errors)
-      console.warn('Daily login API error:', error);
+      logger.warn(
+        'Daily login API error',
+        error instanceof Error ? error : { error },
+        'DailyStreakCard'
+      );
       setData(null);
     } finally {
       setLoading(false);

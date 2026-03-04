@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Crown,
@@ -167,7 +167,11 @@ export function GroupManagementModal({
         setGroupNameDraft(data.group?.name || '');
         setIsEditingGroupName(false);
       } catch (err) {
-        console.error('Failed to load group details:', err);
+        logger.error(
+          'Failed to load group details',
+          err instanceof Error ? err : { error: err },
+          'GroupManagementModal'
+        );
         setError('Failed to load group details. Please try again.');
       } finally {
         setLoading(false);
@@ -238,7 +242,11 @@ export function GroupManagementModal({
       setIsEditingGroupName(false);
       onGroupUpdated?.();
     } catch (err) {
-      console.error('Failed to update group name:', err);
+      logger.error(
+        'Failed to update group name',
+        err instanceof Error ? err : { error: err },
+        'GroupManagementModal'
+      );
       setError('Network error. Please try again.');
     } finally {
       setActionLoading(null);
@@ -293,7 +301,11 @@ export function GroupManagementModal({
           setSearchResults([]);
         }
       } catch (error) {
-        console.error('Member search failed:', error);
+        logger.error(
+          'Member search failed',
+          error instanceof Error ? error : { error },
+          'GroupManagementModal'
+        );
         setSearchResults([]);
       } finally {
         setSearching(false);
@@ -351,7 +363,11 @@ export function GroupManagementModal({
       setSearchResults([]);
       onGroupUpdated?.();
     } catch (err) {
-      console.error('Failed to add member:', err);
+      logger.error(
+        'Failed to add member',
+        err instanceof Error ? err : { error: err },
+        'GroupManagementModal'
+      );
       setError('Network error. Please try again.');
     } finally {
       setActionLoading(null);

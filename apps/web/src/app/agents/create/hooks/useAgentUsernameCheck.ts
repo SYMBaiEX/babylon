@@ -1,3 +1,4 @@
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useState } from 'react';
 
 export type UsernameStatus =
@@ -60,7 +61,11 @@ export function useAgentUsernameCheck(
         setUsernameSuggestion(null);
       }
     } catch (error) {
-      console.error('Username check failed:', error);
+      logger.error(
+        'Username check failed',
+        error instanceof Error ? error : { error },
+        'useAgentUsernameCheck'
+      );
       setUsernameStatus('error');
       setUsernameSuggestion(null);
     } finally {

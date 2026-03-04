@@ -54,7 +54,8 @@
         "useConst": "error"
       },
       "suspicious": {
-        "noExplicitAny": "error"
+        "noExplicitAny": "error",
+        "noConsole": "error"
       },
       "nursery": {
         "useSortedClasses": {
@@ -109,6 +110,35 @@
       ],
       "linter": {
         "enabled": false
+      }
+    },
+    {
+      "includes": [
+        "apps/web/sentry.*.config.ts",
+        "apps/web/instrumentation*.ts",
+        "apps/web/next.config.ts",
+        "packages/engine/src/prompts/complete-example.ts",
+        "scripts/**",
+        "apps/cli/**",
+        "apps/docs/**",
+        "packages/testing/**",
+        "packages/examples/**",
+        "**/__tests__/**",
+        "**/examples/**",
+        "**/scripts/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "packages/training/src/benchmark/**",
+        "packages/api/src/dev-credentials.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
       }
     },
     {

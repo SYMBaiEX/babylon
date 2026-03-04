@@ -30,7 +30,7 @@
 
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   Activity,
   BarChart,
@@ -162,7 +162,11 @@ export default function AdminDashboard() {
 
     // Check if user is admin by trying to fetch admin stats
     const response = await fetch('/api/admin/stats').catch((error: Error) => {
-      console.error('Admin access check failed:', error);
+      logger.error(
+        'Admin access check failed',
+        error instanceof Error ? error : { error },
+        'AdminPage'
+      );
       setIsAuthorized(false);
       setLoading(false);
       throw error;

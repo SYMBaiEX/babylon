@@ -1,4 +1,5 @@
 import type { AgentTemplate } from '@babylon/agents/client';
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -89,7 +90,11 @@ export function useAgentForm(): UseAgentFormResult {
       // Load random template
       const indexResponse = await fetch('/api/agent-templates');
       if (!indexResponse.ok) {
-        console.error('Failed to load template index');
+        logger.error(
+          'Failed to load template index',
+          undefined,
+          'useAgentForm'
+        );
         setIsInitialized(true);
         return;
       }

@@ -8,6 +8,7 @@
 import {
   COORDINATOR_SENDER_ID,
   generateUUID,
+  logger,
   type MessageMetadata,
 } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
@@ -549,7 +550,7 @@ export function useTeamChat(): UseTeamChatReturn {
         body: JSON.stringify({ isTyping }),
       }).catch((err) => {
         // Log for debugging but don't block user experience
-        console.debug('Typing indicator failed:', err);
+        logger.debug('Typing indicator failed', { error: err }, 'useTeamChat');
       });
     },
     [teamChat, getAccessToken]
@@ -946,7 +947,7 @@ export function useTeamChat(): UseTeamChatReturn {
           // Remove thinking bubble on network error
           removeMessage(thinkingId);
           toast.error('Coordinator: Connection error. Please try again.');
-          console.error('Coordinator error:', err);
+          logger.error('Coordinator error', { error: err }, 'useTeamChat');
         }
 
         return; // Exit early - don't proceed to agent calls
@@ -1146,7 +1147,11 @@ export function useTeamChat(): UseTeamChatReturn {
       // Don't await - let agents process in background
       // Responses will come through SSE/broadcast
       Promise.all(agentCalls).catch((err) => {
-        console.error('Error in parallel agent calls:', err);
+        logger.error(
+          'Error in parallel agent calls',
+          { error: err },
+          'useTeamChat'
+        );
       });
     } catch (err) {
       // Rollback optimistic message on network error
@@ -1197,15 +1202,19 @@ export function useTeamChat(): UseTeamChatReturn {
         const errorData = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        console.error(
-          'Failed to fetch conversations:',
-          response.status,
-          errorData
+        logger.error(
+          'Failed to fetch conversations',
+          { status: response.status, errorData },
+          'useTeamChat'
         );
         toast.error(errorData.error || 'Failed to load conversations');
       }
     } catch (err) {
-      console.error('Failed to fetch conversations:', err);
+      logger.error(
+        'Failed to fetch conversations',
+        { error: err },
+        'useTeamChat'
+      );
       toast.error('Failed to load conversations');
     } finally {
       setConversationsLoading(false);
@@ -1288,7 +1297,11 @@ export function useTeamChat(): UseTeamChatReturn {
           toast.error(errorData.error || 'Failed to create conversation');
         }
       } catch (err) {
-        console.error('Failed to create conversation:', err);
+        logger.error(
+          'Failed to create conversation',
+          { error: err },
+          'useTeamChat'
+        );
         toast.error('Failed to create conversation');
       }
     },
@@ -1337,7 +1350,11 @@ export function useTeamChat(): UseTeamChatReturn {
           toast.error(errorData.error || 'Failed to switch conversation');
         }
       } catch (err) {
-        console.error('Failed to switch conversation:', err);
+        logger.error(
+          'Failed to switch conversation',
+          { error: err },
+          'useTeamChat'
+        );
         toast.error('Failed to switch conversation');
       }
     },
@@ -1376,7 +1393,11 @@ export function useTeamChat(): UseTeamChatReturn {
           toast.error(errorData.error || 'Failed to rename conversation');
         }
       } catch (err) {
-        console.error('Failed to rename conversation:', err);
+        logger.error(
+          'Failed to rename conversation',
+          { error: err },
+          'useTeamChat'
+        );
         toast.error('Failed to rename conversation');
       }
     },
@@ -1434,7 +1455,11 @@ export function useTeamChat(): UseTeamChatReturn {
           toast.error(errorData.error || 'Failed to delete conversation');
         }
       } catch (err) {
-        console.error('Failed to delete conversation:', err);
+        logger.error(
+          'Failed to delete conversation',
+          { error: err },
+          'useTeamChat'
+        );
         toast.error('Failed to delete conversation');
       }
     },

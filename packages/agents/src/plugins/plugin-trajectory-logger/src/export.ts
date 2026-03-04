@@ -20,6 +20,7 @@ import {
   trajectories,
 } from '@babylon/db';
 import { shuffleArray } from '@babylon/engine';
+import { logger } from '../../../shared/logger';
 import type { JsonValue } from '../../../types/common';
 import type { Trajectory } from './types';
 
@@ -84,7 +85,11 @@ export async function exportToHuggingFace(
     .orderBy(desc(trajectories.startTime))
     .limit(options.maxTrajectories || 10000);
 
-  console.log(`Exporting ${result.length} trajectories...`);
+  logger.info(
+    `Exporting ${result.length} trajectories...`,
+    { count: result.length },
+    'TrajectoryExport'
+  );
 
   // Transform to training format
   const dataset = result.map((traj) => transformForTraining(traj));
@@ -328,7 +333,11 @@ async function exportToJSONL<T extends object>(
     const lines = data.map((item: T) => JSON.stringify(item)).join('\n');
     await fs.writeFile(filePath, lines, 'utf-8');
 
-    console.log(`Exported ${data.length} trajectories to ${filePath}`);
+    logger.info(
+      `Exported ${data.length} trajectories`,
+      { count: data.length, filePath },
+      'TrajectoryExport'
+    );
   }
 
   // If HuggingFace token provided, upload
@@ -355,7 +364,11 @@ async function exportToParquet<T extends object>(
 ): Promise<ExportResult> {
   // This would require Apache Arrow/Parquet libraries
   // For now, fallback to JSONL
-  console.warn('Parquet export not yet implemented, falling back to JSONL');
+  logger.warn(
+    'Parquet export not yet implemented, falling back to JSONL',
+    undefined,
+    'TrajectoryExport'
+  );
   return exportToJSONL(splits, options);
 }
 
@@ -378,13 +391,20 @@ async function uploadToHuggingFaceHub(
   // Set token as environment variable for huggingface-cli
   process.env.HUGGINGFACE_HUB_TOKEN = options.huggingFaceToken;
 
-  console.log('Uploading to Hugging Face Hub...');
-  console.log(`Dataset: ${options.datasetName}`);
+  logger.info(
+    'Uploading to Hugging Face Hub...',
+    { datasetName: options.datasetName },
+    'TrajectoryExport'
+  );
 
   await execAsync(
     `huggingface-cli upload ${options.datasetName} ${exportDir} --repo-type dataset`
   );
-  console.log('✅ Successfully uploaded via huggingface-cli');
+  logger.info(
+    'Successfully uploaded via huggingface-cli',
+    undefined,
+    'TrajectoryExport'
+  );
 }
 
 /**
@@ -452,8 +472,10 @@ export async function exportGroupedByScenario(
     const lines = transformed.map((item) => JSON.stringify(item)).join('\n');
     await fs.writeFile(filePath, lines, 'utf-8');
 
-    console.log(
-      `Exported ${trajResults.length} trajectories for scenario ${scenarioId}`
+    logger.info(
+      `Exported ${trajResults.length} trajectories for scenario`,
+      { count: trajResults.length, scenarioId },
+      'TrajectoryExport'
     );
     totalExported += trajResults.length;
   }
@@ -524,8 +546,10 @@ export async function exportForOpenPipeART(
   const lines = artFormat.map((item) => JSON.stringify(item)).join('\n');
   await fs.writeFile(filePath, lines, 'utf-8');
 
-  console.log(
-    `Exported ${artFormat.length} trajectories in OpenPipe ART format`
+  logger.info(
+    'Exported trajectories in OpenPipe ART format',
+    { count: artFormat.length },
+    'TrajectoryExport'
   );
 
   return {
@@ -658,8 +682,14 @@ export async function exportGroupedForGRPO(
     }
   }
 
-  console.log(
-    `Exported ${totalExported} trajectories in ${scenarioCounts.length} GRPO groups (limit: ${MAX_TRAJECTORIES})`
+  logger.info(
+    'Exported trajectories in GRPO groups',
+    {
+      totalExported,
+      groupCount: scenarioCounts.length,
+      limit: MAX_TRAJECTORIES,
+    },
+    'TrajectoryExport'
   );
 
   return {

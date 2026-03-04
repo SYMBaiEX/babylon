@@ -29,6 +29,7 @@
 
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
   AlertCircle,
   Cpu,
@@ -130,7 +131,11 @@ export default function TrainingDashboard() {
     const res = await fetch('/api/admin/training/status');
 
     if (!res.ok) {
-      console.error('Failed to load status: Failed to load training status');
+      logger.error(
+        'Failed to load training status',
+        undefined,
+        'TrainingAdmin'
+      );
       setLoading(false);
       return;
     }

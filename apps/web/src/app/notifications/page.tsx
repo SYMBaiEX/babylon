@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import { Bell } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -101,9 +101,10 @@ export default function NotificationsPage() {
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       } else {
-        console.error(
-          'Failed to fetch notifications:',
-          notifResponse.statusText
+        logger.error(
+          'Failed to fetch notifications',
+          { statusText: notifResponse.statusText },
+          'NotificationsPage'
         );
         if (!silent) {
           toast.error('Failed to refresh notifications');
@@ -185,9 +186,10 @@ export default function NotificationsPage() {
       });
 
       if (!response.ok) {
-        console.error(
-          'Failed to mark notification as read:',
-          response.statusText
+        logger.error(
+          'Failed to mark notification as read',
+          { statusText: response.statusText },
+          'NotificationsPage'
         );
         // Revert optimistic update on error
         setNotifications((prev) =>
