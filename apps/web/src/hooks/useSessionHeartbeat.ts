@@ -7,7 +7,7 @@
  * @module useSessionHeartbeat
  */
 
-import { generateUUID } from '@babylon/shared';
+import { generateUUID, logger } from '@babylon/shared';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -85,7 +85,13 @@ export function useSessionHeartbeat(): void {
         keepalive: true,
         signal: controller.signal,
       })
-        .catch(() => {})
+        .catch((err) => {
+          logger.debug(
+            'Heartbeat fetch failed',
+            { error: err },
+            'useSessionHeartbeat'
+          );
+        })
         .finally(() => {
           clearTimeout(timeoutId);
         });

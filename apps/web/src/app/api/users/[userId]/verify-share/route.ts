@@ -367,7 +367,13 @@ export const POST = withErrorHandling(
               const hasFallback = index < twitterAuthAttempts.length - 1;
               if (twitterResponse.status === 401 && hasFallback) {
                 // Drain the response body to release the connection.
-                await twitterResponse.text().catch(() => {});
+                await twitterResponse.text().catch((err) => {
+                  logger.debug(
+                    'Failed to drain Twitter response body',
+                    { error: err, shareId },
+                    'POST /api/users/[userId]/verify-share'
+                  );
+                });
                 logger.warn(
                   `Twitter API auth failed, retrying with fallback token: ${shareId}`,
                   {

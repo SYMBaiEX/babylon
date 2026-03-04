@@ -14,7 +14,9 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 // ─── Mock @babylon/api cache functions ──────────────────────────────────────
 
-const mockGetCache = mock(async (_key: string, _opts?: unknown) => null);
+const mockGetCache = mock(
+  async (_key: string, _opts?: unknown): Promise<unknown> => null
+);
 const mockSetCache = mock(
   async (_key: string, _val: unknown, _opts?: unknown) => undefined
 );
@@ -80,10 +82,13 @@ async function runEnrichment(
     positionQuestionIds: dbPositions.filter((id) => questionIds.includes(id)),
   };
 
-  await mockSetCache(enrichCacheKey, enrichment, {
-    namespace: 'feed',
-    ttl: 30,
-  });
+  // Mirror production: cache write must never block or fail the response.
+  void Promise.resolve(
+    mockSetCache(enrichCacheKey, enrichment, {
+      namespace: 'feed',
+      ttl: 30,
+    })
+  ).catch(() => undefined);
   return enrichment;
 }
 
@@ -245,11 +250,9 @@ describe('Narrative Feed Enrichment Cache', () => {
     it('cache TTL is 30 seconds to bound stale window', async () => {
       mockGetCache.mockImplementation(async () => null);
       let capturedTtl: number | undefined;
-      mockSetCache.mockImplementation(
-        async (_key, _val, opts: { ttl?: number }) => {
-          capturedTtl = opts?.ttl;
-        }
-      );
+      mockSetCache.mockImplementation(async (_key, _val, opts) => {
+        capturedTtl = (opts as { ttl?: number })?.ttl;
+      });
 
       await runEnrichment('user-ttl', ['post-1'], [], ['post-1'], [], [], null);
       expect(capturedTtl).toBe(30);
