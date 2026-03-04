@@ -25,6 +25,7 @@ import {
   type State,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
+import { getEventBus } from '../communication/EventBus';
 import { AuthorizationError } from '../errors';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import { generateSnowflakeId } from '../shared/snowflake';
@@ -665,6 +666,24 @@ export async function dispatchAgentChat(
     '[AgentChatService] Dispatch completed',
     { agentId, actionsExecuted: traceActionResults.length, isLLMFailure },
     'AgentChatService'
+  );
+
+  // Publish dispatch result to EventBus for inter-agent awareness.
+  // Other agents or services can subscribe to 'agent.dispatch.result' events
+  // to build contextual awareness of what's happening across the team.
+  const eventBus = getEventBus();
+  eventBus.publish(
+    'agent.dispatch.result',
+    {
+      agentId,
+      agentUsername: agentUsername ?? null,
+      command: params.message,
+      response: responseText.slice(0, 500),
+      actionsExecuted: traceActionResults.length,
+      success: true,
+      timestamp: new Date().toISOString(),
+    },
+    agentId
   );
 
   return {
