@@ -53,6 +53,10 @@ function marketToNarrativeStory(m: NewMarketEntry): NarrativeStory {
     hasUserPosition: false,
     isNewMarket: true,
     resolutionDate: m.resolutionDate,
+    // Pass live market data through for deep-linking and real probability bars
+    marketId: m.marketId ?? null,
+    yesShares: m.yesShares,
+    noShares: m.noShares,
   };
 }
 

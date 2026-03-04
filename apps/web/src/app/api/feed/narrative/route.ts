@@ -41,6 +41,7 @@ import {
   posts,
   questions,
   reactions,
+  markets,
   shares,
   sql,
   users,
@@ -465,6 +466,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           .filter((n): n is number => n !== null)
       );
 
+      // Join markets on question text to get the market UUID (for deep-linking
+      // to /markets/predictions/[id]) and live share counts (for probability bars).
+      // LEFT JOIN since a question may not yet have a market entry.
       const newMarketQuestions = await db
         .select({
           questionNumber: questions.questionNumber,
@@ -472,9 +476,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           resolutionDate: questions.resolutionDate,
           createdAt: questions.createdAt,
           arcState: arcStates.currentState,
+          marketId: markets.id,
+          yesShares: markets.yesShares,
+          noShares: markets.noShares,
         })
         .from(questions)
         .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
+        .leftJoin(markets, eq(markets.question, questions.text))
         .where(
           and(
             eq(questions.status, 'active'),
@@ -519,6 +527,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           hasUserPosition: false,
           isNewMarket: true,
           resolutionDate: q.resolutionDate.toISOString(),
+          marketId: q.marketId ?? null,
+          yesShares: Number(q.yesShares ?? 0),
+          noShares: Number(q.noShares ?? 0),
         });
       }
 

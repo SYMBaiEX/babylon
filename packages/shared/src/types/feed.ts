@@ -76,4 +76,10 @@ export interface NarrativeStory {
   isNewMarket?: boolean;
   /** ISO-8601 resolution deadline, present when isNewMarket is true */
   resolutionDate?: string;
+  /** Market UUID for deep-linking to /markets/predictions/[marketId] */
+  marketId?: string | null;
+  /** Live YES share count from the markets table (0 = new market at 50% parity) */
+  yesShares?: number;
+  /** Live NO share count from the markets table (0 = new market at 50% parity) */
+  noShares?: number;
 }

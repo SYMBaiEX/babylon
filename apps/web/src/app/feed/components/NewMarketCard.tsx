@@ -20,9 +20,26 @@ function formatCountdown(isoDate: string): string {
 }
 
 /**
+ * Compute YES/NO percentages from share counts.
+ * When total = 0 (new market, no trades yet) the AMM initialises at 50/50,
+ * so we display 50% — this matches the behaviour of calculateSharePercentages()
+ * in apps/web/src/app/markets/_lib/formatters.ts.
+ */
+function computePercentages(
+  yesShares: number,
+  noShares: number
+): { yesPercent: number; noPercent: number } {
+  const total = yesShares + noShares;
+  if (total === 0) return { yesPercent: 50, noPercent: 50 };
+  const yesPercent = Math.round((yesShares / total) * 100);
+  return { yesPercent, noPercent: 100 - yesPercent };
+}
+
+/**
  * Inline prediction market discovery card for the Stories and Latest feeds.
- * Appears at the scored/chronological position of newly-opened markets.
- * Renders as a clean feed card with a YES/NO probability bar and trade actions.
+ * All data comes from the API — question text, resolution date, market UUID,
+ * and live share counts. Deep-links to /markets/predictions/[marketId] when
+ * a market UUID is available; falls back to the predictions list otherwise.
  */
 export function NewMarketCard({ story }: NewMarketCardProps) {
   const countdown = useMemo(
@@ -30,8 +47,15 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
     [story.resolutionDate]
   );
 
-  const tradeHref = story.questionNumber
-    ? `/markets?tab=predictions&q=${story.questionNumber}`
+  const { yesPercent, noPercent } = useMemo(
+    () => computePercentages(story.yesShares ?? 0, story.noShares ?? 0),
+    [story.yesShares, story.noShares]
+  );
+
+  // Deep-link to the individual market when we have its UUID;
+  // fall back to the predictions list if the market hasn't been matched.
+  const tradeHref = story.marketId
+    ? `/markets/predictions/${encodeURIComponent(story.marketId)}`
     : '/markets?tab=predictions';
 
   return (
@@ -54,27 +78,35 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
         {story.storyTitle}
       </p>
 
-      {/* YES / NO probability bar — new markets open at 50/50 parity */}
+      {/* YES / NO probability bars — sourced from live market share counts */}
       <div className="mb-4 space-y-1.5">
-        {/* YES bar */}
         <div className="flex items-center gap-2">
           <span className="w-8 text-right font-medium text-green-600 text-xs">
             YES
           </span>
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-1/2 rounded-full bg-green-500" />
+            <div
+              className="h-full rounded-full bg-green-500"
+              style={{ width: `${yesPercent}%` }}
+            />
           </div>
-          <span className="w-8 text-muted-foreground text-xs">50%</span>
+          <span className="w-8 text-muted-foreground text-xs">
+            {yesPercent}%
+          </span>
         </div>
-        {/* NO bar */}
         <div className="flex items-center gap-2">
           <span className="w-8 text-right font-medium text-red-500 text-xs">
             NO
           </span>
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-1/2 rounded-full bg-red-500" />
+            <div
+              className="h-full rounded-full bg-red-500"
+              style={{ width: `${noPercent}%` }}
+            />
           </div>
-          <span className="w-8 text-muted-foreground text-xs">50%</span>
+          <span className="w-8 text-muted-foreground text-xs">
+            {noPercent}%
+          </span>
         </div>
       </div>
 
