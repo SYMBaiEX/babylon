@@ -785,8 +785,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           trackServerEvent(result.user.id, 'alpha_group_assignment.success', {
             groupsAssigned: assignmentResult.groupsAssigned,
             assignments: assignmentResult.assignments.map((a) => a.npcName),
-          }).catch(() => {
-            /* ignore tracking errors */
+          }).catch((err) => {
+            logger.debug(
+              'Tracking event failed',
+              { error: err, event: 'alpha_group_assignment.success' },
+              'POST /api/users/signup'
+            );
           });
         }
         if (assignmentResult.errors.length > 0) {
@@ -806,8 +810,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               groupsAssigned: assignmentResult.groupsAssigned,
               errorCount: assignmentResult.errors.length,
             }
-          ).catch(() => {
-            /* ignore tracking errors */
+          ).catch((err) => {
+            logger.debug(
+              'Tracking event failed',
+              { error: err, event: 'alpha_group_assignment.partial_failure' },
+              'POST /api/users/signup'
+            );
           });
         }
       })
@@ -821,8 +829,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         // Track failures for monitoring and alerting
         trackServerEvent(result.user.id, 'alpha_group_assignment.failure', {
           error: String(error),
-        }).catch(() => {
-          /* ignore tracking errors */
+        }).catch((err) => {
+          logger.debug(
+            'Tracking event failed',
+            { error: err, event: 'alpha_group_assignment.failure' },
+            'POST /api/users/signup'
+          );
         });
       });
   }
