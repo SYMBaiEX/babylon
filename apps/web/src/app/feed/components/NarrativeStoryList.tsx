@@ -62,8 +62,8 @@ type FlatItem =
  * The top-scored story gets BURST_LEAD posts on its first appearance so the
  * highest-signal content has slightly more prominence at the top of the feed.
  */
-const BURST_SIZE = 2; // posts per story per rotation pass
-const BURST_LEAD = 3; // extra posts for the top story on its first appearance
+const BURST_SIZE = 3; // posts per story per rotation pass
+const BURST_LEAD = 4; // extra posts for the top story on its first appearance
 
 /**
  * Flatten scored stories into an interleaved burst list.
