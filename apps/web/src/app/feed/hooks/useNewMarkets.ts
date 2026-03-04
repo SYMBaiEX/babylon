@@ -30,7 +30,11 @@ export function useNewMarkets(enabled = true): UseNewMarketsResult {
       })
       .catch((err) => {
         if (err instanceof Error && err.name === 'AbortError') return;
-        logger.warn('Failed to fetch new markets', { error: err }, 'useNewMarkets');
+        logger.warn(
+          'Failed to fetch new markets',
+          { error: err },
+          'useNewMarkets'
+        );
       })
       .finally(() => setLoading(false));
 

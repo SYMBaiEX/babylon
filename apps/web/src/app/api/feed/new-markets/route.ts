@@ -33,7 +33,10 @@ export interface NewMarketsResponse {
 }
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const { error: rateLimitErr, rateLimitInfo } = await publicRateLimit(request, 'read');
+  const { error: rateLimitErr, rateLimitInfo } = await publicRateLimit(
+    request,
+    'read'
+  );
   if (rateLimitErr) return rateLimitErr;
 
   const cacheKey = 'feed:new-markets:v1';
@@ -59,7 +62,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             eq(questions.status, 'active'),
             gte(questions.createdAt, cutoff),
             // Only markets resolving within 30 days — very long-horizon ones stay on markets page
-            lt(questions.resolutionDate, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000))
+            lt(
+              questions.resolutionDate,
+              new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+            )
           )
         )
         .orderBy(desc(questions.createdAt))
@@ -82,7 +88,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   } satisfies NewMarketsResponse);
 
   if (rateLimitInfo) {
-    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+    response.headers.set(
+      'Cache-Control',
+      'public, s-maxage=60, stale-while-revalidate=120'
+    );
   }
   return response;
 });

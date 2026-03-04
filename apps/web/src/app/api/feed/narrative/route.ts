@@ -460,7 +460,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       // These appear even if the question has no posts yet, giving users a
       // chance to discover and trade on fresh markets directly from the feed.
       const existingQuestionNumbers = new Set(
-        stories.map((s) => s.questionNumber).filter((n): n is number => n !== null)
+        stories
+          .map((s) => s.questionNumber)
+          .filter((n): n is number => n !== null)
       );
 
       const newMarketQuestions = await db
@@ -477,8 +479,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           and(
             eq(questions.status, 'active'),
             gte(questions.createdAt, newMarketCutoff),
-            lt(questions.resolutionDate, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)), // resolves within 30 days
-            not(inArray(questions.questionNumber, existingQuestionNumbers.size > 0 ? [...existingQuestionNumbers] : [-1]))
+            lt(
+              questions.resolutionDate,
+              new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+            ), // resolves within 30 days
+            not(
+              inArray(
+                questions.questionNumber,
+                existingQuestionNumbers.size > 0
+                  ? [...existingQuestionNumbers]
+                  : [-1]
+              )
+            )
           )
         )
         .orderBy(desc(questions.createdAt))
@@ -486,9 +498,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
       for (const q of newMarketQuestions) {
         // New market cards score on recency alone — they float near top on open day
-        const hoursSinceOpen = (now.getTime() - q.createdAt.getTime()) / (1000 * 60 * 60);
+        const hoursSinceOpen =
+          (now.getTime() - q.createdAt.getTime()) / (1000 * 60 * 60);
         const recencyScore = Math.exp((-Math.LN2 * hoursSinceOpen) / 6); // 6h half-life
-        const arcMultiplier = calculateArcStateMultiplier((q.arcState as ArcStateType | null) ?? null);
+        const arcMultiplier = calculateArcStateMultiplier(
+          (q.arcState as ArcStateType | null) ?? null
+        );
 
         stories.push({
           storyKey: `market:${q.questionNumber}`,
