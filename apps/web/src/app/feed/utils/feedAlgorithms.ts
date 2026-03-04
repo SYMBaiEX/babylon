@@ -5,8 +5,7 @@
  * unit tests can import the real implementation rather than maintaining copies.
  */
 
-import type { FeedPost } from '@babylon/shared';
-import type { NarrativePost, NarrativeStory } from '@babylon/shared';
+import type { FeedPost, NarrativePost, NarrativeStory } from '@babylon/shared';
 import type { NewMarketEntry } from '@/app/api/feed/new-markets/route';
 
 // ─── flattenStories ───────────────────────────────────────────────────────────
@@ -29,38 +28,50 @@ export const BURST_LEAD = 4;
 /**
  * Flatten scored stories into an interleaved burst list.
  *
- * Stories arrive sorted by score DESC (from the API). Each story contributes
- * BURST_SIZE consecutive posts per rotation pass. The highest-scored story
- * (index 0) gets BURST_LEAD posts on its first pass for extra prominence.
- * New market cards (no posts) emit a single card at their scored position.
+ * Market cards (isNewMarket) are separated from post-stories and injected
+ * one-per-rotation so they appear throughout the feed rather than clustering
+ * at the top. Without separation, market cards score near 1.0 (brand-new
+ * recency) and beat all posts, causing every market to appear before any post.
+ *
+ * Layout produced (3 stories, 2 markets):
+ *   [A×BURST_LEAD] [B×BURST_SIZE] [C×BURST_SIZE] [Market1]
+ *   [A×BURST_SIZE] [B×BURST_SIZE] [C×BURST_SIZE] [Market2]
+ *   [A remaining…]
  */
 export function flattenStories(stories: NarrativeStory[]): FlatItem[] {
   const items: FlatItem[] = [];
-  const queues = stories.map((s) => ({
+
+  // Separate market cards from post-stories so market cards can be
+  // injected at controlled intervals rather than all before the first post.
+  const pendingMarkets = stories.filter((s) => s.isNewMarket);
+  const postStories = stories.filter((s) => !s.isNewMarket);
+
+  if (postStories.length === 0) {
+    // No posts at all — just emit the market cards in score order
+    for (const m of pendingMarkets) {
+      items.push({ type: 'market', story: m, key: m.storyKey });
+    }
+    return items;
+  }
+
+  const queues = postStories.map((s) => ({
     story: s,
     posts: [...s.posts],
-    marketEmitted: false,
     firstAppearance: true,
   }));
 
+  let marketIdx = 0;
   let anyLeft = true;
+
   while (anyLeft) {
     anyLeft = false;
-    for (const [queueIndex, q] of queues.entries()) {
-      if (q.story.isNewMarket) {
-        if (!q.marketEmitted) {
-          q.marketEmitted = true;
-          items.push({ type: 'market', story: q.story, key: q.story.storyKey });
-          anyLeft = true;
-        }
-        continue;
-      }
 
+    for (const q of queues) {
       if (q.posts.length === 0) continue;
 
-      // Top story (index 0) gets extra posts on first appearance for prominence
+      // Top post-story gets extra posts on first appearance for prominence
       const burst =
-        q.firstAppearance && queueIndex === 0 ? BURST_LEAD : BURST_SIZE;
+        q.firstAppearance && queues.indexOf(q) === 0 ? BURST_LEAD : BURST_SIZE;
       q.firstAppearance = false;
 
       let took = 0;
@@ -75,6 +86,20 @@ export function flattenStories(stories: NarrativeStory[]): FlatItem[] {
       }
       anyLeft = true;
     }
+
+    // After each complete rotation of all post-stories, inject one market card.
+    // This spaces market cards evenly through the stream instead of clustering
+    // them all before the first post.
+    if (marketIdx < pendingMarkets.length) {
+      const m = pendingMarkets[marketIdx++]!;
+      items.push({ type: 'market', story: m, key: m.storyKey });
+    }
+  }
+
+  // Append any market cards that didn't fit within the post rotations
+  while (marketIdx < pendingMarkets.length) {
+    const m = pendingMarkets[marketIdx++]!;
+    items.push({ type: 'market', story: m, key: m.storyKey });
   }
 
   return items;

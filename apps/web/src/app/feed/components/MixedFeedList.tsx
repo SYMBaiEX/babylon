@@ -5,14 +5,13 @@ import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NewMarketEntry } from '@/app/api/feed/new-markets/route';
 import type { NarrativeStory } from '@/app/feed/types/narrative';
+import { mergeChronologically } from '@/app/feed/utils/feedAlgorithms';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import type { PostCardProps } from '@/components/posts/PostCard';
 import { PostCard } from '@/components/posts/PostCard';
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner';
 import { useAuthStore } from '@/stores/authStore';
 import { NewMarketCard } from './NewMarketCard';
-
-import { mergeChronologically } from '@/app/feed/utils/feedAlgorithms';
 
 function marketToNarrativeStory(m: NewMarketEntry): NarrativeStory {
   return {

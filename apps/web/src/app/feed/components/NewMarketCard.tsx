@@ -14,7 +14,9 @@ function formatCountdown(isoDate: string): string {
   if (isNaN(parsed.getTime())) return '';
   const ms = parsed.getTime() - Date.now();
   if (ms <= 0) return 'Closing soon';
-  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const totalMinutes = Math.floor(ms / (1000 * 60));
+  if (totalMinutes < 60) return `${totalMinutes}m left`;
+  const hours = Math.floor(totalMinutes / 60);
   if (hours < 24) return `${hours}h left`;
   const days = Math.floor(hours / 24);
   return `${days}d left`;
