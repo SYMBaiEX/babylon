@@ -2,7 +2,7 @@
 
 import type { NarrativeStory } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flattenStories } from '@/app/feed/utils/feedAlgorithms';
 import {
   toArticleCardData,
@@ -10,7 +10,10 @@ import {
 } from '@/app/feed/utils/postMappers';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
+import { NarrativePredictionChart } from './NarrativePredictionChart';
 import { NewMarketCard } from './NewMarketCard';
+
+const PAGE_SIZE = 20;
 
 interface NarrativeStoryListProps {
   stories: NarrativeStory[];
@@ -19,18 +22,51 @@ interface NarrativeStoryListProps {
 export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
   const router = useRouter();
 
-  const items = useMemo(() => flattenStories(stories), [stories]);
+  const allItems = useMemo(() => flattenStories(stories), [stories]);
 
-  if (items.length === 0) return null;
+  // Reveal items progressively as the user scrolls — identical behaviour to
+  // the infinite-scroll feed on other tabs.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Reset visible count when the underlying data changes (tab switch / refresh)
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [allItems]);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((n) => Math.min(n + PAGE_SIZE, allItems.length));
+  }, [allItems.length]);
+
+  // Watch the sentinel div at the bottom of the visible list. When it enters
+  // the viewport, reveal the next page of items.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  const visibleItems = allItems.slice(0, visibleCount);
+  const hasMore = visibleCount < allItems.length;
+
+  if (visibleItems.length === 0) return null;
 
   return (
     <div className="w-full">
-      {items.map((item) => {
+      {visibleItems.map((item) => {
         if (item.type === 'market') {
           return <NewMarketCard key={item.key} story={item.story} />;
         }
 
-        const { post } = item;
+        const { post, marketId } = item;
         return (
           <div key={item.key} className="border-border border-b">
             {post.type === 'article' ? (
@@ -40,20 +76,30 @@ export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
                 onClick={() => router.push(`/article/${post.id}`)}
               />
             ) : (
-              <PostCard
-                post={toPostCardData(post)}
-                density="default"
-                showCommentInputBar={false}
-                onCommentClick={() => router.push(`/post/${post.id}`)}
-              />
+              <>
+                <PostCard
+                  post={toPostCardData(post)}
+                  density="default"
+                  showCommentInputBar={false}
+                  onCommentClick={() => router.push(`/post/${post.id}`)}
+                />
+                {marketId && (
+                  <NarrativePredictionChart marketId={marketId} />
+                )}
+              </>
             )}
           </div>
         );
       })}
 
-      <div className="py-4 text-center text-muted-foreground text-xs">
-        You&apos;re all caught up.
-      </div>
+      {/* Sentinel element — triggers next page load when scrolled into view */}
+      <div ref={sentinelRef} className="h-1" />
+
+      {!hasMore && (
+        <div className="py-4 text-center text-muted-foreground text-xs">
+          You&apos;re all caught up.
+        </div>
+      )}
     </div>
   );
 }

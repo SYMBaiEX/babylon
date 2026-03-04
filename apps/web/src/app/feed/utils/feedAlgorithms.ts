@@ -11,7 +11,7 @@ import type { NewMarketEntry } from '@/app/api/feed/new-markets/route';
 // ─── flattenStories ───────────────────────────────────────────────────────────
 
 export type FlatItem =
-  | { type: 'post'; post: NarrativePost; key: string }
+  | { type: 'post'; post: NarrativePost; key: string; marketId: string | null }
   | { type: 'market'; story: NarrativeStory; key: string };
 
 /**
@@ -81,6 +81,7 @@ export function flattenStories(stories: NarrativeStory[]): FlatItem[] {
           type: 'post',
           post,
           key: `${q.story.storyKey}:${post.id}`,
+          marketId: q.story.marketId ?? null,
         });
         took++;
       }
