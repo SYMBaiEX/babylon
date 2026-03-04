@@ -3,7 +3,10 @@
 import type { NarrativeStory } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { applySlotPattern, flattenStories } from '@/app/feed/utils/feedAlgorithms';
+import {
+  applySlotPattern,
+  flattenStories,
+} from '@/app/feed/utils/feedAlgorithms';
 import {
   toArticleCardData,
   toPostCardData,
