@@ -82,10 +82,13 @@ async function runEnrichment(
     positionQuestionIds: dbPositions.filter((id) => questionIds.includes(id)),
   };
 
-  await mockSetCache(enrichCacheKey, enrichment, {
-    namespace: 'feed',
-    ttl: 30,
-  });
+  // Mirror production: cache write must never block or fail the response.
+  void Promise.resolve(
+    mockSetCache(enrichCacheKey, enrichment, {
+      namespace: 'feed',
+      ttl: 30,
+    })
+  ).catch(() => undefined);
   return enrichment;
 }
 
