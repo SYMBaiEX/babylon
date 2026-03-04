@@ -607,7 +607,13 @@ LEAVE EMPTY IF:
                     skipped: true,
                   },
                 })
-                .catch(() => {});
+                .catch((err) => {
+                  logger.warn(
+                    'Failed to create log for skipped response',
+                    { error: err, interactionId: interaction.id },
+                    'AutonomousBatchResponse'
+                  );
+                });
             }
 
             cleanContent = null; // Mark as skipped
