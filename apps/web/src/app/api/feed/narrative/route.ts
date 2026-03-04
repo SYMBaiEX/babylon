@@ -162,6 +162,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           category: posts.category,
           imageUrl: posts.imageUrl,
           relatedQuestion: posts.relatedQuestion,
+          originalPostId: posts.originalPostId,
         })
         .from(posts)
         .where(
@@ -252,6 +253,70 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         .where(inArray(users.id, authorIds));
       const userMap = new Map(authorUsers.map((u) => [u.id, u]));
 
+      // Fetch original posts for reposts so their content can be displayed
+      // the same way as the main feed. Simple reposts have content: ""; quote
+      // posts put the quote text in content and the original in originalPostId.
+      const repostOriginalIds = [
+        ...new Set(
+          recentPosts
+            .filter((p) => p.originalPostId)
+            .map((p) => p.originalPostId as string)
+        ),
+      ];
+      const originalPostMap = new Map<
+        string,
+        {
+          id: string;
+          content: string;
+          authorId: string;
+          timestamp: Date;
+          profileImageUrl: string | null;
+          username: string | null;
+          displayName: string | null;
+        }
+      >();
+      if (repostOriginalIds.length > 0) {
+        const originalRows = await db
+          .select({
+            id: posts.id,
+            content: posts.content,
+            authorId: posts.authorId,
+            timestamp: posts.timestamp,
+          })
+          .from(posts)
+          .where(inArray(posts.id, repostOriginalIds));
+        const originalAuthorIds = [
+          ...new Set(originalRows.map((r) => r.authorId)),
+        ];
+        const originalAuthorUsers =
+          originalAuthorIds.length > 0
+            ? await db
+                .select({
+                  id: users.id,
+                  username: users.username,
+                  displayName: users.displayName,
+                  profileImageUrl: users.profileImageUrl,
+                })
+                .from(users)
+                .where(inArray(users.id, originalAuthorIds))
+            : [];
+        const originalUserMap = new Map(
+          originalAuthorUsers.map((u) => [u.id, u])
+        );
+        for (const r of originalRows) {
+          const u = originalUserMap.get(r.authorId);
+          originalPostMap.set(r.id, {
+            id: r.id,
+            content: r.content,
+            authorId: r.authorId,
+            timestamp: r.timestamp,
+            profileImageUrl: u?.profileImageUrl ?? null,
+            username: u?.username ?? null,
+            displayName: u?.displayName ?? null,
+          });
+        }
+      }
+
       // Resolve question metadata (title, status, arcState) via posts.relatedQuestion → questions.questionNumber
       // LEFT JOIN arcStates to get narrative state in one round-trip.
       const questionNumbers = [
@@ -320,6 +385,42 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           authorProfileImageUrl = authorUser.profileImageUrl;
         }
 
+        // Build repost metadata the same way the main feed does so PostCard
+        // can render repost cards with the original post's content.
+        const isRepost = post.type === 'repost';
+        const isQuote = isRepost && post.content !== '';
+        const originalPostData = post.originalPostId
+          ? (originalPostMap.get(post.originalPostId) ?? null)
+          : null;
+        let originalPost: NarrativePost['originalPost'] = null;
+        if (originalPostData) {
+          const origActor = StaticDataRegistry.getActor(
+            originalPostData.authorId
+          );
+          const origAuthorName =
+            origActor?.name ??
+            originalPostData.displayName ??
+            originalPostData.username ??
+            originalPostData.authorId;
+          originalPost = {
+            id: originalPostData.id,
+            content: originalPostData.content,
+            authorId: originalPostData.authorId,
+            authorName: origAuthorName,
+            authorUsername:
+              origActor?.username ?? originalPostData.username ?? null,
+            authorProfileImageUrl:
+              origActor?.profileImageUrl ??
+              originalPostData.profileImageUrl ??
+              null,
+            timestamp: toISOStringStrict(
+              originalPostData.timestamp,
+              'timestamp',
+              originalPostData.id
+            ),
+          };
+        }
+
         const narrativePost: NarrativePost = {
           id: post.id,
           content: post.content,
@@ -339,6 +440,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           isLiked: false,
           isShared: false,
           relatedQuestion: post.relatedQuestion ?? null,
+          isRepost,
+          isQuote,
+          quoteComment: isQuote ? post.content : null,
+          originalPostId: post.originalPostId ?? null,
+          originalPost,
         };
 
         const storyKey =
@@ -450,6 +556,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           posts: [post],
           hasUserPosition: false,
         });
+      }
+
+      // Resolve marketId for question-backed stories so the frontend can render
+      // a live probability chart (PredictionSparkline) on each post card.
+      // Same text-based join used for new market cards; this fetches only
+      // existing stories (not new markets which already have marketId set).
+      const storyQuestionNumbers = stories
+        .filter((s) => !s.isNewMarket && s.questionNumber !== null)
+        .map((s) => s.questionNumber as number);
+      if (storyQuestionNumbers.length > 0) {
+        const marketRows = await db
+          .select({
+            questionNumber: questions.questionNumber,
+            marketId: markets.id,
+          })
+          .from(questions)
+          .innerJoin(
+            markets,
+            sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
+          )
+          .where(inArray(questions.questionNumber, storyQuestionNumbers));
+        const questionToMarket = new Map(
+          marketRows.map((r) => [r.questionNumber, r.marketId])
+        );
+        for (const story of stories) {
+          if (!story.isNewMarket && story.questionNumber !== null) {
+            story.marketId = questionToMarket.get(story.questionNumber) ?? null;
+          }
+        }
       }
 
       // Sort all stories — question stories AND standalone posts — by score DESC.
