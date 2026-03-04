@@ -440,8 +440,8 @@ describe('sendMessageAction.handler', () => {
 
   test('returns error when message body is too short', async () => {
     const runtime = makeRuntime('agent-001');
-    // The colon pattern will extract empty/short content
-    const message = makeMemory('send message to chat abc: a');
+    // Use a chatId with 5+ chars so it passes the chatId parser
+    const message = makeMemory('send message to chat abcde: a');
     const callback = mock((_data: Record<string, unknown>) => {});
 
     await sendMessageAction.handler(
@@ -504,7 +504,7 @@ describe('sendMessageAction.handler', () => {
 
   test('handles undefined callback without throwing', async () => {
     const runtime = makeRuntime('agent-001');
-    const message = makeMemory('send message to chat xyz: hello');
+    const message = makeMemory('send message to chat xyz-test: hello');
 
     // Should not throw even with no callback
     await sendMessageAction.handler(
@@ -514,5 +514,61 @@ describe('sendMessageAction.handler', () => {
       undefined,
       undefined
     );
+  });
+
+  test('does NOT false-positive "General Chat:" as a chatId', async () => {
+    const runtime = makeRuntime('agent-001');
+    const message = makeMemory('send message to General Chat: Hello everyone');
+    let callbackResult: Record<string, unknown> = undefined!;
+    const callback = mock((data: Record<string, unknown>) => {
+      callbackResult = data;
+    });
+
+    // resolveGroupChatByName should be called (strategy 2), NOT parseChatId
+    mockDbSelectLimit.mockResolvedValueOnce([{ chatId: 'group-chat-general' }]);
+
+    await sendMessageAction.handler(
+      runtime,
+      message,
+      undefined,
+      undefined,
+      callback as unknown as HandlerCallback
+    );
+
+    // Should resolve via group name, not chatId
+    expect(mockExecuteDirectMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'group-chat-general',
+      })
+    );
+    expect(callbackResult.text).toContain('General Chat');
+  });
+
+  test('resolves unquoted group name before colon', async () => {
+    const runtime = makeRuntime('agent-001');
+    const message = makeMemory(
+      'send message to Price Alerts: OPENAGI dropped below 22'
+    );
+    let callbackResult: Record<string, unknown> = undefined!;
+    const callback = mock((data: Record<string, unknown>) => {
+      callbackResult = data;
+    });
+
+    mockDbSelectLimit.mockResolvedValueOnce([{ chatId: 'alerts-chat-001' }]);
+
+    await sendMessageAction.handler(
+      runtime,
+      message,
+      undefined,
+      undefined,
+      callback as unknown as HandlerCallback
+    );
+
+    expect(mockExecuteDirectMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'alerts-chat-001',
+      })
+    );
+    expect(callbackResult.text).toContain('Price Alerts');
   });
 });

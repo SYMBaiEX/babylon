@@ -257,10 +257,34 @@ export async function dispatchAgentChat(
     };
   }
 
-  // --- Ownership verification ---
+  // --- Ownership verification (with name/username fallback) ---
   let agentWithConfig;
+  let resolvedAgentId = agentId;
   try {
     agentWithConfig = await agentService.getAgentWithConfig(agentId, ownerId);
+
+    // Fallback: if not found by ID, try resolving by username or displayName
+    if (!agentWithConfig) {
+      const ownerAgents = await agentService.listUserAgents(ownerId);
+      const needle = agentId.toLowerCase();
+      const match = ownerAgents.find(
+        (a) =>
+          a.username?.toLowerCase() === needle ||
+          a.displayName?.toLowerCase() === needle
+      );
+      if (match) {
+        resolvedAgentId = match.id;
+        agentWithConfig = await agentService.getAgentWithConfig(
+          resolvedAgentId,
+          ownerId
+        );
+        logger.info(
+          '[AgentChatService] Resolved agent by name fallback',
+          { input: agentId, resolvedId: resolvedAgentId },
+          'AgentChatService'
+        );
+      }
+    }
   } catch (err) {
     const errorMsg =
       err instanceof AuthorizationError
@@ -270,13 +294,13 @@ export async function dispatchAgentChat(
           : 'Unknown authorization error';
     logger.warn(
       '[AgentChatService] Ownership check failed',
-      { agentId, ownerId, error: errorMsg },
+      { agentId: resolvedAgentId, ownerId, error: errorMsg },
       'AgentChatService'
     );
     return {
       success: false,
       response: '',
-      agentId,
+      agentId: resolvedAgentId,
       actionsExecuted: 0,
       isLLMFailure: false,
       error: errorMsg,
@@ -287,7 +311,7 @@ export async function dispatchAgentChat(
     return {
       success: false,
       response: '',
-      agentId,
+      agentId: resolvedAgentId,
       actionsExecuted: 0,
       isLLMFailure: false,
       error: 'Agent not found',
@@ -303,12 +327,13 @@ export async function dispatchAgentChat(
   const modelType = ModelType.TEXT_SMALL;
 
   // --- Get agent runtime ---
-  const runtime = await agentRuntimeManager.getRuntime(agentId);
+  const runtime = await agentRuntimeManager.getRuntime(resolvedAgentId);
 
   const elizaMessage: Memory = {
     id: uuidv4() as `${string}-${string}-${string}-${string}-${string}`,
     entityId: ownerId as `${string}-${string}-${string}-${string}-${string}`,
-    roomId: agentId as `${string}-${string}-${string}-${string}-${string}`,
+    roomId:
+      resolvedAgentId as `${string}-${string}-${string}-${string}-${string}`,
     content: { text: message },
     createdAt: Date.now(),
   };
@@ -333,7 +358,7 @@ export async function dispatchAgentChat(
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     logger.info(
       `[AgentChatService] Iteration ${iteration}/${MAX_ITERATIONS}`,
-      { agentId, actionsCompleted: traceActionResults.length },
+      { agentId: resolvedAgentId, actionsCompleted: traceActionResults.length },
       'AgentChatService'
     );
 
@@ -352,7 +377,7 @@ export async function dispatchAgentChat(
 
     state.values = {
       ...state.values,
-      agentId,
+      agentId: resolvedAgentId,
       system: agentConfig?.systemPrompt ?? 'You are a helpful AI assistant.',
       personality: agentConfig?.personality ?? '',
       tradingStrategy: agentConfig?.tradingStrategy ?? '',
@@ -554,7 +579,7 @@ export async function dispatchAgentChat(
 
     summaryState.values = {
       ...summaryState.values,
-      agentId,
+      agentId: resolvedAgentId,
       system: agentConfig?.systemPrompt ?? 'You are a helpful AI assistant.',
       personality: agentConfig?.personality ?? '',
       tradingStrategy: agentConfig?.tradingStrategy ?? '',
@@ -633,7 +658,7 @@ export async function dispatchAgentChat(
   await db.insert(messages).values({
     id: responseMessageId,
     chatId: teamChatId,
-    senderId: agentId,
+    senderId: resolvedAgentId,
     content: responseText,
     createdAt: responseTime,
     metadata: messageMetadata,
@@ -643,28 +668,32 @@ export async function dispatchAgentChat(
   await db
     .update(userAgentConfigs)
     .set({ lastChatAt: new Date(), updatedAt: new Date() })
-    .where(eq(userAgentConfigs.userId, agentId));
+    .where(eq(userAgentConfigs.userId, resolvedAgentId));
 
   // --- Broadcast so SSE clients see the agent response immediately ---
   broadcastFn(teamChatId, {
     id: responseMessageId,
     content: responseText,
     chatId: teamChatId,
-    senderId: agentId,
+    senderId: resolvedAgentId,
     type: 'user',
     createdAt: responseTime.toISOString(),
     metadata: messageMetadata,
   }).catch((err) => {
     logger.warn(
       `[AgentChatService] Failed to broadcast agent message`,
-      { teamChatId, agentId, error: err },
+      { teamChatId, agentId: resolvedAgentId, error: err },
       'AgentChatService'
     );
   });
 
   logger.info(
     '[AgentChatService] Dispatch completed',
-    { agentId, actionsExecuted: traceActionResults.length, isLLMFailure },
+    {
+      agentId: resolvedAgentId,
+      actionsExecuted: traceActionResults.length,
+      isLLMFailure,
+    },
     'AgentChatService'
   );
 
@@ -675,7 +704,7 @@ export async function dispatchAgentChat(
   eventBus.publish(
     'agent.dispatch.result',
     {
-      agentId,
+      agentId: resolvedAgentId,
       agentUsername: agentUsername ?? null,
       command: params.message,
       response: responseText.slice(0, 500),
@@ -683,13 +712,13 @@ export async function dispatchAgentChat(
       success: true,
       timestamp: new Date().toISOString(),
     },
-    agentId
+    resolvedAgentId
   );
 
   return {
     success: true,
     response: responseText,
-    agentId,
+    agentId: resolvedAgentId,
     agentUsername,
     actionsExecuted: traceActionResults.length,
     isLLMFailure,

@@ -32,19 +32,42 @@ import type { BabylonRuntime } from '../types';
 /**
  * Extract a chat ID from text.
  * Matches patterns like: "chat 12345", "chat:12345", "chat-12345", "chatId: 12345"
+ *
+ * Guards against false positives from compound names like "General Chat:"
+ * by checking that "chat" is not preceded by a capitalized word (name component).
  */
 function parseChatId(text: string): string | null {
-  const match = text.match(/chat(?:\s*id)?[:\s-]+([a-zA-Z0-9_-]+)/i);
-  return match?.[1] ?? null;
+  const match = text.match(/\bchat(?:\s*id)?[:\s-]+([a-zA-Z0-9_-]{5,})/i);
+  if (!match?.[1]) return null;
+  // Reject if "chat" is preceded by a capitalized word (part of a name like "General Chat")
+  const prefix = text.substring(
+    Math.max(0, (match.index ?? 0) - 20),
+    match.index ?? 0
+  );
+  if (/[A-Z][a-zA-Z]*\s*$/.test(prefix)) return null;
+  return match[1];
 }
 
 /**
  * Extract a group/channel name enclosed in quotes from text.
  * Matches: "to 'Price Alerts'", 'to "My Group"', "group 'Alerts'"
+ *
+ * Also supports unquoted multi-word names terminated by a colon:
+ *   "to General Chat: hello" → "General Chat"
  */
 function parseGroupName(text: string): string | null {
-  const match = text.match(/(?:to|group|channel|in)\s+["']([^"']+)["']/i);
-  return match?.[1]?.trim() ?? null;
+  // Pattern 1: Quoted group name
+  const quoted = text.match(/(?:to|group|channel|in)\s+["']([^"']+)["']/i);
+  if (quoted?.[1]?.trim()) return quoted[1].trim();
+
+  // Pattern 2: Unquoted group name — "to <Name>: <message>"
+  // Captures one or more capitalized words before a colon
+  const unquoted = text.match(
+    /(?:to|group|channel|in)\s+((?:[A-Z][a-zA-Z]*\s*){1,5}):/i
+  );
+  if (unquoted?.[1]?.trim()) return unquoted[1].trim();
+
+  return null;
 }
 
 /**
