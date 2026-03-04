@@ -185,8 +185,9 @@ export class PriceAlertService {
   ): Promise<void> {
     const now = new Date().toISOString();
 
-    // Atomic JSONB update: iterate the array and set lastTriggeredAt on the matching alert
-    // This avoids the read-modify-write race of SELECT → map → UPDATE
+    // Atomic JSON update: iterate the array and set lastTriggeredAt on the matching alert.
+    // This avoids the read-modify-write race of SELECT → map → UPDATE.
+    // Column is json (not jsonb), so cast to jsonb for processing, then back to json.
     await db
       .update(userAgentConfigs)
       .set({
@@ -197,8 +198,8 @@ export class PriceAlertService {
               THEN elem || jsonb_build_object('lastTriggeredAt', ${now}::text)
               ELSE elem
             END
-          )
-          FROM jsonb_array_elements(${userAgentConfigs.priceAlerts}) AS elem
+          )::json
+          FROM jsonb_array_elements(${userAgentConfigs.priceAlerts}::jsonb) AS elem
         )`,
         updatedAt: new Date(),
       })
