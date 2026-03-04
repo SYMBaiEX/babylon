@@ -370,6 +370,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
         const authorUser = userMap.get(post.authorId);
         const actorRecord = StaticDataRegistry.getActor(post.authorId);
+        // Organizations are indexed separately from individual actors; check
+        // both so org-authored posts get the correct image (/images/organizations/)
+        // and route to /orgs/{id} rather than the broken /u/id/ fallback.
+        const orgRecord = actorRecord
+          ? null
+          : StaticDataRegistry.getOrganization(post.authorId);
         let authorName = post.authorId;
         let authorUsername: string | null = null;
         let authorProfileImageUrl: string | null = null;
@@ -378,6 +384,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           authorName = actorRecord.name;
           authorUsername = actorRecord.username ?? actorRecord.id;
           authorProfileImageUrl = actorRecord.profileImageUrl ?? null;
+        } else if (orgRecord) {
+          // Use org ID as the username so PostCard links to /profile/{orgId}
+          // which /profile/[id].tsx redirects to /orgs/{orgId}.
+          authorName = orgRecord.name;
+          authorUsername = orgRecord.id;
+          authorProfileImageUrl = orgRecord.imageUrl ?? null;
         } else if (authorUser) {
           authorName =
             authorUser.displayName ?? authorUser.username ?? post.authorId;
@@ -397,8 +409,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           const origActor = StaticDataRegistry.getActor(
             originalPostData.authorId
           );
+          const origOrg = origActor
+            ? null
+            : StaticDataRegistry.getOrganization(originalPostData.authorId);
           const origAuthorName =
             origActor?.name ??
+            origOrg?.name ??
             originalPostData.displayName ??
             originalPostData.username ??
             originalPostData.authorId;
@@ -408,9 +424,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             authorId: originalPostData.authorId,
             authorName: origAuthorName,
             authorUsername:
-              origActor?.username ?? originalPostData.username ?? null,
+              origActor?.username ??
+              origOrg?.id ??
+              originalPostData.username ??
+              null,
             authorProfileImageUrl:
               origActor?.profileImageUrl ??
+              origOrg?.imageUrl ??
               originalPostData.profileImageUrl ??
               null,
             timestamp: toISOStringStrict(
