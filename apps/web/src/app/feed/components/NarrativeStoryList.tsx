@@ -1,5 +1,3 @@
-'use client';
-
 import type { NarrativeStory } from '@/app/feed/types/narrative';
 import { NarrativeStoryCard } from './NarrativeStoryCard';
 
@@ -7,6 +5,9 @@ interface NarrativeStoryListProps {
   stories: NarrativeStory[];
 }
 
+// No 'use client' needed — this component has no hooks or browser APIs.
+// It can be rendered as a server component; NarrativeStoryCard (client)
+// will hydrate independently.
 export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
   if (stories.length === 0) return null;
 

@@ -31,6 +31,7 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
   return (
     <div className="flex w-full items-center border-border border-b">
       <button
+        type="button"
         onClick={() => onTabChange('latest')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
@@ -43,6 +44,7 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
         )}
       </button>
       <button
+        type="button"
         onClick={() => onTabChange('hot')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
@@ -58,6 +60,7 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
         )}
       </button>
       <button
+        type="button"
         onClick={() => onTabChange('narrative')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
@@ -75,6 +78,7 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
         )}
       </button>
       <button
+        type="button"
         onClick={() => onTabChange('following')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
@@ -89,6 +93,7 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
         )}
       </button>
       <button
+        type="button"
         onClick={() => onTabChange('trades')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',

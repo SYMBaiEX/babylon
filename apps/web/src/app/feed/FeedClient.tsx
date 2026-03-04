@@ -1,7 +1,8 @@
 'use client';
 
 import type { FeedPost } from '@babylon/shared';
-import { AlertCircle } from 'lucide-react';
+import { logger } from '@babylon/shared';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -46,7 +47,23 @@ const TradesFeed = dynamic(
 
 type FeedTab = 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
 
-function NarrativeFeedError({ onRetry }: { onRetry: () => void }) {
+function NarrativeFeedError({
+  onRetry,
+}: {
+  onRetry: () => Promise<void>;
+}) {
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      // Component may unmount if retry succeeds (error clears) — fine.
+      setIsRetrying(false);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
       <AlertCircle className="mb-4 h-12 w-12 text-destructive opacity-60" />
@@ -57,10 +74,12 @@ function NarrativeFeedError({ onRetry }: { onRetry: () => void }) {
       </p>
       <button
         type="button"
-        onClick={onRetry}
-        className="rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        onClick={() => void handleRetry()}
+        disabled={isRetrying}
+        className="inline-flex items-center gap-2 rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
       >
-        Retry
+        {isRetrying && <Loader2 className="h-4 w-4 animate-spin" />}
+        {isRetrying ? 'Retrying…' : 'Retry'}
       </button>
     </div>
   );
@@ -119,6 +138,7 @@ export function FeedClient() {
 
   const {
     stories: narrativeStories,
+    ready: narrativeReady,
     loading: narrativeLoading,
     error: narrativeError,
     refresh: refreshNarrative,
@@ -185,24 +205,38 @@ export function FeedClient() {
   const isLoading =
     (tab === 'latest' && latestLoading) ||
     (tab === 'hot' && hotLoading) ||
-    (tab === 'narrative' && narrativeLoading) ||
+    // Show skeleton while narrative tab hasn't completed its first fetch yet,
+    // preventing the "No Active Stories" flash that occurs between tab switch
+    // and the async effect firing.
+    (tab === 'narrative' && (narrativeLoading || !narrativeReady)) ||
     (tab === 'following' && followingLoading);
 
-  // Load actor names
+  // Load actor names — fire-and-forget, falls back to authorId on failure
   useEffect(() => {
     const loadActorNames = async () => {
-      const response = await fetch('/api/actors');
-      if (!response.ok) return;
-      const data = (await response.json()) as {
-        actors?: Array<{ id: string; name: string }>;
-      };
-      const nameMap = new Map<string, string>();
-      data.actors?.forEach((actor) => {
-        nameMap.set(actor.id, actor.name);
-      });
-      setActorNames(nameMap);
+      try {
+        const response = await fetch('/api/actors');
+        if (!response.ok) {
+          logger.warn(
+            'Failed to load actor names',
+            { status: response.status },
+            'FeedClient'
+          );
+          return;
+        }
+        const data = (await response.json()) as {
+          actors?: Array<{ id: string; name: string }>;
+        };
+        const nameMap = new Map<string, string>();
+        data.actors?.forEach((actor) => {
+          nameMap.set(actor.id, actor.name);
+        });
+        setActorNames(nameMap);
+      } catch (err) {
+        logger.warn('Error loading actor names', { error: err }, 'FeedClient');
+      }
     };
-    loadActorNames();
+    void loadActorNames();
   }, []);
 
   // Register optimistic post callback
@@ -309,7 +343,7 @@ export function FeedClient() {
 
     if (tab === 'narrative') {
       if (narrativeError)
-        return <NarrativeFeedError onRetry={() => void refreshNarrative()} />;
+        return <NarrativeFeedError onRetry={refreshNarrative} />;
       if (narrativeStories.length === 0)
         return <EmptyFeed variant="narrative" />;
       return <NarrativeStoryList stories={narrativeStories} />;
