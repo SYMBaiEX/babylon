@@ -1,3 +1,5 @@
+import { logger } from '@babylon/shared';
+
 /**
  * React hook for A2A (Agent-to-Agent) protocol utilities.
  *
@@ -20,9 +22,14 @@ export const useA2A = () => {
     // Placeholder for future A2A utilities
     // Could include: task subscriptions, streaming hooks, etc.
     debug: () => {
-      console.log('A2A utilities available');
-      console.log('Custom methods: /api/a2a (58 methods)');
-      console.log('A2A: /api/a2a (message/send)');
+      logger.debug(
+        'A2A utilities available',
+        {
+          customMethods: '/api/a2a (58 methods)',
+          a2a: '/api/a2a (message/send)',
+        },
+        'useA2A'
+      );
     },
   };
 };

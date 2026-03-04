@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -345,7 +346,7 @@ export function useChatPage() {
     const response = await fetch(`/api/chats/${chatDetails.chat.id}/group`, {
       headers: { Authorization: `Bearer ${token}` },
     }).catch((error: Error) => {
-      console.error('Error fetching group ID:', error);
+      logger.error('Error fetching group ID', error, 'useChatPage');
       throw error;
     });
 

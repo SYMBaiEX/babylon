@@ -17,6 +17,7 @@
  * ```
  */
 
+import { logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -35,24 +36,6 @@ export type {
   SSEMessage,
   StaticChannel,
 } from '@/lib/sse';
-
-// Simple console logger for client-side SSE
-const logger = {
-  debug: (...args: unknown[]) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.debug('[SSE]', ...args);
-    }
-  },
-  info: (...args: unknown[]) => {
-    console.info('[SSE]', ...args);
-  },
-  warn: (...args: unknown[]) => {
-    console.warn('[SSE]', ...args);
-  },
-  error: (...args: unknown[]) => {
-    console.error('[SSE]', ...args);
-  },
-};
 
 /**
  * Options for configuring the SSE hook.

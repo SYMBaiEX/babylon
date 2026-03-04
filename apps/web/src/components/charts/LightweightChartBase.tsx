@@ -227,13 +227,10 @@ export function useLightweightChart(
         const message =
           error instanceof Error ? error.message : 'Failed to create chart';
         setError(message);
-        // Ensure we always surface this in devtools; logger output can be filtered.
-        // eslint-disable-next-line no-console
-        console.error('[useLightweightChart] createChart failed:', error);
         logger.error(
-          'Failed to create chart',
-          { error },
-          'useLightweightChart'
+          'createChart failed',
+          error instanceof Error ? error : { error },
+          'LightweightChartBase'
         );
       }
     };
@@ -256,8 +253,11 @@ export function useLightweightChart(
       const container = chartContainerRef.current;
       if (!container) {
         setError('Chart container ref was not attached.');
-        // eslint-disable-next-line no-console
-        console.error('[useLightweightChart] container ref missing');
+        logger.error(
+          'Container ref missing',
+          undefined,
+          'LightweightChartBase'
+        );
         return;
       }
 
@@ -265,8 +265,7 @@ export function useLightweightChart(
       if (width === 0 || height === 0) {
         const message = `Chart container has zero size (${Math.floor(width)}x${Math.floor(height)}).`;
         setError(message);
-        // eslint-disable-next-line no-console
-        console.error('[useLightweightChart]', message, container);
+        logger.error(message, undefined, 'LightweightChartBase');
         return;
       }
 
@@ -278,8 +277,7 @@ export function useLightweightChart(
         const retryRect = container.getBoundingClientRect();
         const message = `Chart failed to initialize (container ${Math.floor(retryRect.width)}x${Math.floor(retryRect.height)}).`;
         setError(message);
-        // eslint-disable-next-line no-console
-        console.error('[useLightweightChart]', message, container);
+        logger.error(message, undefined, 'LightweightChartBase');
       }, 250);
     }, 1500);
 
@@ -309,8 +307,8 @@ export function useLightweightChart(
           setError(message);
           logger.warn(
             'Failed to resize chart',
-            { error },
-            'useLightweightChart'
+            error instanceof Error ? error : { error },
+            'LightweightChartBase'
           );
         }
       });

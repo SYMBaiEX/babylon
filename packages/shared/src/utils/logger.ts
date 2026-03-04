@@ -74,11 +74,14 @@ export class Logger {
   private formatLog(entry: LogEntry): string {
     const contextStr = entry.context ? `[${entry.context}]` : '';
     let dataStr = '';
-    if (entry.data) {
+    if (entry.data !== undefined) {
       // Handle cyclic structures and errors safely
       // Create a replacer function with persistent seen set
-      const seen = new Set<JsonValue>();
-      const replacer = (_key: string, value: JsonValue): JsonValue => {
+      const seen = new Set<object>();
+      const replacer = (_key: string, value: unknown): unknown => {
+        if (typeof value === 'bigint') {
+          return value.toString();
+        }
         // Handle Error objects specially
         if (value instanceof Error) {
           return {
@@ -89,10 +92,11 @@ export class Logger {
         }
         // Handle cyclic references
         if (typeof value === 'object' && value !== null) {
-          if (seen.has(value)) {
+          const obj = value as object;
+          if (seen.has(obj)) {
             return '[Circular]';
           }
-          seen.add(value);
+          seen.add(obj);
         }
         return value;
       };

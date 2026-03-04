@@ -13,6 +13,7 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
 
 /**
  * JSON-safe parameter value type for action parameters
@@ -108,8 +109,10 @@ export const coordinatorActionStateProvider: Provider = {
       actionResults = rawResults.filter(isActionTraceResult);
       // Warn if some items were filtered out due to invalid shape
       if (actionResults.length !== rawResults.length) {
-        console.warn(
-          `[ACTION_STATE] Filtered ${rawResults.length - actionResults.length} invalid action results`
+        logger.warn(
+          `Filtered ${rawResults.length - actionResults.length} invalid action results`,
+          { totalRaw: rawResults.length, valid: actionResults.length },
+          'ActionState'
         );
       }
     }

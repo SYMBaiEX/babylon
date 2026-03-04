@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, GROUP_CONFIG, getCurrentChainId } from '@babylon/shared';
+import { cn, GROUP_CONFIG, getCurrentChainId, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { Check, Loader2, Search, Shield, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -122,7 +122,11 @@ export function CreateGroupModal({
           setSearchResults([]);
         }
       } catch (error) {
-        console.error('Member search failed:', error);
+        logger.error(
+          'Member search failed',
+          error instanceof Error ? error : { error },
+          'CreateGroupModal'
+        );
         setSearchResults([]);
       } finally {
         setSearching(false);
@@ -211,7 +215,11 @@ export function CreateGroupModal({
       onGroupCreated(data.group.id, data.group.chatId);
       onClose();
     } catch (err) {
-      console.error('Failed to create group:', err);
+      logger.error(
+        'Failed to create group',
+        err instanceof Error ? err : { error: err },
+        'CreateGroupModal'
+      );
       setError('Network error. Please try again.');
     } finally {
       setCreating(false);

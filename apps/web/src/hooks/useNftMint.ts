@@ -1,3 +1,4 @@
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { mintNftAction } from '@/app/_actions/nft';
@@ -171,12 +172,16 @@ export function useNftMint(): UseNftMintResult {
       const result = await mintNftAction({ userJwt });
 
       if (result.status === 'error') {
-        console.error('[NFT Mint Error]', {
-          step: result.step,
-          errorId: result.errorId,
-          message: result.error,
-          debug: result.debug,
-        });
+        logger.error(
+          '[NFT Mint Error]',
+          {
+            step: result.step,
+            errorId: result.errorId,
+            message: result.error,
+            debug: result.debug,
+          },
+          'useNftMint'
+        );
         handleError(result.error, result.errorId);
         return;
       }

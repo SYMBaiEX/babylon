@@ -16,6 +16,7 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
 
 /** Team member info */
 interface TeamMember {
@@ -124,7 +125,11 @@ export const teamMembersProvider: Provider = {
         text: formattedMembers,
       };
     } catch (error) {
-      console.error('[TeamMembersProvider] Error fetching members:', error);
+      logger.error(
+        'Error fetching members',
+        error instanceof Error ? error : { error },
+        'TeamMembers'
+      );
       return {
         data: {
           teamMembers: [],

@@ -5,6 +5,7 @@ import {
   type Provider,
   type State,
 } from '@elizaos/core';
+import { logger } from '../../../shared/logger';
 import type { AutonomyService } from './service';
 
 /**
@@ -20,7 +21,11 @@ export const adminChatProvider: Provider = {
     // Only provide admin chat context in autonomous room
     const autonomyService = runtime.getService<AutonomyService>('AUTONOMY');
     if (!autonomyService) {
-      console.error('Autonomy service not available');
+      logger.error(
+        'Autonomy service not available',
+        undefined,
+        'AutonomyProvider'
+      );
       return { text: '' }; // Service not available
     }
 

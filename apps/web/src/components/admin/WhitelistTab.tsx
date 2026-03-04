@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   CheckCircle,
   Loader2,
@@ -125,7 +125,11 @@ export function WhitelistTab() {
       setStats(data.stats ?? null);
     } catch (err) {
       toast.error('Failed to load whitelist data');
-      console.error(err);
+      logger.error(
+        'Failed to load whitelist data',
+        err instanceof Error ? err : { error: err },
+        'WhitelistTab'
+      );
     } finally {
       setLoading(false);
     }
@@ -144,7 +148,11 @@ export function WhitelistTab() {
           : '100'
       );
     } catch (err) {
-      console.error(err);
+      logger.error(
+        'Failed to fetch whitelist config',
+        err instanceof Error ? err : { error: err },
+        'WhitelistTab'
+      );
     }
   }, []);
 

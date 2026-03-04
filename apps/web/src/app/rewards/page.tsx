@@ -4,6 +4,7 @@ import {
   getProfileUrl,
   getReferralShareText,
   getReferralUrl,
+  logger,
   POINTS,
 } from '@babylon/shared';
 import {
@@ -145,7 +146,7 @@ export default function RewardsPage() {
 
     const token = await getAccessToken();
     if (!token) {
-      console.error('Failed to get access token');
+      logger.error('Failed to get access token', undefined, 'RewardsPage');
       setError('Authentication required');
       setLoading(false);
       return;

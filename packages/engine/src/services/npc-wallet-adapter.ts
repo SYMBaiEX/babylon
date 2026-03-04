@@ -18,6 +18,7 @@ import {
   sql,
   type Transaction,
 } from '@babylon/db';
+import { logger } from '@babylon/shared';
 
 type DbClient = typeof defaultDb | Transaction;
 
@@ -94,9 +95,11 @@ export function createNpcWalletAdapter(
       // No separate PnL tracking like user wallets
       // Log PnL for debugging but don't modify balance here
       // (credit/debit already handles the balance changes)
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[NPC PnL] ${actorId}: ${pnl.toFixed(2)} (${reason})`);
-      }
+      logger.debug(
+        'NPC PnL recorded',
+        { actorId, pnl: pnl.toFixed(2), reason },
+        'NpcWalletAdapter'
+      );
     },
 
     async getBalance() {

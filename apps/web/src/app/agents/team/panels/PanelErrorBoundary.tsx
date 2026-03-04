@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { Component, type ReactNode } from 'react';
@@ -39,12 +40,10 @@ export class PanelErrorBoundary extends Component<Props, State> {
     });
 
     if (process.env.NODE_ENV !== 'production') {
-      console.error(
-        '[PanelErrorBoundary] Panel rendering error:',
-        error.message,
-        {
-          componentStack: errorInfo.componentStack,
-        }
+      logger.error(
+        'Panel rendering error',
+        { message: error.message, componentStack: errorInfo.componentStack },
+        'PanelErrorBoundary'
       );
     }
   }

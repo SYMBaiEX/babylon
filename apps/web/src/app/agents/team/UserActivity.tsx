@@ -4,6 +4,7 @@ import {
   BABYLON_POINTS_SYMBOL,
   cn,
   formatCompactCurrency,
+  logger,
 } from '@babylon/shared';
 import { Activity } from 'lucide-react';
 import { memo, useCallback, useEffect, useState } from 'react';
@@ -412,7 +413,11 @@ export function UserActivity({ userId, className }: UserActivityProps) {
       const data = await res.json();
       setActivities(data.activities || []);
     } catch (err) {
-      console.error('Activity fetch error:', err);
+      logger.error(
+        'Activity fetch error',
+        err instanceof Error ? err : { error: err },
+        'UserActivity'
+      );
       setError(
         err instanceof Error ? err : new Error('Failed to load activity')
       );
