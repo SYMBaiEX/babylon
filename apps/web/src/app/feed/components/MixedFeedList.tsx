@@ -83,7 +83,10 @@ export const MixedFeedList = memo(function MixedFeedList({
     return Math.floor(Math.random() * 51) + 150;
   }, [user]);
 
-  const bannerInterval = useRef(calculateBannerInterval());
+  const bannerInterval = useRef<number>(0);
+  if (bannerInterval.current === 0) {
+    bannerInterval.current = calculateBannerInterval();
+  }
 
   useEffect(() => {
     const target = loadMoreRef.current;

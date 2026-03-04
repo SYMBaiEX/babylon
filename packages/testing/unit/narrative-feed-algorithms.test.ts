@@ -21,7 +21,7 @@ import {
   BURST_SIZE,
   flattenStories,
   mergeChronologically,
-} from '../../apps/web/src/app/feed/utils/feedAlgorithms';
+} from '../../../apps/web/src/app/feed/utils/feedAlgorithms';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -139,7 +139,9 @@ describe('flattenStories', () => {
       isNewMarket: true,
       storyKey: 'market:1',
     });
-    expect(flattenStories([market]).filter((i) => i.type === 'market').length).toBe(1);
+    expect(
+      flattenStories([market]).filter((i) => i.type === 'market').length
+    ).toBe(1);
   });
 
   it('handles stories with unequal post counts', () => {

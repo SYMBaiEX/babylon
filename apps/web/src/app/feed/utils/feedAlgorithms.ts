@@ -46,7 +46,7 @@ export function flattenStories(stories: NarrativeStory[]): FlatItem[] {
   let anyLeft = true;
   while (anyLeft) {
     anyLeft = false;
-    for (const q of queues) {
+    for (const [queueIndex, q] of queues.entries()) {
       if (q.story.isNewMarket) {
         if (!q.marketEmitted) {
           q.marketEmitted = true;
@@ -60,7 +60,7 @@ export function flattenStories(stories: NarrativeStory[]): FlatItem[] {
 
       // Top story (index 0) gets extra posts on first appearance for prominence
       const burst =
-        q.firstAppearance && queues.indexOf(q) === 0 ? BURST_LEAD : BURST_SIZE;
+        q.firstAppearance && queueIndex === 0 ? BURST_LEAD : BURST_SIZE;
       q.firstAppearance = false;
 
       let took = 0;
