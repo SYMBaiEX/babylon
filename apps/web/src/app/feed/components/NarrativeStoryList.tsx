@@ -29,10 +29,12 @@ export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Reset visible count when the underlying data changes (tab switch / refresh)
+  // Reset visible count when the underlying data changes (tab switch / refresh).
+  // Depend on `stories` (the prop) rather than `allItems` (the memo result)
+  // because the effect body doesn't reference allItems — Biome would flag it.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [allItems]);
+  }, [stories]);
 
   const loadMore = useCallback(() => {
     setVisibleCount((n) => Math.min(n + PAGE_SIZE, allItems.length));
@@ -83,9 +85,7 @@ export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
                   showCommentInputBar={false}
                   onCommentClick={() => router.push(`/post/${post.id}`)}
                 />
-                {marketId && (
-                  <NarrativePredictionChart marketId={marketId} />
-                )}
+                {marketId && <NarrativePredictionChart marketId={marketId} />}
               </>
             )}
           </div>
