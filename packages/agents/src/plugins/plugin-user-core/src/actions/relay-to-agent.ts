@@ -105,10 +105,12 @@ export const relayToAgentAction: Action = {
     const relayContext = actionParams?.relayContext;
 
     if (!agentId || !command || !ownerId || !teamChatId || !broadcastFn) {
-      return {
+      const failResult: ActionResult = {
         success: false,
         text: 'Missing required parameters for relay dispatch.',
       };
+      _callback?.({ content: failResult });
+      return failResult;
     }
 
     // Build enriched command with relay context prepended
@@ -127,14 +129,16 @@ export const relayToAgentAction: Action = {
     });
 
     if (!result.success) {
-      return {
+      const failResult: ActionResult = {
         success: false,
         text: `Failed to relay to agent: ${result.error ?? 'Unknown error'}`,
         values: { agentId, command, relayContext, error: result.error },
       };
+      _callback?.({ content: failResult });
+      return failResult;
     }
 
-    return {
+    const successResult: ActionResult = {
       success: true,
       text: `Relayed to @${result.agentUsername ?? agentId} (with context from other agents): "${result.response.slice(0, 300)}"`,
       values: {
@@ -146,5 +150,7 @@ export const relayToAgentAction: Action = {
         actionsExecuted: result.actionsExecuted,
       },
     };
+    _callback?.({ content: successResult });
+    return successResult;
   },
 };

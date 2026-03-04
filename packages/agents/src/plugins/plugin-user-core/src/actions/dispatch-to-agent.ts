@@ -8,8 +8,8 @@
  * to avoid importing @babylon/api from packages/agents.
  *
  * Key implementation notes:
- * - Returns ActionResult directly — _callback is accepted but never invoked
- *   (consistent with every other action in this codebase)
+ * - Returns ActionResult AND calls _callback (so processActions can
+ *   relay the result to the coordinator route's callback handler)
  * - validate() only shows this action when the team has at least one agent
  *   (reads from state.data.teamMembers populated by coordinatorTeamMembersProvider)
  * - state.data.actionParams is the established pattern for passing params to handlers
@@ -89,7 +89,6 @@ export const dispatchToAgentAction: Action = {
     return members.some((m) => m.isAgent);
   },
 
-  // Returns ActionResult directly — _callback is accepted but NOT called
   handler: async (
     _runtime: IAgentRuntime,
     _message: Memory,
@@ -112,10 +111,12 @@ export const dispatchToAgentAction: Action = {
     const ownerUsername = state?.values?.ownerUsername as string | undefined;
 
     if (!agentId || !command || !ownerId || !teamChatId || !broadcastFn) {
-      return {
+      const failResult: ActionResult = {
         success: false,
         text: 'Missing required parameters for agent dispatch.',
       };
+      _callback?.({ content: failResult });
+      return failResult;
     }
 
     const result = await dispatchAgentChat({
@@ -129,14 +130,16 @@ export const dispatchToAgentAction: Action = {
     });
 
     if (!result.success) {
-      return {
+      const failResult: ActionResult = {
         success: false,
         text: `Failed to dispatch to agent: ${result.error ?? 'Unknown error'}`,
         values: { agentId, command, error: result.error },
       };
+      _callback?.({ content: failResult });
+      return failResult;
     }
 
-    return {
+    const successResult: ActionResult = {
       success: true,
       text: `Dispatched to @${result.agentUsername ?? agentId}: "${result.response.slice(0, 300)}"`,
       values: {
@@ -147,5 +150,7 @@ export const dispatchToAgentAction: Action = {
         actionsExecuted: result.actionsExecuted,
       },
     };
+    _callback?.({ content: successResult });
+    return successResult;
   },
 };

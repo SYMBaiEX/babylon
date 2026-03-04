@@ -516,6 +516,28 @@ export const POST = withErrorHandling(
         actionParams,
       };
 
+      // Persist actionParams to stateCache so processActions' internal
+      // composeState() preserves them (it re-composes from cache, discarding
+      // any local state.data modifications).
+      const stateCache = (
+        runtime as unknown as {
+          stateCache?: Map<
+            string,
+            {
+              values?: Record<string, unknown>;
+              data?: Record<string, unknown>;
+              text?: string;
+            }
+          >;
+        }
+      ).stateCache;
+      if (stateCache && elizaMessage.id) {
+        const cached = stateCache.get(elizaMessage.id);
+        if (cached) {
+          cached.data = { ...cached.data, actionParams };
+        }
+      }
+
       // Build action content for processActions
       const actionContent = {
         text: `Executing action: ${action}`,

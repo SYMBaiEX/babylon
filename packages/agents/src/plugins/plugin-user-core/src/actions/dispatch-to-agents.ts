@@ -129,10 +129,12 @@ export const dispatchToAgentsAction: Action = {
       !teamChatId ||
       !broadcastFn
     ) {
-      return {
+      const failResult: ActionResult = {
         success: false,
         text: 'Missing required parameters for multi-agent dispatch. Provide an array of {agentId, command} objects.',
       };
+      _callback?.({ content: failResult });
+      return failResult;
     }
 
     // Validate each dispatch entry
@@ -222,7 +224,7 @@ export const dispatchToAgentsAction: Action = {
       return `${label}: FAILED — ${r.error ?? 'Unknown error'}`;
     });
 
-    return {
+    const finalResult: ActionResult = {
       success: successCount > 0,
       text: `Dispatched to ${totalCount} agents (${successCount} succeeded):\n\n${summaryParts.join('\n\n')}`,
       values: {
@@ -231,5 +233,7 @@ export const dispatchToAgentsAction: Action = {
         totalCount,
       },
     };
+    _callback?.({ content: finalResult });
+    return finalResult;
   },
 };

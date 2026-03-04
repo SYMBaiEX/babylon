@@ -484,14 +484,44 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       }
     }
 
-    // Store params and inject broadcastFn so DISPATCH_TO_AGENT can broadcast
+    // Store params and inject broadcastFn so DISPATCH_TO_AGENT can broadcast.
     // broadcastFn is injected here (not imported inside packages/agents) to
-    // maintain architectural separation between @babylon/api and @babylon/agents
+    // maintain architectural separation between @babylon/api and @babylon/agents.
+    //
+    // IMPORTANT: ElizaOS processActions() re-composes state internally via
+    // runtime.composeState(), which reads from stateCache and DISCARDS any
+    // custom state.data injections. To survive the re-composition, we:
+    //   1. Write actionParams + broadcastFn into the stateCache entry
+    //   2. Also set them on the local state object (for prompt composition)
     state.data = {
       ...state.data,
       actionParams,
       broadcastFn: broadcastChatMessage,
     };
+
+    // Persist to stateCache so processActions' internal composeState preserves them
+    const stateCache = (
+      runtime as unknown as {
+        stateCache?: Map<
+          string,
+          {
+            values?: Record<string, unknown>;
+            data?: Record<string, unknown>;
+            text?: string;
+          }
+        >;
+      }
+    ).stateCache;
+    if (stateCache && elizaMessage.id) {
+      const cached = stateCache.get(elizaMessage.id);
+      if (cached) {
+        cached.data = {
+          ...cached.data,
+          actionParams,
+          broadcastFn: broadcastChatMessage,
+        };
+      }
+    }
 
     // Build action content for processActions
     const actionContent = {
