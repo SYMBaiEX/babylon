@@ -29,12 +29,15 @@ export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Reset visible count when the underlying data changes (tab switch / refresh).
-  // Depend on `stories` (the prop) rather than `allItems` (the memo result)
-  // because the effect body doesn't reference allItems — Biome would flag it.
-  useEffect(() => {
+  // Reset visible count when stories changes (tab switch / refresh).
+  // Using a ref comparison during render is the React-idiomatic way to
+  // reset derived state without a useEffect, since the effect body wouldn't
+  // reference the dependency and Biome would flag it as unnecessary.
+  const prevStoriesRef = useRef(stories);
+  if (prevStoriesRef.current !== stories) {
+    prevStoriesRef.current = stories;
     setVisibleCount(PAGE_SIZE);
-  }, [stories]);
+  }
 
   const loadMore = useCallback(() => {
     setVisibleCount((n) => Math.min(n + PAGE_SIZE, allItems.length));
