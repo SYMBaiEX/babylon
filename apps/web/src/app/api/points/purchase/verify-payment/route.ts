@@ -123,6 +123,9 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
 
   const paymentRequest = await x402Manager.getPaymentRequest(requestId);
   if (!paymentRequest?.metadata) {
+    // Payment verified on-chain but request data is missing — this is a
+    // server-side state inconsistency, not a client error. Use 500 so the
+    // client knows to retry rather than treating the request as permanently bad.
     logger.error(
       'Payment request or metadata missing after verification',
       { requestId },
@@ -130,7 +133,7 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     );
     return NextResponse.json(
       { success: false, error: 'Payment request not found' },
-      { status: 400 }
+      { status: 500 }
     );
   }
 

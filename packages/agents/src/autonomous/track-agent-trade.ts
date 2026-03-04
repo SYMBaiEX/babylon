@@ -31,10 +31,13 @@ function getClient(): PostHog | null {
     process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
   if (!apiKey) return null;
   try {
+    // Match the config in apps/web/src/lib/posthog/server.ts so cron/serverless
+    // executions don't hang on a slow PostHog endpoint.
     client = new PostHog(apiKey, {
       host: apiHost,
-      flushAt: 10,
-      flushInterval: 5000,
+      flushAt: 20,
+      flushInterval: 10000,
+      requestTimeout: 5000,
     });
   } catch {
     return null;
@@ -55,7 +58,12 @@ export interface AgentTradeExecutedProperties {
 
 /**
  * Track agent_trade_executed in PostHog.
- * distinctId is the agent user id; owner_id in properties for owner analytics.
+ *
+ * distinctId is the owning human's user ID (owner_id) so PostHog funnels,
+ * retention, and People records reflect the owner, not the agent. This
+ * matches how agent_message_sent is tracked in the web app (trackServerEvent
+ * uses the human user's ID as distinctId, with agent_id as a property).
+ * The agent user ID is included as agent_id in properties.
  */
 export function trackAgentTradeExecuted(
   agentUserId: string,
@@ -65,10 +73,12 @@ export function trackAgentTradeExecuted(
   if (!c) return;
   try {
     c.capture({
-      distinctId: agentUserId,
+      // Use owner as the actor so PostHog user counts represent humans, not agents
+      distinctId: properties.owner_id,
       event: 'agent_trade_executed',
       properties: {
         ...properties,
+        agent_id: agentUserId,
         $lib: 'posthog-node',
         ...getEnvironmentProperties(),
         timestamp: new Date().toISOString(),
