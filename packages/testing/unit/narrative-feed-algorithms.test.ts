@@ -17,9 +17,9 @@ import type { NarrativePost, NarrativeStory } from '@babylon/shared';
 
 // Import the real implementations (not copies)
 import {
+  applySlotPattern,
   BURST_LEAD,
   BURST_SIZE,
-  applySlotPattern,
   flattenStories,
   mergeChronologically,
 } from '../../../apps/web/src/app/feed/utils/feedAlgorithms';
@@ -266,7 +266,9 @@ describe('applySlotPattern', () => {
     makePost(id, { type: 'article', authorType: 'user' });
 
   /** New market FlatItem */
-  const marketItem = (key: string): ReturnType<typeof applySlotPattern>[number] => ({
+  const marketItem = (
+    key: string
+  ): ReturnType<typeof applySlotPattern>[number] => ({
     type: 'market',
     key,
     story: {
@@ -333,7 +335,12 @@ describe('applySlotPattern', () => {
       post: articlePost('art1'),
       marketId: null,
     });
-    const items = [actorItem('a1'), actorItem('a2'), articleItem(), marketItem('m1')];
+    const items = [
+      actorItem('a1'),
+      actorItem('a2'),
+      articleItem(),
+      marketItem('m1'),
+    ];
     const result = applySlotPattern(items);
     // Third slot should be news (article)
     expect(result[2]).toMatchObject({ type: 'post' });
@@ -361,8 +368,10 @@ describe('applySlotPattern', () => {
     ];
     const result = applySlotPattern(items);
     // First two actor slots should not both be from sameAuthor
-    const firstActorId = result[0]!.type === 'post' ? result[0]!.post.authorId : null;
-    const secondActorId = result[1]!.type === 'post' ? result[1]!.post.authorId : null;
+    const firstActorId =
+      result[0]!.type === 'post' ? result[0]!.post.authorId : null;
+    const secondActorId =
+      result[1]!.type === 'post' ? result[1]!.post.authorId : null;
     expect(firstActorId).not.toBe(secondActorId);
   });
 

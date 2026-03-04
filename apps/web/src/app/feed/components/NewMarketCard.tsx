@@ -2,8 +2,8 @@
 
 import { CheckCircle, ExternalLink, XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import type { NarrativeStory } from '@/app/feed/types/narrative';
 import { InteractionBar } from '@/components/interactions/InteractionBar';
 import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
