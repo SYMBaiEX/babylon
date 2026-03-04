@@ -16,6 +16,7 @@ import {
   isAutonomousTradingEnabled,
 } from '../shared/agent-config';
 import { logger } from '../shared/logger';
+import { trackAgentTradeExecuted } from './track-agent-trade';
 
 /**
  * Type guard to check if runtime has A2A client
@@ -372,6 +373,17 @@ Your JSON response:`;
         reasoning: `LLM decision (${perpLeverage}x leverage): ${reasoning}`,
       });
 
+      const ownerId = agent?.managedBy ?? agentUserId;
+      trackAgentTradeExecuted(agentUserId, {
+        agent_id: agentUserId,
+        market_type: 'perp',
+        action: 'open',
+        ticker,
+        side,
+        amount: size,
+        owner_id: ownerId,
+      });
+
       return {
         success: true,
         tradeId: tradeResult.positionId,
@@ -432,6 +444,17 @@ Your JSON response:`;
       amount,
       price: tradeResult.avgPrice || 0,
       reasoning: `LLM decision: ${reasoning}`,
+    });
+
+    const ownerId = agent?.managedBy ?? agentUserId;
+    trackAgentTradeExecuted(agentUserId, {
+      agent_id: agentUserId,
+      market_type: 'prediction',
+      action: 'buy',
+      market_id: marketId,
+      side: outcome,
+      amount,
+      owner_id: ownerId,
     });
 
     return {

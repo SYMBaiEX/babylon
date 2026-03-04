@@ -257,6 +257,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@babylon/a2a": "workspace:*",
+        "posthog-node": "^5.17.0",
       },
       "devDependencies": {
         "@types/node": "^24.10.0",
