@@ -9,12 +9,11 @@ interface NarrativePredictionChartProps {
 }
 
 /**
- * Compact prediction probability chart for inline use on feed post cards.
+ * Compact probability chart attached below a regular feed post card when the
+ * post is related to a prediction market.
  *
- * Defers the price history fetch until the component scrolls into the
- * viewport (IntersectionObserver with 100px rootMargin). This prevents
- * all 20 visible cards from firing concurrent /history requests on mount,
- * which was causing 429 rate-limit cascades on the narrative feed.
+ * Defers the history fetch via IntersectionObserver so concurrent requests
+ * don't saturate the rate limiter when 20 cards are visible at once.
  */
 export function NarrativePredictionChart({
   marketId,
@@ -22,9 +21,8 @@ export function NarrativePredictionChart({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
-  const [chartWidth, setChartWidth] = useState(280);
+  const [chartWidth, setChartWidth] = useState(300);
 
-  // Only trigger history fetch once the card is actually visible
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
@@ -41,42 +39,46 @@ export function NarrativePredictionChart({
     return () => io.disconnect();
   }, []);
 
-  // Measure container width so the sparkline fills the available space
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || !inView) return;
     const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setChartWidth(Math.floor(entry.contentRect.width));
+      const w = entries[0]?.contentRect.width;
+      if (w) setChartWidth(Math.floor(w));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, [inView]);
 
-  const { history, loading } = usePredictionHistory(
-    inView ? marketId : '',
-    { limit: 40 }
-  );
+  const { history } = usePredictionHistory(inView ? marketId : '', { limit: 40 });
+
+  if (!inView || history.length === 0) {
+    // 1px sentinel keeps scroll position stable; no visible placeholder on posts
+    return <div ref={wrapperRef} className="h-px" />;
+  }
 
   const latest = history[history.length - 1];
   const yesPercent = Math.round((latest?.yesPrice ?? 0.5) * 100);
   const noPercent = 100 - yesPercent;
 
-  // Reserve the layout slot while not yet in view so the scroll sentinel
-  // position doesn't jump when charts load in below the fold.
-  if (!inView || loading || history.length === 0) {
-    return <div ref={wrapperRef} className="h-px" />;
-  }
-
   return (
-    <div ref={wrapperRef} className="mx-4 mb-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
-      <div className="mb-1.5 flex items-center justify-between text-xs">
-        <span className="font-medium text-green-500">{yesPercent}% YES</span>
+    <div
+      ref={wrapperRef}
+      className="mx-4 mb-3 overflow-hidden rounded-md border border-border bg-muted/20"
+    >
+      {/* Probability header */}
+      <div className="flex items-center justify-between border-border border-b px-3 py-1.5">
+        <span className="font-semibold text-green-500 text-xs">
+          {yesPercent}% YES
+        </span>
         <span className="text-muted-foreground text-[10px]">probability</span>
-        <span className="font-medium text-red-500">{noPercent}% NO</span>
+        <span className="font-semibold text-red-500 text-xs">
+          {noPercent}% NO
+        </span>
       </div>
-      <div ref={containerRef} className="w-full overflow-hidden">
-        <PredictionSparkline data={history} width={chartWidth} height={40} />
+      {/* Sparkline */}
+      <div ref={containerRef} className="w-full">
+        <PredictionSparkline data={history} width={chartWidth} height={56} />
       </div>
     </div>
   );
