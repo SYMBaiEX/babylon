@@ -22,10 +22,13 @@ import {
   checkTeamChatAction,
   checkUserPnlAction,
   dispatchToAgentAction,
+  dispatchToAgentsAction,
+  relayToAgentAction,
 } from './actions';
 import {
   coordinatorActionStateProvider,
   coordinatorActionsProvider,
+  coordinatorAgentActivityProvider,
   coordinatorContextProvider,
   coordinatorDispatchHistoryProvider,
   coordinatorRecentMessagesProvider,
@@ -53,6 +56,9 @@ export const userCorePlugin: Plugin = {
   actions: [
     // Orchestration — listed first so the LLM sees it as the primary action for execution requests
     dispatchToAgentAction,
+    // Multi-agent orchestration
+    dispatchToAgentsAction,
+    relayToAgentAction,
     // Market information
     checkPredictionsAction,
     checkPerpsAction,
@@ -73,6 +79,7 @@ export const userCorePlugin: Plugin = {
     coordinatorTeamMembersProvider,
     coordinatorContextProvider,
     coordinatorDispatchHistoryProvider,
+    coordinatorAgentActivityProvider,
   ],
 };
 
@@ -85,10 +92,13 @@ export {
   checkTeamChatAction,
   checkUserPnlAction,
   dispatchToAgentAction,
+  dispatchToAgentsAction,
+  relayToAgentAction,
 } from './actions';
 export {
   coordinatorActionStateProvider,
   coordinatorActionsProvider,
+  coordinatorAgentActivityProvider,
   coordinatorContextProvider,
   coordinatorDispatchHistoryProvider,
   coordinatorRecentMessagesProvider,

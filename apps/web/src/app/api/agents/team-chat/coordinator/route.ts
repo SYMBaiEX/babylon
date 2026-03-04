@@ -43,10 +43,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
-// Coordinator may dispatch to child agents via DISPATCH_TO_AGENT:
-// coordinator (3 iters ≈ 3s) + agent dispatch (4 iters ≈ 8s) + summary (≈ 2s) ≈ 13s total
-// Without this, Vercel's 10s default kills any dispatch request.
-export const maxDuration = 60;
+// Coordinator may dispatch to child agents via DISPATCH_TO_AGENT / DISPATCH_TO_AGENTS:
+// coordinator (5 iters ≈ 5s) + parallel agent dispatch (≈ 15s) + summary (≈ 2s) ≈ 22s total
+// Parallel dispatches via DISPATCH_TO_AGENTS can take longer — 120s covers worst case.
+export const maxDuration = 120;
 
 // =============================================================================
 // Coordinator Prompt Templates
@@ -99,16 +99,34 @@ No actions taken yet.
 
 # Decision Guide
 
-**Use DISPATCH_TO_AGENT** when the user wants to execute a trade, post, comment, or any agent action.
+## Single-Agent Tasks
+**Use DISPATCH_TO_AGENT** when the user wants one agent to execute a trade, post, comment, or any action.
   - Select the agent using their [id: ...] from the Team Members list above
   - Write the command clearly as the exact instruction for the agent
   - If no agents exist in the team, skip this action and tell the user to create one at /agents
 
+## Multi-Agent Orchestration
+**Use DISPATCH_TO_AGENTS** when the user's request benefits from input from multiple agents.
+  - Dispatches run in parallel — much faster than asking agents one by one
+  - Use when the user says "all agents", "everyone", "coordinate", "team", or when you need perspectives from multiple agents
+  - Parameters: {"dispatches": [{"agentId": "...", "command": "..."}, ...]}
+
+**Use RELAY_TO_AGENT** when you need to pass one agent's results as context to another agent.
+  - Use after a dispatch has completed and another agent needs those findings
+  - Parameters: {"agentId": "...", "command": "...", "relayContext": "Summary of what other agents found"}
+
+## Orchestration Patterns
+**Gather & Synthesize**: DISPATCH_TO_AGENTS → collect all responses → summarize for user
+**Gather, Relay & Execute**: DISPATCH_TO_AGENTS (research) → RELAY_TO_AGENT (trader with context) → summarize
+**Expert Consultation**: DISPATCH_TO_AGENT to the single relevant expert
+
+## Information Queries
 **Use a data-fetch action** (CHECK_PERPS, CHECK_PREDICTIONS, CHECK_USER_PNL, etc.) when you need information to answer the user's question.
 
+## Skip Actions
 **Skip all actions (set action to "" and isFinish to true)** when:
   - The question is conversational or you already have the data needed
-  - The user is asking about a previous turn's result (e.g., "why didn't I see X") — just answer directly
+  - The user is asking about a previous turn's result — just answer directly
   - You have already dispatched or fetched what was needed this turn
 
 **NEVER repeat the same action with the same parameters.**
@@ -181,6 +199,9 @@ No actions were taken this turn.
 
 **Agent dispatched — include a brief summary of what the agent did:**
 "I dispatched to @trading_bot to open a long TSLAI position for $50. They confirmed: [brief quote from agent's response]."
+
+**Multiple agents dispatched — synthesize all responses:**
+"I asked all your agents for their market outlook: @trading_bot sees momentum in TSLAI, @research_agent noted high volume on NVDAI, and @social_bot reports bullish sentiment. Based on this consensus, TSLAI and NVDAI look strongest."
 
 **Agent dispatch failed:** "I wasn't able to dispatch that — [reason]. You can @mention your agent directly to retry."
 
@@ -311,8 +332,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     createdAt: Date.now(),
   };
 
-  // Multi-step execution (simplified for coordinator - max 3 iterations)
-  const MAX_ITERATIONS = 3;
+  // Multi-step execution — 5 iterations supports multi-agent orchestration patterns:
+  // Iteration 1: DISPATCH_TO_AGENTS (parallel gather)
+  // Iteration 2: RELAY_TO_AGENT (pass context to executor)
+  // Iterations 3-5: follow-up dispatches or early finish
+  const MAX_ITERATIONS = 5;
   const traceActionResults: Array<{
     actionType: string;
     success: boolean;
