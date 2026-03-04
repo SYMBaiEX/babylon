@@ -744,10 +744,31 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       commentCounts.map((c) => [c.postId, Number(c.count)])
     );
 
+    // Fetch original posts for reposts in the following feed.
+    // getPostsForFollowing does a plain SELECT with no JOIN, so originalPost
+    // must be fetched separately — otherwise reposts render as blank cards.
+    const followingRepostIds = filteredPosts
+      .filter((p) => p.originalPostId)
+      .map((p) => p.originalPostId)
+      .filter((id): id is string => id !== null);
+
+    const followingOriginalPostsMap = new Map<string, Post>();
+    if (followingRepostIds.length > 0) {
+      const originals = await db
+        .select()
+        .from(posts)
+        .where(
+          and(inArray(posts.id, followingRepostIds), isNull(posts.deletedAt))
+        );
+      originals.forEach((p) => followingOriginalPostsMap.set(p.id, p));
+    }
+
     // Format following posts synchronously using lookup maps
-    // Note: filteredPosts already includes originalPost via the include in the query above
     const formattedFollowingPosts = filteredPosts.map((post: Post) => {
-      const postsWithOriginal = post as PostWithOriginal;
+      const originalPost = post.originalPostId
+        ? (followingOriginalPostsMap.get(post.originalPostId) ?? null)
+        : null;
+      const postsWithOriginal: PostWithOriginal = { ...post, originalPost };
       const user = post.authorId ? userMap.get(post.authorId) : undefined;
 
       // Build repost metadata from originalPost if it exists (clean, no text parsing)
