@@ -111,6 +111,7 @@ import {
   checkRateLimitAndDuplicates,
   ensureUserForAuth,
   getCanonicalUserId,
+  invalidateCache,
   NotFoundError,
   notifyShare,
   RATE_LIMIT_CONFIGS,
@@ -453,6 +454,17 @@ export const POST = withErrorHandling(
       .from(shares)
       .where(eq(shares.postId, shareTargetPostId));
     const shareCount = Number(shareCountResult?.count ?? 0);
+
+    // Bust the narrative enrichment cache so isShared reflects immediately
+    invalidateCache(`narrative:enrichment:${canonicalUserId}`, {
+      namespace: 'feed',
+    }).catch((err) =>
+      logger.warn(
+        'Failed to invalidate narrative enrichment cache on share',
+        { error: err, userId: canonicalUserId },
+        'POST /api/posts/[id]/share'
+      )
+    );
 
     logger.info(
       'Post shared successfully',

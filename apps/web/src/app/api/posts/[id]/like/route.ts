@@ -63,6 +63,11 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+
+// Narrative enrichment cache key — mirrors the pattern in narrative/route.ts
+const narrativeEnrichmentCacheKey = (userId: string) =>
+  `narrative:enrichment:${userId}`;
+
 import { and, count, db, eq, posts, reactions } from '@babylon/db';
 import { NPCInteractionTracker, parsePostId } from '@babylon/engine';
 import {
@@ -224,6 +229,18 @@ export const POST = withErrorHandling(
       namespace: CACHE_KEYS.POST,
     });
 
+    // Bust the narrative enrichment cache so isLiked reflects immediately
+    // (without this, the user sees isLiked: false for up to 30s in Stories)
+    invalidateCache(narrativeEnrichmentCacheKey(canonicalUserId), {
+      namespace: 'feed',
+    }).catch((err) =>
+      logger.warn(
+        'Failed to invalidate narrative enrichment cache on like',
+        { error: err, userId: canonicalUserId },
+        'POST /api/posts/[id]/like'
+      )
+    );
+
     logger.info(
       'Post liked successfully',
       { postId, userId: canonicalUserId, likeCount },
@@ -305,6 +322,16 @@ export const DELETE = withErrorHandling(
     await invalidateCache(`post:${postId}:interactions:*`, {
       namespace: CACHE_KEYS.POST,
     });
+
+    invalidateCache(narrativeEnrichmentCacheKey(canonicalUserId), {
+      namespace: 'feed',
+    }).catch((err) =>
+      logger.warn(
+        'Failed to invalidate narrative enrichment cache on unlike',
+        { error: err, userId: canonicalUserId },
+        'DELETE /api/posts/[id]/like'
+      )
+    );
 
     logger.info(
       'Post unliked successfully',

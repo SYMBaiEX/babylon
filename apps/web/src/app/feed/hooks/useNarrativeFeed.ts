@@ -181,6 +181,12 @@ export function useNarrativeFeed(
       }
       return;
     }
+    // Reset isMountedRef on every (re-)enable so SSE callbacks work after
+    // remount. useRef persists across re-renders so it must be explicitly
+    // set back to true here — the cleanup sets it false, and without this
+    // line a remounted hook would silently discard all SSE-triggered refreshes.
+    isMountedRef.current = true;
+
     if (hasFetched.current) return;
     hasFetched.current = true;
 
