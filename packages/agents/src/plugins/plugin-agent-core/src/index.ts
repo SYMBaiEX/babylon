@@ -22,6 +22,9 @@
  * - SELL_PREDICTION action for selling prediction market shares
  * - OPEN_PERP action for opening perpetual positions
  * - CLOSE_PERP action for closing perpetual positions
+ * - SET_PRICE_ALERT action for creating/updating price alerts on perp markets
+ * - LIST_PRICE_ALERTS action for viewing configured price alerts
+ * - REMOVE_PRICE_ALERT action for deleting price alerts
  * - Providers for actions, recent messages, and action state
  *
  * @packageDocumentation
@@ -46,6 +49,11 @@ import { closePerpAction } from './actions/close-perp';
 import { createCommentAction } from './actions/create-comment';
 import { createPostAction } from './actions/create-post';
 import { lookupUserAction } from './actions/lookup-user';
+import {
+  listPriceAlertsAction,
+  removePriceAlertAction,
+  setPriceAlertAction,
+} from './actions/manage-price-alerts';
 import { openPerpAction } from './actions/open-perp';
 import { sellPredictionAction } from './actions/sell-prediction';
 import { toggleAutonomyAction } from './actions/toggle-autonomy';
@@ -85,6 +93,10 @@ export const agentCorePlugin: Plugin = {
     checkTeamChatAction,
     // User lookup
     lookupUserAction,
+    // Price alerts
+    setPriceAlertAction,
+    listPriceAlertsAction,
+    removePriceAlertAction,
     // Social actions
     createPostAction,
     createCommentAction,
