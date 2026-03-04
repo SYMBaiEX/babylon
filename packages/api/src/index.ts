@@ -81,6 +81,7 @@ export {
   getCacheStats,
   invalidateCache,
   invalidateCachePattern,
+  narrativeEnrichmentKey,
   setCache,
   warmCache,
 } from './cache';

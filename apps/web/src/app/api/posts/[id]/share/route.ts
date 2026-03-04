@@ -112,6 +112,7 @@ import {
   ensureUserForAuth,
   getCanonicalUserId,
   invalidateCache,
+  narrativeEnrichmentKey,
   NotFoundError,
   notifyShare,
   RATE_LIMIT_CONFIGS,
@@ -456,7 +457,7 @@ export const POST = withErrorHandling(
     const shareCount = Number(shareCountResult?.count ?? 0);
 
     // Bust the narrative enrichment cache so isShared reflects immediately
-    invalidateCache(`narrative:enrichment:${canonicalUserId}`, {
+    invalidateCache(narrativeEnrichmentKey(canonicalUserId), {
       namespace: 'feed',
     }).catch((err) =>
       logger.warn(

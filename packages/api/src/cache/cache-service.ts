@@ -64,6 +64,19 @@ export const CACHE_KEYS = {
 } as const;
 
 /**
+ * Per-user narrative feed enrichment cache key.
+ *
+ * Caches { likedPostIds, sharedPostIds, positionQuestionIds } per user for 30s
+ * to avoid 3 DB round-trips × N concurrent authenticated requests.
+ *
+ * Namespace: 'feed'. Invalidate on like, unlike, and share interactions
+ * so users see their own interactions reflected immediately in Stories.
+ */
+export function narrativeEnrichmentKey(userId: string): string {
+  return `narrative:enrichment:${userId}`;
+}
+
+/**
  * Default TTLs for different data types (in seconds)
  *
  * @description Default time-to-live values for different data types based on

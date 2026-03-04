@@ -18,6 +18,7 @@ import {
   addPublicReadHeaders,
   getCache,
   getCacheOrFetch,
+  narrativeEnrichmentKey,
   publicRateLimit,
   setCache,
   successResponse,
@@ -422,7 +423,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .filter((n): n is number => n !== null);
 
     try {
-      const enrichCacheKey = `narrative:enrichment:${userId}`;
+      const enrichCacheKey = narrativeEnrichmentKey(userId);
       const cachedEnrichment = await getCache<UserEnrichmentCache>(
         enrichCacheKey,
         { namespace: 'feed' }
