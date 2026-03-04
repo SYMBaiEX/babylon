@@ -59,7 +59,17 @@ import {
 
 // Query limits
 const MAX_CANDIDATE_POSTS = 500;
-const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+// 72-hour window: captures enough content for active stories AND recent user posts
+const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
+
+// Top-N general (non-question) posts surfaced as individual story cards.
+// These compete on score alongside question stories to create the
+// "stories + hot + latest" blend the feed aims for.
+const MAX_STANDALONE_POSTS = 20;
+
+// Minimum score for a standalone post card to appear in the feed.
+// Prevents spam of zero-engagement posts from drowning active stories.
+const MIN_STANDALONE_SCORE = 0.05;
 
 const GENERAL_STORY_KEY = '__general__';
 
@@ -132,7 +142,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     cacheKey,
     async () => {
       const now = new Date();
-      const cutoff = new Date(now.getTime() - FORTY_EIGHT_HOURS_MS);
+      const cutoff = new Date(now.getTime() - SEVENTY_TWO_HOURS_MS);
 
       const recentPosts = await db
         .select({
@@ -367,8 +377,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           (questionNumber !== null ? `Story #${questionNumber}` : 'General');
         const arcState = meta?.arcState ?? null;
 
-        // Skip fully resolved questions — no remaining tension
+        // Skip resolved questions — no remaining tension
         if (meta?.status === 'resolved') continue;
+        // Skip questions whose deadline has passed even if status hasn't updated yet
+        if (meta?.resolutionDate && meta.resolutionDate <= now) continue;
 
         const baseScore = calculateStoryScore(
           totalLikes,
@@ -395,12 +407,49 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         });
       }
 
-      // Sort by score DESC, general story always last
-      stories.sort((a, b) => {
-        if (a.storyKey === GENERAL_STORY_KEY) return 1;
-        if (b.storyKey === GENERAL_STORY_KEY) return -1;
-        return b.storyScore - a.storyScore;
-      });
+      // Dissolve the __general__ bucket into individual scored post cards.
+      // Each top post competes on merit alongside question stories, creating
+      // the "stories + hot + latest" blend instead of a single dump at the bottom.
+      const generalPosts = storyPostMap.get(GENERAL_STORY_KEY) ?? [];
+      const standalonePostCards = generalPosts
+        .map((post) => ({
+          post,
+          score: calculateStoryScore(
+            post.likeCount,
+            post.commentCount,
+            post.shareCount,
+            1,
+            new Date(post.timestamp)
+          ),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, MAX_STANDALONE_POSTS)
+        .filter(({ score }) => score >= MIN_STANDALONE_SCORE);
+
+      for (const { post, score } of standalonePostCards) {
+        // Use article headline when available; otherwise truncate the social content
+        const rawTitle =
+          post.articleTitle ??
+          (post.content.length > 80
+            ? post.content.slice(0, 80).replace(/\s+\S*$/, '') + '…'
+            : post.content);
+
+        stories.push({
+          storyKey: `post:${post.id}`,
+          storyTitle: rawTitle,
+          questionNumber: null,
+          arcState: null,
+          storyScore: Math.round(score * 10000) / 10000,
+          postCount: 1,
+          posts: [post],
+          hasUserPosition: false,
+        });
+      }
+
+      // Sort all stories — question stories AND standalone posts — by score DESC.
+      // Active question stories naturally float above standalone posts because
+      // the arc state and resolution proximity multipliers boost their score.
+      stories.sort((a, b) => b.storyScore - a.storyScore);
 
       return { stories, postIds };
     },

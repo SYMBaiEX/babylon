@@ -118,6 +118,11 @@ interface NarrativeStoryCardProps {
   story: NarrativeStory;
 }
 
+// A standalone post card has storyKey prefixed with 'post:' — these are
+// high-scoring individual posts dissolved from the general bucket. They render
+// without a story header since the PostCard already shows all relevant context.
+const isStandalonePost = (storyKey: string) => storyKey.startsWith('post:');
+
 export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
@@ -130,9 +135,32 @@ export function NarrativeStoryCard({ story }: NarrativeStoryCardProps) {
     [expanded, story.posts]
   );
 
+  // Standalone posts render as plain feed cards — no story header wrapper
+  if (isStandalonePost(story.storyKey) && story.posts.length === 1) {
+    const post = story.posts[0]!;
+    return (
+      <div className="border-border border-b">
+        {post.type === 'article' ? (
+          <ArticleCard
+            post={toArticleCardData(post)}
+            density="default"
+            onClick={() => router.push(`/article/${post.id}`)}
+          />
+        ) : (
+          <PostCard
+            post={toPostCardData(post)}
+            density="default"
+            showCommentInputBar={false}
+            onCommentClick={() => router.push(`/post/${post.id}`)}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="border-border border-b">
-      {/* Story header */}
+      {/* Story header — only shown for question-linked multi-post stories */}
       <div className="flex items-start gap-3 px-4 py-3">
         <div className="mt-0.5 flex-shrink-0 rounded-full bg-primary/10 p-1.5">
           <BookOpen className="h-4 w-4 text-primary" />
