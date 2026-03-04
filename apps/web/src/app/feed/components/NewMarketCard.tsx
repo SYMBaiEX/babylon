@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import type { NarrativeStory } from '@/app/feed/types/narrative';
@@ -38,8 +37,7 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
       <div className="px-4 py-3">
         {/* Header row */}
         <div className="mb-2.5 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 font-semibold text-primary-foreground text-xs">
-            <Zap className="h-3 w-3" />
+          <span className="inline-flex items-center rounded-full bg-primary px-2 py-0.5 font-semibold text-primary-foreground text-xs">
             New Market
           </span>
           {countdown && (
@@ -57,12 +55,11 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
           <Link
             href={tradeHref}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-md px-4 py-1.5',
+              'inline-flex items-center rounded-md px-4 py-1.5',
               'bg-primary font-semibold text-primary-foreground text-sm',
               'transition-colors hover:bg-primary/90'
             )}
           >
-            <Zap className="h-3.5 w-3.5" />
             Trade Now
           </Link>
           <Link
