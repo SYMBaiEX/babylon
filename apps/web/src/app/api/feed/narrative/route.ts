@@ -34,6 +34,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
   lt,
   lte,
   markets,
@@ -170,7 +171,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             gte(posts.timestamp, cutoff),
             lte(posts.timestamp, now),
             isNull(posts.commentOnPostId),
-            isNull(posts.parentCommentId)
+            isNull(posts.parentCommentId),
+            // Reposts have content: "" — exclude them so the feed doesn't
+            // surface hundreds of blank cards from NPC repost activity.
+            ne(posts.type, 'repost')
           )
         )
         .orderBy(desc(posts.timestamp))
