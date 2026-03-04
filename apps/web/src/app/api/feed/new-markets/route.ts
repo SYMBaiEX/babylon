@@ -4,8 +4,8 @@
  * @route GET /api/feed/new-markets — recently opened prediction market questions
  *
  * Returns questions opened in the last 24 h with status = 'active'.
- * Lightweight: no post aggregation. Used to inject "New Market" discovery
- * cards into the Latest feed so users can trade directly from the feed.
+ * Joins the markets table to include the market UUID (for deep-linking to
+ * /markets/predictions/[id]) and live yes/no shares (for real probability bars).
  */
 import {
   getCacheOrFetch,
@@ -13,7 +13,17 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { and, arcStates, db, desc, eq, gte, lt, questions } from '@babylon/db';
+import {
+  and,
+  arcStates,
+  db,
+  desc,
+  eq,
+  gte,
+  lt,
+  markets,
+  questions,
+} from '@babylon/db';
 import type { ArcStateType } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 
@@ -25,6 +35,12 @@ export interface NewMarketEntry {
   resolutionDate: string;
   createdAt: string;
   arcState: ArcStateType | null;
+  /** Market UUID for deep-linking to /markets/predictions/[marketId] */
+  marketId: string | null;
+  /** Live YES share count — new markets always open at 0 (displayed as 50%) */
+  yesShares: number;
+  /** Live NO share count — new markets always open at 0 (displayed as 50%) */
+  noShares: number;
 }
 
 export interface NewMarketsResponse {
@@ -39,7 +55,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
   if (rateLimitErr) return rateLimitErr;
 
-  const cacheKey = 'feed:new-markets:v1';
+  const cacheKey = 'feed:new-markets:v2';
 
   const result = await getCacheOrFetch<NewMarketEntry[]>(
     cacheKey,
@@ -47,6 +63,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const now = new Date();
       const cutoff = new Date(now.getTime() - NEW_MARKET_WINDOW_MS);
 
+      // Join questions → arcStates → markets (on matching question text).
+      // The markets table has no direct FK to questions; they are linked by
+      // the question text field. LEFT JOIN so questions without a market
+      // are still returned (isNewMarket card falls back to the predictions list).
       const rows = await db
         .select({
           questionNumber: questions.questionNumber,
@@ -54,14 +74,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           resolutionDate: questions.resolutionDate,
           createdAt: questions.createdAt,
           arcState: arcStates.currentState,
+          marketId: markets.id,
+          yesShares: markets.yesShares,
+          noShares: markets.noShares,
         })
         .from(questions)
         .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
+        // Match on normalized text (trim + lower) to survive minor whitespace
+        // or casing differences. A proper questions.marketId FK would be better
+        // and is tracked as a follow-up schema migration.
+        .leftJoin(
+          markets,
+          sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
+        )
         .where(
           and(
             eq(questions.status, 'active'),
             gte(questions.createdAt, cutoff),
-            // Only markets resolving within 30 days — very long-horizon ones stay on markets page
+            // Only markets resolving within 30 days
             lt(
               questions.resolutionDate,
               new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
@@ -77,9 +107,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         resolutionDate: r.resolutionDate.toISOString(),
         createdAt: r.createdAt.toISOString(),
         arcState: (r.arcState as ArcStateType | null) ?? null,
+        marketId: r.marketId ?? null,
+        yesShares: Number(r.yesShares ?? 0),
+        noShares: Number(r.noShares ?? 0),
       }));
     },
-    { namespace: 'feed', ttl: 120 }
+    { namespace: 'feed', ttl: 60 } // shorter TTL since odds can change
   );
 
   const response = successResponse({
@@ -90,7 +123,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (rateLimitInfo) {
     response.headers.set(
       'Cache-Control',
-      'public, s-maxage=60, stale-while-revalidate=120'
+      'public, s-maxage=30, stale-while-revalidate=60'
     );
   }
   return response;

@@ -9,11 +9,11 @@ interface UseNewMarketsResult {
 
 /**
  * Fetches recently opened prediction market questions (last 24h).
- * Used to inject "New Market" trade cards at the top of the Latest feed.
+ * Used to inject "New Market" trade cards into the Latest feed.
  *
- * Fetches once on mount. The endpoint is cached for 120s server-side
- * (new markets are infrequent; no SSE subscription needed here — users
- * will see the card on their next tab visit or page refresh).
+ * Fetches once on mount. The endpoint is cached server-side (short TTL)
+ * since odds can change; no SSE subscription needed here — users will
+ * see updates on refresh / next tab visit.
  *
  * Note: New Market cards intentionally appear on both the Latest feed
  * (via this hook) and the Stories tab (via the narrative feed endpoint).
