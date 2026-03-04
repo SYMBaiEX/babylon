@@ -59,9 +59,12 @@ mock.module('../../../agents/src/shared/snowflake', () => ({
 // Let's read the file directly and check for the patterns
 
 import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
-const filePath =
-  '/home/dev/bab/packages/agents/src/plugins/babylon/integration-a2a-sdk.ts';
+const filePath = resolve(
+  import.meta.dir,
+  '../../../agents/src/plugins/babylon/integration-a2a-sdk.ts'
+);
 const fileContent = readFileSync(filePath, 'utf-8');
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import {
   db,
   eq,
   perpMarketSnapshots,
+  sql,
   userAgentConfigs,
   users,
 } from '@babylon/db';
@@ -176,35 +177,32 @@ export class PriceAlertService {
 
   /**
    * Update the lastTriggeredAt timestamp for a specific alert.
-   * Uses a JSON update to modify only the relevant alert in the array.
+   * Uses an atomic SQL JSONB update to avoid read-modify-write race conditions.
    */
   private async updateAlertTimestamp(
     agentUserId: string,
     alertId: string
   ): Promise<void> {
-    const [config] = await db
-      .select({
-        id: userAgentConfigs.id,
-        priceAlerts: userAgentConfigs.priceAlerts,
-      })
-      .from(userAgentConfigs)
-      .where(eq(userAgentConfigs.userId, agentUserId))
-      .limit(1);
+    const now = new Date().toISOString();
 
-    if (!config) return;
-
-    const alerts = (config.priceAlerts ?? []) as PriceAlert[];
-    const updatedAlerts = alerts.map((a) =>
-      a.id === alertId ? { ...a, lastTriggeredAt: new Date().toISOString() } : a
-    );
-
+    // Atomic JSONB update: iterate the array and set lastTriggeredAt on the matching alert
+    // This avoids the read-modify-write race of SELECT → map → UPDATE
     await db
       .update(userAgentConfigs)
       .set({
-        priceAlerts: updatedAlerts,
+        priceAlerts: sql`(
+          SELECT jsonb_agg(
+            CASE
+              WHEN elem->>'id' = ${alertId}
+              THEN elem || jsonb_build_object('lastTriggeredAt', ${now}::text)
+              ELSE elem
+            END
+          )
+          FROM jsonb_array_elements(${userAgentConfigs.priceAlerts}) AS elem
+        )`,
         updatedAt: new Date(),
       })
-      .where(eq(userAgentConfigs.id, config.id));
+      .where(eq(userAgentConfigs.userId, agentUserId));
   }
 }
 

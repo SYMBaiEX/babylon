@@ -1921,7 +1921,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
       },
     });
 
-    // Broadcast to SSE for real-time delivery to all chat participants
+    // Fire-and-forget SSE broadcast — the message is already persisted to DB above,
+    // so a broadcast failure only affects real-time delivery (clients will pick it up
+    // on next poll/reconnect). We log the failure but don't block the response.
     const { broadcastChatMessage } = await import('@babylon/api');
     broadcastChatMessage(chatId, {
       id: message.id,
@@ -1934,7 +1936,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
       isDMChat: false,
     }).catch((err: Error) => {
       logger.warn(
-        `[A2AExecutor] Failed to broadcast chat message: ${err.message}`,
+        `[A2AExecutor] SSE broadcast failed (message ${message.id} persisted, will be visible on refresh): ${err.message}`,
         { chatId, messageId: message.id }
       );
     });
