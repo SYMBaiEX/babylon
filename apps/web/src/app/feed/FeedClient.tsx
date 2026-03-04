@@ -387,6 +387,8 @@ export function FeedClient() {
     }
 
     return (
+      // Hot and Following are single-page fetches with no cursor pagination,
+      // so hasMore is always false here. (Latest uses MixedFeedList above.)
       <PostList
         posts={currentPosts}
         actorNames={actorNames}

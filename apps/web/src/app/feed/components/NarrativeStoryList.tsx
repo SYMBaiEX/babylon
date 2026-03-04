@@ -2,48 +2,11 @@
 
 import type { NarrativePost, NarrativeStory } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
+import { toArticleCardData, toPostCardData } from '@/app/feed/utils/postMappers';
 import { NewMarketCard } from './NewMarketCard';
-
-// ─── Data helpers ────────────────────────────────────────────────────────────
-
-function toPostCardData(post: NarrativePost) {
-  return {
-    id: post.id,
-    type: post.type ?? undefined,
-    content: post.content,
-    articleTitle: post.articleTitle,
-    category: post.category,
-    authorId: post.authorId,
-    authorName: post.authorName,
-    authorUsername: post.authorUsername,
-    authorProfileImageUrl: post.authorProfileImageUrl,
-    timestamp: post.timestamp,
-    likeCount: post.likeCount,
-    commentCount: post.commentCount,
-    shareCount: post.shareCount,
-    isLiked: post.isLiked,
-    isShared: post.isShared,
-  };
-}
-
-function toArticleCardData(post: NarrativePost) {
-  return {
-    id: post.id,
-    type: post.type ?? undefined,
-    content: post.content,
-    fullContent: post.fullContent,
-    articleTitle: post.articleTitle,
-    category: post.category,
-    imageUrl: post.imageUrl,
-    authorId: post.authorId,
-    authorName: post.authorName,
-    authorUsername: post.authorUsername,
-    authorProfileImageUrl: post.authorProfileImageUrl,
-    timestamp: post.timestamp,
-  };
-}
 
 // ─── Flat item type ──────────────────────────────────────────────────────────
 
@@ -130,7 +93,7 @@ interface NarrativeStoryListProps {
 export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
   const router = useRouter();
 
-  const items = flattenStories(stories);
+  const items = useMemo(() => flattenStories(stories), [stories]);
 
   if (items.length === 0) return null;
 

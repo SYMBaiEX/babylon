@@ -54,9 +54,14 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
 
   // Deep-link to the individual market when we have its UUID;
   // fall back to the predictions list if the market hasn't been matched.
-  const tradeHref = story.marketId
+  const marketBase = story.marketId
     ? `/markets/predictions/${encodeURIComponent(story.marketId)}`
     : '/markets?tab=predictions';
+
+  // Pre-select the trade direction on the destination page
+  const tradeYesHref = `${marketBase}${story.marketId ? '?side=yes' : '&side=yes'}`;
+  const tradeNoHref = `${marketBase}${story.marketId ? '?side=no' : '&side=no'}`;
+  const viewHref = marketBase;
 
   return (
     <div className="border-border border-b px-4 py-4">
@@ -113,19 +118,19 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
       {/* Actions */}
       <div className="flex items-center gap-2">
         <Link
-          href={tradeHref}
+          href={tradeYesHref}
           className="inline-flex items-center rounded-md border border-green-600 px-3 py-1.5 font-semibold text-green-600 text-sm transition-colors hover:bg-green-600/10"
         >
           Trade YES
         </Link>
         <Link
-          href={tradeHref}
+          href={tradeNoHref}
           className="inline-flex items-center rounded-md border border-red-500 px-3 py-1.5 font-semibold text-red-500 text-sm transition-colors hover:bg-red-500/10"
         >
           Trade NO
         </Link>
         <Link
-          href={tradeHref}
+          href={viewHref}
           className="ml-auto text-muted-foreground text-sm transition-colors hover:text-foreground"
         >
           View market →

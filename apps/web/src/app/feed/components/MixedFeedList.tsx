@@ -2,7 +2,7 @@
 
 import type { CommentPreviewData, FeedPost } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NewMarketEntry } from '@/app/api/feed/new-markets/route';
 import type { NarrativeStory } from '@/app/feed/types/narrative';
 import { ArticleCard } from '@/components/articles/ArticleCard';
@@ -124,7 +124,10 @@ export const MixedFeedList = memo(function MixedFeedList({
     return () => observer.disconnect();
   }, [hasMore, loadingMore, onLoadMore]);
 
-  const items = mergeChronologically(posts, newMarkets);
+  const items = useMemo(
+    () => mergeChronologically(posts, newMarkets),
+    [posts, newMarkets]
+  );
 
   // Track banner position relative to post items only
   let postIndex = 0;
