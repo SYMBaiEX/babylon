@@ -50,7 +50,9 @@ export function NarrativePredictionChart({
     return () => ro.disconnect();
   }, [inView]);
 
-  const { history } = usePredictionHistory(inView ? marketId : '', { limit: 40 });
+  const { history } = usePredictionHistory(inView ? marketId : '', {
+    limit: 40,
+  });
 
   if (!inView || history.length === 0) {
     // 1px sentinel keeps scroll position stable; no visible placeholder on posts
@@ -71,7 +73,7 @@ export function NarrativePredictionChart({
         <span className="font-semibold text-green-500 text-xs">
           {yesPercent}% YES
         </span>
-        <span className="text-muted-foreground text-[10px]">probability</span>
+        <span className="text-[10px] text-muted-foreground">probability</span>
         <span className="font-semibold text-red-500 text-xs">
           {noPercent}% NO
         </span>

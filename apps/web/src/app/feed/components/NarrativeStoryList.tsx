@@ -3,7 +3,7 @@
 import type { NarrativeStory } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { flattenStories } from '@/app/feed/utils/feedAlgorithms';
+import { applySlotPattern, flattenStories } from '@/app/feed/utils/feedAlgorithms';
 import {
   toArticleCardData,
   toPostCardData,
@@ -22,7 +22,10 @@ interface NarrativeStoryListProps {
 export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
   const router = useRouter();
 
-  const allItems = useMemo(() => flattenStories(stories), [stories]);
+  const allItems = useMemo(
+    () => applySlotPattern(flattenStories(stories)),
+    [stories]
+  );
 
   // Reveal items progressively as the user scrolls — identical behaviour to
   // the infinite-scroll feed on other tabs.

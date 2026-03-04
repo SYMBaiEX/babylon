@@ -3,11 +3,13 @@
 import { CheckCircle, ExternalLink, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { NarrativeStory } from '@/app/feed/types/narrative';
+import { InteractionBar } from '@/components/interactions/InteractionBar';
 import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
 import { PredictionTradingModal } from '@/components/markets/PredictionTradingModal';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import type { PredictionMarket } from '@/types/markets';
-import type { NarrativeStory } from '@/app/feed/types/narrative';
 
 interface NewMarketCardProps {
   story: NarrativeStory;
@@ -75,7 +77,9 @@ function MarketChart({ marketId }: { marketId: string }) {
     return () => ro.disconnect();
   }, [inView]);
 
-  const { history } = usePredictionHistory(inView ? marketId : '', { limit: 60 });
+  const { history } = usePredictionHistory(inView ? marketId : '', {
+    limit: 60,
+  });
 
   return (
     <div ref={wrapperRef} className="w-full">
@@ -99,6 +103,7 @@ function MarketChart({ marketId }: { marketId: string }) {
  * navigating away. Falls back to navigation links when no marketId is available.
  */
 export function NewMarketCard({ story }: NewMarketCardProps) {
+  const router = useRouter();
   const [tradeSide, setTradeSide] = useState<TradeSide | null>(null);
 
   const countdown = story.resolutionDate
@@ -133,7 +138,7 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
     <div className="border-border border-b px-4 py-4">
       {/* Header row: label + countdown */}
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+        <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
           Prediction Market
         </span>
         {countdown && (
@@ -231,6 +236,29 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
           <ExternalLink size={15} />
         </Link>
       </div>
+
+      {/* Social interaction bar — anchored to the NPC post ID so the card
+          is likeable, commentable, and shareable like any regular post.
+          Only rendered when anchorPostId is available. */}
+      {story.anchorPostId && (
+        <div
+          className="mt-3 border-border border-t pt-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <InteractionBar
+            postId={story.anchorPostId}
+            initialInteractions={{
+              postId: story.anchorPostId,
+              likeCount: 0,
+              commentCount: 0,
+              shareCount: 0,
+              isLiked: false,
+              isShared: false,
+            }}
+            onCommentClick={() => router.push(`/post/${story.anchorPostId}`)}
+          />
+        </div>
+      )}
 
       {/* PredictionTradingModal — same pattern as agents panel */}
       {market && tradeSide && (
