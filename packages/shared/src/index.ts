@@ -72,6 +72,7 @@ export * from './utils/snowflake';
 export * from './utils/ui';
 // UUID generation (cross-browser compatible UUID v4)
 export * from './utils/uuid';
+export * from './utils/wallet';
 
 // =============================================================================
 // Error Classes (client-safe)
