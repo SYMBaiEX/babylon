@@ -4,7 +4,10 @@ import type { NarrativeStory } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { flattenStories } from '@/app/feed/utils/feedAlgorithms';
-import { toArticleCardData, toPostCardData } from '@/app/feed/utils/postMappers';
+import {
+  toArticleCardData,
+  toPostCardData,
+} from '@/app/feed/utils/postMappers';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
 import { NewMarketCard } from './NewMarketCard';
