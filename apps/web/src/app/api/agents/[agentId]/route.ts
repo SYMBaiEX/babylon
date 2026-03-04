@@ -179,12 +179,12 @@ import {
   getAgentConfig,
   isAutonomousTradingEnabled,
 } from '@babylon/agents';
-import { authenticateUser } from '@babylon/api';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -287,9 +287,9 @@ export async function GET(
       updatedAt: agent!.updatedAt.toISOString(),
     },
   });
-}
+});
 
-export async function PUT(
+export const PUT = withErrorHandling(async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -367,9 +367,9 @@ export async function PUT(
       updatedAt: agent.updatedAt.toISOString(),
     },
   });
-}
+});
 
-export async function DELETE(
+export const DELETE = withErrorHandling(async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -384,4 +384,4 @@ export async function DELETE(
     success: true,
     message: 'Agent deleted successfully',
   });
-}
+});

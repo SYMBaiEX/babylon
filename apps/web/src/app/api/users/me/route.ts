@@ -281,7 +281,10 @@ type UserSelectResult = {
 async function syncMissingPrivyIdentityFields(
   dbUser: UserSelectResult,
   privyIdentity: PrivyIdentitySnapshot
-): Promise<{ user: UserSelectResult; newlyLinked: Array<'farcaster' | 'twitter'> }> {
+): Promise<{
+  user: UserSelectResult;
+  newlyLinked: Array<'farcaster' | 'twitter'>;
+}> {
   const updateData: Partial<typeof users.$inferInsert> = {};
   const newlyLinked: Array<'farcaster' | 'twitter'> = [];
 
@@ -327,7 +330,10 @@ async function syncMissingPrivyIdentityFields(
       .select({ id: users.id })
       .from(users)
       .where(
-        and(eq(users.twitterId, privyIdentity.twitterId), ne(users.id, dbUser.id))
+        and(
+          eq(users.twitterId, privyIdentity.twitterId),
+          ne(users.id, dbUser.id)
+        )
       )
       .limit(1);
 
@@ -1049,7 +1055,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (needsPrivyIdentitySync || needsAdminPromotionCheck) {
     const privyClient = getPrivyClient();
-    const privyUser = (await privyClient.getUser(privyId)) as PrivyUserWithWallets;
+    const privyUser = (await privyClient.getUser(
+      privyId
+    )) as PrivyUserWithWallets;
     const privyIdentity = extractPrivyIdentitySnapshot(privyUser);
 
     if (needsPrivyIdentitySync) {

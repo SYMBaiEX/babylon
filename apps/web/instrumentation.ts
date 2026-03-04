@@ -92,6 +92,11 @@ export async function register() {
     await import('./sentry.server.config');
   }
 
+  // Initialize Sentry for Edge Runtime (middleware, edge route handlers)
+  if (!sentryDisabled && process.env.NEXT_RUNTIME === 'edge') {
+    await import('./sentry.edge.config');
+  }
+
   // Register reputation sync service if agents package is available
   // This breaks the circular dependency between engine and agents packages
   // Only load agent0 code server-side to avoid bundling electron-fetch in client

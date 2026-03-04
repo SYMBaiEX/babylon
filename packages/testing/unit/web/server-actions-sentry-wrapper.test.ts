@@ -67,9 +67,11 @@ describe('wrapServerActionWithSentry', () => {
 
   it('enriches scope with action context, rethrows, and does not double-capture', async () => {
     const actionError = new Error('action failed');
-    const action = mock(async () => {
-      throw actionError;
-    });
+    const action = mock(
+      async (_input: { token: string; amount: number }, _note: string) => {
+        throw actionError;
+      }
+    );
     const wrapped = wrapServerActionWithSentry('failingAction', action);
 
     await expect(

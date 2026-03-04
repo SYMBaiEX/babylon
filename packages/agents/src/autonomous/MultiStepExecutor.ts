@@ -36,7 +36,6 @@ import {
   executeDirectUnfollow,
 } from './DirectExecutors';
 import { topicDiversityService } from './TopicDiversityService';
-
 import {
   Actions,
   type ActionTraceResult,
@@ -46,6 +45,7 @@ import {
   getRequiredFeature,
   type MultiStepDecision,
 } from './templates/multi-step-decision';
+import { trackAgentTradeExecuted } from './track-agent-trade';
 
 // Import utilities
 import {
@@ -327,7 +327,8 @@ export class MultiStepExecutor {
         effectiveFeatures,
         runtime,
         isNpc,
-        { prompt, completion: rawResponse, thought: decision.thought }
+        { prompt, completion: rawResponse, thought: decision.thought },
+        agent?.managedBy ?? agentUserId
       );
       iterationTimings.actionExecution = Date.now() - actionStartTime;
       iterationTimings.total = Date.now() - iterationStartTime;
@@ -734,7 +735,8 @@ export class MultiStepExecutor {
     enabledFeatures: string[],
     _runtime: IAgentRuntime,
     isNpc: boolean,
-    logContext?: { prompt: string; completion: string; thought: string }
+    logContext?: { prompt: string; completion: string; thought: string },
+    ownerId: string = agentUserId
   ): Promise<ActionTraceResult> {
     const normalizedAction = action.toUpperCase();
 
@@ -764,7 +766,7 @@ export class MultiStepExecutor {
 
     switch (normalizedAction) {
       case Actions.TRADE:
-        return this.executeTrade(agentUserId, parameters);
+        return this.executeTrade(agentUserId, parameters, ownerId);
 
       case Actions.POST:
         return this.executePost(agentUserId, parameters, isNpc, logContext);
@@ -835,7 +837,8 @@ export class MultiStepExecutor {
 
   private async executeTrade(
     agentUserId: string,
-    parameters: Record<string, unknown>
+    parameters: Record<string, unknown>,
+    ownerId: string = agentUserId
   ): Promise<ActionTraceResult> {
     const marketType = parameters.marketType as 'prediction' | 'perp';
     const marketId = parameters.marketId as string;
@@ -869,6 +872,19 @@ export class MultiStepExecutor {
       amount,
       reasoning,
     });
+
+    if (tradeResult.success) {
+      trackAgentTradeExecuted(agentUserId, {
+        agent_id: agentUserId,
+        market_type: marketType || 'prediction',
+        action: side,
+        market_id: tradeResult.marketId,
+        ticker: tradeResult.ticker,
+        side: tradeResult.side,
+        amount,
+        owner_id: ownerId,
+      });
+    }
 
     return {
       actionType: Actions.TRADE,

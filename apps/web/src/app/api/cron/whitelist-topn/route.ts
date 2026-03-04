@@ -47,7 +47,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 });
 
 // Vercel Cron uses GET; forward to POST after auth verification.
-export const GET = async (request: NextRequest) => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
   if (
     !verifyCronAuth(request, {
       jobName: 'WhitelistTopNCron',
@@ -66,4 +66,4 @@ export const GET = async (request: NextRequest) => {
   }
 
   return POST(request);
-};
+});

@@ -1,3 +1,5 @@
+import { getPrivyAppIdFromEnv, getTrimmedEnv } from '../../env';
+
 export type PrivyOfflineConfig = {
   appId: string;
   appSecret: string;
@@ -6,25 +8,12 @@ export type PrivyOfflineConfig = {
   offlinePolicyId: string;
 };
 
-function getTrimmedEnv(name: string): string | undefined {
-  const value = process.env[name];
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function getPrivyAppId(): string | undefined {
-  return (
-    getTrimmedEnv('PRIVY_APP_ID') ?? getTrimmedEnv('NEXT_PUBLIC_PRIVY_APP_ID')
-  );
-}
-
 function formatMissingFields(missing: string[]): string {
   return missing.join(', ');
 }
 
 export function getPrivyOfflineConfig(): PrivyOfflineConfig {
-  const appId = getPrivyAppId();
+  const appId = getPrivyAppIdFromEnv();
   const appSecret = getTrimmedEnv('PRIVY_APP_SECRET');
   const authorizationPrivateKey = getTrimmedEnv(
     'PRIVY_AUTHORIZATION_PRIVATE_KEY'

@@ -9,6 +9,7 @@
  * filtered independently within a single PostHog project.
  */
 
+import { logger } from '@babylon/shared';
 import posthog from 'posthog-js';
 
 export type PostHogClient = typeof posthog;
@@ -44,8 +45,10 @@ export function initPostHog(): PostHogClient | null {
     process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 
   if (!apiKey) {
-    console.warn(
-      'PostHog: NEXT_PUBLIC_POSTHOG_PROJECT_ID not found. Analytics will be disabled.'
+    logger.warn(
+      'NEXT_PUBLIC_POSTHOG_PROJECT_ID not found. Analytics will be disabled.',
+      undefined,
+      'PostHog'
     );
     return null;
   }
@@ -87,8 +90,10 @@ export function initPostHog(): PostHogClient | null {
         });
 
         if (process.env.NODE_ENV === 'development') {
-          console.log(
-            `PostHog initialized [env=${environment}, project=${apiKey.slice(0, 12)}...]`
+          logger.info(
+            'PostHog initialized',
+            { environment, project: apiKey.slice(0, 12) + '...' },
+            'PostHog'
           );
         }
       },

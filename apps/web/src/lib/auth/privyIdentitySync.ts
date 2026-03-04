@@ -35,9 +35,6 @@ export function shouldSyncMissingPrivyIdentity(
   user: UserIdentitySyncState
 ): boolean {
   return (
-    !user.hasFarcaster ||
-    !user.hasTwitter ||
-    !user.email ||
-    !user.emailVerified
+    !user.hasFarcaster || !user.hasTwitter || !user.email || !user.emailVerified
   );
 }

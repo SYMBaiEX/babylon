@@ -59,7 +59,7 @@
  * ```
  */
 
-import { requireAdmin } from '@babylon/api';
+import { requireAdmin, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -72,7 +72,7 @@ const RefundEscrowSchema = z.object({
   reason: z.string().optional(),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const _adminUser = await requireAdmin(req);
   const adminId = _adminUser.userId;
 
@@ -200,4 +200,4 @@ export async function POST(req: NextRequest) {
       refundedAt: updatedEscrow.refundedAt?.toISOString(),
     },
   });
-}
+});

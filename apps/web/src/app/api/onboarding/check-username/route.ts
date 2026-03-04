@@ -99,6 +99,7 @@ import {
   errorResponse,
   publicRateLimit,
   successResponse,
+  withErrorHandling,
 } from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
 import { asPublic, asUser } from '@babylon/db';
@@ -177,7 +178,7 @@ async function checkUsernameAvailability(
  * Check username availability
  * Query params: username (required)
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const username = searchParams.get('username');
 
@@ -227,4 +228,4 @@ export async function GET(request: NextRequest) {
   const res = successResponse(result);
   if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
   return res;
-}
+});

@@ -4,6 +4,7 @@ import {
   type PrivyUserWithEmails,
 } from '@babylon/shared';
 import { getPrivyClient } from '../auth-middleware';
+import { getNotificationEmailFromEnv } from '../env';
 
 export interface ParsedEmailAddress {
   email: string;
@@ -65,9 +66,7 @@ export function resolveSendGridConfig(
     return null;
   }
 
-  const fromAddress =
-    process.env.NOTIFICATION_EMAIL_FROM?.trim() ||
-    process.env.EMAIL_FROM?.trim();
+  const fromAddress = getNotificationEmailFromEnv();
   if (!fromAddress) {
     logger.warn(
       `Skipping email: sender address is not configured`,

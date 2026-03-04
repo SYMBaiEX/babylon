@@ -22,7 +22,8 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
-    "@babylon/a2a": "workspace:*"
+    "@babylon/a2a": "workspace:*",
+    "posthog-node": "^5.17.0"
   },
   "peerDependencies": {
     "@a2a-js/sdk": "^0.3.5",

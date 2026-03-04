@@ -9,7 +9,7 @@
  * authorization page. Generates secure state parameter with CSRF protection.
  */
 
-import { authenticate } from '@babylon/api';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import {
   generateSnowflakeId,
@@ -19,7 +19,7 @@ import {
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const authUser = await authenticate(request);
   const userId = authUser.userId;
 
@@ -67,4 +67,4 @@ export async function GET(request: NextRequest) {
   );
 
   return NextResponse.redirect(authUrl.toString());
-}
+});

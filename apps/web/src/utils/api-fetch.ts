@@ -5,6 +5,8 @@
  * Uses Privy's HTTP-only cookie authentication.
  */
 
+import { logger } from '@babylon/shared';
+
 /**
  * API Fetch Options
  *
@@ -82,9 +84,10 @@ export async function apiFetch(
       finalHeaders.set('Authorization', `Bearer ${token}`);
     } else if (typeof window !== 'undefined') {
       // Log when we can't get a token - helps debug auth issues
-      console.warn(
-        '[apiFetch] No access token available for authenticated request:',
-        typeof input === 'string' ? input : (input as Request).url
+      logger.warn(
+        'No access token available for authenticated request',
+        { url: typeof input === 'string' ? input : (input as Request).url },
+        'apiFetch'
       );
     }
   }

@@ -1921,6 +1921,26 @@ export class BabylonAgentExecutor implements AgentExecutor {
       },
     });
 
+    // Fire-and-forget SSE broadcast — the message is already persisted to DB above,
+    // so a broadcast failure only affects real-time delivery (clients will pick it up
+    // on next poll/reconnect). We log the failure but don't block the response.
+    const { broadcastChatMessage } = await import('@babylon/api');
+    broadcastChatMessage(chatId, {
+      id: message.id,
+      content: message.content,
+      chatId,
+      senderId: message.senderId,
+      type: 'user',
+      createdAt: message.createdAt?.toISOString() ?? new Date().toISOString(),
+      isGameChat: false,
+      isDMChat: false,
+    }).catch((err: Error) => {
+      logger.warn(
+        `[A2AExecutor] SSE broadcast failed (message ${message.id} persisted, will be visible on refresh): ${err.message}`,
+        { chatId, messageId: message.id }
+      );
+    });
+
     return {
       success: true,
       message: {
@@ -2006,6 +2026,24 @@ export class BabylonAgentExecutor implements AgentExecutor {
           },
         });
       }
+    });
+
+    // Broadcast a system message so members see the new group in real-time
+    const { broadcastChatMessage } = await import('@babylon/api');
+    broadcastChatMessage(chatId, {
+      id: await generateSnowflakeId(),
+      content: `Group "${name}" created`,
+      chatId,
+      senderId: userId,
+      type: 'system',
+      createdAt: new Date().toISOString(),
+      isGameChat: false,
+      isDMChat: false,
+    }).catch((err: Error) => {
+      logger.warn(
+        `[A2AExecutor] Failed to broadcast group creation: ${err.message}`,
+        { chatId, groupId }
+      );
     });
 
     return {

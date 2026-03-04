@@ -20,7 +20,7 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import { AlertCircle, CheckCircle, Clock, Flag, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -131,7 +131,11 @@ export function ReportsTab() {
 
           const response = await fetch(`/api/admin/reports?${params}`);
           if (!response.ok) {
-            console.error('Failed to fetch reports:', response.status);
+            logger.error(
+              'Failed to fetch reports',
+              { status: response.status },
+              'ReportsTab'
+            );
             setLoading(false);
             return;
           }
@@ -140,7 +144,11 @@ export function ReportsTab() {
           setReports(data.reports || []);
           setLoading(false);
         } catch (err) {
-          console.error('Error fetching reports:', err);
+          logger.error(
+            'Error fetching reports',
+            err instanceof Error ? err : { error: err },
+            'ReportsTab'
+          );
           setLoading(false);
         }
       };
@@ -163,7 +171,11 @@ export function ReportsTab() {
         const data = await response.json();
         setStats(data);
       } catch (err) {
-        console.error('Error fetching report stats:', err);
+        logger.error(
+          'Error fetching report stats',
+          err instanceof Error ? err : { error: err },
+          'ReportsTab'
+        );
       }
     };
     void fetchLogic();

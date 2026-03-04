@@ -12,6 +12,7 @@
  */
 
 import { getTemplate } from '@babylon/agents';
+import { withErrorHandling } from '@babylon/api';
 import { NextResponse } from 'next/server';
 
 /**
@@ -21,7 +22,7 @@ import { NextResponse } from 'next/server';
  *
  * @returns {Promise<NextResponse>} Template data
  */
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _req: Request,
   { params }: { params: Promise<{ archetype: string }> }
 ) {
@@ -36,4 +37,4 @@ export async function GET(
   }
 
   return NextResponse.json(template);
-}
+});

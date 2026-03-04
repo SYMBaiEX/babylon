@@ -9,7 +9,7 @@
  * Used for the "My Moves" dashboard showing aggregate agent activity.
  */
 
-import { authenticateUser } from '@babylon/api';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
 import {
   agentTrades,
   comments,
@@ -82,7 +82,7 @@ interface CommentActivity {
 
 type AgentActivity = TradeActivity | PostActivity | CommentActivity;
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   const user = await authenticateUser(req);
 
   const { searchParams } = new URL(req.url);
@@ -292,4 +292,4 @@ export async function GET(req: NextRequest) {
       hasMore: activities.length > limit || mightHaveMore,
     },
   });
-}
+});

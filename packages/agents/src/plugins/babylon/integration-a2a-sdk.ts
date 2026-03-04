@@ -476,8 +476,17 @@ export class BabylonA2AClient {
       getUserProfile: 'users.get_profile',
       // Messaging operations
       getChats: 'messaging.get_chats',
+      getChatMessages: 'messaging.get_chat_messages',
+      sendMessage: 'messaging.send_message',
+      createGroup: 'messaging.create_group',
+      leaveChat: 'messaging.leave_chat',
       getUnreadCount: 'messaging.get_unread_count',
+      // Notifications operations
       getNotifications: 'messaging.get_notifications',
+      markNotificationsRead: 'notifications.mark_read',
+      getGroupInvites: 'notifications.get_group_invites',
+      acceptGroupInvite: 'notifications.accept_invite',
+      declineGroupInvite: 'notifications.decline_invite',
     };
 
     const operationName = operationMap[action] || action;

@@ -8,6 +8,7 @@ import {
   type FeedPost,
   getBannerImageUrl,
   isUsername,
+  logger,
   type Organization,
   POST_TYPES,
 } from '@babylon/shared';
@@ -659,8 +660,11 @@ export function ProfilePageClient({
         }
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
-          // eslint-disable-next-line no-console
-          console.error('Failed to fetch replies:', error);
+          logger.error(
+            'Failed to fetch replies',
+            error instanceof Error ? error : { error },
+            'ProfilePageClient'
+          );
         }
       } finally {
         setLoadingReplies(false);

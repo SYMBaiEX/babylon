@@ -399,9 +399,9 @@ const sentryWebpackPluginOptions = {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-  org: 'symbaiex',
+  org: process.env.SENTRY_ORG ?? 'eliza-uv',
 
-  project: 'babylon',
+  project: process.env.SENTRY_PROJECT ?? 'babylon',
 
   // Auth token for uploading source maps and creating releases
   // Set SENTRY_AUTH_TOKEN in environment to enable source map uploads

@@ -101,6 +101,7 @@ import {
   authenticateUser,
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
+  withErrorHandling,
 } from '@babylon/api';
 import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { logger } from '@babylon/shared';
@@ -161,7 +162,7 @@ function extractContent(raw: string): string | null {
   return parsed.content.trim().replace(/^["']|["']$/g, ''); // Remove leading/trailing quotes
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   // Apply rate limiting - 10 field generations per minute
@@ -387,7 +388,7 @@ export async function POST(req: NextRequest) {
     success: true,
     value: cleanedValue,
   });
-}
+});
 
 /**
  * Trading strategy archetypes for variety in generation

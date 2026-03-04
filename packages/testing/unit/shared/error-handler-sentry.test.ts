@@ -8,27 +8,22 @@ import {
   mock,
 } from 'bun:test';
 
-type ErrorCapture = (error: Error, context: Record<string, unknown>) => void;
+type ErrorHandlerModule = typeof import('../../../api/src/error-handler');
 
 let AuthenticationError: new (message?: string) => Error;
 let BadRequestError: new (message: string) => Error;
 let ValidationError: new (message: string) => Error;
-let setDefaultErrorCapture: (captureError?: ErrorCapture) => void;
-let withErrorHandling: <TContext = unknown>(
-  handler: (req: Request, context?: TContext) => Promise<Response> | Response,
-  options?: {
-    captureError?: ErrorCapture;
-  }
-) => (req: Request, context?: TContext) => Promise<Response>;
+let setDefaultErrorCapture: ErrorHandlerModule['setDefaultErrorCapture'];
+let withErrorHandling: ErrorHandlerModule['withErrorHandling'];
 
-function createRequest(): Request {
+function createRequest(): import('next/server').NextRequest {
   return new Request('http://localhost/api/test', {
     method: 'POST',
     headers: {
       'x-user-id': 'user-123',
       'x-request-id': 'req-123',
     },
-  });
+  }) as import('next/server').NextRequest;
 }
 
 describe('withErrorHandling + default Sentry capture', () => {
@@ -62,13 +57,13 @@ describe('withErrorHandling + default Sentry capture', () => {
 
     mock.module('next/server', () => ({
       NextResponse: class NextResponse extends Response {
-        static json(body: unknown, init?: ResponseInit): Response {
+        static json(body: unknown, init?: ResponseInit): NextResponse {
           const headers = new Headers(init?.headers);
           if (!headers.has('content-type')) {
             headers.set('content-type', 'application/json');
           }
 
-          return new Response(JSON.stringify(body), {
+          return new NextResponse(JSON.stringify(body), {
             ...init,
             headers,
           });

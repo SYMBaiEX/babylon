@@ -40,6 +40,7 @@
  * ```
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { ImageResponse } from 'next/og';
 import type { NextRequest } from 'next/server';
@@ -52,7 +53,7 @@ export const dynamic = 'force-dynamic';
 // Cache for 1 hour
 export const revalidate = 3600;
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) {
@@ -272,4 +273,4 @@ export async function GET(
       height: 630,
     }
   );
-}
+});

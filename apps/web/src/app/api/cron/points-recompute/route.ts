@@ -15,7 +15,11 @@
  * - At midnight UTC: Additionally snapshot all user points
  */
 
-import { recordCronExecution, withCronAuth } from '@babylon/api';
+import {
+  recordCronExecution,
+  withCronAuth,
+  withErrorHandling,
+} from '@babylon/api';
 import { TotalPointsService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -96,5 +100,5 @@ async function handler(_request: NextRequest) {
 }
 
 const cronHandler = withCronAuth('PointsRecompute', handler);
-export const POST = cronHandler;
-export const GET = cronHandler;
+export const POST = withErrorHandling(cronHandler);
+export const GET = withErrorHandling(cronHandler);

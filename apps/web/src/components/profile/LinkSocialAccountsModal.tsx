@@ -59,7 +59,8 @@ export function LinkSocialAccountsModal({
   const { linkEmail, linkFarcaster } = useLinkAccount({
     onSuccess: ({ linkedAccount }) => {
       setLinking(null);
-      if (linkedAccount.type === 'farcaster_account') {
+      const linkedType = String(linkedAccount.type);
+      if (linkedType === 'farcaster' || linkedType === 'farcaster_account') {
         toast.success('Farcaster account linked successfully!');
       } else {
         toast.success('Email linked successfully');

@@ -172,8 +172,10 @@ export class HuggingFaceUploadUtil {
       // Set token as environment variable
       process.env.HUGGINGFACE_HUB_TOKEN = token;
 
-      console.log(
-        `Uploading ${localDir} to ${repoName} via huggingface-cli...`
+      logger.info(
+        `Uploading ${localDir} to ${repoName} via huggingface-cli...`,
+        { localDir, repoName, repoType },
+        'HuggingFaceUpload'
       );
 
       await execAsync(

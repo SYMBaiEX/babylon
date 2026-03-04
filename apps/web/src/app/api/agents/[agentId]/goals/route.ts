@@ -99,7 +99,7 @@
  * ```
  */
 
-import { authenticate } from '@babylon/api';
+import { authenticate, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -108,7 +108,7 @@ import { NextResponse } from 'next/server';
 /**
  * GET - List agent's goals
  */
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -185,12 +185,12 @@ export async function GET(
       recentActions: actionsByGoalId.get(g.id) || [],
     })),
   });
-}
+});
 
 /**
  * POST - Create new goal for agent
  */
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
@@ -275,4 +275,4 @@ export async function POST(
       target: goal.target ? JSON.parse(JSON.stringify(goal.target)) : null,
     },
   });
-}
+});

@@ -85,6 +85,7 @@ import {
   PersistentTaskStore,
   validateApiKeyAsync,
 } from '@babylon/a2a';
+import { withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -164,7 +165,9 @@ async function checkApiKey(request: NextRequest): Promise<{
  * @returns JSON-RPC 2.0 response with result or error
  * @throws {401} Invalid or missing API key
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   const { error, authResult } = await checkApiKey(request);
   if (error) return error;
 
@@ -284,7 +287,7 @@ export async function POST(request: NextRequest) {
       'Content-Type': 'application/json',
     },
   });
-}
+});
 
 /**
  * GET /api/a2a
@@ -300,7 +303,7 @@ export async function POST(request: NextRequest) {
  * @returns Agent card JSON with capabilities and metadata
  * @throws {401} Invalid or missing API key
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const { error } = await checkApiKey(request);
   if (error) return error;
 
@@ -310,4 +313,4 @@ export async function GET(request: NextRequest) {
       'Cache-Control': 'public, max-age=3600',
     },
   });
-}
+});

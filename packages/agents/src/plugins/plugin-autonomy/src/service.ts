@@ -8,6 +8,7 @@ import {
   type UUID,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../../../shared/logger';
 import type { JsonValue } from '../../../types/common';
 import { AutonomousServiceType } from './types';
 
@@ -33,13 +34,14 @@ export class AutonomyService extends Service {
     // This ensures we have a clean room that's not shared with other functionality
     // Generate a proper UUID - ensure it's a valid v4 UUID format
     const roomUUID = uuidv4();
-    console.log('[AUTONOMY] Generated room UUID:', roomUUID);
+    logger.info('Generated room UUID', { roomUUID }, 'AutonomyService');
     this.autonomousRoomId = asUUID(roomUUID);
     this.autonomousWorldId = asUUID('00000000-0000-0000-0000-000000000001'); // Default world
 
-    console.log(
-      '[AUTONOMY] Service initialized with room ID:',
-      this.autonomousRoomId
+    logger.info(
+      'Service initialized with room ID',
+      { roomId: this.autonomousRoomId },
+      'AutonomyService'
     );
   }
 
@@ -53,8 +55,10 @@ export class AutonomyService extends Service {
     // The autonomous room ID is already set in the constructor
     // Don't override it here
 
-    console.log(
-      `[Autonomy] Using autonomous room ID: ${this.autonomousRoomId}`
+    logger.info(
+      'Using autonomous room ID',
+      { roomId: this.autonomousRoomId },
+      'AutonomyService'
     );
 
     // Check current autonomy setting
@@ -114,22 +118,31 @@ export class AutonomyService extends Service {
       );
     }
 
-    console.log(
-      '[Autonomy] Ensured autonomous room exists with world ID:',
-      this.autonomousWorldId
+    logger.info(
+      'Ensured autonomous room exists with world ID',
+      { worldId: this.autonomousWorldId },
+      'AutonomyService'
     );
 
-    console.log(
-      `[Autonomy] Settings check - AUTONOMY_ENABLED: ${autonomyEnabled}, AUTONOMY_AUTO_START: ${autoStart}`
+    logger.info(
+      'Settings check',
+      { autonomyEnabled, autoStart },
+      'AutonomyService'
     );
 
     // Start disabled by default - autonomy should only run when explicitly enabled from frontend
     if (autonomyEnabled === true || autonomyEnabled === 'true') {
-      console.log('[Autonomy] Autonomy is enabled in settings, starting...');
+      logger.info(
+        'Autonomy is enabled in settings, starting...',
+        undefined,
+        'AutonomyService'
+      );
       await this.startLoop();
     } else {
-      console.log(
-        '[Autonomy] Autonomy disabled by default - will wait for frontend activation'
+      logger.info(
+        'Autonomy disabled by default - will wait for frontend activation',
+        undefined,
+        'AutonomyService'
       );
     }
 
@@ -147,13 +160,17 @@ export class AutonomyService extends Service {
         autonomyEnabled === true || autonomyEnabled === 'true';
 
       if (shouldBeRunning && !this.isRunning) {
-        console.log(
-          '[Autonomy] Settings indicate autonomy should be enabled, starting...'
+        logger.info(
+          'Settings indicate autonomy should be enabled, starting...',
+          undefined,
+          'AutonomyService'
         );
         await this.startLoop();
       } else if (!shouldBeRunning && this.isRunning) {
-        console.log(
-          '[Autonomy] Settings indicate autonomy should be disabled, stopping...'
+        logger.info(
+          'Settings indicate autonomy should be disabled, stopping...',
+          undefined,
+          'AutonomyService'
         );
         await this.stopLoop();
       }
@@ -165,7 +182,7 @@ export class AutonomyService extends Service {
    */
   async startLoop(): Promise<void> {
     if (this.isRunning) {
-      console.log('[Autonomy] Loop already running');
+      logger.info('Loop already running', undefined, 'AutonomyService');
       return;
     }
 
@@ -174,8 +191,10 @@ export class AutonomyService extends Service {
     // Set setting to persist state
     this.runtime.setSetting('AUTONOMY_ENABLED', true);
 
-    console.log(
-      `[Autonomy] Starting continuous autonomous loop (${this.intervalMs}ms delay between iterations)`
+    logger.info(
+      'Starting continuous autonomous loop',
+      { intervalMs: this.intervalMs },
+      'AutonomyService'
     );
 
     // Start the loop
@@ -187,7 +206,7 @@ export class AutonomyService extends Service {
    */
   async stopLoop(): Promise<void> {
     if (!this.isRunning) {
-      console.log('[Autonomy] Loop not running');
+      logger.info('Loop not running', undefined, 'AutonomyService');
       return;
     }
 
@@ -200,7 +219,7 @@ export class AutonomyService extends Service {
     }
 
     this.runtime.setSetting('AUTONOMY_ENABLED', false);
-    console.log('[Autonomy] Stopped autonomous loop');
+    logger.info('Stopped autonomous loop', undefined, 'AutonomyService');
   }
 
   /**
@@ -222,8 +241,10 @@ export class AutonomyService extends Service {
    * Perform one iteration of autonomous thinking
    */
   private async performAutonomousThink(): Promise<void> {
-    console.log(
-      `[Autonomy] Performing autonomous monologue... (${new Date().toLocaleTimeString()})`
+    logger.info(
+      'Performing autonomous monologue...',
+      { time: new Date().toLocaleTimeString() },
+      'AutonomyService'
     );
 
     // Get the agent's entity first - we'll need it throughout this function
@@ -231,8 +252,10 @@ export class AutonomyService extends Service {
       ? await this.runtime.getEntityById(this.runtime.agentId)
       : { id: this.runtime.agentId };
     if (!agentEntity) {
-      console.error(
-        '[Autonomy] Failed to get agent entity, skipping autonomous thought'
+      logger.error(
+        'Failed to get agent entity, skipping autonomous thought',
+        undefined,
+        'AutonomyService'
       );
       return;
     }
@@ -262,13 +285,17 @@ export class AutonomyService extends Service {
 
     if (lastAgentThought?.content?.text) {
       lastThought = lastAgentThought.content.text;
-      console.log(
-        `[Autonomy] Continuing from last thought: "${lastThought.substring(0, 50)}..."`
+      logger.info(
+        'Continuing from last thought',
+        { thoughtPreview: lastThought.substring(0, 50) },
+        'AutonomyService'
       );
     } else {
       isFirstThought = true;
-      console.log(
-        '[Autonomy] No previous autonomous thoughts found, starting fresh monologue'
+      logger.info(
+        'No previous autonomous thoughts found, starting fresh monologue',
+        undefined,
+        'AutonomyService'
       );
     }
 
@@ -277,8 +304,10 @@ export class AutonomyService extends Service {
       lastThought,
       isFirstThought
     );
-    console.log(
-      `[Autonomy] Monologue prompt: "${monologuePrompt.substring(0, 100)}..."`
+    logger.info(
+      'Monologue prompt',
+      { promptPreview: monologuePrompt.substring(0, 100) },
+      'AutonomyService'
     );
 
     // Create an autonomous message that will be processed through the full agent pipeline
@@ -302,8 +331,10 @@ export class AutonomyService extends Service {
       createdAt: Date.now(),
     };
 
-    console.log(
-      '[Autonomy] Processing autonomous message through full agent pipeline...'
+    logger.info(
+      'Processing autonomous message through full agent pipeline...',
+      undefined,
+      'AutonomyService'
     );
 
     // Process the message through the complete agent pipeline
@@ -318,9 +349,10 @@ export class AutonomyService extends Service {
       source: 'plugin-autonomy',
       message: autonomousMessage,
       callback: async (content: Content): Promise<Memory[]> => {
-        console.log(
-          '[Autonomy] Response generated:',
-          `${content.text?.substring(0, 100)}...`
+        logger.info(
+          'Response generated',
+          { responsePreview: content.text?.substring(0, 100) },
+          'AutonomyService'
         );
 
         // Store the response with autonomous metadata
@@ -367,12 +399,18 @@ export class AutonomyService extends Service {
         return [];
       },
       onComplete: async () => {
-        console.log('[Autonomy] ✅ Autonomous message processing completed');
+        logger.info(
+          'Autonomous message processing completed',
+          undefined,
+          'AutonomyService'
+        );
       },
     });
 
-    console.log(
-      '[Autonomy] ✅ Autonomous message event emitted to agent pipeline'
+    logger.info(
+      'Autonomous message event emitted to agent pipeline',
+      undefined,
+      'AutonomyService'
     );
   }
   /**
@@ -425,11 +463,12 @@ Generate your next thought (1-2 sentences):`;
       },
     };
 
-    console.log('[Autonomy] Broadcasting thought to WebSocket via:', apiUrl);
-    console.log(
-      '[Autonomy] Broadcast data:',
-      JSON.stringify(broadcastData, null, 2)
+    logger.info(
+      'Broadcasting thought to WebSocket',
+      { apiUrl },
+      'AutonomyService'
     );
+    logger.debug('Broadcast data', { broadcastData }, 'AutonomyService');
 
     // Make HTTP request to broadcast endpoint
     const response = await fetch(apiUrl, {
@@ -442,17 +481,17 @@ Generate your next thought (1-2 sentences):`;
 
     if (response.ok) {
       const responseData = await response.json();
-      console.log(
-        '[Autonomy] Successfully broadcasted thought to monologue chat:',
-        responseData
+      logger.info(
+        'Successfully broadcasted thought to monologue chat',
+        { responseData },
+        'AutonomyService'
       );
     } else {
       const errorText = await response.text();
-      console.warn(
-        '[Autonomy] Failed to broadcast thought:',
-        response.status,
-        response.statusText,
-        errorText
+      logger.warn(
+        'Failed to broadcast thought',
+        { status: response.status, statusText: response.statusText, errorText },
+        'AutonomyService'
       );
     }
   }
@@ -476,16 +515,24 @@ Generate your next thought (1-2 sentences):`;
    */
   setLoopInterval(ms: number): void {
     if (ms < 100) {
-      console.warn('[Autonomy] Interval too short, minimum is 100ms');
+      logger.warn(
+        'Interval too short, minimum is 100ms',
+        { requested: ms },
+        'AutonomyService'
+      );
       ms = 100;
     }
     if (ms > 60000) {
-      console.warn('[Autonomy] Interval too long, maximum is 1 minute');
+      logger.warn(
+        'Interval too long, maximum is 1 minute',
+        { requested: ms },
+        'AutonomyService'
+      );
       ms = 60000;
     }
 
     this.intervalMs = ms;
-    console.log(`[Autonomy] Loop interval set to ${ms}ms`);
+    logger.info('Loop interval set', { intervalMs: ms }, 'AutonomyService');
   }
 
   /**

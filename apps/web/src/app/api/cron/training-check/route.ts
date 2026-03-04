@@ -41,7 +41,7 @@
  * ```
  */
 
-import { verifyCronAuth } from '@babylon/api';
+import { verifyCronAuth, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { automationPipeline, rulerScoringService } from '@babylon/training';
 import type { NextRequest } from 'next/server';
@@ -53,7 +53,7 @@ export const maxDuration = 300; // 5 minutes
 /**
  * Hourly training check and RULER scoring
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   // Security: Verify cron authorization
   if (!verifyCronAuth(request, { jobName: 'TrainingCheckCron' })) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -141,4 +141,4 @@ export async function GET(request: NextRequest) {
     duration: `${duration}ms`,
     ...results,
   });
-}
+});

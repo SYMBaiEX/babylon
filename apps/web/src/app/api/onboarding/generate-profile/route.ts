@@ -39,7 +39,7 @@
  * ```
  */
 
-import { successResponse } from '@babylon/api';
+import { successResponse, withErrorHandling } from '@babylon/api';
 import { BabylonLLMClient } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -63,7 +63,7 @@ interface ProfileData {
  * GET /api/onboarding/generate-profile
  * Generate AI profile data for onboarding
  */
-export async function GET(_request: NextRequest) {
+export const GET = withErrorHandling(async function GET(_request: NextRequest) {
   // Use game tick LLM client
   const llmClient = BabylonLLMClient.forGameTick();
 
@@ -165,4 +165,4 @@ Return your response as XML in this exact format:
   );
 
   return successResponse(profileData);
-}
+});

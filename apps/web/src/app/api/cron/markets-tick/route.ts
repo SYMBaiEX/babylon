@@ -40,6 +40,7 @@ import {
   recordCronExecution,
   relayCronToStaging,
   verifyCronAuth,
+  withErrorHandling,
 } from '@babylon/api';
 import {
   PredictionDbAdapter as CorePredictionDbAdapter,
@@ -421,9 +422,9 @@ function selectRelevantMediaOrg(
  * GET /api/cron/markets-tick
  * Alias for POST endpoint to support GET requests from cron services.
  */
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   return POST(req);
-}
+});
 
 /**
  * POST /api/cron/markets-tick
@@ -434,7 +435,7 @@ export async function GET(req: NextRequest) {
  * 3. Settle positions
  * 4. Create replacement markets
  */
-export async function POST(_req: NextRequest) {
+export const POST = withErrorHandling(async function POST(_req: NextRequest) {
   // Verify cron authorization
   if (!verifyCronAuth(_req, { jobName: 'MarketsTick' })) {
     logger.warn(
@@ -1173,7 +1174,7 @@ export async function POST(_req: NextRequest) {
     // Always release the global lock
     await DistributedLockService.releaseLock('markets-tick-global', processId);
   }
-}
+});
 
 /**
  * Get active markets grouped by GRANULAR timeframe (e.g., '15m', '30m', '1h')

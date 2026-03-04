@@ -53,7 +53,11 @@
  * ```
  */
 
-import { addPublicReadHeaders, publicRateLimit } from '@babylon/api';
+import {
+  addPublicReadHeaders,
+  publicRateLimit,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   and,
   db,
@@ -69,7 +73,7 @@ import { StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const { error, rateLimitInfo } = await publicRateLimit(request);
   if (error) return error;
 
@@ -181,4 +185,4 @@ export async function GET(request: NextRequest) {
   });
   if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
   return res;
-}
+});

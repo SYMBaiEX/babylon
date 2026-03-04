@@ -40,6 +40,7 @@
  * ```
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { calculatePortfolioBreakdown } from '@babylon/engine';
 import { ImageResponse } from 'next/og';
@@ -53,7 +54,7 @@ export const dynamic = 'force-dynamic';
 // Cache for 1 hour, revalidate in background
 export const revalidate = 3600;
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) {
@@ -286,4 +287,4 @@ export async function GET(
       height: 630,
     }
   );
-}
+});

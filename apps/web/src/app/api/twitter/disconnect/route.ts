@@ -39,13 +39,19 @@
  * ```
  */
 
-import { authenticate, requireUserByIdentifier } from '@babylon/api';
+import {
+  authenticate,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(
+  request: NextRequest
+) {
   const authUser = await authenticate(request);
   const user = await requireUserByIdentifier(authUser.userId, { id: true });
 
@@ -70,4 +76,4 @@ export async function POST(request: NextRequest) {
   );
 
   return NextResponse.json({ success: true });
-}
+});

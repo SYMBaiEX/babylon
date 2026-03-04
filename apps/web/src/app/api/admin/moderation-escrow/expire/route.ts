@@ -42,13 +42,13 @@
  * ```
  */
 
-import { requireAdmin } from '@babylon/api';
+import { requireAdmin, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   await requireAdmin(req);
 
   const now = new Date();
@@ -76,4 +76,4 @@ export async function POST(req: NextRequest) {
     success: true,
     expiredCount: expiredEscrows.count,
   });
-}
+});

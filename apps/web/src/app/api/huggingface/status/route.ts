@@ -35,11 +35,12 @@
  * ```
  */
 
+import { withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import { huggingFaceIntegration } from '@babylon/training';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   logger.info(
     'Fetching HuggingFace integration status',
     undefined,
@@ -75,4 +76,4 @@ export async function GET() {
     },
     nextScheduledRun: 'Sundays at 2 AM UTC',
   });
-}
+});

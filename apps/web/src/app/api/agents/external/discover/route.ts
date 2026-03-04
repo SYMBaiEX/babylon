@@ -11,7 +11,11 @@
 
 import type { AgentRegistration, TrustLevel } from '@babylon/agents';
 import { AgentStatus, AgentType, agentRegistry } from '@babylon/agents';
-import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from '@babylon/api';
+import {
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
+  withErrorHandling,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -79,7 +83,7 @@ async function authenticateRequest(
  *
  * Discover agents based on filters
  */
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async function GET(req: NextRequest) {
   // Authenticate the request
   const agent = await authenticateRequest(req);
 
@@ -235,14 +239,14 @@ export async function GET(req: NextRequest) {
     },
     filters: filter,
   });
-}
+});
 
 /**
  * POST /api/agents/external/discover
  *
  * Advanced discovery with complex filters (body-based)
  */
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async function POST(req: NextRequest) {
   // Authenticate the request
   const agent = await authenticateRequest(req);
 
@@ -355,4 +359,4 @@ export async function POST(req: NextRequest) {
     },
     filters: validatedBody,
   });
-}
+});

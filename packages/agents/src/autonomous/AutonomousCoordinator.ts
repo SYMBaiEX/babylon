@@ -35,6 +35,7 @@ import { logger } from '../shared/logger';
 // Import services
 import { autonomousPlanningCoordinator } from './AutonomousPlanningCoordinator';
 import { multiStepExecutor } from './MultiStepExecutor';
+import { priceAlertService } from './PriceAlertService';
 import { topicDiversityService } from './TopicDiversityService';
 
 export interface AutonomousTickResult {
@@ -151,6 +152,19 @@ export class AutonomousCoordinator {
     };
 
     try {
+      // Price alert pre-step: lightweight DB checks, no LLM calls
+      // Only for user-controlled agents (NPCs don't have price alert configs)
+      if (!isNpc) {
+        const alertsSent = await priceAlertService.checkAlerts(agentUserId);
+        if (alertsSent > 0) {
+          logger.info(
+            `[PriceAlert] ${alertsSent} alert(s) triggered for agent ${agentUserId}`,
+            { agentUserId, alertsSent },
+            'AutonomousCoordinator'
+          );
+        }
+      }
+
       // Check if agent has goals configured
       const hasGoals =
         (await db.agentGoal.count({

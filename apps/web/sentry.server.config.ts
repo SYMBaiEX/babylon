@@ -13,6 +13,12 @@
 
 import * as Sentry from '@sentry/nextjs';
 
+const sentryServerRelease =
+  process.env.SENTRY_RELEASE ??
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  process.env.NEXT_PUBLIC_SENTRY_RELEASE ??
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA;
+
 // Suppress noisy Sentry logger messages from Next.js integration
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
@@ -61,10 +67,14 @@ Sentry.init({
   dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Environment detection
-  environment: process.env.NODE_ENV || 'development',
+  environment:
+    process.env.SENTRY_ENVIRONMENT ??
+    process.env.VERCEL_ENV ??
+    process.env.NODE_ENV ??
+    'development',
 
   // Release tracking (set via environment variable or CI/CD)
-  release: process.env.SENTRY_RELEASE || process.env.NEXT_PUBLIC_SENTRY_RELEASE,
+  release: sentryServerRelease,
 
   // Debug mode disabled to suppress verbose logging
   debug: false,
