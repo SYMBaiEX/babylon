@@ -38,7 +38,9 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
     <div className="border-border border-b px-4 py-4">
       {/* Meta row */}
       <div className="mb-2 flex items-center gap-2 text-muted-foreground text-xs">
-        <span className="font-medium text-foreground/70">Prediction Market</span>
+        <span className="font-medium text-foreground/70">
+          Prediction Market
+        </span>
         {countdown && (
           <>
             <span>·</span>
@@ -59,7 +61,7 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
           <span className="w-8 text-right font-medium text-green-600 text-xs">
             YES
           </span>
-          <div className="flex-1 overflow-hidden rounded-full bg-muted h-2">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
             <div className="h-full w-1/2 rounded-full bg-green-500" />
           </div>
           <span className="w-8 text-muted-foreground text-xs">50%</span>
@@ -69,7 +71,7 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
           <span className="w-8 text-right font-medium text-red-500 text-xs">
             NO
           </span>
-          <div className="flex-1 overflow-hidden rounded-full bg-muted h-2">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
             <div className="h-full w-1/2 rounded-full bg-red-500" />
           </div>
           <span className="w-8 text-muted-foreground text-xs">50%</span>

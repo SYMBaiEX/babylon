@@ -79,7 +79,11 @@ function flattenStories(stories: NarrativeStory[]): FlatItem[] {
         }
       } else if (q.posts.length > 0) {
         const post = q.posts.shift()!;
-        items.push({ type: 'post', post, key: `${q.story.storyKey}:${post.id}` });
+        items.push({
+          type: 'post',
+          post,
+          key: `${q.story.storyKey}:${post.id}`,
+        });
         anyLeft = true;
       }
     }
