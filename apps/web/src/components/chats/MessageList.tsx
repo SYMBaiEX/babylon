@@ -9,8 +9,14 @@ import { Loader2, MessageCircle } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
+import { MessageContextMenu } from './MessageContextMenu';
 import { SystemMessage } from './SystemMessage';
-import type { ChatParticipant, Message, MessageType } from './types';
+import type {
+  ChatParticipant,
+  Message,
+  MessageType,
+  ReplyToMessage,
+} from './types';
 import { MessageTypeEnum } from './types';
 
 /**
@@ -58,6 +64,8 @@ interface MessageListProps {
   agentIds?: ReadonlySet<string>;
   /** Callback to open agent settings modal */
   onViewSettings?: (agentId: string) => void;
+  /** Callback when user wants to reply to a message */
+  onReply?: (message: Message) => void;
 }
 
 export function MessageList({
@@ -76,6 +84,7 @@ export function MessageList({
   compactActions = false,
   agentIds,
   onViewSettings,
+  onReply,
 }: MessageListProps) {
   // Extract usernames from participants for @mention formatting
   // Only usernames that exist in the chat will be formatted as mentions
@@ -97,6 +106,32 @@ export function MessageList({
     }
     return new Set(latest.values());
   }, [messages, agentIds, onViewSettings]);
+
+  // Build lookup map for resolving replyToMessage from local messages.
+  // Used as fallback when SSE messages arrive without the full reply snippet.
+  const replyLookup = useMemo(() => {
+    const map = new Map<string, ReplyToMessage>();
+    const participantMap = new Map(participants.map((p) => [p.id, p]));
+    for (const msg of messages) {
+      map.set(msg.id, {
+        id: msg.id,
+        content: msg.content,
+        senderId: msg.senderId,
+        senderName: participantMap.get(msg.senderId)?.displayName,
+      });
+    }
+    return map;
+  }, [messages, participants]);
+
+  /** Resolve the replyToMessage for a given message */
+  function resolveReplyTo(msg: Message): ReplyToMessage | null {
+    // Already has full reply data from API
+    if (msg.replyToMessage) return msg.replyToMessage;
+    // Try local lookup (for SSE messages or messages where the API didn't include the data)
+    if (msg.replyToMessageId)
+      return replyLookup.get(msg.replyToMessageId) ?? null;
+    return null;
+  }
 
   if (loading) {
     return (
@@ -134,6 +169,16 @@ export function MessageList({
     );
   }
 
+  /** Wraps a message bubble with context menu if onReply is provided */
+  function wrapWithContextMenu(msg: Message, bubble: React.ReactElement) {
+    if (!onReply || !authenticated) return bubble;
+    return (
+      <MessageContextMenu message={msg} onReply={onReply}>
+        {bubble}
+      </MessageContextMenu>
+    );
+  }
+
   return (
     <>
       {/* Gradient overlay to hint more messages */}
@@ -161,6 +206,11 @@ export function MessageList({
         const messageType = getMessageType(msg);
         // Use stableKey if available to prevent flash when optimistic messages are confirmed
         const key = msg.stableKey || msg.id;
+        // Resolve reply data (from API or local lookup)
+        const resolvedReplyTo = resolveReplyTo(msg);
+        const enrichedMsg = resolvedReplyTo
+          ? { ...msg, replyToMessage: resolvedReplyTo }
+          : msg;
 
         switch (messageType) {
           case MessageTypeEnum.SYSTEM:
@@ -175,18 +225,24 @@ export function MessageList({
               profileImageUrl: COORDINATOR_INFO.profileImageUrl,
             };
             return (
-              <MessageBubble
-                key={key}
-                message={msg}
-                sender={coordinatorSender}
-                isCurrentUser={false}
-                validMentions={validMentions}
-                isThinking={msg.isThinking}
-                density={density}
-                onTagClick={onTagClick}
-                onToggleReaction={authenticated ? onToggleReaction : undefined}
-                compactActions={compactActions}
-              />
+              <React.Fragment key={key}>
+                {wrapWithContextMenu(
+                  enrichedMsg,
+                  <MessageBubble
+                    message={enrichedMsg}
+                    sender={coordinatorSender}
+                    isCurrentUser={false}
+                    validMentions={validMentions}
+                    isThinking={msg.isThinking}
+                    density={density}
+                    onTagClick={onTagClick}
+                    onToggleReaction={
+                      authenticated ? onToggleReaction : undefined
+                    }
+                    compactActions={compactActions}
+                  />
+                )}
+              </React.Fragment>
             );
           }
 
@@ -202,19 +258,25 @@ export function MessageList({
                 : undefined;
 
             return (
-              <MessageBubble
-                key={key}
-                message={msg}
-                sender={sender}
-                isCurrentUser={isCurrentUser}
-                validMentions={validMentions}
-                isThinking={msg.isThinking}
-                density={density}
-                onTagClick={onTagClick}
-                onToggleReaction={authenticated ? onToggleReaction : undefined}
-                compactActions={compactActions}
-                onViewSettings={showSettings}
-              />
+              <React.Fragment key={key}>
+                {wrapWithContextMenu(
+                  enrichedMsg,
+                  <MessageBubble
+                    message={enrichedMsg}
+                    sender={sender}
+                    isCurrentUser={isCurrentUser}
+                    validMentions={validMentions}
+                    isThinking={msg.isThinking}
+                    density={density}
+                    onTagClick={onTagClick}
+                    onToggleReaction={
+                      authenticated ? onToggleReaction : undefined
+                    }
+                    compactActions={compactActions}
+                    onViewSettings={showSettings}
+                  />
+                )}
+              </React.Fragment>
             );
           }
         }
