@@ -47,6 +47,9 @@ Unexpected server errors are captured.
   - `SENTRY_ORG`, `SENTRY_PROJECT`
   - Recommended: `SENTRY_RELEASE`, `NEXT_PUBLIC_SENTRY_RELEASE`
   - If release env vars are not set, runtime fallback uses Vercel commit SHA (`VERCEL_GIT_COMMIT_SHA` / `NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA`)
+- Webhook ingestion (optional, for autonomous incident workers):
+  - `SENTRY_WEBHOOK_SECRET` (required when enabling `/api/sentry/webhook`)
+  - Optional: `SENTRY_WEBHOOK_MAX_TIMESTAMP_SKEW_SECONDS` (default `300`)
 
 ## Known gaps / follow-up
 

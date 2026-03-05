@@ -50,4 +50,5 @@ export {
   withNPCLock,
   withQuestionLock,
 } from './resource-locks';
+export * from './sentry-webhook-inbox-service';
 export * from './waitlist-service';

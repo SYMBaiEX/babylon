@@ -7,6 +7,15 @@ export const realtimeOutboxStatusEnum = pgEnum('RealtimeOutboxStatus', [
   'failed',
 ]);
 
+// Sentry Webhook Inbox Status
+export const sentryWebhookInboxStatusEnum = pgEnum('SentryWebhookInboxStatus', [
+  'pending',
+  'processing',
+  'processed',
+  'failed',
+  'dead',
+]);
+
 // Onboarding Status
 export const onboardingStatusEnum = pgEnum('OnboardingStatus', [
   'PENDING_PROFILE',
