@@ -138,9 +138,10 @@ describe('flattenStories', () => {
 
     const marketItems = items.filter((i) => i.type === 'market');
     expect(marketItems.length).toBe(1);
-    expect(
-      marketItems[0]!.type === 'market' && marketItems[0].story.storyKey
-    ).toBe('market:1');
+    const firstMarket = marketItems[0]!;
+    expect(firstMarket.type === 'market' && firstMarket.story.storyKey).toBe(
+      'market:1'
+    );
   });
 
   it('does not emit the same market card twice', () => {
@@ -161,6 +162,15 @@ describe('flattenStories', () => {
     expect(items.length).toBe(11);
     expect(items.filter((i) => i.key.startsWith('short:')).length).toBe(1);
     expect(items.filter((i) => i.key.startsWith('long:')).length).toBe(10);
+  });
+
+  it('includes story reference in post items', () => {
+    const story = makeStory('A', 2);
+    const items = flattenStories([story]);
+    expect(items[0]!.type).toBe('post');
+    if (items[0]!.type === 'post') {
+      expect(items[0]!.story).toBe(story);
+    }
   });
 });
 

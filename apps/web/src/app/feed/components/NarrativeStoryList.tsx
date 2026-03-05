@@ -13,7 +13,6 @@ import {
 } from '@/app/feed/utils/postMappers';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
-import { NarrativePredictionChart } from './NarrativePredictionChart';
 import { NewMarketCard } from './NewMarketCard';
 
 const PAGE_SIZE = 20;
@@ -94,7 +93,9 @@ export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
                   showCommentInputBar={false}
                   onCommentClick={() => router.push(`/post/${post.id}`)}
                 />
-                {marketId && <NarrativePredictionChart marketId={marketId} />}
+                {marketId && item.story && (
+                  <NewMarketCard story={item.story} embedded />
+                )}
               </>
             )}
           </div>

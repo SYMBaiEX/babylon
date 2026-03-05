@@ -13,6 +13,13 @@ import type { MarketTimeRange, PredictionMarket } from '@/types/markets';
 
 interface NewMarketCardProps {
   story: NarrativeStory;
+  /**
+   * When true, the card is rendered inline below a PostCard inside an existing
+   * bordered list item. Uses border-t (top separator) instead of border-b so
+   * the outer wrapper's border-b acts as the item divider and we don't produce
+   * a double bottom border.
+   */
+  embedded?: boolean;
 }
 
 type TradeSide = 'YES' | 'NO';
@@ -87,7 +94,10 @@ function MarketChart({
   });
 
   return (
-    <div ref={wrapperRef} className="w-full">
+    // Constrain height so PredictionProbabilityChart (height="fill") fits
+    // the feed card without the 400px overflow from height="fixed".
+    // The terminal uses the same fill+constrained-parent pattern.
+    <div ref={wrapperRef} className="h-[160px] w-full">
       {inView ? (
         <PredictionProbabilityChart
           data={history}
@@ -95,10 +105,10 @@ function MarketChart({
           timeRange={timeRange}
           onTimeRangeChange={setTimeRange}
           showHeader={false}
-          height="fixed"
+          height="fill"
         />
       ) : (
-        <div className="h-[160px] w-full animate-pulse rounded bg-muted/40" />
+        <div className="h-full w-full animate-pulse rounded bg-muted/40" />
       )}
     </div>
   );
@@ -111,7 +121,7 @@ function MarketChart({
  * PredictionTradingModal) so users can trade directly from the feed without
  * navigating away. Falls back to navigation links when no marketId is available.
  */
-export function NewMarketCard({ story }: NewMarketCardProps) {
+export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
   const router = useRouter();
   const [tradeSide, setTradeSide] = useState<TradeSide | null>(null);
 
@@ -144,7 +154,7 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
     : '/markets?tab=predictions';
 
   return (
-    <div className="border-border border-b px-4 py-4">
+    <div className={`border-border px-4 py-4 ${embedded ? 'border-t' : 'border-b'}`}>
       {/* Header row: label + countdown */}
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
