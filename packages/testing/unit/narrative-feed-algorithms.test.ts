@@ -138,8 +138,9 @@ describe('flattenStories', () => {
 
     const marketItems = items.filter((i) => i.type === 'market');
     expect(marketItems.length).toBe(1);
+    const firstMarket = marketItems[0]!;
     expect(
-      marketItems[0]!.type === 'market' && marketItems[0].story.storyKey
+      firstMarket.type === 'market' && firstMarket.story.storyKey
     ).toBe('market:1');
   });
 

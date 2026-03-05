@@ -23,6 +23,7 @@ import {
   lt,
   markets,
   questions,
+  sql,
 } from '@babylon/db';
 import type { ArcStateType } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
