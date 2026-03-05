@@ -16,6 +16,8 @@ import {
   type MentionableAgent,
   useMentionAutocomplete,
 } from './MentionAutocomplete';
+import { ReplyPreview } from './ReplyPreview';
+import type { ReplyToMessage } from './types';
 
 const MAX_TEXTAREA_HEIGHT = 160;
 
@@ -189,6 +191,10 @@ export interface MessageInputProps {
   mentionableMembers?: MentionableAgent[];
   /** Called when the input is focused (e.g. to scroll chat to bottom on mobile keyboard open) */
   onInputFocus?: () => void;
+  /** Message being replied to — shows reply preview above input */
+  replyToMessage?: ReplyToMessage | null;
+  /** Called when reply is dismissed */
+  onDismissReply?: () => void;
 }
 
 /**
@@ -208,6 +214,8 @@ export function MessageInput({
   placeholder,
   mentionableMembers,
   onInputFocus,
+  replyToMessage,
+  onDismissReply,
 }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -501,6 +509,13 @@ export function MessageInput({
   const hasContent = value.trim().length > 0;
   const canSend = hasContent && !sending && !disabled;
 
+  // Auto-focus textarea when reply is set
+  useEffect(() => {
+    if (replyToMessage) {
+      textareaRef.current?.focus();
+    }
+  }, [replyToMessage]);
+
   if (!authenticated) {
     return (
       <div className={cn('bg-background', compact ? 'px-3 py-2' : 'px-4 py-3')}>
@@ -515,7 +530,18 @@ export function MessageInput({
   }
 
   return (
-    <div ref={containerRef} className={cn(compact ? 'p-3' : 'p-4')}>
+    <div
+      ref={containerRef}
+      className={cn(compact ? 'px-3 pt-0 pb-3' : 'px-4 pt-0 pb-4')}
+    >
+      {/* Reply preview banner */}
+      {replyToMessage && onDismissReply && (
+        <ReplyPreview
+          replyToMessage={replyToMessage}
+          onDismiss={onDismissReply}
+          density={density}
+        />
+      )}
       {/* Composer shell */}
       <div
         className={cn(
