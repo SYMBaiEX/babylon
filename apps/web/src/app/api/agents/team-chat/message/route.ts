@@ -52,7 +52,7 @@ import {
   RATE_LIMIT_CONFIGS,
   withErrorHandling,
 } from '@babylon/api';
-import { db, generateSnowflakeId, messages } from '@babylon/db';
+import { and, db, eq, generateSnowflakeId, messages, users } from '@babylon/db';
 import { COORDINATOR_SENDER_ID, logger } from '@babylon/shared';
 import { generateText } from 'ai';
 import type { NextRequest } from 'next/server';
@@ -169,6 +169,8 @@ const messageSchema = z.object({
   // - Array of agent IDs when @mentioning agents
   // - Empty array or undefined = coordinator (no @mentions)
   targetIds: z.array(z.string()).optional(),
+  // Reply to a specific message (Telegram/Discord-style)
+  replyToMessageId: z.string().min(1).optional(),
 });
 
 export const POST = withErrorHandling(async function POST(req: NextRequest) {
@@ -210,7 +212,11 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     );
   }
 
-  const { content, targetIds: providedTargetIds } = parseResult.data;
+  const {
+    content,
+    targetIds: providedTargetIds,
+    replyToMessageId,
+  } = parseResult.data;
 
   // Get user's team chat
   const teamChat = await teamChatService.getTeamChat(user.id);
@@ -245,6 +251,7 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     type: 'user',
     createdAt: now,
     targetIds,
+    replyToMessageId: replyToMessageId ?? null,
   });
 
   logger.info(
@@ -252,6 +259,46 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     { chatId: teamChat.chatId, messageId },
     'TeamChatMessageAPI'
   );
+
+  // Look up replied-to message for broadcast
+  let replyToMessage: {
+    id: string;
+    content: string;
+    senderId: string;
+    senderName?: string;
+  } | null = null;
+
+  if (replyToMessageId) {
+    const [replyMsg] = await db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        senderId: messages.senderId,
+      })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.id, replyToMessageId),
+          eq(messages.chatId, teamChat.chatId)
+        )
+      )
+      .limit(1);
+
+    if (replyMsg) {
+      const [replySender] = await db
+        .select({ displayName: users.displayName })
+        .from(users)
+        .where(eq(users.id, replyMsg.senderId))
+        .limit(1);
+
+      replyToMessage = {
+        id: replyMsg.id,
+        content: replyMsg.content.slice(0, 200),
+        senderId: replyMsg.senderId,
+        senderName: replySender?.displayName ?? undefined,
+      };
+    }
+  }
 
   // Broadcast the message via SSE
   await broadcastChatMessage(teamChat.chatId, {
@@ -263,6 +310,8 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     createdAt: now.toISOString(),
     isGameChat: false,
     isDMChat: false,
+    replyToMessageId: replyToMessageId ?? undefined,
+    replyToMessage,
   });
 
   // Generate chat title on first message

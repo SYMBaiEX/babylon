@@ -112,6 +112,7 @@ import {
   eq,
   groupMembers,
   hasBlocked,
+  messages,
   users,
 } from '@babylon/db';
 import {
@@ -151,7 +152,7 @@ export const POST = withErrorHandling(
 
     // 2. Validate request body
     const body = await request.json();
-    const { content } = ChatMessageCreateSchema.parse(body);
+    const { content, replyToMessageId } = ChatMessageCreateSchema.parse(body);
 
     // 3. Apply rate limiting and duplicate detection
     const rateLimitError = checkRateLimitAndDuplicates(
@@ -458,6 +459,7 @@ export const POST = withErrorHandling(
             chatId,
             senderId: user.userId,
             createdAt: new Date(),
+            replyToMessageId: replyToMessageId ?? null,
           },
         });
 
@@ -492,7 +494,44 @@ export const POST = withErrorHandling(
       membership = result.membership;
     }
 
-    // 10. Broadcast message via SSE (await for reliability)
+    // 10. Look up replied-to message for broadcast (if replying)
+    let replyToMessage: {
+      id: string;
+      content: string;
+      senderId: string;
+      senderName?: string;
+    } | null = null;
+
+    if (replyToMessageId && !isGameChat) {
+      const [replyMsg] = await db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          senderId: messages.senderId,
+        })
+        .from(messages)
+        .where(
+          and(eq(messages.id, replyToMessageId), eq(messages.chatId, chatId))
+        )
+        .limit(1);
+
+      if (replyMsg) {
+        const [replySender] = await db
+          .select({ displayName: users.displayName })
+          .from(users)
+          .where(eq(users.id, replyMsg.senderId))
+          .limit(1);
+
+        replyToMessage = {
+          id: replyMsg.id,
+          content: replyMsg.content.slice(0, 200),
+          senderId: replyMsg.senderId,
+          senderName: replySender?.displayName ?? undefined,
+        };
+      }
+    }
+
+    // 11. Broadcast message via SSE (await for reliability)
     await broadcastChatMessage(chatId, {
       id: message.id,
       content: message.content,
@@ -502,6 +541,8 @@ export const POST = withErrorHandling(
       createdAt: message.createdAt.toISOString(),
       isGameChat,
       isDMChat,
+      replyToMessageId: replyToMessageId ?? undefined,
+      replyToMessage,
     });
 
     // 11. Send notifications to other participants

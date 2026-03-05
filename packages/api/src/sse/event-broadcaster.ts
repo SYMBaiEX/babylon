@@ -86,6 +86,13 @@ export async function broadcastChatMessage(
     isGameChat?: boolean;
     isDMChat?: boolean;
     metadata?: MessageMetadata | null;
+    replyToMessageId?: string | null;
+    replyToMessage?: {
+      id: string;
+      content: string;
+      senderId: string;
+      senderName?: string;
+    } | null;
   }
 ): Promise<void> {
   logger.info(
