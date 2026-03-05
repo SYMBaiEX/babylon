@@ -115,6 +115,9 @@ export const messages = pgTable(
     // Metadata for action tags (displayed as clickable buttons on messages)
     // Contains tags from actions like CHECK_PERPS, CHECK_PREDICTIONS, etc.
     metadata: jsonb('metadata').$type<MessageMetadata>(),
+    // Reply-to-message: references another message in the same chat (Telegram/Discord-style replies)
+    // Nullable — most messages are not replies. No FK constraint so deleted messages don't break replies.
+    replyToMessageId: text('replyToMessageId'),
   },
   (table) => [
     index('Message_chatId_createdAt_idx').on(table.chatId, table.createdAt),
@@ -123,6 +126,7 @@ export const messages = pgTable(
     // GIN index for efficient array containment queries (@>, <@, &&)
     // Must match the migration (0030_add_message_target_ids.sql)
     index('Message_targetIds_idx').using('gin', table.targetIds),
+    index('Message_replyToMessageId_idx').on(table.replyToMessageId),
   ]
 );
 

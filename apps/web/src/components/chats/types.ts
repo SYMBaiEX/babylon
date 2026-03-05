@@ -36,6 +36,13 @@ export interface Chat {
   };
 }
 
+export interface ReplyToMessage {
+  id: string;
+  content: string;
+  senderId: string;
+  senderName?: string;
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -50,6 +57,10 @@ export interface Message {
   metadata?: MessageMetadata | null;
   /** Aggregated emoji reactions summary (counts + whether current user reacted). */
   reactions?: MessageReactionSummary[];
+  /** ID of the message this is replying to (Telegram/Discord-style reply) */
+  replyToMessageId?: string | null;
+  /** Denormalized snippet of the replied-to message for inline display */
+  replyToMessage?: ReplyToMessage | null;
 }
 
 export interface MessageReactionSummary {
