@@ -84,6 +84,11 @@ export default function ChatsPage() {
     topSentinelRef,
     setRefs,
 
+    // Reply
+    replyToMessage,
+    handleReplyToMessage,
+    clearReplyToMessage,
+
     // Actions
     sendMessage,
     toggleReaction,
@@ -204,6 +209,9 @@ export default function ChatsPage() {
                 onManageGroup={handleManageGroup}
                 onMessageChange={setMessageInput}
                 onSendMessage={sendMessage}
+                replyToMessage={replyToMessage}
+                onReply={handleReplyToMessage}
+                onDismissReply={clearReplyToMessage}
               />
             )}
           </div>

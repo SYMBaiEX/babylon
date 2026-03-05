@@ -5,6 +5,7 @@ import {
   type MessageReactionSummary,
   type MessageType,
   MessageTypeEnum,
+  type ReplyToMessage,
 } from '@/components/chats/types';
 import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import { useAuthStore } from '@/stores/authStore';
@@ -30,6 +31,10 @@ export interface ChatMessage {
   metadata?: MessageMetadata | null;
   /** Aggregated emoji reactions summary (counts + whether current user reacted). */
   reactions?: MessageReactionSummary[];
+  /** ID of the message this is replying to */
+  replyToMessageId?: string | null;
+  /** Denormalized snippet of the replied-to message */
+  replyToMessage?: ReplyToMessage | null;
 }
 
 /** Raw message from API (createdAt may be string or Date) */
@@ -41,6 +46,8 @@ interface RawApiMessage {
   createdAt: string | Date;
   metadata?: MessageMetadata | null;
   reactions?: MessageReactionSummary[];
+  replyToMessageId?: string | null;
+  replyToMessage?: ReplyToMessage | null;
 }
 
 /** Format raw API message to ChatMessage */
@@ -57,6 +64,8 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
         : msg.createdAt.toISOString(),
     metadata: msg.metadata,
     reactions: msg.reactions,
+    replyToMessageId: msg.replyToMessageId,
+    replyToMessage: msg.replyToMessage,
   };
 }
 
@@ -369,6 +378,11 @@ export function useChatMessages(chatId: string | null) {
           reactions: Array.isArray(m.reactions)
             ? (m.reactions as MessageReactionSummary[])
             : undefined,
+          replyToMessageId:
+            typeof m.replyToMessageId === 'string'
+              ? m.replyToMessageId
+              : undefined,
+          replyToMessage: m.replyToMessage as ReplyToMessage | null | undefined,
         };
 
         setIsLoading(false);
