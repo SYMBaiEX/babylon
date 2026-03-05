@@ -2,15 +2,24 @@
 
 import { CheckCircle, ExternalLink, XCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
+import type { NarrativeStory } from '@/app/feed/types/narrative';
+import { InteractionBar } from '@/components/interactions/InteractionBar';
+import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import { PredictionTradingModal } from '@/components/markets/PredictionTradingModal';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
-import type { PredictionMarket } from '@/types/markets';
-import type { NarrativeStory } from '@/app/feed/types/narrative';
+import type { MarketTimeRange, PredictionMarket } from '@/types/markets';
 
 interface NewMarketCardProps {
   story: NarrativeStory;
+  /**
+   * When true, the card is rendered inline below a PostCard inside an existing
+   * bordered list item. Uses border-t (top separator) instead of border-b so
+   * the outer wrapper's border-b acts as the item divider and we don't produce
+   * a double bottom border.
+   */
+  embedded?: boolean;
 }
 
 type TradeSide = 'YES' | 'NO';
@@ -39,14 +48,26 @@ function computePercentages(
 }
 
 /**
- * Lazy-loading probability chart for market cards in the feed.
- * Only fetches price history once scrolled into view to avoid 429 cascades.
+ * Prediction probability chart for market cards in the feed.
+ *
+ * Uses the same PredictionProbabilityChart as the markets terminal so the
+ * visual language is consistent. Lazy-loads history via IntersectionObserver
+ * to prevent 429 cascades, and passes seed data from the market's live share
+ * counts so brand-new markets (no API history yet) show a flat line at the
+ * current probability instead of a black placeholder.
  */
-function MarketChart({ marketId }: { marketId: string }) {
+function MarketChart({
+  marketId,
+  yesShares,
+  noShares,
+}: {
+  marketId: string;
+  yesShares: number;
+  noShares: number;
+}) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
-  const [chartWidth, setChartWidth] = useState(300);
+  const [timeRange, setTimeRange] = useState<MarketTimeRange>('1H');
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -64,28 +85,30 @@ function MarketChart({ marketId }: { marketId: string }) {
     return () => io.disconnect();
   }, []);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || !inView) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w) setChartWidth(Math.floor(w));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [inView]);
-
-  const { history } = usePredictionHistory(inView ? marketId : '', { limit: 60 });
+  const { history } = usePredictionHistory(inView ? marketId : '', {
+    limit: 200,
+    range: timeRange,
+    // Seed ensures brand-new markets (no API history) show a flat probability
+    // line rather than a black placeholder — same pattern as the terminal.
+    seed: { yesShares, noShares },
+  });
 
   return (
-    <div ref={wrapperRef} className="w-full">
-      {inView && history.length > 0 ? (
-        <div ref={containerRef} className="w-full">
-          <PredictionSparkline data={history} width={chartWidth} height={72} />
-        </div>
+    // Constrain height so PredictionProbabilityChart (height="fill") fits
+    // the feed card without the 400px overflow from height="fixed".
+    // The terminal uses the same fill+constrained-parent pattern.
+    <div ref={wrapperRef} className="h-[160px] w-full">
+      {inView ? (
+        <PredictionProbabilityChart
+          data={history}
+          marketId={marketId}
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          showHeader={false}
+          height="fill"
+        />
       ) : (
-        // Placeholder maintains layout height while loading
-        <div className="h-[72px] w-full animate-pulse rounded bg-muted/40" />
+        <div className="h-full w-full animate-pulse rounded bg-muted/40" />
       )}
     </div>
   );
@@ -98,7 +121,8 @@ function MarketChart({ marketId }: { marketId: string }) {
  * PredictionTradingModal) so users can trade directly from the feed without
  * navigating away. Falls back to navigation links when no marketId is available.
  */
-export function NewMarketCard({ story }: NewMarketCardProps) {
+export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
+  const router = useRouter();
   const [tradeSide, setTradeSide] = useState<TradeSide | null>(null);
 
   const countdown = story.resolutionDate
@@ -130,10 +154,10 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
     : '/markets?tab=predictions';
 
   return (
-    <div className="border-border border-b px-4 py-4">
+    <div className={`border-border px-4 py-4 ${embedded ? 'border-t' : 'border-b'}`}>
       {/* Header row: label + countdown */}
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+        <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
           Prediction Market
         </span>
         {countdown && (
@@ -149,7 +173,11 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
       {/* Probability chart — only rendered when marketId is available */}
       {story.marketId && (
         <div className="mb-3 overflow-hidden rounded-md border border-border bg-muted/20">
-          <MarketChart marketId={story.marketId} />
+          <MarketChart
+            marketId={story.marketId}
+            yesShares={story.yesShares ?? 0}
+            noShares={story.noShares ?? 0}
+          />
         </div>
       )}
 
@@ -231,6 +259,29 @@ export function NewMarketCard({ story }: NewMarketCardProps) {
           <ExternalLink size={15} />
         </Link>
       </div>
+
+      {/* Social interaction bar — anchored to the NPC post ID so the card
+          is likeable, commentable, and shareable like any regular post.
+          Only rendered when anchorPostId is available. */}
+      {story.anchorPostId && (
+        <div
+          className="mt-3 border-border border-t pt-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <InteractionBar
+            postId={story.anchorPostId}
+            initialInteractions={{
+              postId: story.anchorPostId,
+              likeCount: 0,
+              commentCount: 0,
+              shareCount: 0,
+              isLiked: false,
+              isShared: false,
+            }}
+            onCommentClick={() => router.push(`/post/${story.anchorPostId}`)}
+          />
+        </div>
+      )}
 
       {/* PredictionTradingModal — same pattern as agents panel */}
       {market && tradeSide && (

@@ -52,6 +52,14 @@ export interface NarrativePost {
   isLiked: boolean;
   isShared: boolean;
   relatedQuestion: number | null;
+  /**
+   * Content-type classification derived from StaticDataRegistry lookups in the
+   * narrative route. Used by applySlotPattern() to enforce feed diversity:
+   * - 'actor': individual NPC personality (e.g. Tim PAIl, Ben HorowAItz)
+   * - 'news': news/media org NPC (e.g. AIxios, ForbesAI, WAIred)
+   * - 'user': real platform user
+   */
+  authorType?: 'actor' | 'news' | 'user';
   // Repost fields — mirrors the shape PostCard expects
   isRepost?: boolean;
   isQuote?: boolean;
@@ -96,4 +104,10 @@ export interface NarrativeStory {
   yesShares?: number;
   /** Live NO share count from the markets table (0 = new market at 50% parity) */
   noShares?: number;
+  /**
+   * ID of an NPC post about this market, used to anchor InteractionBar
+   * (like/comment/share) on NewMarketCard. Set when a matching NPC post exists
+   * but is filtered from the feed to avoid duplication with the card itself.
+   */
+  anchorPostId?: string | null;
 }

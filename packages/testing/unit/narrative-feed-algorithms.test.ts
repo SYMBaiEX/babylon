@@ -17,6 +17,7 @@ import type { NarrativePost, NarrativeStory } from '@babylon/shared';
 
 // Import the real implementations (not copies)
 import {
+  applySlotPattern,
   BURST_LEAD,
   BURST_SIZE,
   flattenStories,
@@ -25,7 +26,10 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function makePost(id: string): NarrativePost {
+function makePost(
+  id: string,
+  overrides?: Partial<NarrativePost>
+): NarrativePost {
   return {
     id,
     content: `Post ${id}`,
@@ -45,6 +49,7 @@ function makePost(id: string): NarrativePost {
     isLiked: false,
     isShared: false,
     relatedQuestion: null,
+    ...overrides,
   };
 }
 
@@ -133,9 +138,10 @@ describe('flattenStories', () => {
 
     const marketItems = items.filter((i) => i.type === 'market');
     expect(marketItems.length).toBe(1);
-    expect(
-      marketItems[0]!.type === 'market' && marketItems[0].story.storyKey
-    ).toBe('market:1');
+    const firstMarket = marketItems[0]!;
+    expect(firstMarket.type === 'market' && firstMarket.story.storyKey).toBe(
+      'market:1'
+    );
   });
 
   it('does not emit the same market card twice', () => {
@@ -156,6 +162,15 @@ describe('flattenStories', () => {
     expect(items.length).toBe(11);
     expect(items.filter((i) => i.key.startsWith('short:')).length).toBe(1);
     expect(items.filter((i) => i.key.startsWith('long:')).length).toBe(10);
+  });
+
+  it('includes story reference in post items', () => {
+    const story = makeStory('A', 2);
+    const items = flattenStories([story]);
+    expect(items[0]!.type).toBe('post');
+    if (items[0]!.type === 'post') {
+      expect(items[0]!.story).toBe(story);
+    }
   });
 });
 
@@ -240,5 +255,152 @@ describe('mergeChronologically', () => {
     const ts = t(10);
     const result = mergeChronologically([post(ts)], [market(ts)]);
     expect(result.length).toBe(2);
+  });
+});
+
+// ─── applySlotPattern ─────────────────────────────────────────────────────────
+
+describe('applySlotPattern', () => {
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  /** Actor NPC post (individual personality) */
+  const actorPost = (id: string, authorId = `actor-${id}`) =>
+    makePost(id, { authorId, authorType: 'actor' });
+
+  /** News org post (media NPC) */
+  const newsPost = (id: string, authorId = `org-${id}`) =>
+    makePost(id, { authorId, authorType: 'news' });
+
+  /** Article type post (also classified as news by fallback) */
+  const articlePost = (id: string) =>
+    makePost(id, { type: 'article', authorType: 'user' });
+
+  /** New market FlatItem */
+  const marketItem = (
+    key: string
+  ): ReturnType<typeof applySlotPattern>[number] => ({
+    type: 'market',
+    key,
+    story: {
+      storyKey: key,
+      storyTitle: `Market ${key}`,
+      questionNumber: 1,
+      arcState: null,
+      storyScore: 1,
+      postCount: 0,
+      posts: [],
+      hasUserPosition: false,
+      isNewMarket: true,
+    },
+  });
+
+  /** Actor FlatItem */
+  const actorItem = (
+    id: string,
+    authorId?: string
+  ): ReturnType<typeof applySlotPattern>[number] => ({
+    type: 'post',
+    key: `story:${id}`,
+    post: actorPost(id, authorId),
+    marketId: null,
+  });
+
+  /** News FlatItem */
+  const newsItem = (
+    id: string,
+    authorId?: string
+  ): ReturnType<typeof applySlotPattern>[number] => ({
+    type: 'post',
+    key: `story:${id}`,
+    post: newsPost(id, authorId),
+    marketId: null,
+  });
+
+  // ── tests ─────────────────────────────────────────────────────────────────
+
+  it('enforces [actor, actor, news, market] pattern with full buckets', () => {
+    const items = [
+      actorItem('a1'),
+      actorItem('a2'),
+      actorItem('a3'),
+      actorItem('a4'),
+      newsItem('n1'),
+      newsItem('n2'),
+      marketItem('m1'),
+      marketItem('m2'),
+    ];
+    const result = applySlotPattern(items);
+    expect(result[0]!.type).toBe('post'); // actor slot
+    expect(result[1]!.type).toBe('post'); // actor slot
+    expect(result[2]!.type).toBe('post'); // news slot
+    expect(result[3]!.type).toBe('market'); // market slot
+    expect(result[4]!.type).toBe('post'); // actor slot (second cycle)
+    expect(result.length).toBe(8);
+  });
+
+  it('classifies article-type posts as news even without authorType', () => {
+    const articleItem = (): ReturnType<typeof applySlotPattern>[number] => ({
+      type: 'post',
+      key: 'article:1',
+      post: articlePost('art1'),
+      marketId: null,
+    });
+    const items = [
+      actorItem('a1'),
+      actorItem('a2'),
+      articleItem(),
+      marketItem('m1'),
+    ];
+    const result = applySlotPattern(items);
+    // Third slot should be news (article)
+    expect(result[2]).toMatchObject({ type: 'post' });
+    expect((result[2] as { post: NarrativePost }).post.type).toBe('article');
+  });
+
+  it('falls back to available content when a bucket is empty', () => {
+    // Only actor posts, no news or markets
+    const items = [actorItem('a1'), actorItem('a2'), actorItem('a3')];
+    const result = applySlotPattern(items);
+    // All should still be emitted despite no news/market slots to fill
+    expect(result.length).toBe(3);
+    expect(result.every((i) => i.type === 'post')).toBe(true);
+  });
+
+  it('prevents two consecutive posts from the same author', () => {
+    // Two actor posts from the same author followed by one from a different author
+    const sameAuthor = 'actor-same';
+    const items = [
+      actorItem('a1', sameAuthor),
+      actorItem('a2', sameAuthor),
+      actorItem('a3', 'actor-other'),
+      newsItem('n1'),
+      marketItem('m1'),
+    ];
+    const result = applySlotPattern(items);
+    // First two actor slots should not both be from sameAuthor
+    const firstActorId =
+      result[0]!.type === 'post' ? result[0]!.post.authorId : null;
+    const secondActorId =
+      result[1]!.type === 'post' ? result[1]!.post.authorId : null;
+    expect(firstActorId).not.toBe(secondActorId);
+  });
+
+  it('preserves all items with no duplicates or losses', () => {
+    const items = [
+      actorItem('a1'),
+      actorItem('a2'),
+      newsItem('n1'),
+      marketItem('m1'),
+      actorItem('a3'),
+      newsItem('n2'),
+    ];
+    const result = applySlotPattern(items);
+    expect(result.length).toBe(items.length);
+    const keys = result.map((i) => i.key);
+    expect(new Set(keys).size).toBe(keys.length); // no duplicates
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(applySlotPattern([])).toEqual([]);
   });
 });

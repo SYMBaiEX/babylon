@@ -11,19 +11,25 @@ import type { NewMarketEntry } from '@/app/api/feed/new-markets/route';
 // ─── flattenStories ───────────────────────────────────────────────────────────
 
 export type FlatItem =
-  | { type: 'post'; post: NarrativePost; key: string; marketId: string | null }
+  | {
+      type: 'post';
+      post: NarrativePost;
+      key: string;
+      marketId: string | null;
+      story?: NarrativeStory;
+    }
   | { type: 'market'; story: NarrativeStory; key: string };
 
 /**
  * How many consecutive posts to show from a story before rotating to the next.
  *
- * A burst of BURST_SIZE gives users enough context to decide if they're
- * interested in a topic before the feed rotates to fresh content.
+ * Reduced to 2 (from 3) so a single news org can't emit three back-to-back
+ * posts before the rotation switches to a different story/source.
  * The top-scored story gets BURST_LEAD posts on its first appearance so the
  * highest-signal content surfaces clearly at the top.
  */
-export const BURST_SIZE = 3;
-export const BURST_LEAD = 4;
+export const BURST_SIZE = 2;
+export const BURST_LEAD = 3;
 
 /**
  * Flatten scored stories into an interleaved burst list.
@@ -82,6 +88,7 @@ export function flattenStories(stories: NarrativeStory[]): FlatItem[] {
           post,
           key: `${q.story.storyKey}:${post.id}`,
           marketId: q.story.marketId ?? null,
+          story: q.story,
         });
         took++;
       }
@@ -104,6 +111,93 @@ export function flattenStories(stories: NarrativeStory[]): FlatItem[] {
   }
 
   return items;
+}
+
+// ─── applySlotPattern ─────────────────────────────────────────────────────────
+
+/**
+ * Repeating slot pattern for the Stories feed.
+ *
+ * [actor, actor, news, market] produces roughly:
+ *   50% actor/user posts (individual NPC personalities + real users)
+ *   25% news posts (org NPC media posts + articles)
+ *   25% market cards (newly opened prediction markets)
+ *
+ * When a bucket runs dry, the next available bucket fills the slot.
+ * Author deduplication prevents two consecutive posts from the same author
+ * within the actor or news buckets.
+ */
+export const SLOT_PATTERN = ['actor', 'actor', 'news', 'market'] as const;
+type SlotType = (typeof SLOT_PATTERN)[number];
+
+/**
+ * Re-order a flat item list into balanced content-type slots.
+ *
+ * Classification:
+ *   market → `item.type === 'market'`
+ *   news   → `item.post.authorType === 'news'` OR `item.post.type === 'article'`
+ *   actor  → everything else (individual NPCs + real users)
+ */
+export function applySlotPattern(items: FlatItem[]): FlatItem[] {
+  const buckets: Record<SlotType, FlatItem[]> = {
+    actor: [],
+    news: [],
+    market: [],
+  };
+
+  for (const item of items) {
+    if (item.type === 'market') {
+      buckets.market.push(item);
+    } else if (
+      item.post.authorType === 'news' ||
+      item.post.type === 'article'
+    ) {
+      buckets.news.push(item);
+    } else {
+      buckets.actor.push(item);
+    }
+  }
+
+  const result: FlatItem[] = [];
+  let slotIdx = 0;
+  let lastAuthorId: string | null = null;
+
+  while (result.length < items.length) {
+    const want = SLOT_PATTERN[slotIdx % SLOT_PATTERN.length]!;
+    slotIdx++;
+
+    // Find the preferred bucket, fall back to any non-empty bucket
+    let bucket = buckets[want];
+    if (bucket.length === 0) {
+      bucket =
+        buckets.actor.length > 0
+          ? buckets.actor
+          : buckets.news.length > 0
+            ? buckets.news
+            : buckets.market.length > 0
+              ? buckets.market
+              : null!;
+      if (!bucket) break;
+    }
+
+    // Author dedup: if the next item shares an authorId with the last emitted
+    // post, rotate it to the back of its bucket (once) so a different author
+    // surfaces first. Only applies when the bucket has more than one item.
+    if (
+      bucket.length > 1 &&
+      lastAuthorId !== null &&
+      bucket[0]!.type === 'post' &&
+      bucket[0]!.post.authorId === lastAuthorId
+    ) {
+      bucket.push(bucket.shift()!);
+    }
+
+    const item = bucket.shift()!;
+    result.push(item);
+    lastAuthorId = item.type === 'post' ? item.post.authorId : null;
+  }
+
+  return result;
 }
 
 // ─── mergeChronologically ─────────────────────────────────────────────────────

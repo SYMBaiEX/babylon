@@ -380,6 +380,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         let authorUsername: string | null = null;
         let authorProfileImageUrl: string | null = null;
 
+        // Derive author type for slot-pattern classification in the frontend.
+        const authorType: 'actor' | 'news' | 'user' = actorRecord
+          ? 'actor'
+          : orgRecord
+            ? 'news'
+            : 'user';
+
+        // Filter NPC org "NEW MARKET:" announcements — these are system-generated
+        // posts that duplicate the NewMarketCard component. The card is the
+        // canonical feed surface; the text post adds noise. We still capture the
+        // post ID below so the card's InteractionBar can anchor to it.
+        if (
+          orgRecord &&
+          post.content.trimStart().toUpperCase().startsWith('NEW MARKET:')
+        ) {
+          continue;
+        }
+
         if (actorRecord) {
           authorName = actorRecord.name;
           authorUsername = actorRecord.username ?? actorRecord.id;
@@ -460,6 +478,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           isLiked: false,
           isShared: false,
           relatedQuestion: post.relatedQuestion ?? null,
+          authorType,
           isRepost,
           isQuote,
           quoteComment: isQuote ? post.content : null,
@@ -691,6 +710,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           marketId: q.marketId ?? null,
           yesShares: Number(q.yesShares ?? 0),
           noShares: Number(q.noShares ?? 0),
+          // Anchor the InteractionBar on NewMarketCard to the first NPC post
+          // about this question. Those posts are filtered from the feed body
+          // (they duplicate the card), but their IDs let the card be likeable,
+          // commentable, and shareable like any other post.
+          anchorPostId:
+            recentPosts.find((p) => p.relatedQuestion === q.questionNumber)
+              ?.id ?? null,
         });
       }
 

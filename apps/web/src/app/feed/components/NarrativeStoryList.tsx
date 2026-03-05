@@ -3,14 +3,16 @@
 import type { NarrativeStory } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { flattenStories } from '@/app/feed/utils/feedAlgorithms';
+import {
+  applySlotPattern,
+  flattenStories,
+} from '@/app/feed/utils/feedAlgorithms';
 import {
   toArticleCardData,
   toPostCardData,
 } from '@/app/feed/utils/postMappers';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
-import { NarrativePredictionChart } from './NarrativePredictionChart';
 import { NewMarketCard } from './NewMarketCard';
 
 const PAGE_SIZE = 20;
@@ -22,7 +24,10 @@ interface NarrativeStoryListProps {
 export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
   const router = useRouter();
 
-  const allItems = useMemo(() => flattenStories(stories), [stories]);
+  const allItems = useMemo(
+    () => applySlotPattern(flattenStories(stories)),
+    [stories]
+  );
 
   // Reveal items progressively as the user scrolls — identical behaviour to
   // the infinite-scroll feed on other tabs.
@@ -88,7 +93,9 @@ export function NarrativeStoryList({ stories }: NarrativeStoryListProps) {
                   showCommentInputBar={false}
                   onCommentClick={() => router.push(`/post/${post.id}`)}
                 />
-                {marketId && <NarrativePredictionChart marketId={marketId} />}
+                {marketId && item.story && (
+                  <NewMarketCard story={item.story} embedded />
+                )}
               </>
             )}
           </div>
