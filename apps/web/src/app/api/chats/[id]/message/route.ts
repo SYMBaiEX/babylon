@@ -508,25 +508,21 @@ export const POST = withErrorHandling(
           id: messages.id,
           content: messages.content,
           senderId: messages.senderId,
+          senderName: users.displayName,
         })
         .from(messages)
+        .leftJoin(users, eq(users.id, messages.senderId))
         .where(
           and(eq(messages.id, replyToMessageId), eq(messages.chatId, chatId))
         )
         .limit(1);
 
       if (replyMsg) {
-        const [replySender] = await db
-          .select({ displayName: users.displayName })
-          .from(users)
-          .where(eq(users.id, replyMsg.senderId))
-          .limit(1);
-
         replyToMessage = {
           id: replyMsg.id,
           content: replyMsg.content.slice(0, 200),
           senderId: replyMsg.senderId,
-          senderName: replySender?.displayName ?? undefined,
+          senderName: replyMsg.senderName ?? undefined,
         };
       }
     }
@@ -545,7 +541,7 @@ export const POST = withErrorHandling(
       replyToMessage,
     });
 
-    // 11. Send notifications to other participants
+    // 12. Send notifications to other participants
     if (!isGameChat) {
       if (isDMChat) {
         // For DMs, notify the other participant
@@ -582,7 +578,7 @@ export const POST = withErrorHandling(
       }
     }
 
-    // 12. Return success with feedback
+    // 13. Return success with feedback
     logger.info(
       'Message sent successfully',
       {

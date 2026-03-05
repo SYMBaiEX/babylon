@@ -1,7 +1,7 @@
 'use client';
 
 import { Reply } from 'lucide-react';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -95,6 +95,11 @@ function MobileLongPressMenu({
       longPressTimer.current = null;
     }
   }, []);
+
+  // Clean up timer on unmount to prevent setState on unmounted component
+  useEffect(() => {
+    return () => clearTimer();
+  }, [clearTimer]);
 
   const handleTouchStart = useCallback(() => {
     didLongPress.current = false;

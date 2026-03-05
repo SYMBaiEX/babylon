@@ -34,20 +34,10 @@ export function ReplyPreview({
       )}
     >
       <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            'font-medium text-primary',
-            compact ? 'text-xs' : 'text-xs'
-          )}
-        >
+        <p className="font-medium text-primary text-xs">
           Replying to {replyToMessage.senderName || 'Unknown'}
         </p>
-        <p
-          className={cn(
-            'truncate text-muted-foreground',
-            compact ? 'text-xs' : 'text-xs'
-          )}
-        >
+        <p className="truncate text-muted-foreground text-xs">
           {truncatedContent}
         </p>
       </div>
