@@ -87,7 +87,10 @@ function MarketChart({
   });
 
   return (
-    <div ref={wrapperRef} className="w-full">
+    // Constrain height so PredictionProbabilityChart (height="fill") fits
+    // the feed card without the 400px overflow from height="fixed".
+    // The terminal uses the same fill+constrained-parent pattern.
+    <div ref={wrapperRef} className="h-[160px] w-full">
       {inView ? (
         <PredictionProbabilityChart
           data={history}
@@ -95,10 +98,10 @@ function MarketChart({
           timeRange={timeRange}
           onTimeRangeChange={setTimeRange}
           showHeader={false}
-          height="fixed"
+          height="fill"
         />
       ) : (
-        <div className="h-[160px] w-full animate-pulse rounded bg-muted/40" />
+        <div className="h-full w-full animate-pulse rounded bg-muted/40" />
       )}
     </div>
   );
