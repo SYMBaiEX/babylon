@@ -42,9 +42,20 @@ const mockLogger = {
   debug: mock(),
 };
 
+// Mock Logger class — needed by transitive import (shared/logger.ts re-exports it)
+class MockLoggerClass {
+  level = 'info';
+  info = mock();
+  warn = mock();
+  error = mock();
+  debug = mock();
+  setLevel() {}
+}
+
 mock.module('@babylon/shared', () => ({
   checkUserInput: mockCheckUserInput,
   logger: mockLogger,
+  Logger: MockLoggerClass,
 }));
 
 // Drizzle-style chainable mock
@@ -85,7 +96,11 @@ mock.module('uuid', () => ({ v4: mockUuidV4 }));
 
 const mockGetAgentWithConfig =
   mock<(agentId: string, ownerId: string) => Promise<unknown>>();
-const mockAgentService = { getAgentWithConfig: mockGetAgentWithConfig };
+const mockListUserAgents = mock<(ownerId: string) => Promise<unknown[]>>();
+const mockAgentService = {
+  getAgentWithConfig: mockGetAgentWithConfig,
+  listUserAgents: mockListUserAgents,
+};
 
 mock.module('../AgentService', () => ({
   agentService: mockAgentService,
@@ -189,6 +204,8 @@ beforeEach(() => {
   mockLogger.warn.mockClear();
   mockLogger.error.mockClear();
   mockGetAgentWithConfig.mockClear();
+  mockListUserAgents.mockClear();
+  mockListUserAgents.mockResolvedValue([]);
   mockGetRuntime.mockClear();
   mockGetRuntime.mockResolvedValue(mockRuntime);
   mockComposeState.mockClear();
@@ -214,6 +231,7 @@ afterEach(() => {
   mockParseKeyValueXml.mockReset();
   mockUseModel.mockReset();
   mockGetAgentWithConfig.mockReset();
+  mockListUserAgents.mockReset();
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
