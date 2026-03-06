@@ -56,6 +56,10 @@ mock.module('@babylon/shared', () => ({
   checkUserInput: mockCheckUserInput,
   logger: mockLogger,
   Logger: MockLoggerClass,
+  generateSnowflakeId: () => '123456789',
+  COORDINATOR_SENDER_ID: 'coordinator-id',
+  GROQ_MODELS: { FREE: { displayName: 'llama-3.3-70b' } },
+  MessageTypeEnum: { COORDINATOR: 'coordinator' },
 }));
 
 // Drizzle-style chainable mock
@@ -74,8 +78,19 @@ const mockDb = {
 mock.module('@babylon/db', () => ({
   db: mockDb,
   eq: (_a: unknown, _b: unknown) => ({ type: 'eq' }),
+  and: (...args: unknown[]) => args,
   messages: { id: 'messages' },
+  users: {
+    id: 'users.id',
+    displayName: 'users.displayName',
+    username: 'users.username',
+  },
   userAgentConfigs: { userId: 'userAgentConfigs.userId' },
+  chatParticipants: {
+    chatId: 'chatParticipants.chatId',
+    userId: 'chatParticipants.userId',
+    isActive: 'chatParticipants.isActive',
+  },
 }));
 
 const mockParseKeyValueXml =

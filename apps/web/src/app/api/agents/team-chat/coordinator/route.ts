@@ -396,7 +396,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Iteration 2: RELAY_TO_AGENT (pass context to executor)
   // Iterations 3-5: follow-up dispatches or early finish
   const MAX_ITERATIONS = 5;
-  const traceActionResults: Array<{
+  type ActionTraceResult = {
     actionType: string;
     success: boolean;
     text: string;
@@ -406,7 +406,29 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     timestamp: number;
     durationMs?: number;
     tag?: MessageTag;
-  }> = [];
+  };
+
+  /** Format trace results into the same string format the ACTION_STATE provider uses */
+  function formatTraceResults(results: ActionTraceResult[]): string {
+    if (results.length === 0) return 'No actions taken yet in this request.';
+    return results
+      .map((r, i) => {
+        const status = r.success ? '✓ Success' : '✗ Failed';
+        let out = `${i + 1}. **${r.actionType}** - ${status}`;
+        if (r.text) out += `\n   Summary: ${r.text}`;
+        if (r.error) out += `\n   Error: ${r.error}`;
+        if (r.values && Object.keys(r.values).length > 0) {
+          const vals = Object.entries(r.values)
+            .map(([k, v]) => `   - ${k}: ${JSON.stringify(v)}`)
+            .join('\n');
+          out += `\n   Values:\n${vals}`;
+        }
+        return out;
+      })
+      .join('\n\n');
+  }
+
+  const traceActionResults: ActionTraceResult[] = [];
   let finalResponse: string | null = null;
   let isLLMFailure = false;
   let totalParseRetries = 0;
@@ -542,7 +564,37 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       }
     );
 
-    const fpResult = fpResultHolder.result;
+    let fpResult = fpResultHolder.result;
+
+    // Fallback: if the action handler returns a result directly (new-style)
+    // instead of calling the callback, the result is stored in stateCache
+    // under `${messageId}_action_results` by ElizaOS processActions.
+    if (!fpResult) {
+      const cachedActionResults = (
+        runtime as unknown as { stateCache?: Map<string, unknown> }
+      ).stateCache?.get(`${elizaMessage.id}_action_results`) as
+        | {
+            values?: {
+              actionResults?: Array<{
+                success?: boolean;
+                text?: string;
+                values?: Record<string, unknown>;
+                tag?: MessageTag;
+              }>;
+            };
+          }
+        | undefined;
+      const resultsFromCache = cachedActionResults?.values?.actionResults || [];
+      if (resultsFromCache.length > 0 && resultsFromCache[0]) {
+        fpResult = {
+          success: resultsFromCache[0].success,
+          text: resultsFromCache[0].text,
+          values: resultsFromCache[0].values,
+          tag: resultsFromCache[0].tag,
+        };
+      }
+    }
+
     const fpSuccess = fpResult?.success ?? false;
 
     traceActionResults.push({
@@ -632,10 +684,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         teamChatId,
       };
 
-      // Add action results to state data for provider
+      // Add action results to state data AND update the formatted values string
+      // so the {{actionResults}} template variable reflects results from prior iterations.
+      // Without this, state reuse (skipping composeState) leaves the formatted string stale.
       state.data = {
         ...state.data,
         actionResults: traceActionResults,
+      };
+      state.values = {
+        ...state.values,
+        actionResults: formatTraceResults(traceActionResults),
+        hasActionResults: traceActionResults.length > 0,
       };
 
       lastState = state;
@@ -925,6 +984,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       ownerUsername,
       teamChatId,
       actionCount: traceActionResults.length,
+      // Update formatted action results so {{actionResults}} in the summary
+      // template reflects actual results, not the stale "No actions taken yet"
+      // from the initial composeState (which ran before actions executed).
+      actionResults: formatTraceResults(traceActionResults),
+      hasActionResults: traceActionResults.length > 0,
     };
     summaryState.data = {
       ...summaryState.data,
