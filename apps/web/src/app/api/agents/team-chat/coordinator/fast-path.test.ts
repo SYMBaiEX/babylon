@@ -67,17 +67,23 @@ describe('tryFastPath', () => {
 
   describe('greeting with additional content (not pure greeting)', () => {
     it('routes greeting + market query to CHECK_PERPS', () => {
-      const result = tryFastPath('hey what are the markets doing') as FastPathMatch;
+      const result = tryFastPath(
+        'hey what are the markets doing'
+      ) as FastPathMatch;
       expect(result.action).toBe('CHECK_PERPS');
     });
 
     it('routes greeting + portfolio query to CHECK_USER_PNL', () => {
-      const result = tryFastPath('hi can you check my portfolio') as FastPathMatch;
+      const result = tryFastPath(
+        'hi can you check my portfolio'
+      ) as FastPathMatch;
       expect(result.action).toBe('CHECK_USER_PNL');
     });
 
     it('routes greeting + price query to CHECK_PERPS', () => {
-      const result = tryFastPath('I wanted to say hello and check prices') as FastPathMatch;
+      const result = tryFastPath(
+        'I wanted to say hello and check prices'
+      ) as FastPathMatch;
       expect(result.action).toBe('CHECK_PERPS');
     });
 
@@ -114,13 +120,12 @@ describe('tryFastPath', () => {
       'transfer',
     ];
 
-    it.each(actionVerbs)(
-      'returns null when message contains verb "%s"',
-      (verb) => {
-        // Even with a read-only keyword, action verb forces null
-        expect(tryFastPath(`${verb} on the market`)).toBe(null);
-      }
-    );
+    it.each(
+      actionVerbs
+    )('returns null when message contains verb "%s"', (verb) => {
+      // Even with a read-only keyword, action verb forces null
+      expect(tryFastPath(`${verb} on the market`)).toBe(null);
+    });
 
     it('returns null for mixed intent: read-only keyword + action verb', () => {
       expect(tryFastPath("What's the TSLAI price and buy some")).toBe(null);
@@ -130,12 +135,10 @@ describe('tryFastPath', () => {
     });
 
     it('returns null for dispatch commands disguised as questions', () => {
-      expect(
-        tryFastPath('Can you tell my agent to check the market?')
-      ).toBe(null);
-      expect(
-        tryFastPath('Ask the trading bot about TSLAI')
-      ).toBe(null);
+      expect(tryFastPath('Can you tell my agent to check the market?')).toBe(
+        null
+      );
+      expect(tryFastPath('Ask the trading bot about TSLAI')).toBe(null);
     });
   });
 
@@ -211,16 +214,16 @@ describe('tryFastPath', () => {
       expect(result.parameters).toEqual({ ticker: 'AIPPL' });
     });
 
-    it.each(['AMSAI', 'GOAI', 'METAI', 'NFLAI'])(
-      'extracts %s ticker',
-      (ticker) => {
-        const result = tryFastPath(
-          `${ticker} market data`
-        ) as FastPathMatch;
-        expect(result.action).toBe('CHECK_PERPS');
-        expect(result.parameters).toEqual({ ticker });
-      }
-    );
+    it.each([
+      'AMSAI',
+      'GOAI',
+      'METAI',
+      'NFLAI',
+    ])('extracts %s ticker', (ticker) => {
+      const result = tryFastPath(`${ticker} market data`) as FastPathMatch;
+      expect(result.action).toBe('CHECK_PERPS');
+      expect(result.parameters).toEqual({ ticker });
+    });
 
     it('normalizes lowercase ticker to uppercase', () => {
       const result = tryFastPath('tslai price') as FastPathMatch;
@@ -330,7 +333,9 @@ describe('tryFastPath', () => {
     });
 
     it('routes "explain prediction markets to me" to CHECK_PREDICTIONS (has keyword)', () => {
-      const result = tryFastPath('explain prediction markets to me') as FastPathMatch;
+      const result = tryFastPath(
+        'explain prediction markets to me'
+      ) as FastPathMatch;
       expect(result.action).toBe('CHECK_PREDICTIONS');
     });
 
