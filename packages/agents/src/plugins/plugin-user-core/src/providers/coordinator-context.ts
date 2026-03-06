@@ -3,6 +3,9 @@
  *
  * Provides context about how team chat works and what the coordinator can do.
  * This helps the LLM understand its role and guide users appropriately.
+ *
+ * The static context text is pre-computed at module load time (not per-request)
+ * since it never changes. Only the dynamic teamMemberCount is read from state.
  */
 
 import type {
@@ -13,35 +16,20 @@ import type {
   State,
 } from '@elizaos/core';
 
+/** TeamMember shape matches what's provided by team-members provider */
+interface TeamMemberData {
+  id: string;
+  displayName: string | null;
+  username: string | null;
+  isAgent: boolean;
+}
+
 /**
- * Coordinator Context Provider
- *
- * Injects context about the coordinator's role and capabilities,
- * as well as how users can interact with their agents.
+ * Static context text — pre-computed once at module load.
+ * This text describes Babylon and the coordinator's role/personality.
+ * It does not change across requests or users.
  */
-export const coordinatorContextProvider: Provider = {
-  name: 'COORDINATOR_CONTEXT',
-  description: 'Context about coordinator role and team chat usage',
-
-  get: async (
-    _runtime: IAgentRuntime,
-    _message: Memory,
-    state: State
-  ): Promise<ProviderResult> => {
-    // Get team member count from state if available
-    // TeamMember shape matches what's provided by team-members provider
-    interface TeamMemberData {
-      id: string;
-      displayName: string | null;
-      username: string | null;
-      isAgent: boolean;
-    }
-    const teamMembers = state?.data?.teamMembers as
-      | TeamMemberData[]
-      | undefined;
-    const teamMemberCount = teamMembers?.length || 0;
-
-    const contextText = `# About Babylon
+const STATIC_CONTEXT_TEXT = `# About Babylon
 Babylon is a social prediction market platform with two main features:
 
 **Trading:**
@@ -118,18 +106,41 @@ Stay neutral on market analysis — describe what's happening, don't recommend a
 - Agents respond in this chat when dispatched
 - To create a new agent: click the **+** button in the Agents sidebar`;
 
+/**
+ * Coordinator Context Provider
+ *
+ * Injects context about the coordinator's role and capabilities,
+ * as well as how users can interact with their agents.
+ *
+ * This provider performs 0 DB queries — it returns a pre-computed static
+ * string and reads teamMemberCount from state (populated by TEAM_MEMBERS).
+ */
+export const coordinatorContextProvider: Provider = {
+  name: 'COORDINATOR_CONTEXT',
+  description: 'Context about coordinator role and team chat usage',
+
+  get: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    state: State
+  ): Promise<ProviderResult> => {
+    const teamMembers = state?.data?.teamMembers as
+      | TeamMemberData[]
+      | undefined;
+    const teamMemberCount = teamMembers?.length || 0;
+
     return {
       data: {
         teamMemberCount,
         isCoordinator: true,
       },
       values: {
-        coordinatorContext: contextText,
+        coordinatorContext: STATIC_CONTEXT_TEXT,
         coordinatorCanTrade: false,
         coordinatorCanPost: false,
         teamMemberCount,
       },
-      text: contextText,
+      text: STATIC_CONTEXT_TEXT,
     };
   },
 };

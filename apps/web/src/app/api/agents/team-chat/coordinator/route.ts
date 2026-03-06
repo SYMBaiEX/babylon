@@ -11,6 +11,15 @@
  * The coordinator helps users understand Babylon and coordinate their agents.
  * It uses plugin-user-core (read-only actions) instead of plugin-agent-core.
  * Responses are displayed without message bubbles (full-width text).
+ *
+ * Efficiency optimizations (refactor/coordinator-efficiency):
+ * - composeState() called only on first iteration; subsequent iterations
+ *   reuse the state object and only re-fetch DISPATCH_HISTORY after dispatches
+ * - Summary phase reuses the last decision state instead of re-composing
+ * - Decision prompt conditionally includes multi-agent orchestration docs
+ * - Summary template stripped to minimal context needed for synthesis
+ * - Parse retries use format reinforcement hints + lower temperature
+ * - All requests instrumented with action-type and timing telemetry
  */
 
 import { agentRuntimeManager, teamChatService } from '@babylon/agents';
@@ -52,7 +61,33 @@ export const maxDuration = 120;
 // Coordinator Prompt Templates
 // =============================================================================
 
-const coordinatorDecisionTemplate = `# Your Role
+/**
+ * Build the decision prompt dynamically based on the user's agent count.
+ * When the user has <2 agents, multi-agent orchestration docs are excluded
+ * to save ~400-500 tokens per decision call.
+ */
+function buildCoordinatorDecisionTemplate(agentCount: number): string {
+  const orchestrationSection =
+    agentCount >= 2
+      ? `
+## Multi-Agent Orchestration
+**Use DISPATCH_TO_AGENTS** when the user's request benefits from input from multiple agents.
+  - Dispatches run in parallel — much faster than asking agents one by one
+  - Use when the user says "all agents", "everyone", "coordinate", "team", or when you need perspectives from multiple agents
+  - Parameters: {"dispatches": [{"agentId": "...", "command": "..."}, ...]}
+
+**Use RELAY_TO_AGENT** when you need to pass one agent's results as context to another agent.
+  - Use after a dispatch has completed and another agent needs those findings
+  - Parameters: {"agentId": "...", "command": "...", "relayContext": "Summary of what other agents found"}
+
+## Orchestration Patterns
+**Gather & Synthesize**: DISPATCH_TO_AGENTS → collect all responses → summarize for user
+**Gather, Relay & Execute**: DISPATCH_TO_AGENTS (research) → RELAY_TO_AGENT (trader with context) → summarize
+**Expert Consultation**: DISPATCH_TO_AGENT to the single relevant expert
+`
+      : '';
+
+  return `# Your Role
 {{coordinatorContext}}
 
 ---
@@ -67,11 +102,13 @@ const coordinatorDecisionTemplate = `# Your Role
 
 ---
 
+{{#if hasDispatchHistory}}
 # What Your Agents Have Said Recently
 {{dispatchHistory}}
 
 ---
 
+{{/if}}
 # Current Message from {{ownerName}}
 {{currentMessage}}
 
@@ -104,22 +141,7 @@ No actions taken yet.
   - Select the agent using their [id: ...] from the Team Members list above
   - Write the command clearly as the exact instruction for the agent
   - If no agents exist in the team, skip this action and tell the user to create one at /agents
-
-## Multi-Agent Orchestration
-**Use DISPATCH_TO_AGENTS** when the user's request benefits from input from multiple agents.
-  - Dispatches run in parallel — much faster than asking agents one by one
-  - Use when the user says "all agents", "everyone", "coordinate", "team", or when you need perspectives from multiple agents
-  - Parameters: {"dispatches": [{"agentId": "...", "command": "..."}, ...]}
-
-**Use RELAY_TO_AGENT** when you need to pass one agent's results as context to another agent.
-  - Use after a dispatch has completed and another agent needs those findings
-  - Parameters: {"agentId": "...", "command": "...", "relayContext": "Summary of what other agents found"}
-
-## Orchestration Patterns
-**Gather & Synthesize**: DISPATCH_TO_AGENTS → collect all responses → summarize for user
-**Gather, Relay & Execute**: DISPATCH_TO_AGENTS (research) → RELAY_TO_AGENT (trader with context) → summarize
-**Expert Consultation**: DISPATCH_TO_AGENT to the single relevant expert
-
+${orchestrationSection}
 ## Information Queries
 **Use a data-fetch action** (CHECK_PERPS, CHECK_PREDICTIONS, CHECK_USER_PNL, etc.) when you need information to answer the user's question.
 
@@ -150,33 +172,21 @@ Use plain @username for mentions. No markdown links.
   <isFinish>true or false</isFinish>
 </response>
 </output>`;
+}
 
-const coordinatorSummaryTemplate = `# Your Role
-{{coordinatorContext}}
-
----
-
-# User's Team
+/**
+ * Lean summary template — only includes team members (for @username references),
+ * the current message, and action results. Removed coordinatorContext (~200 tokens),
+ * recentMessages (~800 tokens), dispatchHistory (~200 tokens), and verbose examples
+ * (~300 tokens) since the summary only needs to synthesize action results.
+ */
+const coordinatorSummaryTemplate = `# User's Team
 {{teamMembers}}
-
----
-
-# Conversation History (You ↔ User)
-{{recentMessages}}
-
----
-
-# What Your Agents Have Said Recently
-{{dispatchHistory}}
 
 ---
 
 # Current Message from {{ownerName}}
 {{currentMessage}}
-
----
-
-{{actionsWithDescriptions}}
 
 ---
 
@@ -189,36 +199,12 @@ No actions were taken this turn.
 
 ---
 
-# Response Format Examples
-
-**Market data:** "TSLAI is at $847.23, up 5.2% today with above-average volume."
-
-**Portfolio:** "Balance: $1,234.56 | Positions: TSLAI 2x Long (+$45.20), BTC prediction 50 YES"
-
-**Feed/social:** "Here's what's trending: @user1 posted about NVDAI earnings (42 likes), @user2 shared their prediction strategy..."
-
-**Agent dispatched — include a brief summary of what the agent did:**
-"I dispatched to @trading_bot to open a long TSLAI position for $50. They confirmed: [brief quote from agent's response]."
-
-**Multiple agents dispatched — synthesize all responses:**
-"I asked all your agents for their market outlook: @trading_bot sees momentum in TSLAI, @research_agent noted high volume on NVDAI, and @social_bot reports bullish sentiment. Based on this consensus, TSLAI and NVDAI look strongest."
-
-**Agent dispatch failed:** "I wasn't able to dispatch that — [reason]. You can @mention your agent directly to retry."
-
-**No agents:** "You don't have any agents yet. Create one at /agents to get started."
-
-**User asks why they didn't see a previous response:** Tell them the message was sent and may still be loading, or suggest they scroll up. Do NOT re-dispatch unless they explicitly ask you to.
-
-Use plain @username. No markdown links.
-
----
-
 # CRITICAL RULES — You MUST follow these:
 1. This is your FINAL text response. All actions for this turn have already been executed above.
 2. Do NOT include action names (DISPATCH_TO_AGENT, CHECK_PERPS, etc.) or action syntax in your text.
 3. Do NOT say "let me dispatch", "I'll try again", or promise future actions you have not already taken.
 4. Do NOT make up information — only reference data from the Actions You Completed section.
-5. If you dispatched to an agent, include a brief quote or summary of what the agent actually did or said.
+5. If you dispatched to an agent, include a brief quote or summary of what the agent actually did or said. Use plain @username for mentions.
 6. Keep your response concise and factual.
 
 Output ONLY this XML:
@@ -228,11 +214,23 @@ Output ONLY this XML:
 <text>Your helpful response to the user</text>
 </response>`;
 
+/**
+ * Format hint appended to the prompt on parse retries to increase the chance
+ * of well-formed XML output.
+ */
+const XML_FORMAT_HINT =
+  '\n\nYour previous response could not be parsed. Output ONLY this exact XML structure with no text outside the tags:\n<response>\n  <thought>reasoning</thought>\n  <action>ACTION_NAME or ""</action>\n  <parameters>{}</parameters>\n  <isFinish>true or false</isFinish>\n</response>';
+
+const SUMMARY_XML_FORMAT_HINT =
+  '\n\nYour previous response could not be parsed. Output ONLY this exact XML structure with no text outside the tags:\n<response>\n  <thought>reasoning</thought>\n  <text>Your response</text>\n</response>';
+
 // =============================================================================
 // POST Handler
 // =============================================================================
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
+  const requestStartMs = Date.now();
+
   const body = (await req.json()) as {
     content: string;
     teamChatId: string;
@@ -345,32 +343,72 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     values?: Record<string, unknown>;
     parameters?: Record<string, unknown>;
     timestamp: number;
+    durationMs?: number;
     tag?: MessageTag;
   }> = [];
   let finalResponse: string | null = null;
   let isLLMFailure = false;
+  let totalParseRetries = 0;
+  let iterationsRan = 0;
+
+  // State is composed once on the first iteration and reused on subsequent
+  // iterations. Only DISPATCH_HISTORY is re-fetched after a dispatch action,
+  // since agent responses are now visible in the DB. The other providers
+  // (TEAM_MEMBERS, RECENT_MESSAGES, COORDINATOR_CONTEXT, ACTION_STATE, ACTIONS)
+  // return identical data within a single request.
+  let lastState: State | null = null;
+  let lastDispatchIteration = 0;
+
+  // The decision template is built once based on agent count (from first composeState).
+  // We defer building it until after the first state composition.
+  let coordinatorDecisionTemplate: string | null = null;
+
+  const providers = [
+    'RECENT_MESSAGES',
+    'DISPATCH_HISTORY',
+    'ACTION_STATE',
+    'ACTIONS',
+    'TEAM_MEMBERS',
+    'COORDINATOR_CONTEXT',
+  ];
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    iterationsRan = iteration;
+
     logger.info(
       `[Coordinator] Iteration ${iteration}/${MAX_ITERATIONS}`,
       { actionsCompleted: traceActionResults.length },
       'CoordinatorChat'
     );
 
-    // Compose state with providers
-    const providers = [
-      'RECENT_MESSAGES',
-      'DISPATCH_HISTORY',
-      'ACTION_STATE',
-      'ACTIONS',
-      'TEAM_MEMBERS',
-      'COORDINATOR_CONTEXT',
-    ];
-    const state: State = await runtime.composeState(
-      elizaMessage,
-      providers,
-      true
-    );
+    let state: State;
+
+    if (iteration === 1) {
+      // First iteration: full composeState (3 DB queries — TEAM_MEMBERS,
+      // RECENT_MESSAGES, DISPATCH_HISTORY)
+      state = await runtime.composeState(elizaMessage, providers, true);
+    } else {
+      // Subsequent iterations: reuse state, skip redundant DB queries.
+      // Only re-fetch DISPATCH_HISTORY if we dispatched last iteration,
+      // since the agent's response is now in the messages table.
+      state = lastState!;
+
+      if (lastDispatchIteration === iteration - 1) {
+        const dispatchProvider = runtime.providers.find(
+          (p) => p.name === 'DISPATCH_HISTORY'
+        );
+        if (dispatchProvider) {
+          const result = await dispatchProvider.get(
+            runtime,
+            elizaMessage,
+            state
+          );
+          if (result.values) {
+            state.values = { ...state.values, ...result.values };
+          }
+        }
+      }
+    }
 
     // Add coordinator-specific values to state
     state.values = {
@@ -395,20 +433,30 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       actionResults: traceActionResults,
     };
 
+    lastState = state;
+
+    // Build the decision template on the first iteration once we know
+    // the agent count from the TEAM_MEMBERS provider.
+    if (!coordinatorDecisionTemplate) {
+      const agentCount =
+        (state.values.agentCount as number | undefined) ?? 0;
+      coordinatorDecisionTemplate = buildCoordinatorDecisionTemplate(agentCount);
+    }
+
     // Build prompt from template
     const prompt = composePromptFromState({
       state,
       template: coordinatorDecisionTemplate,
     });
 
-    // Get LLM decision with retry
+    // Get LLM decision with retry + format reinforcement
     const MAX_PARSE_RETRIES = 3;
     let parsedStep: Record<string, unknown> | null = null;
 
     for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
       const response = await runtime.useModel(modelType, {
-        prompt,
-        temperature: attempt > 1 ? 0.5 : 0.7,
+        prompt: attempt > 1 ? prompt + XML_FORMAT_HINT : prompt,
+        temperature: attempt > 1 ? 0.3 : 0.7,
       });
 
       parsedStep = parseKeyValueXml(response);
@@ -422,6 +470,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         break;
       }
 
+      totalParseRetries++;
       logger.warn(
         `[Coordinator] Failed to parse decision (attempt ${attempt})`,
         { preview: response.substring(0, 200) },
@@ -446,6 +495,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     }
 
     // Execute action
+    const actionStartMs = Date.now();
     logger.info(
       `[Coordinator] Executing action: ${action}`,
       { parameters },
@@ -614,8 +664,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       values: actionResult?.values,
       parameters: actionParams,
       timestamp: Date.now(),
+      durationMs: Date.now() - actionStartMs,
       tag: actionResult?.tag,
     });
+
+    // Track dispatch iterations so we know to refresh DISPATCH_HISTORY
+    if (
+      action === 'DISPATCH_TO_AGENT' ||
+      action === 'DISPATCH_TO_AGENTS' ||
+      action === 'RELAY_TO_AGENT'
+    ) {
+      lastDispatchIteration = iteration;
+    }
 
     // Check if done
     if (isFinish === 'true' || isFinish === true) {
@@ -623,23 +683,34 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     }
   }
 
-  // Generate summary/response
-  if (!finalResponse) {
-    const summaryProviders = [
-      'RECENT_MESSAGES',
-      'DISPATCH_HISTORY',
-      'ACTION_STATE',
-      'TEAM_MEMBERS',
-      'COORDINATOR_CONTEXT',
-    ];
-    const state = await runtime.composeState(
-      elizaMessage,
-      summaryProviders,
-      true
-    );
+  // Log decision loop completion with full telemetry (Phase 0 instrumentation)
+  logger.info(
+    '[Coordinator] Decision loop completed',
+    {
+      teamChatId,
+      iterations: iterationsRan,
+      actionsExecuted: traceActionResults.length,
+      actionTypes: traceActionResults.map((r) => r.actionType),
+      isLLMFailure,
+      totalParseRetries,
+      decisionLoopMs: Date.now() - requestStartMs,
+    },
+    'CoordinatorChat'
+  );
 
-    state.values = {
-      ...state.values,
+  // Generate summary/response.
+  // Reuse the last decision state instead of calling composeState() again.
+  // This saves 3 DB queries (TEAM_MEMBERS, RECENT_MESSAGES, DISPATCH_HISTORY)
+  // that would return identical data. composePromptFromState() is a pure function
+  // that does not mutate state — verified in ElizaOS source.
+  if (!finalResponse) {
+    // If the loop never ran (e.g. immediate LLM failure), we need an initial state
+    const summaryState =
+      lastState ??
+      (await runtime.composeState(elizaMessage, providers, true));
+
+    summaryState.values = {
+      ...summaryState.values,
       isAgent: false,
       isCoordinator: true,
       currentMessage: content,
@@ -649,24 +720,27 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       teamChatId,
       actionCount: traceActionResults.length,
     };
-    state.data = {
-      ...state.data,
+    summaryState.data = {
+      ...summaryState.data,
       actionResults: traceActionResults,
     };
 
     const summaryPrompt = composePromptFromState({
-      state,
+      state: summaryState,
       template: coordinatorSummaryTemplate,
     });
 
-    // Get summary with retry
+    // Get summary with retry + format reinforcement
     const SUMMARY_RETRIES = 3;
     let extractedText: string | undefined;
 
     for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
       const summaryResponse = await runtime.useModel(modelType, {
-        prompt: summaryPrompt,
-        temperature: attempt > 1 ? 0.5 : 0.7,
+        prompt:
+          attempt > 1
+            ? summaryPrompt + SUMMARY_XML_FORMAT_HINT
+            : summaryPrompt,
+        temperature: attempt > 1 ? 0.3 : 0.7,
       });
 
       const summary = parseKeyValueXml(summaryResponse);
@@ -687,6 +761,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         break;
       }
 
+      totalParseRetries++;
       logger.warn(
         `[Coordinator] Failed to parse summary (attempt ${attempt})`,
         { preview: summaryResponse.substring(0, 200) },
@@ -751,11 +826,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   // Note: Coordinator uses free model, no points deduction
 
+  // Full request telemetry (Phase 0 instrumentation)
+  const totalDurationMs = Date.now() - requestStartMs;
   logger.info(
-    `Coordinator chat completed`,
+    'Coordinator chat completed',
     {
       teamChatId,
+      iterations: iterationsRan,
       actionsExecuted: traceActionResults.length,
+      actionTypes: traceActionResults.map((r) => r.actionType),
+      isLLMFailure,
+      totalParseRetries,
+      totalDurationMs,
     },
     'CoordinatorChat'
   );
