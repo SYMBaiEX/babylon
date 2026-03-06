@@ -345,10 +345,11 @@ export async function dispatchAgentChat(
     createdAt: Date.now(),
   };
 
-  // --- Multi-step execution loop (max 4 iterations) ---
-  // Reduced from 6 to stay within coordinator latency budget:
-  // coordinator ≈ 3s + dispatch ≈ 8s (4 iters × 2s) + summary ≈ 2s = ~13s
-  const MAX_ITERATIONS = 4;
+  // --- Multi-step execution loop (max 2 iterations) ---
+  // Reduced from 4: dispatched agents almost always finish in 1 iteration
+  // (single action + finish). 2nd iteration covers edge cases like retries.
+  // coordinator ≈ 3s + dispatch ≈ 4s (2 iters × 2s) + summary ≈ 2s = ~9s
+  const MAX_ITERATIONS = 2;
   const traceActionResults: Array<{
     actionType: string;
     success: boolean;
@@ -392,11 +393,7 @@ export async function dispatchAgentChat(
 
     if (iteration === 1) {
       // First iteration: full composeState (2 DB queries — TEAM_MEMBERS, RECENT_MESSAGES)
-      state = await runtime.composeState(
-        elizaMessage,
-        agentProviders,
-        true
-      );
+      state = await runtime.composeState(elizaMessage, agentProviders, true);
     } else {
       // Subsequent iterations: reuse state, skip redundant DB queries
       state = lastState!;
@@ -440,8 +437,7 @@ export async function dispatchAgentChat(
 
     for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
       const response = await runtime.useModel(modelType, {
-        prompt:
-          attempt > 1 ? prompt + DECISION_XML_FORMAT_HINT : prompt,
+        prompt: attempt > 1 ? prompt + DECISION_XML_FORMAT_HINT : prompt,
         temperature: attempt > 1 ? 0.3 : 0.7,
       });
 
@@ -682,9 +678,7 @@ export async function dispatchAgentChat(
     for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
       const summaryResponse = await runtime.useModel(modelType, {
         prompt:
-          attempt > 1
-            ? summaryPrompt + SUMMARY_XML_FORMAT_HINT
-            : summaryPrompt,
+          attempt > 1 ? summaryPrompt + SUMMARY_XML_FORMAT_HINT : summaryPrompt,
         temperature: attempt > 1 ? 0.3 : 0.7,
       });
 

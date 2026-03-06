@@ -225,6 +225,106 @@ const SUMMARY_XML_FORMAT_HINT =
   '\n\nYour previous response could not be parsed. Output ONLY this exact XML structure with no text outside the tags:\n<response>\n  <thought>reasoning</thought>\n  <text>Your response</text>\n</response>';
 
 // =============================================================================
+// Fast-Path Router (OPT-6)
+// =============================================================================
+
+/**
+ * Verbs that indicate the user wants an agent to ACT, not just fetch info.
+ * If any of these appear in the message, we must NOT fast-path — the LLM
+ * decision loop is needed to handle dispatch logic.
+ */
+const AGENT_ACTION_VERBS =
+  /\b(buy|sell|trade|open|close|post|comment|tell|ask|dispatch|send|create|make|write|reply|share|execute|place|submit|transfer)\b/i;
+
+/** Greeting patterns — canned response, 0 LLM calls */
+const GREETING_PATTERN =
+  /^\s*(hey|hi|hello|howdy|sup|what'?s\s*up|yo|gm|good\s*morning|good\s*evening|good\s*afternoon)\s*[!?.]*\s*$/i;
+
+interface FastPathMatch {
+  action: string;
+  parameters: Record<string, unknown>;
+}
+
+/**
+ * Attempt to classify a user message as a simple read-only query that can
+ * skip the LLM decision loop entirely. Returns:
+ * - `'greeting'` for simple greetings (canned response, 0 LLM calls)
+ * - `FastPathMatch` for read-only data queries (skip decision, still do summary)
+ * - `null` if the message needs the full LLM decision loop
+ *
+ * Safety: NEVER returns a match when AGENT_ACTION_VERBS are detected, since
+ * those require dispatch routing which only the LLM can decide.
+ */
+function tryFastPath(content: string): FastPathMatch | 'greeting' | null {
+  // Never fast-path if content contains agent action verbs (mixed intent)
+  if (AGENT_ACTION_VERBS.test(content)) return null;
+
+  // Greetings — full match only (no trailing question/complex sentence)
+  if (GREETING_PATTERN.test(content)) return 'greeting';
+
+  // CHECK_USER_PNL — portfolio/balance queries
+  if (
+    /\b(portfolio|balance|pnl|p\s*&\s*l|profit|loss|positions?|holdings?|my\s+account)\b/i.test(
+      content
+    )
+  ) {
+    return { action: 'CHECK_USER_PNL', parameters: {} };
+  }
+
+  // CHECK_PERPS — market/price queries, with optional ticker extraction
+  if (
+    /\b(price|prices|perps?|perpetuals?|stocks?|tickers?|markets?)\b/i.test(
+      content
+    )
+  ) {
+    const tickerMatch = content.match(
+      /\b(TSLAI|NVDAI|AIPPL|AMSAI|GOAI|METAI|NFLAI)\b/i
+    );
+    const params: Record<string, unknown> = {};
+    if (tickerMatch?.[1]) params.ticker = tickerMatch[1].toUpperCase();
+    return { action: 'CHECK_PERPS', parameters: params };
+  }
+
+  // CHECK_FEED_POSTS — feed/social queries
+  if (
+    /\b(feed|posts?|trending|timeline|social|what'?s\s+happening)\b/i.test(
+      content
+    )
+  ) {
+    return { action: 'CHECK_FEED_POSTS', parameters: {} };
+  }
+
+  // CHECK_RECENT_MARKET_TRADES — trading activity queries
+  if (
+    /\b(recent\s+trades?|market\s+(activity|trades?)|trading\s+(activity|history)|latest\s+trades?)\b/i.test(
+      content
+    )
+  ) {
+    return { action: 'CHECK_RECENT_MARKET_TRADES', parameters: {} };
+  }
+
+  // CHECK_PREDICTIONS — prediction market queries
+  if (
+    /\b(predictions?|prediction\s+markets?|betting|bets?|events?\s+market)\b/i.test(
+      content
+    )
+  ) {
+    return { action: 'CHECK_PREDICTIONS', parameters: {} };
+  }
+
+  // CHECK_TEAM_CHAT — conversation history queries
+  if (
+    /\b(chat\s+history|conversation|chat\s+log|previous\s+messages?|what\s+did\s+.+\s+say)\b/i.test(
+      content
+    )
+  ) {
+    return { action: 'CHECK_TEAM_CHAT', parameters: {} };
+  }
+
+  return null;
+}
+
+// =============================================================================
 // POST Handler
 // =============================================================================
 
@@ -330,6 +430,65 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     createdAt: Date.now(),
   };
 
+  // =========================================================================
+  // Fast-Path Classification (OPT-6)
+  // =========================================================================
+  // Attempt to classify as a simple read-only query or greeting before
+  // entering the LLM decision loop. Saves 1 LLM call (~2s) per fast-path hit.
+  const fastPath = tryFastPath(content);
+
+  if (fastPath === 'greeting') {
+    // Greeting — canned response, 0 LLM calls, 0 DB queries beyond auth
+    logger.info(
+      '[Coordinator] Fast-path: greeting',
+      { teamChatId, totalDurationMs: Date.now() - requestStartMs },
+      'CoordinatorChat'
+    );
+
+    const greetingText = `Hey${ownerName !== 'User' ? ` ${ownerName}` : ''}! How can I help you today? I can check markets, your portfolio, the feed, or coordinate your agents.`;
+
+    const responseMessageId = await generateSnowflakeId();
+    const responseTime = new Date();
+
+    await db.insert(messages).values({
+      id: responseMessageId,
+      chatId: teamChatId,
+      senderId: COORDINATOR_SENDER_ID,
+      content: greetingText,
+      type: 'coordinator',
+      createdAt: responseTime,
+      metadata: null,
+    });
+
+    broadcastChatMessage(teamChatId, {
+      id: responseMessageId,
+      content: greetingText,
+      chatId: teamChatId,
+      senderId: COORDINATOR_SENDER_ID,
+      type: MessageTypeEnum.COORDINATOR,
+      createdAt: responseTime.toISOString(),
+      metadata: null,
+    }).catch((err) => {
+      logger.warn(
+        `Failed to broadcast coordinator message: ${err}`,
+        { teamChatId },
+        'CoordinatorChat'
+      );
+    });
+
+    return NextResponse.json({
+      success: true,
+      messageId: responseMessageId,
+      response: greetingText,
+      pointsCost: 0,
+      modelUsed: GROQ_MODELS.FREE.displayName,
+      type: MessageTypeEnum.COORDINATOR,
+      isLLMFailure: false,
+      metadata: null,
+      fastPath: 'greeting',
+    });
+  }
+
   // Multi-step execution — 5 iterations supports multi-agent orchestration patterns:
   // Iteration 1: DISPATCH_TO_AGENTS (parallel gather)
   // Iteration 2: RELAY_TO_AGENT (pass context to executor)
@@ -372,7 +531,152 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     'COORDINATOR_CONTEXT',
   ];
 
-  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+  // =========================================================================
+  // Fast-Path Action Execution (OPT-6)
+  // =========================================================================
+  // If tryFastPath returned an action match, execute it directly without
+  // the LLM decision loop. We still compose state (needed by processActions)
+  // and still run the summary phase (1 LLM call instead of 2+).
+  if (fastPath) {
+    logger.info(
+      `[Coordinator] Fast-path: ${fastPath.action}`,
+      { parameters: fastPath.parameters, teamChatId },
+      'CoordinatorChat'
+    );
+
+    // Compose state once for processActions and summary
+    const state = await runtime.composeState(elizaMessage, providers, true);
+    state.values = {
+      ...state.values,
+      isAgent: false,
+      isCoordinator: true,
+      currentMessage: content,
+      iterationCount: 1,
+      maxIterations: 1,
+      actionCount: 0,
+      ownerId: user.id,
+      ownerName,
+      ownerUsername,
+      teamChatId,
+    };
+    state.data = {
+      ...state.data,
+      actionParams: fastPath.parameters,
+      broadcastFn: broadcastChatMessage,
+    };
+
+    // Persist to stateCache for processActions
+    const fpStateCache = (
+      runtime as unknown as {
+        stateCache?: Map<
+          string,
+          {
+            values?: Record<string, unknown>;
+            data?: Record<string, unknown>;
+            text?: string;
+          }
+        >;
+      }
+    ).stateCache;
+    if (fpStateCache && elizaMessage.id) {
+      const cached = fpStateCache.get(elizaMessage.id);
+      if (cached) {
+        cached.data = {
+          ...cached.data,
+          actionParams: fastPath.parameters,
+          broadcastFn: broadcastChatMessage,
+        };
+      }
+    }
+
+    // Execute the action
+    const actionStartMs = Date.now();
+    const actionContent = {
+      text: `Executing action: ${fastPath.action}`,
+      actions: [fastPath.action],
+    };
+    const actionMessage: Memory = {
+      id: uuidv4() as `${string}-${string}-${string}-${string}-${string}`,
+      entityId: runtime.agentId,
+      roomId: elizaMessage.roomId,
+      createdAt: Date.now(),
+      content: actionContent,
+    };
+
+    const fpResultHolder: {
+      result: {
+        success?: boolean;
+        text?: string;
+        values?: Record<string, unknown>;
+        tag?: MessageTag;
+      } | null;
+    } = { result: null };
+
+    await runtime.processActions(
+      elizaMessage,
+      [actionMessage],
+      state,
+      async (results: unknown) => {
+        const resultsArray = results as
+          | Array<{
+              content?: {
+                success?: boolean;
+                text?: string;
+                values?: Record<string, unknown>;
+                tag?: MessageTag;
+              };
+            }>
+          | null;
+        if (resultsArray && resultsArray.length > 0 && resultsArray[0]) {
+          fpResultHolder.result = {
+            success: resultsArray[0].content?.success ?? true,
+            text:
+              typeof resultsArray[0].content?.text === 'string'
+                ? resultsArray[0].content.text
+                : undefined,
+            values: resultsArray[0].content?.values,
+            tag: resultsArray[0].content?.tag,
+          };
+        }
+        return [];
+      }
+    );
+
+    const fpResult = fpResultHolder.result;
+    const fpSuccess = fpResult?.success ?? false;
+
+    traceActionResults.push({
+      actionType: fastPath.action,
+      success: fpSuccess,
+      text: fpResult?.text || `${fastPath.action} executed`,
+      error: fpSuccess ? undefined : fpResult?.text,
+      values: fpResult?.values,
+      parameters: fastPath.parameters,
+      timestamp: Date.now(),
+      durationMs: Date.now() - actionStartMs,
+      tag: fpResult?.tag,
+    });
+
+    iterationsRan = 0; // No decision loop iterations
+    lastState = state;
+
+    // Log and skip to summary phase (below the decision loop)
+    logger.info(
+      '[Coordinator] Fast-path action completed, skipping to summary',
+      {
+        teamChatId,
+        action: fastPath.action,
+        success: fpSuccess,
+        decisionLoopMs: Date.now() - requestStartMs,
+      },
+      'CoordinatorChat'
+    );
+  }
+
+  // =========================================================================
+  // LLM Decision Loop (skipped when fast-path matched)
+  // =========================================================================
+  if (!fastPath) for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     iterationsRan = iteration;
 
     logger.info(
@@ -438,9 +742,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // Build the decision template on the first iteration once we know
     // the agent count from the TEAM_MEMBERS provider.
     if (!coordinatorDecisionTemplate) {
-      const agentCount =
-        (state.values.agentCount as number | undefined) ?? 0;
-      coordinatorDecisionTemplate = buildCoordinatorDecisionTemplate(agentCount);
+      const agentCount = (state.values.agentCount as number | undefined) ?? 0;
+      coordinatorDecisionTemplate =
+        buildCoordinatorDecisionTemplate(agentCount);
     }
 
     // Build prompt from template
@@ -684,6 +988,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   // Log decision loop completion with full telemetry (Phase 0 instrumentation)
+  const fastPathAction = fastPath ? fastPath.action : null;
   logger.info(
     '[Coordinator] Decision loop completed',
     {
@@ -693,6 +998,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       actionTypes: traceActionResults.map((r) => r.actionType),
       isLLMFailure,
       totalParseRetries,
+      fastPath: fastPathAction ?? 'none',
       decisionLoopMs: Date.now() - requestStartMs,
     },
     'CoordinatorChat'
@@ -706,8 +1012,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!finalResponse) {
     // If the loop never ran (e.g. immediate LLM failure), we need an initial state
     const summaryState =
-      lastState ??
-      (await runtime.composeState(elizaMessage, providers, true));
+      lastState ?? (await runtime.composeState(elizaMessage, providers, true));
 
     summaryState.values = {
       ...summaryState.values,
@@ -737,9 +1042,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
       const summaryResponse = await runtime.useModel(modelType, {
         prompt:
-          attempt > 1
-            ? summaryPrompt + SUMMARY_XML_FORMAT_HINT
-            : summaryPrompt,
+          attempt > 1 ? summaryPrompt + SUMMARY_XML_FORMAT_HINT : summaryPrompt,
         temperature: attempt > 1 ? 0.3 : 0.7,
       });
 
@@ -837,6 +1140,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       actionTypes: traceActionResults.map((r) => r.actionType),
       isLLMFailure,
       totalParseRetries,
+      fastPath: fastPathAction ?? 'none',
       totalDurationMs,
     },
     'CoordinatorChat'
@@ -851,5 +1155,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     type: MessageTypeEnum.COORDINATOR,
     isLLMFailure,
     metadata, // Include tags in response for immediate UI update
+    ...(fastPathAction ? { fastPath: fastPathAction } : {}),
   });
 });
