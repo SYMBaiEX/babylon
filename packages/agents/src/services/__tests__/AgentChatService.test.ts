@@ -550,7 +550,7 @@ describe('dispatchAgentChat', () => {
   // ── Max iterations boundary ───────────────────────────────────────────────
 
   describe('max iterations', () => {
-    it('stops after 4 iterations even if LLM never signals isFinish', async () => {
+    it('stops after MAX_ITERATIONS (2) even if LLM never signals isFinish', async () => {
       mockGetAgentWithConfig.mockResolvedValue(MOCK_AGENT_WITH_CONFIG);
 
       let decisionCalls = 0;
@@ -583,11 +583,11 @@ describe('dispatchAgentChat', () => {
 
       await dispatchAgentChat(BASE_PARAMS);
 
-      // 4 decision iterations + summary calls (each with up to 3 parse retries)
-      // Decision: up to 4 iterations × 1 LLM call = 4 decision calls
+      // 2 decision iterations + summary calls (each with up to 3 parse retries)
+      // Decision: up to 2 iterations × 1 LLM call = 2 decision calls
       // Summary: up to 3 retries
-      // Total LLM calls ≤ 4 + 3 = 7
-      expect(decisionCalls).toBeLessThanOrEqual(7);
+      // Total LLM calls ≤ 2 + 3 = 5
+      expect(decisionCalls).toBeLessThanOrEqual(5);
       // Actions executed should be bounded
     });
   });

@@ -224,105 +224,7 @@ const XML_FORMAT_HINT =
 const SUMMARY_XML_FORMAT_HINT =
   '\n\nYour previous response could not be parsed. Output ONLY this exact XML structure with no text outside the tags:\n<response>\n  <thought>reasoning</thought>\n  <text>Your response</text>\n</response>';
 
-// =============================================================================
-// Fast-Path Router (OPT-6)
-// =============================================================================
-
-/**
- * Verbs that indicate the user wants an agent to ACT, not just fetch info.
- * If any of these appear in the message, we must NOT fast-path — the LLM
- * decision loop is needed to handle dispatch logic.
- */
-const AGENT_ACTION_VERBS =
-  /\b(buy|sell|trade|open|close|post|comment|tell|ask|dispatch|send|create|make|write|reply|share|execute|place|submit|transfer)\b/i;
-
-/** Greeting patterns — canned response, 0 LLM calls */
-const GREETING_PATTERN =
-  /^\s*(hey|hi|hello|howdy|sup|what'?s\s*up|yo|gm|good\s*morning|good\s*evening|good\s*afternoon)\s*[!?.]*\s*$/i;
-
-interface FastPathMatch {
-  action: string;
-  parameters: Record<string, unknown>;
-}
-
-/**
- * Attempt to classify a user message as a simple read-only query that can
- * skip the LLM decision loop entirely. Returns:
- * - `'greeting'` for simple greetings (canned response, 0 LLM calls)
- * - `FastPathMatch` for read-only data queries (skip decision, still do summary)
- * - `null` if the message needs the full LLM decision loop
- *
- * Safety: NEVER returns a match when AGENT_ACTION_VERBS are detected, since
- * those require dispatch routing which only the LLM can decide.
- */
-function tryFastPath(content: string): FastPathMatch | 'greeting' | null {
-  // Never fast-path if content contains agent action verbs (mixed intent)
-  if (AGENT_ACTION_VERBS.test(content)) return null;
-
-  // Greetings — full match only (no trailing question/complex sentence)
-  if (GREETING_PATTERN.test(content)) return 'greeting';
-
-  // CHECK_USER_PNL — portfolio/balance queries
-  if (
-    /\b(portfolio|balance|pnl|p\s*&\s*l|profit|loss|positions?|holdings?|my\s+account)\b/i.test(
-      content
-    )
-  ) {
-    return { action: 'CHECK_USER_PNL', parameters: {} };
-  }
-
-  // CHECK_PERPS — market/price queries, with optional ticker extraction
-  if (
-    /\b(price|prices|perps?|perpetuals?|stocks?|tickers?|markets?)\b/i.test(
-      content
-    )
-  ) {
-    const tickerMatch = content.match(
-      /\b(TSLAI|NVDAI|AIPPL|AMSAI|GOAI|METAI|NFLAI)\b/i
-    );
-    const params: Record<string, unknown> = {};
-    if (tickerMatch?.[1]) params.ticker = tickerMatch[1].toUpperCase();
-    return { action: 'CHECK_PERPS', parameters: params };
-  }
-
-  // CHECK_FEED_POSTS — feed/social queries
-  if (
-    /\b(feed|posts?|trending|timeline|social|what'?s\s+happening)\b/i.test(
-      content
-    )
-  ) {
-    return { action: 'CHECK_FEED_POSTS', parameters: {} };
-  }
-
-  // CHECK_RECENT_MARKET_TRADES — trading activity queries
-  if (
-    /\b(recent\s+trades?|market\s+(activity|trades?)|trading\s+(activity|history)|latest\s+trades?)\b/i.test(
-      content
-    )
-  ) {
-    return { action: 'CHECK_RECENT_MARKET_TRADES', parameters: {} };
-  }
-
-  // CHECK_PREDICTIONS — prediction market queries
-  if (
-    /\b(predictions?|prediction\s+markets?|betting|bets?|events?\s+market)\b/i.test(
-      content
-    )
-  ) {
-    return { action: 'CHECK_PREDICTIONS', parameters: {} };
-  }
-
-  // CHECK_TEAM_CHAT — conversation history queries
-  if (
-    /\b(chat\s+history|conversation|chat\s+log|previous\s+messages?|what\s+did\s+.+\s+say)\b/i.test(
-      content
-    )
-  ) {
-    return { action: 'CHECK_TEAM_CHAT', parameters: {} };
-  }
-
-  return null;
-}
+import { tryFastPath } from './fast-path';
 
 // =============================================================================
 // POST Handler
@@ -617,16 +519,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       [actionMessage],
       state,
       async (results: unknown) => {
-        const resultsArray = results as
-          | Array<{
-              content?: {
-                success?: boolean;
-                text?: string;
-                values?: Record<string, unknown>;
-                tag?: MessageTag;
-              };
-            }>
-          | null;
+        const resultsArray = results as Array<{
+          content?: {
+            success?: boolean;
+            text?: string;
+            values?: Record<string, unknown>;
+            tag?: MessageTag;
+          };
+        }> | null;
         if (resultsArray && resultsArray.length > 0 && resultsArray[0]) {
           fpResultHolder.result = {
             success: resultsArray[0].content?.success ?? true,
@@ -676,316 +576,317 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // =========================================================================
   // LLM Decision Loop (skipped when fast-path matched)
   // =========================================================================
-  if (!fastPath) for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-    iterationsRan = iteration;
+  if (!fastPath)
+    for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+      iterationsRan = iteration;
 
-    logger.info(
-      `[Coordinator] Iteration ${iteration}/${MAX_ITERATIONS}`,
-      { actionsCompleted: traceActionResults.length },
-      'CoordinatorChat'
-    );
+      logger.info(
+        `[Coordinator] Iteration ${iteration}/${MAX_ITERATIONS}`,
+        { actionsCompleted: traceActionResults.length },
+        'CoordinatorChat'
+      );
 
-    let state: State;
+      let state: State;
 
-    if (iteration === 1) {
-      // First iteration: full composeState (3 DB queries — TEAM_MEMBERS,
-      // RECENT_MESSAGES, DISPATCH_HISTORY)
-      state = await runtime.composeState(elizaMessage, providers, true);
-    } else {
-      // Subsequent iterations: reuse state, skip redundant DB queries.
-      // Only re-fetch DISPATCH_HISTORY if we dispatched last iteration,
-      // since the agent's response is now in the messages table.
-      state = lastState!;
+      if (iteration === 1) {
+        // First iteration: full composeState (3 DB queries — TEAM_MEMBERS,
+        // RECENT_MESSAGES, DISPATCH_HISTORY)
+        state = await runtime.composeState(elizaMessage, providers, true);
+      } else {
+        // Subsequent iterations: reuse state, skip redundant DB queries.
+        // Only re-fetch DISPATCH_HISTORY if we dispatched last iteration,
+        // since the agent's response is now in the messages table.
+        state = lastState!;
 
-      if (lastDispatchIteration === iteration - 1) {
-        const dispatchProvider = runtime.providers.find(
-          (p) => p.name === 'DISPATCH_HISTORY'
-        );
-        if (dispatchProvider) {
-          const result = await dispatchProvider.get(
-            runtime,
-            elizaMessage,
-            state
+        if (lastDispatchIteration === iteration - 1) {
+          const dispatchProvider = runtime.providers.find(
+            (p) => p.name === 'DISPATCH_HISTORY'
           );
-          if (result.values) {
-            state.values = { ...state.values, ...result.values };
+          if (dispatchProvider) {
+            const result = await dispatchProvider.get(
+              runtime,
+              elizaMessage,
+              state
+            );
+            if (result.values) {
+              state.values = { ...state.values, ...result.values };
+            }
           }
         }
       }
-    }
 
-    // Add coordinator-specific values to state
-    state.values = {
-      ...state.values,
-      isAgent: false,
-      isCoordinator: true,
-      currentMessage: content,
-      iterationCount: iteration,
-      maxIterations: MAX_ITERATIONS,
-      actionCount: traceActionResults.length,
-      // User info
-      ownerId: user.id,
-      ownerName,
-      ownerUsername,
-      // Team chat context
-      teamChatId,
-    };
+      // Add coordinator-specific values to state
+      state.values = {
+        ...state.values,
+        isAgent: false,
+        isCoordinator: true,
+        currentMessage: content,
+        iterationCount: iteration,
+        maxIterations: MAX_ITERATIONS,
+        actionCount: traceActionResults.length,
+        // User info
+        ownerId: user.id,
+        ownerName,
+        ownerUsername,
+        // Team chat context
+        teamChatId,
+      };
 
-    // Add action results to state data for provider
-    state.data = {
-      ...state.data,
-      actionResults: traceActionResults,
-    };
+      // Add action results to state data for provider
+      state.data = {
+        ...state.data,
+        actionResults: traceActionResults,
+      };
 
-    lastState = state;
+      lastState = state;
 
-    // Build the decision template on the first iteration once we know
-    // the agent count from the TEAM_MEMBERS provider.
-    if (!coordinatorDecisionTemplate) {
-      const agentCount = (state.values.agentCount as number | undefined) ?? 0;
-      coordinatorDecisionTemplate =
-        buildCoordinatorDecisionTemplate(agentCount);
-    }
+      // Build the decision template on the first iteration once we know
+      // the agent count from the TEAM_MEMBERS provider.
+      if (!coordinatorDecisionTemplate) {
+        const agentCount = (state.values.agentCount as number | undefined) ?? 0;
+        coordinatorDecisionTemplate =
+          buildCoordinatorDecisionTemplate(agentCount);
+      }
 
-    // Build prompt from template
-    const prompt = composePromptFromState({
-      state,
-      template: coordinatorDecisionTemplate,
-    });
-
-    // Get LLM decision with retry + format reinforcement
-    const MAX_PARSE_RETRIES = 3;
-    let parsedStep: Record<string, unknown> | null = null;
-
-    for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
-      const response = await runtime.useModel(modelType, {
-        prompt: attempt > 1 ? prompt + XML_FORMAT_HINT : prompt,
-        temperature: attempt > 1 ? 0.3 : 0.7,
+      // Build prompt from template
+      const prompt = composePromptFromState({
+        state,
+        template: coordinatorDecisionTemplate,
       });
 
-      parsedStep = parseKeyValueXml(response);
+      // Get LLM decision with retry + format reinforcement
+      const MAX_PARSE_RETRIES = 3;
+      let parsedStep: Record<string, unknown> | null = null;
 
-      if (parsedStep) {
-        logger.debug(
-          `[Coordinator] Parsed decision on attempt ${attempt}`,
-          { action: parsedStep.action, isFinish: parsedStep.isFinish },
+      for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
+        const response = await runtime.useModel(modelType, {
+          prompt: attempt > 1 ? prompt + XML_FORMAT_HINT : prompt,
+          temperature: attempt > 1 ? 0.3 : 0.7,
+        });
+
+        parsedStep = parseKeyValueXml(response);
+
+        if (parsedStep) {
+          logger.debug(
+            `[Coordinator] Parsed decision on attempt ${attempt}`,
+            { action: parsedStep.action, isFinish: parsedStep.isFinish },
+            'CoordinatorChat'
+          );
+          break;
+        }
+
+        totalParseRetries++;
+        logger.warn(
+          `[Coordinator] Failed to parse decision (attempt ${attempt})`,
+          { preview: response.substring(0, 200) },
           'CoordinatorChat'
         );
+      }
+
+      if (!parsedStep) {
+        finalResponse =
+          "I'm having trouble processing your request. Could you try rephrasing?";
+        isLLMFailure = true;
         break;
       }
 
-      totalParseRetries++;
-      logger.warn(
-        `[Coordinator] Failed to parse decision (attempt ${attempt})`,
-        { preview: response.substring(0, 200) },
+      const action = ((parsedStep.action as string) ?? '').trim();
+      const parameters = parsedStep.parameters;
+      const isFinish = parsedStep.isFinish;
+
+      // No action - go to summary phase
+      if (!action) {
+        break;
+      }
+
+      // Execute action
+      const actionStartMs = Date.now();
+      logger.info(
+        `[Coordinator] Executing action: ${action}`,
+        { parameters },
         'CoordinatorChat'
       );
-    }
 
-    if (!parsedStep) {
-      finalResponse =
-        "I'm having trouble processing your request. Could you try rephrasing?";
-      isLLMFailure = true;
-      break;
-    }
-
-    const action = ((parsedStep.action as string) ?? '').trim();
-    const parameters = parsedStep.parameters;
-    const isFinish = parsedStep.isFinish;
-
-    // No action - go to summary phase
-    if (!action) {
-      break;
-    }
-
-    // Execute action
-    const actionStartMs = Date.now();
-    logger.info(
-      `[Coordinator] Executing action: ${action}`,
-      { parameters },
-      'CoordinatorChat'
-    );
-
-    // Parse parameters with fail-fast validation (no silent fallbacks)
-    let actionParams: Record<string, unknown> = {};
-    if (parameters) {
-      if (typeof parameters === 'string') {
-        // Fail-fast: let JSON.parse errors propagate
-        const parsed: unknown = JSON.parse(parameters);
-        // Validate the parsed result is a non-null object (not an array)
-        if (
-          typeof parsed !== 'object' ||
-          parsed === null ||
-          Array.isArray(parsed)
+      // Parse parameters with fail-fast validation (no silent fallbacks)
+      let actionParams: Record<string, unknown> = {};
+      if (parameters) {
+        if (typeof parameters === 'string') {
+          // Fail-fast: let JSON.parse errors propagate
+          const parsed: unknown = JSON.parse(parameters);
+          // Validate the parsed result is a non-null object (not an array)
+          if (
+            typeof parsed !== 'object' ||
+            parsed === null ||
+            Array.isArray(parsed)
+          ) {
+            throw new Error(
+              `Invalid parameters: expected object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}. Original: ${parameters}`
+            );
+          }
+          actionParams = parsed as Record<string, unknown>;
+        } else if (
+          typeof parameters === 'object' &&
+          parameters !== null &&
+          !Array.isArray(parameters)
         ) {
+          actionParams = parameters as Record<string, unknown>;
+        } else if (Array.isArray(parameters)) {
           throw new Error(
-            `Invalid parameters: expected object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}. Original: ${parameters}`
+            `Invalid parameters: expected object, got array. Original: ${JSON.stringify(parameters)}`
           );
+        } else {
+          throw new Error(`Unexpected parameters type: ${typeof parameters}`);
         }
-        actionParams = parsed as Record<string, unknown>;
-      } else if (
-        typeof parameters === 'object' &&
-        parameters !== null &&
-        !Array.isArray(parameters)
+      }
+
+      // Store params and inject broadcastFn so DISPATCH_TO_AGENT can broadcast.
+      // broadcastFn is injected here (not imported inside packages/agents) to
+      // maintain architectural separation between @babylon/api and @babylon/agents.
+      //
+      // IMPORTANT: ElizaOS processActions() re-composes state internally via
+      // runtime.composeState(), which reads from stateCache and DISCARDS any
+      // custom state.data injections. To survive the re-composition, we:
+      //   1. Write actionParams + broadcastFn into the stateCache entry
+      //   2. Also set them on the local state object (for prompt composition)
+      state.data = {
+        ...state.data,
+        actionParams,
+        broadcastFn: broadcastChatMessage,
+      };
+
+      // Persist to stateCache so processActions' internal composeState preserves them
+      const stateCache = (
+        runtime as unknown as {
+          stateCache?: Map<
+            string,
+            {
+              values?: Record<string, unknown>;
+              data?: Record<string, unknown>;
+              text?: string;
+            }
+          >;
+        }
+      ).stateCache;
+      if (stateCache && elizaMessage.id) {
+        const cached = stateCache.get(elizaMessage.id);
+        if (cached) {
+          cached.data = {
+            ...cached.data,
+            actionParams,
+            broadcastFn: broadcastChatMessage,
+          };
+        }
+      }
+
+      // Build action content for processActions
+      const actionContent = {
+        text: `Executing action: ${action}`,
+        actions: [action],
+      };
+
+      const actionMessage: Memory = {
+        id: uuidv4() as `${string}-${string}-${string}-${string}-${string}`,
+        entityId: runtime.agentId,
+        roomId: elizaMessage.roomId,
+        createdAt: Date.now(),
+        content: actionContent,
+      };
+
+      // Concrete types for action results
+      interface ActionResultContent {
+        success?: boolean;
+        text?: string;
+        values?: Record<string, unknown>;
+        tag?: MessageTag;
+      }
+
+      interface ProcessActionsResult {
+        content?: ActionResultContent;
+      }
+
+      // Use object to allow mutation from callback
+      const resultHolder: { result: ActionResultContent | null } = {
+        result: null,
+      };
+
+      // Fail-fast: let errors from processActions propagate to caller
+      await runtime.processActions(
+        elizaMessage,
+        [actionMessage],
+        state,
+        async (results: unknown) => {
+          const resultsArray = results as ProcessActionsResult[] | null;
+          if (resultsArray && resultsArray.length > 0) {
+            const firstResult = resultsArray[0];
+            if (firstResult) {
+              resultHolder.result = {
+                success: firstResult.content?.success ?? true,
+                text:
+                  typeof firstResult.content?.text === 'string'
+                    ? firstResult.content.text
+                    : undefined,
+                values: firstResult.content?.values,
+                tag: firstResult.content?.tag,
+              };
+            }
+          }
+          return [];
+        }
+      );
+
+      // Use resultHolder as the single source of truth for action results
+      // The callback in processActions captures the result; no fallback to runtime internals
+      let actionResult = resultHolder.result;
+
+      // Default to false if result is missing to avoid masking silent failures
+      if (!actionResult) {
+        const cachedState = (
+          runtime as unknown as { stateCache?: Map<string, unknown> }
+        ).stateCache?.get(`${elizaMessage.id}_action_results`) as
+          | {
+              values?: {
+                actionResults?: Array<{
+                  success?: boolean;
+                  text?: string;
+                  values?: Record<string, unknown>;
+                }>;
+              };
+            }
+          | undefined;
+        const actionResultsFromCache = cachedState?.values?.actionResults || [];
+        actionResult =
+          actionResultsFromCache.length > 0
+            ? (actionResultsFromCache[0] ?? null)
+            : null;
+      }
+      const success = actionResult?.success ?? false;
+
+      traceActionResults.push({
+        actionType: action,
+        success,
+        text: actionResult?.text || `${action} executed`,
+        error: success ? undefined : actionResult?.text,
+        values: actionResult?.values,
+        parameters: actionParams,
+        timestamp: Date.now(),
+        durationMs: Date.now() - actionStartMs,
+        tag: actionResult?.tag,
+      });
+
+      // Track dispatch iterations so we know to refresh DISPATCH_HISTORY
+      if (
+        action === 'DISPATCH_TO_AGENT' ||
+        action === 'DISPATCH_TO_AGENTS' ||
+        action === 'RELAY_TO_AGENT'
       ) {
-        actionParams = parameters as Record<string, unknown>;
-      } else if (Array.isArray(parameters)) {
-        throw new Error(
-          `Invalid parameters: expected object, got array. Original: ${JSON.stringify(parameters)}`
-        );
-      } else {
-        throw new Error(`Unexpected parameters type: ${typeof parameters}`);
+        lastDispatchIteration = iteration;
+      }
+
+      // Check if done
+      if (isFinish === 'true' || isFinish === true) {
+        break;
       }
     }
-
-    // Store params and inject broadcastFn so DISPATCH_TO_AGENT can broadcast.
-    // broadcastFn is injected here (not imported inside packages/agents) to
-    // maintain architectural separation between @babylon/api and @babylon/agents.
-    //
-    // IMPORTANT: ElizaOS processActions() re-composes state internally via
-    // runtime.composeState(), which reads from stateCache and DISCARDS any
-    // custom state.data injections. To survive the re-composition, we:
-    //   1. Write actionParams + broadcastFn into the stateCache entry
-    //   2. Also set them on the local state object (for prompt composition)
-    state.data = {
-      ...state.data,
-      actionParams,
-      broadcastFn: broadcastChatMessage,
-    };
-
-    // Persist to stateCache so processActions' internal composeState preserves them
-    const stateCache = (
-      runtime as unknown as {
-        stateCache?: Map<
-          string,
-          {
-            values?: Record<string, unknown>;
-            data?: Record<string, unknown>;
-            text?: string;
-          }
-        >;
-      }
-    ).stateCache;
-    if (stateCache && elizaMessage.id) {
-      const cached = stateCache.get(elizaMessage.id);
-      if (cached) {
-        cached.data = {
-          ...cached.data,
-          actionParams,
-          broadcastFn: broadcastChatMessage,
-        };
-      }
-    }
-
-    // Build action content for processActions
-    const actionContent = {
-      text: `Executing action: ${action}`,
-      actions: [action],
-    };
-
-    const actionMessage: Memory = {
-      id: uuidv4() as `${string}-${string}-${string}-${string}-${string}`,
-      entityId: runtime.agentId,
-      roomId: elizaMessage.roomId,
-      createdAt: Date.now(),
-      content: actionContent,
-    };
-
-    // Concrete types for action results
-    interface ActionResultContent {
-      success?: boolean;
-      text?: string;
-      values?: Record<string, unknown>;
-      tag?: MessageTag;
-    }
-
-    interface ProcessActionsResult {
-      content?: ActionResultContent;
-    }
-
-    // Use object to allow mutation from callback
-    const resultHolder: { result: ActionResultContent | null } = {
-      result: null,
-    };
-
-    // Fail-fast: let errors from processActions propagate to caller
-    await runtime.processActions(
-      elizaMessage,
-      [actionMessage],
-      state,
-      async (results: unknown) => {
-        const resultsArray = results as ProcessActionsResult[] | null;
-        if (resultsArray && resultsArray.length > 0) {
-          const firstResult = resultsArray[0];
-          if (firstResult) {
-            resultHolder.result = {
-              success: firstResult.content?.success ?? true,
-              text:
-                typeof firstResult.content?.text === 'string'
-                  ? firstResult.content.text
-                  : undefined,
-              values: firstResult.content?.values,
-              tag: firstResult.content?.tag,
-            };
-          }
-        }
-        return [];
-      }
-    );
-
-    // Use resultHolder as the single source of truth for action results
-    // The callback in processActions captures the result; no fallback to runtime internals
-    let actionResult = resultHolder.result;
-
-    // Default to false if result is missing to avoid masking silent failures
-    if (!actionResult) {
-      const cachedState = (
-        runtime as unknown as { stateCache?: Map<string, unknown> }
-      ).stateCache?.get(`${elizaMessage.id}_action_results`) as
-        | {
-            values?: {
-              actionResults?: Array<{
-                success?: boolean;
-                text?: string;
-                values?: Record<string, unknown>;
-              }>;
-            };
-          }
-        | undefined;
-      const actionResultsFromCache = cachedState?.values?.actionResults || [];
-      actionResult =
-        actionResultsFromCache.length > 0
-          ? (actionResultsFromCache[0] ?? null)
-          : null;
-    }
-    const success = actionResult?.success ?? false;
-
-    traceActionResults.push({
-      actionType: action,
-      success,
-      text: actionResult?.text || `${action} executed`,
-      error: success ? undefined : actionResult?.text,
-      values: actionResult?.values,
-      parameters: actionParams,
-      timestamp: Date.now(),
-      durationMs: Date.now() - actionStartMs,
-      tag: actionResult?.tag,
-    });
-
-    // Track dispatch iterations so we know to refresh DISPATCH_HISTORY
-    if (
-      action === 'DISPATCH_TO_AGENT' ||
-      action === 'DISPATCH_TO_AGENTS' ||
-      action === 'RELAY_TO_AGENT'
-    ) {
-      lastDispatchIteration = iteration;
-    }
-
-    // Check if done
-    if (isFinish === 'true' || isFinish === true) {
-      break;
-    }
-  }
 
   // Log decision loop completion with full telemetry (Phase 0 instrumentation)
   const fastPathAction = fastPath ? fastPath.action : null;
