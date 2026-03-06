@@ -57,6 +57,80 @@ import { v4 as uuidv4 } from 'uuid';
 // Parallel dispatches via DISPATCH_TO_AGENTS can take longer — 120s covers worst case.
 export const maxDuration = 120;
 
+/**
+ * Access the ElizaOS runtime's internal stateCache.
+ *
+ * ElizaOS (v0.x) stores action results and injected state data in a Map keyed
+ * by message ID. This is not part of the public API — it's accessed via type
+ * assertion because there's no official getter. If ElizaOS changes the cache
+ * structure, this accessor will return undefined (safe — all callers handle that).
+ *
+ * Verified against: @elizaos/core processActions (line ~48919) and
+ * composeState (line ~49200) in node_modules/@elizaos/core/dist/node/index.node.js
+ */
+function getRuntimeStateCache(
+  runtime: unknown
+):
+  | Map<
+      string,
+      {
+        values?: Record<string, unknown>;
+        data?: Record<string, unknown>;
+        text?: string;
+      }
+    >
+  | undefined {
+  return (
+    runtime as {
+      stateCache?: Map<
+        string,
+        {
+          values?: Record<string, unknown>;
+          data?: Record<string, unknown>;
+          text?: string;
+        }
+      >;
+    }
+  ).stateCache;
+}
+
+/** Trace result from a single coordinator action execution */
+type ActionTraceResult = {
+  actionType: string;
+  success: boolean;
+  text: string;
+  error?: string;
+  values?: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
+  timestamp: number;
+  durationMs?: number;
+  tag?: MessageTag;
+};
+
+/**
+ * Format trace results into the same string format the ACTION_STATE provider uses.
+ * Kept in sync with `formatActionResults` in `action-state.ts` — both produce
+ * the text that populates `{{actionResults}}` in coordinator prompt templates.
+ */
+function formatTraceResults(results: ActionTraceResult[]): string {
+  if (results.length === 0) return 'No actions taken yet in this request.';
+  return results
+    .map((r, i) => {
+      const status = r.success ? '✓ Success' : '✗ Failed';
+      let out = `${i + 1}. **${r.actionType}** - ${status}`;
+      if (r.text) out += `\n   Summary: ${r.text}`;
+      if (r.error) out += `\n   Error: ${r.error}`;
+      if (r.values && Object.keys(r.values).length > 0) {
+        const vals = Object.entries(r.values)
+          .map(([k, v]) => `   - ${k}: ${JSON.stringify(v)}`)
+          .join('\n');
+        out += `\n   Values:\n${vals}`;
+      }
+      return out;
+    })
+    .join('\n\n');
+}
+
 // =============================================================================
 // Coordinator Prompt Templates
 // =============================================================================
@@ -396,38 +470,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Iteration 2: RELAY_TO_AGENT (pass context to executor)
   // Iterations 3-5: follow-up dispatches or early finish
   const MAX_ITERATIONS = 5;
-  type ActionTraceResult = {
-    actionType: string;
-    success: boolean;
-    text: string;
-    error?: string;
-    values?: Record<string, unknown>;
-    parameters?: Record<string, unknown>;
-    timestamp: number;
-    durationMs?: number;
-    tag?: MessageTag;
-  };
-
-  /** Format trace results into the same string format the ACTION_STATE provider uses */
-  function formatTraceResults(results: ActionTraceResult[]): string {
-    if (results.length === 0) return 'No actions taken yet in this request.';
-    return results
-      .map((r, i) => {
-        const status = r.success ? '✓ Success' : '✗ Failed';
-        let out = `${i + 1}. **${r.actionType}** - ${status}`;
-        if (r.text) out += `\n   Summary: ${r.text}`;
-        if (r.error) out += `\n   Error: ${r.error}`;
-        if (r.values && Object.keys(r.values).length > 0) {
-          const vals = Object.entries(r.values)
-            .map(([k, v]) => `   - ${k}: ${JSON.stringify(v)}`)
-            .join('\n');
-          out += `\n   Values:\n${vals}`;
-        }
-        return out;
-      })
-      .join('\n\n');
-  }
-
   const traceActionResults: ActionTraceResult[] = [];
   let finalResponse: string | null = null;
   let isLLMFailure = false;
@@ -490,18 +532,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     };
 
     // Persist to stateCache for processActions
-    const fpStateCache = (
-      runtime as unknown as {
-        stateCache?: Map<
-          string,
-          {
-            values?: Record<string, unknown>;
-            data?: Record<string, unknown>;
-            text?: string;
-          }
-        >;
-      }
-    ).stateCache;
+    const fpStateCache = getRuntimeStateCache(runtime);
     if (fpStateCache && elizaMessage.id) {
       const cached = fpStateCache.get(elizaMessage.id);
       if (cached) {
@@ -570,21 +601,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // instead of calling the callback, the result is stored in stateCache
     // under `${messageId}_action_results` by ElizaOS processActions.
     if (!fpResult) {
-      const cachedActionResults = (
-        runtime as unknown as { stateCache?: Map<string, unknown> }
-      ).stateCache?.get(`${elizaMessage.id}_action_results`) as
-        | {
-            values?: {
-              actionResults?: Array<{
-                success?: boolean;
-                text?: string;
-                values?: Record<string, unknown>;
-                tag?: MessageTag;
-              }>;
-            };
-          }
-        | undefined;
-      const resultsFromCache = cachedActionResults?.values?.actionResults || [];
+      const cached = getRuntimeStateCache(runtime)?.get(
+        `${elizaMessage.id}_action_results`
+      );
+      const resultsFromCache =
+        (cached?.values?.actionResults as Array<{
+          success?: boolean;
+          text?: string;
+          values?: Record<string, unknown>;
+          tag?: MessageTag;
+        }>) || [];
       if (resultsFromCache.length > 0 && resultsFromCache[0]) {
         fpResult = {
           success: resultsFromCache[0].success,
@@ -628,7 +654,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // =========================================================================
   // LLM Decision Loop (skipped when fast-path matched)
   // =========================================================================
-  if (!fastPath)
+  if (!fastPath) {
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       iterationsRan = iteration;
 
@@ -814,18 +840,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       };
 
       // Persist to stateCache so processActions' internal composeState preserves them
-      const stateCache = (
-        runtime as unknown as {
-          stateCache?: Map<
-            string,
-            {
-              values?: Record<string, unknown>;
-              data?: Record<string, unknown>;
-              text?: string;
-            }
-          >;
-        }
-      ).stateCache;
+      const stateCache = getRuntimeStateCache(runtime);
       if (stateCache && elizaMessage.id) {
         const cached = stateCache.get(elizaMessage.id);
         if (cached) {
@@ -899,20 +914,15 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
       // Default to false if result is missing to avoid masking silent failures
       if (!actionResult) {
-        const cachedState = (
-          runtime as unknown as { stateCache?: Map<string, unknown> }
-        ).stateCache?.get(`${elizaMessage.id}_action_results`) as
-          | {
-              values?: {
-                actionResults?: Array<{
-                  success?: boolean;
-                  text?: string;
-                  values?: Record<string, unknown>;
-                }>;
-              };
-            }
-          | undefined;
-        const actionResultsFromCache = cachedState?.values?.actionResults || [];
+        const cached = getRuntimeStateCache(runtime)?.get(
+          `${elizaMessage.id}_action_results`
+        );
+        const actionResultsFromCache =
+          (cached?.values?.actionResults as Array<{
+            success?: boolean;
+            text?: string;
+            values?: Record<string, unknown>;
+          }>) || [];
         actionResult =
           actionResultsFromCache.length > 0
             ? (actionResultsFromCache[0] ?? null)
@@ -946,6 +956,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         break;
       }
     }
+  }
 
   // Log decision loop completion with full telemetry (Phase 0 instrumentation)
   const fastPathAction = fastPath ? fastPath.action : null;
@@ -1088,9 +1099,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Clean up this request's stateCache entry to prevent unbounded growth on
   // the shared coordinator runtime (see multi-user safety note above).
   const stateCacheKey = `${elizaMessage.id}_action_results`;
-  (
-    runtime as unknown as { stateCache?: Map<string, unknown> }
-  ).stateCache?.delete(stateCacheKey);
+  getRuntimeStateCache(runtime)?.delete(stateCacheKey);
 
   // Note: Coordinator uses free model, no points deduction
 

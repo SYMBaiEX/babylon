@@ -316,6 +316,28 @@ describe('Coordinator POST', () => {
       }>;
       expect(actionMessages[0].content.actions).toEqual(['CHECK_USER_PNL']);
     });
+
+    it('handles action execution failure gracefully', async () => {
+      mockProcessActions.mockImplementation(
+        async (_m: unknown, _acts: unknown, _s: unknown, cb: Function) => {
+          await cb([
+            { content: { success: false, text: 'Market data unavailable' } },
+          ]);
+        }
+      );
+      mockUseModel.mockResolvedValueOnce('SUM');
+      mockParseKeyValueXml.mockReturnValueOnce({
+        thought: 'action failed',
+        text: 'Sorry, market data is temporarily unavailable.',
+      });
+
+      const res = await POST(makeRequest('TSLAI price'));
+      const body = (res as MockResponse).body;
+      expect(body.success).toBe(true);
+      expect(body.response).toBe(
+        'Sorry, market data is temporarily unavailable.'
+      );
+    });
   });
 
   // ── Full LLM decision loop ──────────────────────────────────────────────

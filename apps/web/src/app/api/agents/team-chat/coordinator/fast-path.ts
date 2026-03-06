@@ -77,8 +77,12 @@ export function tryFastPath(
       content
     )
   ) {
+    // Extract ticker if present. Uses known ticker list since dynamic detection
+    // would match common English words. Update this list when new markets launch.
+    // Invalid tickers are harmlessly ignored by CHECK_PERPS.
+    // See: packages/engine/src/data/organizations/ for the full ticker list.
     const tickerMatch = content.match(
-      /\b(TSLAI|NVDAI|AIPPL|AMSAI|GOAI|METAI|NFLAI)\b/i
+      /\b(TSLAI|NVDAI|AIPPL|AMSAI|GOAI|METAI|NFLAI|SOLAI|BTCAI|ETHAI)\b/i
     );
     const params: Record<string, unknown> = {};
     if (tickerMatch?.[1]) params.ticker = tickerMatch[1].toUpperCase();
