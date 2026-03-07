@@ -363,7 +363,8 @@ export const parodyHeadlines = pgTable(
 export type DailyTopicSourceType =
   | 'auto'
   | 'manual_override'
-  | 'fallback_previous_day';
+  | 'fallback_previous_day'
+  | 'fallback_default';
 
 // DailyTopic - The single narrative topic that should drive new gameplay for a day
 export const dailyTopics = pgTable(

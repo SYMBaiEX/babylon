@@ -4,7 +4,6 @@ import {
   dailyTopics,
   db,
   desc,
-  eq,
   generateSnowflakeId,
   gte,
   parodyHeadlines,
@@ -342,11 +341,21 @@ export class DailyTopicService {
 
     if (!previousTopic) {
       logger.warn(
-        'No daily topic candidates found and no previous topic available',
+        'No daily topic candidates found and no previous topic available, using default topic',
         { date: normalizedDate.toISOString() },
         'DailyTopicService'
       );
-      return null;
+      return this.upsertTopic({
+        date: normalizedDate,
+        topicKey: 'general',
+        topicLabel: 'General',
+        summary: 'General market-moving developments across the Babylon world',
+        sourceType: 'fallback_default',
+        sourceHeadlineIds: [],
+        selectionReason:
+          'Default topic used because no candidates or previous topics were available',
+        isLocked: false,
+      });
     }
 
     return this.upsertTopic({
@@ -411,30 +420,8 @@ export class DailyTopicService {
   private async upsertTopic(
     input: Omit<DailyTopicContext, 'id'>
   ): Promise<DailyTopicContext> {
-    const existing = await db.dailyTopic.findFirst({
-      where: { date: { equals: input.date } },
-    });
-
-    if (existing) {
-      const [updated] = await db
-        .update(dailyTopics)
-        .set({
-          topicKey: input.topicKey,
-          topicLabel: input.topicLabel,
-          summary: input.summary,
-          sourceType: input.sourceType,
-          sourceHeadlineIds: input.sourceHeadlineIds,
-          selectionReason: input.selectionReason,
-          isLocked: input.isLocked,
-          updatedAt: new Date(),
-        })
-        .where(eq(dailyTopics.id, existing.id))
-        .returning();
-
-      return toContext(updated!);
-    }
-
-    const [created] = await db
+    const updatedAt = new Date();
+    const [topic] = await db
       .insert(dailyTopics)
       .values({
         id: await generateSnowflakeId(),
@@ -446,9 +433,26 @@ export class DailyTopicService {
         sourceHeadlineIds: input.sourceHeadlineIds,
         selectionReason: input.selectionReason,
         isLocked: input.isLocked,
-        updatedAt: new Date(),
+        updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: dailyTopics.date,
+        set: {
+          topicKey: input.topicKey,
+          topicLabel: input.topicLabel,
+          summary: input.summary,
+          sourceType: input.sourceType,
+          sourceHeadlineIds: input.sourceHeadlineIds,
+          selectionReason: input.selectionReason,
+          isLocked: input.isLocked,
+          updatedAt,
+        },
       })
       .returning();
+
+    if (!topic) {
+      throw new Error(`Failed to store daily topic for ${input.date.toISOString()}`);
+    }
 
     logger.info(
       'Stored daily topic',
@@ -462,7 +466,7 @@ export class DailyTopicService {
       'DailyTopicService'
     );
 
-    return toContext(created!);
+    return toContext(topic);
   }
 }
 

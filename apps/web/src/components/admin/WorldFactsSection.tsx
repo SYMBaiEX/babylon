@@ -48,7 +48,11 @@ interface WorldFactsData {
     topicKey: string;
     topicLabel: string;
     summary: string;
-    sourceType: 'auto' | 'manual_override' | 'fallback_previous_day';
+    sourceType:
+      | 'auto'
+      | 'manual_override'
+      | 'fallback_previous_day'
+      | 'fallback_default';
     isLocked: boolean;
   } | null;
   dailyTopicCandidates?: Array<{

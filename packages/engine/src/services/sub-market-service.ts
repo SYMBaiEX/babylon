@@ -37,7 +37,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { formatError } from '../utils/error-utils';
-import { deriveTopicFromText } from './daily-topic-service';
+import { deriveTopicFromText, normalizeTopicDate } from './daily-topic-service';
 import {
   calculateEndTime,
   type SubMarketTrigger,
@@ -419,12 +419,12 @@ export class SubMarketService {
         ? {
             topicKey: parent.topicKey,
             topicLabel: parent.topicLabel,
-            topicDate: parent.topicDate ?? now,
+            topicDate: parent.topicDate ?? derivedTopic.date,
           }
         : {
             topicKey: derivedTopic.topicKey,
             topicLabel: derivedTopic.topicLabel,
-            topicDate: now,
+            topicDate: normalizeTopicDate(now),
           };
 
     const newMarket: NewTimeframedMarket = {

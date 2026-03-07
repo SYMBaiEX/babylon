@@ -74,6 +74,7 @@ import {
   deriveTopicFromText,
   isEligibleActor,
   mapGranularToDbTimeframe,
+  normalizeTopicDate,
   publishOracleCommitments,
   publishOracleReveals,
   QuestionManager,
@@ -2222,7 +2223,9 @@ function resolveTopicForMarket(
 ): DailyTopicContext {
   if (market.topicKey && market.topicLabel) {
     return {
-      date: market.topicDate ? new Date(market.topicDate) : fallbackDate,
+      date: market.topicDate
+        ? normalizeTopicDate(new Date(market.topicDate))
+        : normalizeTopicDate(fallbackDate),
       topicKey: market.topicKey,
       topicLabel: market.topicLabel,
       summary: market.questionText?.trim() || market.topicLabel,

@@ -57,24 +57,27 @@ const dbMock = {
   })),
   insert: mock(() => ({
     values: mock((data: Record<string, unknown>) => ({
-      returning: mock(async () => {
-        storedTopics.push(data);
-        return [data];
-      }),
-    })),
-  })),
-  update: mock(() => ({
-    set: mock((data: Record<string, unknown>) => ({
-      where: mock(() => ({
-        returning: mock(async () => {
-          const idx = storedTopics.findIndex((topic) => topic.id === data.id);
-          if (idx >= 0) {
-            storedTopics[idx] = { ...storedTopics[idx], ...data };
-            return [storedTopics[idx]];
-          }
-          return [{ ...data }];
-        }),
-      })),
+      onConflictDoUpdate: mock(
+        ({ set }: { set: Record<string, unknown> }) => ({
+          returning: mock(async () => {
+            const existingIndex = storedTopics.findIndex(
+              (topic) =>
+                (topic.date as Date).getTime() === (data.date as Date).getTime()
+            );
+
+            if (existingIndex >= 0) {
+              storedTopics[existingIndex] = {
+                ...storedTopics[existingIndex],
+                ...set,
+              };
+              return [storedTopics[existingIndex]];
+            }
+
+            storedTopics.push(data);
+            return [data];
+          }),
+        })
+      ),
     })),
   })),
   delete: mock(() => ({
@@ -97,7 +100,6 @@ mock.module('@babylon/db', () => ({
   },
   and: (...args: unknown[]) => args,
   desc: (value: unknown) => value,
-  eq: (a: unknown, b: unknown) => [a, b],
   generateSnowflakeId: mock(async () => `topic-${storedTopics.length + 1}`),
   gte: (a: unknown, b: unknown) => [a, b],
 }));
@@ -177,6 +179,16 @@ describe('daily-topic-service', () => {
 
     expect(topic?.topicKey).toBe('openai');
     expect(topic?.sourceType).toBe('fallback_previous_day');
+  });
+
+  test('ensureTopicForDate falls back to default topic when no candidates exist yet', async () => {
+    const topic = await dailyTopicService.ensureTopicForDate(
+      new Date('2026-03-06T14:00:00.000Z')
+    );
+
+    expect(topic?.topicKey).toBe('general');
+    expect(topic?.topicLabel).toBe('General');
+    expect(topic?.sourceType).toBe('fallback_default');
   });
 
   test('helper functions derive prompt-safe topic context', () => {
