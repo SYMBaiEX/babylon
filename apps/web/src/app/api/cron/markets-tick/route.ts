@@ -69,6 +69,7 @@ import {
 } from '@babylon/db';
 import {
   BabylonLLMClient,
+  type DailyTopicContext,
   dailyTopicService,
   deriveTopicFromText,
   isEligibleActor,
@@ -81,7 +82,6 @@ import {
   StaticDataRegistry,
   secureRandom,
   timeframeArcPlanner,
-  type DailyTopicContext,
   weightedPick,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';

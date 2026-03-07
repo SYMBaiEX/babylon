@@ -337,7 +337,10 @@ export const timeframedMarkets = pgTable(
     index('TimeframedMarket_rootMarketId_idx').on(t.rootMarketId),
     index('TimeframedMarket_timeframe_idx').on(t.timeframe),
     index('TimeframedMarket_category_idx').on(t.category),
-    index('TimeframedMarket_topicKey_topicDate_idx').on(t.topicKey, t.topicDate),
+    index('TimeframedMarket_topicKey_topicDate_idx').on(
+      t.topicKey,
+      t.topicDate
+    ),
     index('TimeframedMarket_granularTimeframe_idx').on(t.granularTimeframe),
     index('TimeframedMarket_isActive_idx').on(t.isActive),
     index('TimeframedMarket_endTime_idx').on(t.endTime),

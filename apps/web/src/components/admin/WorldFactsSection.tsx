@@ -207,7 +207,7 @@ export function WorldFactsSection() {
         <div className="mb-4 rounded-lg border border-border bg-background/80 p-4">
           <div className="mb-2 flex items-center justify-between gap-4">
             <div>
-              <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+              <h4 className="font-semibold text-muted-foreground text-sm uppercase tracking-wide">
                 Daily Topic
               </h4>
               <p className="text-sm">
@@ -270,7 +270,7 @@ export function WorldFactsSection() {
                     setTopicLabel(candidate.topicLabel);
                     setTopicSummary(candidate.summary);
                   }}
-                  className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
+                  className="rounded-full border border-border px-3 py-1 text-muted-foreground text-xs transition-colors hover:bg-accent"
                 >
                   {candidate.topicLabel} ({candidate.score})
                 </button>

@@ -107,7 +107,10 @@ export const questions = pgTable(
       table.status,
       table.resolutionDate
     ),
-    index('Question_topicKey_topicDate_idx').on(table.topicKey, table.topicDate),
+    index('Question_topicKey_topicDate_idx').on(
+      table.topicKey,
+      table.topicDate
+    ),
     index('Question_requiresManualReview_status_idx').on(
       table.status,
       table.requiresManualReview,

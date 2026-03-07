@@ -1,14 +1,14 @@
 import {
+  type DailyTopic,
+  type DailyTopicSourceType,
   dailyTopics,
+  db,
   desc,
   eq,
   generateSnowflakeId,
   gte,
   parodyHeadlines,
   rssHeadlines,
-  type DailyTopic,
-  type DailyTopicSourceType,
-  db,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 
@@ -104,14 +104,15 @@ function extractTopicTokens(input: string): string[] {
     .split(/\s+/)
     .filter(
       (token) =>
-        token.length >= 4 &&
-        !TOPIC_STOPWORDS.has(token) &&
-        !/^\d+$/.test(token)
+        token.length >= 4 && !TOPIC_STOPWORDS.has(token) && !/^\d+$/.test(token)
     );
 }
 
 function getDisplayLabel(topicKey: string, headlines: string[]): string {
-  const regex = new RegExp(`\\b${topicKey.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+  const regex = new RegExp(
+    `\\b${topicKey.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`,
+    'i'
+  );
   for (const headline of headlines) {
     const match = headline.match(regex);
     if (match?.[0]) {
@@ -219,7 +220,10 @@ export class DailyTopicService {
     return this.getTopicForDate(new Date());
   }
 
-  async listCandidates(date = new Date(), limit = 8): Promise<DailyTopicCandidate[]> {
+  async listCandidates(
+    date = new Date(),
+    limit = 8
+  ): Promise<DailyTopicCandidate[]> {
     const normalizedDate = normalizeTopicDate(date);
     const since = new Date(normalizedDate.getTime() - 24 * 60 * 60 * 1000);
     const [headlines, parodies] = await Promise.all([
@@ -230,7 +234,11 @@ export class DailyTopicService {
     const candidateMap = new Map<string, DailyTopicCandidate>();
 
     for (const headline of headlines) {
-      const tokens = [...new Set(extractTopicTokens(`${headline.title} ${headline.summary ?? ''}`))].slice(0, 5);
+      const tokens = [
+        ...new Set(
+          extractTopicTokens(`${headline.title} ${headline.summary ?? ''}`)
+        ),
+      ].slice(0, 5);
       for (const token of tokens) {
         const topicKey = normalizeTopicKey(token);
         if (!topicKey) continue;
@@ -400,7 +408,9 @@ export class DailyTopicService {
     return this.ensureTopicForDate(normalizedDate);
   }
 
-  private async upsertTopic(input: Omit<DailyTopicContext, 'id'>): Promise<DailyTopicContext> {
+  private async upsertTopic(
+    input: Omit<DailyTopicContext, 'id'>
+  ): Promise<DailyTopicContext> {
     const existing = await db.dailyTopic.findFirst({
       where: { date: { equals: input.date } },
     });

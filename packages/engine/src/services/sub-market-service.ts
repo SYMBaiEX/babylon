@@ -36,8 +36,8 @@ import {
   withTransaction,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { deriveTopicFromText } from './daily-topic-service';
 import { formatError } from '../utils/error-utils';
+import { deriveTopicFromText } from './daily-topic-service';
 import {
   calculateEndTime,
   type SubMarketTrigger,

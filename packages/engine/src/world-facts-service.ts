@@ -10,11 +10,11 @@
 import type { WorldFact } from '@babylon/db';
 import { and, db, desc, eq, worldFacts } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 import {
   buildDailyTopicPromptContext,
   dailyTopicService,
 } from './services/daily-topic-service';
+import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 import { isSimulationMode } from './storage-bridge';
 
 export interface WorldFactsContext {

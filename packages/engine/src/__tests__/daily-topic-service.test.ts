@@ -85,7 +85,11 @@ const dbMock = {
 mock.module('@babylon/db', () => ({
   db: dbMock,
   dailyTopics: { __name: 'dailyTopics', id: 'id' },
-  rssHeadlines: { __name: 'rssHeadlines', publishedAt: 'publishedAt', id: 'id' },
+  rssHeadlines: {
+    __name: 'rssHeadlines',
+    publishedAt: 'publishedAt',
+    id: 'id',
+  },
   parodyHeadlines: {
     __name: 'parodyHeadlines',
     generatedAt: 'generatedAt',
@@ -181,9 +185,9 @@ describe('daily-topic-service', () => {
       new Date('2026-03-06T14:00:00.000Z')
     );
 
-    expect(normalizeTopicDate(new Date('2026-03-06T14:00:00.000Z')).toISOString()).toBe(
-      '2026-03-06T00:00:00.000Z'
-    );
+    expect(
+      normalizeTopicDate(new Date('2026-03-06T14:00:00.000Z')).toISOString()
+    ).toBe('2026-03-06T00:00:00.000Z');
     expect(buildDailyTopicPromptContext(topic)).toContain(topic.topicLabel);
     expect(
       isTextOnTopic('Will OpenAI announce another feature today?', topic)

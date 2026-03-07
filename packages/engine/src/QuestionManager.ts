@@ -74,12 +74,6 @@ import {
   worldEvents,
 } from '@babylon/db';
 import {
-  buildDailyTopicPromptContext,
-  dailyTopicService,
-  isTextOnTopic,
-  type DailyTopicContext,
-} from './services/daily-topic-service';
-import {
   generateSnowflakeId,
   logger,
   RESOLUTION_CONFIDENCE_CONFIG,
@@ -95,6 +89,12 @@ import {
   renderPrompt,
   worldImpactAssessment,
 } from './prompts';
+import {
+  buildDailyTopicPromptContext,
+  type DailyTopicContext,
+  dailyTopicService,
+  isTextOnTopic,
+} from './services/daily-topic-service';
 import { MarketContextService } from './services/market-context-service';
 import { MarketMetricsService } from './services/market-metrics-service';
 import { saveArcPlan } from './services/narrative-state-service';
@@ -318,7 +318,8 @@ export class QuestionManager {
         : '\n\nNo active questions yet.';
 
     const resolvedDailyTopic =
-      dailyTopic ?? (await dailyTopicService.getTopicForDate(new Date(currentDate)));
+      dailyTopic ??
+      (await dailyTopicService.getTopicForDate(new Date(currentDate)));
 
     const prompt = await this.buildQuestionGenerationPrompt(
       scenarios,
