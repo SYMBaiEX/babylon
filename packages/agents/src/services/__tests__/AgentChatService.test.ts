@@ -42,9 +42,24 @@ const mockLogger = {
   debug: mock(),
 };
 
+// Mock Logger class — needed by transitive import (shared/logger.ts re-exports it)
+class MockLoggerClass {
+  level = 'info';
+  info = mock();
+  warn = mock();
+  error = mock();
+  debug = mock();
+  setLevel() {}
+}
+
 mock.module('@babylon/shared', () => ({
   checkUserInput: mockCheckUserInput,
   logger: mockLogger,
+  Logger: MockLoggerClass,
+  generateSnowflakeId: () => '123456789',
+  COORDINATOR_SENDER_ID: 'coordinator-id',
+  GROQ_MODELS: { FREE: { displayName: 'llama-3.3-70b' } },
+  MessageTypeEnum: { COORDINATOR: 'coordinator' },
 }));
 
 // Drizzle-style chainable mock
@@ -63,8 +78,19 @@ const mockDb = {
 mock.module('@babylon/db', () => ({
   db: mockDb,
   eq: (_a: unknown, _b: unknown) => ({ type: 'eq' }),
+  and: (...args: unknown[]) => args,
   messages: { id: 'messages' },
+  users: {
+    id: 'users.id',
+    displayName: 'users.displayName',
+    username: 'users.username',
+  },
   userAgentConfigs: { userId: 'userAgentConfigs.userId' },
+  chatParticipants: {
+    chatId: 'chatParticipants.chatId',
+    userId: 'chatParticipants.userId',
+    isActive: 'chatParticipants.isActive',
+  },
 }));
 
 const mockParseKeyValueXml =
@@ -85,7 +111,11 @@ mock.module('uuid', () => ({ v4: mockUuidV4 }));
 
 const mockGetAgentWithConfig =
   mock<(agentId: string, ownerId: string) => Promise<unknown>>();
-const mockAgentService = { getAgentWithConfig: mockGetAgentWithConfig };
+const mockListUserAgents = mock<(ownerId: string) => Promise<unknown[]>>();
+const mockAgentService = {
+  getAgentWithConfig: mockGetAgentWithConfig,
+  listUserAgents: mockListUserAgents,
+};
 
 mock.module('../AgentService', () => ({
   agentService: mockAgentService,
@@ -188,7 +218,10 @@ beforeEach(() => {
   mockLogger.info.mockClear();
   mockLogger.warn.mockClear();
   mockLogger.error.mockClear();
+  mockComposePromptFromState.mockClear();
   mockGetAgentWithConfig.mockClear();
+  mockListUserAgents.mockClear();
+  mockListUserAgents.mockResolvedValue([]);
   mockGetRuntime.mockClear();
   mockGetRuntime.mockResolvedValue(mockRuntime);
   mockComposeState.mockClear();
@@ -214,6 +247,7 @@ afterEach(() => {
   mockParseKeyValueXml.mockReset();
   mockUseModel.mockReset();
   mockGetAgentWithConfig.mockReset();
+  mockListUserAgents.mockReset();
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -545,12 +579,78 @@ describe('dispatchAgentChat', () => {
       expect(result.response).toBeDefined();
       expect(result.response.length).toBeGreaterThan(0);
     });
+
+    it('injects formatted action results into reused state before the next decision and summary', async () => {
+      mockGetAgentWithConfig.mockResolvedValue(MOCK_AGENT_WITH_CONFIG);
+
+      mockUseModel
+        .mockResolvedValueOnce('DECISION_1')
+        .mockResolvedValueOnce('DECISION_2')
+        .mockResolvedValueOnce('SUMMARY');
+      mockParseKeyValueXml
+        .mockReturnValueOnce({
+          thought: 'check market',
+          action: 'CHECK_PERPS',
+          parameters: { ticker: 'TSLAI' },
+          isFinish: 'false',
+        })
+        .mockReturnValueOnce({
+          thought: 'done',
+          action: '',
+          parameters: {},
+          isFinish: 'true',
+        })
+        .mockReturnValueOnce({
+          thought: 'summarize',
+          text: 'TSLAI is trading at $150.',
+        });
+
+      mockProcessActions.mockImplementation(
+        async (
+          _m: unknown,
+          _a: unknown,
+          _s: unknown,
+          cb: (r: unknown) => Promise<unknown[]>
+        ) => {
+          await cb([
+            {
+              content: {
+                success: true,
+                text: 'TSLAI is trading at $150.',
+                values: { ticker: 'TSLAI', price: 150 },
+              },
+            },
+          ]);
+        }
+      );
+
+      const result = await dispatchAgentChat(BASE_PARAMS);
+
+      expect(result.success).toBe(true);
+      expect(mockComposePromptFromState).toHaveBeenCalledTimes(3);
+
+      const secondDecisionState = mockComposePromptFromState.mock.calls[1]![0]
+        .state as {
+        values: Record<string, unknown>;
+      };
+      expect(secondDecisionState.values.hasActionResults).toBe(true);
+      expect(secondDecisionState.values.actionResults).toContain('CHECK_PERPS');
+      expect(secondDecisionState.values.actionResults).toContain(
+        'TSLAI is trading at $150.'
+      );
+
+      const summaryState = mockComposePromptFromState.mock.calls[2]![0].state as {
+        values: Record<string, unknown>;
+      };
+      expect(summaryState.values.hasActionResults).toBe(true);
+      expect(summaryState.values.actionResults).toContain('CHECK_PERPS');
+    });
   });
 
   // ── Max iterations boundary ───────────────────────────────────────────────
 
   describe('max iterations', () => {
-    it('stops after 4 iterations even if LLM never signals isFinish', async () => {
+    it('stops after MAX_ITERATIONS (2) even if LLM never signals isFinish', async () => {
       mockGetAgentWithConfig.mockResolvedValue(MOCK_AGENT_WITH_CONFIG);
 
       let decisionCalls = 0;
@@ -583,11 +683,11 @@ describe('dispatchAgentChat', () => {
 
       await dispatchAgentChat(BASE_PARAMS);
 
-      // 4 decision iterations + summary calls (each with up to 3 parse retries)
-      // Decision: up to 4 iterations × 1 LLM call = 4 decision calls
+      // 2 decision iterations + summary calls (each with up to 3 parse retries)
+      // Decision: up to 2 iterations × 1 LLM call = 2 decision calls
       // Summary: up to 3 retries
-      // Total LLM calls ≤ 4 + 3 = 7
-      expect(decisionCalls).toBeLessThanOrEqual(7);
+      // Total LLM calls ≤ 2 + 3 = 5
+      expect(decisionCalls).toBeLessThanOrEqual(5);
       // Actions executed should be bounded
     });
   });
