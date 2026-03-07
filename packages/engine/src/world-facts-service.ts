@@ -10,6 +10,10 @@
 import type { WorldFact } from '@babylon/db';
 import { and, db, desc, eq, worldFacts } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import {
+  buildDailyTopicPromptContext,
+  dailyTopicService,
+} from './services/daily-topic-service';
 import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
 import { isSimulationMode } from './storage-bridge';
 
@@ -21,6 +25,7 @@ export interface WorldFactsContext {
   general: string;
   timestamp: string;
   headlines?: string;
+  dailyTopic?: string;
 }
 
 /**
@@ -258,6 +263,7 @@ export class WorldFactsService {
     includeHeadlines = true
   ): Promise<WorldFactsContext> {
     const facts = await this.getAllFacts();
+    const dailyTopic = await dailyTopicService.getCurrentTopic();
 
     // Format all facts (already randomized) - just use the value directly
     const formattedFacts = facts.map((f) => `- ${f.value}`).join('\n');
@@ -277,6 +283,9 @@ export class WorldFactsService {
       general: formattedFacts,
       timestamp: new Date().toISOString(),
       headlines: headlinesContext,
+      dailyTopic: dailyTopic
+        ? buildDailyTopicPromptContext(dailyTopic)
+        : undefined,
     };
   }
 
@@ -289,6 +298,8 @@ export class WorldFactsService {
     return `
 === WORLD CONTEXT (Current Reality) ===
 Date/Time: ${context.timestamp}
+
+${context.dailyTopic ? `${context.dailyTopic}\n` : ''}
 
 ${context.general}
 

@@ -11,7 +11,14 @@
  *   @babylon/api from packages/agents (architectural separation)
  * - Only handles team-chat mode (coordinator dispatch always targets a team chat)
  * - Always uses ModelType.TEXT_SMALL (free tier = 0 pts cost)
- * - Max 4 iterations (vs 6 in the direct chat route) to stay within latency budget
+ * - Max 4 iterations (vs 5 in the coordinator) to stay within latency budget
+ *
+ * Efficiency optimizations (refactor/coordinator-efficiency):
+ * - composeState() called only on first iteration; subsequent iterations
+ *   reuse the state object (providers return identical data within a request)
+ * - Summary phase reuses last decision state instead of re-composing
+ * - Parse retries use format reinforcement hints + lower temperature (0.3)
+ * - All dispatches instrumented with action-type and timing telemetry
  */
 
 import { db, eq, messages, userAgentConfigs } from '@babylon/db';
@@ -186,15 +193,6 @@ Do NOT address "the coordinator" or refer to yourself in third person.
 
 ---
 
-# Conversation History
-{{recentMessages}}
-
----
-
-{{actionsWithDescriptions}}
-
----
-
 # Actions You Completed
 {{actionResults}}
 
@@ -215,6 +213,53 @@ Output ONLY this XML:
 <text>Your team chat message in character — direct, specific, and in your own voice</text>
 </response>`;
 
+/** Format hint appended to the prompt on parse retries. */
+const DECISION_XML_FORMAT_HINT =
+  '\n\nYour previous response could not be parsed. Output ONLY this exact XML structure with no text outside the tags:\n<response>\n  <thought>reasoning</thought>\n  <action>ACTION_NAME or ""</action>\n  <parameters>{}</parameters>\n  <isFinish>true or false</isFinish>\n</response>';
+
+const SUMMARY_XML_FORMAT_HINT =
+  '\n\nYour previous response could not be parsed. Output ONLY this exact XML structure with no text outside the tags:\n<response>\n  <thought>reasoning</thought>\n  <text>Your response</text>\n</response>';
+
+type ActionTraceResult = {
+  actionType: string;
+  success: boolean;
+  text: string;
+  error?: string;
+  values?: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
+  timestamp: number;
+  durationMs?: number;
+  tag?: MessageTag;
+};
+
+function formatTraceResults(results: ActionTraceResult[]): string {
+  if (results.length === 0) return 'No actions taken yet in this request.';
+
+  return results
+    .map((result, index) => {
+      const status = result.success ? '✓ Success' : '✗ Failed';
+      let output = `${index + 1}. **${result.actionType}** - ${status}`;
+
+      if (result.text) {
+        output += `\n   Summary: ${result.text}`;
+      }
+
+      if (result.error) {
+        output += `\n   Error: ${result.error}`;
+      }
+
+      if (result.values && Object.keys(result.values).length > 0) {
+        const valuesStr = Object.entries(result.values)
+          .map(([key, value]) => `   - ${key}: ${JSON.stringify(value)}`)
+          .join('\n');
+        output += `\n   Values:\n${valuesStr}`;
+      }
+
+      return output;
+    })
+    .join('\n\n');
+}
+
 // =============================================================================
 // Core Dispatch Function
 // =============================================================================
@@ -229,6 +274,8 @@ Output ONLY this XML:
 export async function dispatchAgentChat(
   params: CoordinatorDispatchParams
 ): Promise<CoordinatorDispatchResult> {
+  const dispatchStartMs = Date.now();
+
   const {
     agentId,
     ownerId,
@@ -338,42 +385,49 @@ export async function dispatchAgentChat(
     createdAt: Date.now(),
   };
 
-  // --- Multi-step execution loop (max 4 iterations) ---
-  // Reduced from 6 to stay within coordinator latency budget:
-  // coordinator ≈ 3s + dispatch ≈ 8s (4 iters × 2s) + summary ≈ 2s = ~13s
-  const MAX_ITERATIONS = 4;
-  const traceActionResults: Array<{
-    actionType: string;
-    success: boolean;
-    text: string;
-    error?: string;
-    values?: Record<string, unknown>;
-    parameters?: Record<string, unknown>;
-    timestamp: number;
-    tag?: MessageTag;
-  }> = [];
+  // --- Multi-step execution loop (max 2 iterations) ---
+  // Reduced from 4: dispatched agents almost always finish in 1 iteration
+  // (single action + finish). 2nd iteration covers edge cases like retries.
+  // coordinator ≈ 3s + dispatch ≈ 4s (2 iters × 2s) + summary ≈ 2s = ~9s
+  const MAX_ITERATIONS = 2;
+  const traceActionResults: ActionTraceResult[] = [];
   let finalResponse: string | null = null;
   let isLLMFailure = false;
+  let totalParseRetries = 0;
+  let iterationsRan = 0;
+
+  // State reuse: compose once on first iteration, reuse on subsequent.
+  // Agent providers (AGENT_CONTEXT, RECENT_MESSAGES, TEAM_MEMBERS) return
+  // identical data within a single dispatch. ACTION_STATE reads from the
+  // local traceActionResults we update manually.
+  let lastState: State | null = null;
+
+  const agentProviders = [
+    'AGENT_CONTEXT',
+    'RECENT_MESSAGES',
+    'ACTION_STATE',
+    'ACTIONS',
+    'TEAM_MEMBERS',
+  ];
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    iterationsRan = iteration;
+
     logger.info(
       `[AgentChatService] Iteration ${iteration}/${MAX_ITERATIONS}`,
       { agentId: resolvedAgentId, actionsCompleted: traceActionResults.length },
       'AgentChatService'
     );
 
-    const providers = [
-      'AGENT_CONTEXT',
-      'RECENT_MESSAGES',
-      'ACTION_STATE',
-      'ACTIONS',
-      'TEAM_MEMBERS',
-    ];
-    const state: State = await runtime.composeState(
-      elizaMessage,
-      providers,
-      true
-    );
+    let state: State;
+
+    if (iteration === 1) {
+      // First iteration: full composeState (2 DB queries — TEAM_MEMBERS, RECENT_MESSAGES)
+      state = await runtime.composeState(elizaMessage, agentProviders, true);
+    } else {
+      // Subsequent iterations: reuse state, skip redundant DB queries
+      state = lastState!;
+    }
 
     state.values = {
       ...state.values,
@@ -400,6 +454,13 @@ export async function dispatchAgentChat(
       ...state.data,
       actionResults: traceActionResults,
     };
+    state.values = {
+      ...state.values,
+      actionResults: formatTraceResults(traceActionResults),
+      hasActionResults: traceActionResults.length > 0,
+    };
+
+    lastState = state;
 
     const prompt = composePromptFromState({
       state,
@@ -411,14 +472,15 @@ export async function dispatchAgentChat(
 
     for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
       const response = await runtime.useModel(modelType, {
-        prompt,
-        temperature: attempt > 1 ? 0.5 : 0.7,
+        prompt: attempt > 1 ? prompt + DECISION_XML_FORMAT_HINT : prompt,
+        temperature: attempt > 1 ? 0.3 : 0.7,
       });
 
       parsedStep = parseKeyValueXml(response);
 
       if (parsedStep) break;
 
+      totalParseRetries++;
       logger.warn(
         `[AgentChatService] Failed to parse decision (attempt ${attempt})`,
         { preview: response.substring(0, 200) },
@@ -442,6 +504,7 @@ export async function dispatchAgentChat(
     }
 
     // Parse action parameters
+    const actionStartMs = Date.now();
     let actionParams: Record<string, unknown> = {};
     if (parameters) {
       if (typeof parameters === 'string') {
@@ -572,6 +635,7 @@ export async function dispatchAgentChat(
         values: actionResult?.values,
         parameters: actionParams,
         timestamp: Date.now(),
+        durationMs: Date.now() - actionStartMs,
         tag: actionResult?.tag,
       });
     } catch (error) {
@@ -583,6 +647,7 @@ export async function dispatchAgentChat(
         error: errorMsg,
         parameters: actionParams,
         timestamp: Date.now(),
+        durationMs: Date.now() - actionStartMs,
       });
     }
 
@@ -591,13 +656,28 @@ export async function dispatchAgentChat(
     }
   }
 
+  // Log decision loop completion with telemetry (Phase 0 instrumentation)
+  logger.info(
+    '[AgentChatService] Decision loop completed',
+    {
+      agentId: resolvedAgentId,
+      iterations: iterationsRan,
+      actionsExecuted: traceActionResults.length,
+      actionTypes: traceActionResults.map((r) => r.actionType),
+      isLLMFailure,
+      totalParseRetries,
+      decisionLoopMs: Date.now() - dispatchStartMs,
+    },
+    'AgentChatService'
+  );
+
   // --- Generate summary response ---
+  // Reuse the last decision state instead of calling composeState() again.
+  // This saves 2 DB queries (TEAM_MEMBERS, RECENT_MESSAGES) per dispatch.
   if (!finalResponse) {
-    const summaryState: State = await runtime.composeState(
-      elizaMessage,
-      ['AGENT_CONTEXT', 'RECENT_MESSAGES', 'ACTION_STATE', 'TEAM_MEMBERS'],
-      true
-    );
+    const summaryState =
+      lastState ??
+      (await runtime.composeState(elizaMessage, agentProviders, true));
 
     summaryState.values = {
       ...summaryState.values,
@@ -616,6 +696,8 @@ export async function dispatchAgentChat(
       agentName,
       agentUsername: agentUsername ?? '',
       actionCount: traceActionResults.length,
+      actionResults: formatTraceResults(traceActionResults),
+      hasActionResults: traceActionResults.length > 0,
     };
     summaryState.data = {
       ...summaryState.data,
@@ -632,8 +714,9 @@ export async function dispatchAgentChat(
 
     for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
       const summaryResponse = await runtime.useModel(modelType, {
-        prompt: summaryPrompt,
-        temperature: attempt > 1 ? 0.5 : 0.7,
+        prompt:
+          attempt > 1 ? summaryPrompt + SUMMARY_XML_FORMAT_HINT : summaryPrompt,
+        temperature: attempt > 1 ? 0.3 : 0.7,
       });
 
       const summary = parseKeyValueXml(summaryResponse);
@@ -650,6 +733,7 @@ export async function dispatchAgentChat(
 
       if (extractedText) break;
 
+      totalParseRetries++;
       logger.warn(
         `[AgentChatService] Failed to parse summary (attempt ${attempt})`,
         { preview: summaryResponse.substring(0, 200) },
@@ -709,12 +793,18 @@ export async function dispatchAgentChat(
     );
   });
 
+  // Full dispatch telemetry (Phase 0 instrumentation)
+  const totalDurationMs = Date.now() - dispatchStartMs;
   logger.info(
     '[AgentChatService] Dispatch completed',
     {
       agentId: resolvedAgentId,
+      iterations: iterationsRan,
       actionsExecuted: traceActionResults.length,
+      actionTypes: traceActionResults.map((r) => r.actionType),
       isLLMFailure,
+      totalParseRetries,
+      totalDurationMs,
     },
     'AgentChatService'
   );
