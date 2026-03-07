@@ -96,6 +96,7 @@ import { db } from '@babylon/db';
 import {
   characterMappingService,
   createParodyHeadlineGenerator,
+  dailyTopicService,
   rssFeedService,
   worldFactsGenerator,
   worldFactsService,
@@ -119,6 +120,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     await characterMappingService.getOrganizationMappings();
 
   const context = await worldFactsService.generateWorldContext(true);
+  const dailyTopic = await dailyTopicService.getCurrentTopic();
+  const dailyTopicCandidates = await dailyTopicService.listCandidates();
 
   // Load reality grounding content from TypeScript export
   const { realityGroundingContent: content } = await import('@babylon/engine');
@@ -131,6 +134,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     characterMappings,
     organizationMappings,
     context,
+    dailyTopic,
+    dailyTopicCandidates,
     realityGroundingContent,
   });
 });
@@ -247,6 +252,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       const result = await rssFeedService.fetchAllFeeds();
       logger.info('Manual RSS fetch triggered', result, 'WorldFactsAdmin');
       return successResponse({ result });
+    }
+
+    case 'set_daily_topic_override': {
+      const topicLabel = String(data?.topicLabel || '').trim();
+      const summary = String(data?.summary || '').trim();
+      if (!topicLabel) {
+        return successResponse({ error: 'Missing topicLabel' }, 400);
+      }
+
+      const topic = await dailyTopicService.setManualTopic({
+        date: data?.date ? new Date(data.date) : new Date(),
+        topicLabel,
+        summary,
+      });
+      return successResponse({ topic });
+    }
+
+    case 'clear_daily_topic_override': {
+      const topic = await dailyTopicService.clearOverride(
+        data?.date ? new Date(data.date) : new Date()
+      );
+      return successResponse({ topic });
+    }
+
+    case 'recompute_daily_topic': {
+      const topic = await dailyTopicService.recomputeTopicForDate(
+        data?.date ? new Date(data.date) : new Date()
+      );
+      return successResponse({ topic });
     }
 
     case 'generate_parodies': {

@@ -156,6 +156,21 @@ mock.module('../services/parody-headline-generator', () => ({
   createParodyHeadlineGenerator: mock(() => mockParodyGenerator),
 }));
 
+mock.module('../services/daily-topic-service', () => ({
+  dailyTopicService: {
+    ensureTopicForDate: mock(async () => ({
+      topicKey: 'openai',
+      topicLabel: 'OpenAI',
+      summary: 'OpenAI stays the single topic for the day',
+      date: new Date('2026-03-06T00:00:00.000Z'),
+      sourceType: 'auto',
+      sourceHeadlineIds: [],
+      selectionReason: 'Matched headlines',
+      isLocked: false,
+    })),
+  },
+}));
+
 // Mock world facts generator
 const mockWorldFactsGenerator = {
   generateNewWorldFacts: mock(async () => {

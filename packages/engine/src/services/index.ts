@@ -109,6 +109,7 @@ export * from './trending-grouping-service';
 
 export * from './agent-trade-notification';
 export * from './character-mapping-service';
+export * from './daily-topic-service';
 export * from './distributed-lock-service';
 export * from './dm-service';
 export * from './earned-points-service';

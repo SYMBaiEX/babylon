@@ -1543,6 +1543,11 @@ export interface DrizzleClient {
     InferSelect<typeof schema.worldFacts>,
     InferInsert<typeof schema.worldFacts>
   >;
+  dailyTopic: TableRepository<
+    typeof schema.dailyTopics,
+    InferSelect<typeof schema.dailyTopics>,
+    InferInsert<typeof schema.dailyTopics>
+  >;
   rssFeedSource: TableRepository<
     typeof schema.rssFeedSources,
     InferSelect<typeof schema.rssFeedSources>,
@@ -1923,6 +1928,7 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
     ),
     worldEvent: new TableRepository(drizzle, schema.worldEvents, 'worldEvents'),
     worldFact: new TableRepository(drizzle, schema.worldFacts, 'worldFacts'),
+    dailyTopic: new TableRepository(drizzle, schema.dailyTopics, 'dailyTopics'),
     rssFeedSource: new TableRepository(
       drizzle,
       schema.rssFeedSources,

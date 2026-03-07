@@ -37,6 +37,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { formatError } from '../utils/error-utils';
+import { deriveTopicFromText, normalizeTopicDate } from './daily-topic-service';
 import {
   calculateEndTime,
   type SubMarketTrigger,
@@ -412,12 +413,28 @@ export class SubMarketService {
 
     const id = await generateSnowflakeId();
     const arcStatesConfig = TIMEFRAME_CONFIGS[trigger.childTimeframe].arcStates;
+    const derivedTopic = deriveTopicFromText(question.text, now);
+    const inheritedTopic =
+      parent.topicKey && parent.topicLabel
+        ? {
+            topicKey: parent.topicKey,
+            topicLabel: parent.topicLabel,
+            topicDate: parent.topicDate ?? derivedTopic.date,
+          }
+        : {
+            topicKey: derivedTopic.topicKey,
+            topicLabel: derivedTopic.topicLabel,
+            topicDate: normalizeTopicDate(now),
+          };
 
     const newMarket: NewTimeframedMarket = {
       id,
       questionId: null, // Child markets don't have a pre-existing question
       timeframe: trigger.childTimeframe,
       category: parent.category,
+      topicKey: inheritedTopic.topicKey,
+      topicLabel: inheritedTopic.topicLabel,
+      topicDate: inheritedTopic.topicDate,
       parentMarketId: parent.id,
       rootMarketId: parent.rootMarketId ?? parent.id,
       startTime: now,

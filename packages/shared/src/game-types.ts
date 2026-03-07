@@ -482,6 +482,9 @@ export interface Question {
   resolutionProofUrl?: string; // URL to post/article proving outcome
   resolutionDescription?: string; // Description of how it resolved
   timeframe?: string; // Timeframe category (e.g., '24h', '7d', '30d')
+  topicKey?: string; // Daily topic key controlling this question
+  topicLabel?: string; // Human-readable daily topic label
+  topicDate?: Date | string; // UTC day this topic was selected for
   // Database fields
   questionNumber?: number; // Question number for tracking
   createdAt?: Date | string; // Database timestamp
