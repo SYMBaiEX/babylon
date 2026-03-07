@@ -38,6 +38,9 @@
  *                 type: string
  *                 minLength: 1
  *                 description: Message content
+ *               replyToMessageId:
+ *                 type: string
+ *                 description: Optional ID of the message being replied to
  *     responses:
  *       201:
  *         description: Message sent successfully
@@ -436,7 +439,51 @@ export const POST = withErrorHandling(
       );
     }
 
-    // 7. Create message
+    // 7. Validate reply target and build reply snippet (if replying)
+    const effectiveReplyToMessageId = !isGameChat
+      ? replyToMessageId
+      : undefined;
+    let replyToMessage: {
+      id: string;
+      content: string;
+      senderId: string;
+      senderName?: string;
+    } | null = null;
+
+    if (effectiveReplyToMessageId) {
+      const [replyMsg] = await db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          senderId: messages.senderId,
+          senderName: users.displayName,
+        })
+        .from(messages)
+        .leftJoin(users, eq(users.id, messages.senderId))
+        .where(
+          and(
+            eq(messages.id, effectiveReplyToMessageId),
+            eq(messages.chatId, chatId)
+          )
+        )
+        .limit(1);
+
+      if (!replyMsg) {
+        throw new BusinessLogicError(
+          'Invalid reply target message',
+          'INVALID_REPLY_TARGET'
+        );
+      }
+
+      replyToMessage = {
+        id: replyMsg.id,
+        content: replyMsg.content.slice(0, 200),
+        senderId: replyMsg.senderId,
+        senderName: replyMsg.senderName ?? undefined,
+      };
+    }
+
+    // 8. Create message
     let message = null;
     let membership = null;
 
@@ -459,7 +506,7 @@ export const POST = withErrorHandling(
             chatId,
             senderId: user.userId,
             createdAt: new Date(),
-            replyToMessageId: replyToMessageId ?? null,
+            replyToMessageId: effectiveReplyToMessageId ?? null,
           },
         });
 
@@ -494,40 +541,7 @@ export const POST = withErrorHandling(
       membership = result.membership;
     }
 
-    // 10. Look up replied-to message for broadcast (if replying)
-    let replyToMessage: {
-      id: string;
-      content: string;
-      senderId: string;
-      senderName?: string;
-    } | null = null;
-
-    if (replyToMessageId && !isGameChat) {
-      const [replyMsg] = await db
-        .select({
-          id: messages.id,
-          content: messages.content,
-          senderId: messages.senderId,
-          senderName: users.displayName,
-        })
-        .from(messages)
-        .leftJoin(users, eq(users.id, messages.senderId))
-        .where(
-          and(eq(messages.id, replyToMessageId), eq(messages.chatId, chatId))
-        )
-        .limit(1);
-
-      if (replyMsg) {
-        replyToMessage = {
-          id: replyMsg.id,
-          content: replyMsg.content.slice(0, 200),
-          senderId: replyMsg.senderId,
-          senderName: replyMsg.senderName ?? undefined,
-        };
-      }
-    }
-
-    // 11. Broadcast message via SSE (await for reliability)
+    // 9. Broadcast message via SSE (await for reliability)
     await broadcastChatMessage(chatId, {
       id: message.id,
       content: message.content,
@@ -537,7 +551,7 @@ export const POST = withErrorHandling(
       createdAt: message.createdAt.toISOString(),
       isGameChat,
       isDMChat,
-      replyToMessageId: replyToMessageId ?? undefined,
+      replyToMessageId: effectiveReplyToMessageId ?? undefined,
       replyToMessage,
     });
 

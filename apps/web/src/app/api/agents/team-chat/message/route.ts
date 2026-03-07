@@ -34,6 +34,9 @@
  *               content:
  *                 type: string
  *                 description: Message content
+ *               replyToMessageId:
+ *                 type: string
+ *                 description: Optional ID of the message being replied to
  *     responses:
  *       201:
  *         description: Message sent successfully
@@ -239,28 +242,7 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
       ? providedTargetIds
       : [COORDINATOR_SENDER_ID];
 
-  // Create the message
-  const messageId = await generateSnowflakeId();
-  const now = new Date();
-
-  await db.insert(messages).values({
-    id: messageId,
-    chatId: teamChat.chatId,
-    senderId: user.id,
-    content: content.trim(),
-    type: 'user',
-    createdAt: now,
-    targetIds,
-    replyToMessageId: replyToMessageId ?? null,
-  });
-
-  logger.info(
-    `Team chat message sent by user ${user.id}`,
-    { chatId: teamChat.chatId, messageId },
-    'TeamChatMessageAPI'
-  );
-
-  // Look up replied-to message for broadcast
+  // Validate reply target and build reply snippet (if replying)
   let replyToMessage: {
     id: string;
     content: string;
@@ -286,15 +268,44 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
       )
       .limit(1);
 
-    if (replyMsg) {
-      replyToMessage = {
-        id: replyMsg.id,
-        content: replyMsg.content.slice(0, 200),
-        senderId: replyMsg.senderId,
-        senderName: replyMsg.senderName ?? undefined,
-      };
+    if (!replyMsg) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid replyToMessageId: message not found in this chat',
+        },
+        { status: 400 }
+      );
     }
+
+    replyToMessage = {
+      id: replyMsg.id,
+      content: replyMsg.content.slice(0, 200),
+      senderId: replyMsg.senderId,
+      senderName: replyMsg.senderName ?? undefined,
+    };
   }
+
+  // Create the message
+  const messageId = await generateSnowflakeId();
+  const now = new Date();
+
+  await db.insert(messages).values({
+    id: messageId,
+    chatId: teamChat.chatId,
+    senderId: user.id,
+    content: content.trim(),
+    type: 'user',
+    createdAt: now,
+    targetIds,
+    replyToMessageId: replyToMessageId ?? null,
+  });
+
+  logger.info(
+    `Team chat message sent by user ${user.id}`,
+    { chatId: teamChat.chatId, messageId },
+    'TeamChatMessageAPI'
+  );
 
   // Broadcast the message via SSE
   await broadcastChatMessage(teamChat.chatId, {

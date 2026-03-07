@@ -425,7 +425,9 @@ export const GET = withErrorHandling(
             senderId: messages.senderId,
           })
           .from(messages)
-          .where(inArray(messages.id, replyToIds));
+          .where(
+            and(inArray(messages.id, replyToIds), eq(messages.chatId, chatId))
+          );
       }, 'get-reply-to-messages');
 
       for (const rm of replyMessages) {
