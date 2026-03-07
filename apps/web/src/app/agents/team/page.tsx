@@ -198,6 +198,10 @@ export default function TeamChatPage() {
     handleScroll,
     scrollToBottom,
     refresh: refreshTeamChat,
+    // Reply
+    replyToMessage,
+    handleReplyToMessage,
+    clearReplyToMessage,
     // Agent processing state
     processingAgentIds,
     stopAgent,
@@ -1021,6 +1025,9 @@ export default function TeamChatPage() {
           onInputFocus={() => {
             setTimeout(() => scrollToBottom('smooth'), 150);
           }}
+          replyToMessage={replyToMessage}
+          onReply={handleReplyToMessage}
+          onDismissReply={clearReplyToMessage}
         />
       </div>
 
@@ -1130,6 +1137,9 @@ export default function TeamChatPage() {
             onInputFocus={() => {
               setTimeout(() => scrollToBottom('smooth'), 150);
             }}
+            replyToMessage={replyToMessage}
+            onReply={handleReplyToMessage}
+            onDismissReply={clearReplyToMessage}
           />
         </div>
 

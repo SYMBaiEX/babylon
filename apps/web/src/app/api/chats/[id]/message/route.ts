@@ -38,6 +38,9 @@
  *                 type: string
  *                 minLength: 1
  *                 description: Message content
+ *               replyToMessageId:
+ *                 type: string
+ *                 description: Optional ID of the message being replied to
  *     responses:
  *       201:
  *         description: Message sent successfully
@@ -112,6 +115,7 @@ import {
   eq,
   groupMembers,
   hasBlocked,
+  messages,
   users,
 } from '@babylon/db';
 import {
@@ -151,7 +155,7 @@ export const POST = withErrorHandling(
 
     // 2. Validate request body
     const body = await request.json();
-    const { content } = ChatMessageCreateSchema.parse(body);
+    const { content, replyToMessageId } = ChatMessageCreateSchema.parse(body);
 
     // 3. Apply rate limiting and duplicate detection
     const rateLimitError = checkRateLimitAndDuplicates(
@@ -435,7 +439,51 @@ export const POST = withErrorHandling(
       );
     }
 
-    // 7. Create message
+    // 7. Validate reply target and build reply snippet (if replying)
+    const effectiveReplyToMessageId = !isGameChat
+      ? replyToMessageId
+      : undefined;
+    let replyToMessage: {
+      id: string;
+      content: string;
+      senderId: string;
+      senderName?: string;
+    } | null = null;
+
+    if (effectiveReplyToMessageId) {
+      const [replyMsg] = await db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          senderId: messages.senderId,
+          senderName: users.displayName,
+        })
+        .from(messages)
+        .leftJoin(users, eq(users.id, messages.senderId))
+        .where(
+          and(
+            eq(messages.id, effectiveReplyToMessageId),
+            eq(messages.chatId, chatId)
+          )
+        )
+        .limit(1);
+
+      if (!replyMsg) {
+        throw new BusinessLogicError(
+          'Invalid reply target message',
+          'INVALID_REPLY_TARGET'
+        );
+      }
+
+      replyToMessage = {
+        id: replyMsg.id,
+        content: replyMsg.content.slice(0, 200),
+        senderId: replyMsg.senderId,
+        senderName: replyMsg.senderName ?? undefined,
+      };
+    }
+
+    // 8. Create message
     let message = null;
     let membership = null;
 
@@ -458,6 +506,7 @@ export const POST = withErrorHandling(
             chatId,
             senderId: user.userId,
             createdAt: new Date(),
+            replyToMessageId: effectiveReplyToMessageId ?? null,
           },
         });
 
@@ -492,7 +541,7 @@ export const POST = withErrorHandling(
       membership = result.membership;
     }
 
-    // 10. Broadcast message via SSE (await for reliability)
+    // 9. Broadcast message via SSE (await for reliability)
     await broadcastChatMessage(chatId, {
       id: message.id,
       content: message.content,
@@ -502,9 +551,11 @@ export const POST = withErrorHandling(
       createdAt: message.createdAt.toISOString(),
       isGameChat,
       isDMChat,
+      replyToMessageId: effectiveReplyToMessageId ?? undefined,
+      replyToMessage,
     });
 
-    // 11. Send notifications to other participants
+    // 12. Send notifications to other participants
     if (!isGameChat) {
       if (isDMChat) {
         // For DMs, notify the other participant
@@ -541,7 +592,7 @@ export const POST = withErrorHandling(
       }
     }
 
-    // 12. Return success with feedback
+    // 13. Return success with feedback
     logger.info(
       'Message sent successfully',
       {

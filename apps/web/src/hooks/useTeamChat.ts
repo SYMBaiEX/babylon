@@ -21,7 +21,12 @@ import {
   useState,
 } from 'react';
 import { toast } from 'sonner';
-import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
+import type {
+  ChatDetails,
+  ChatParticipant,
+  Message,
+  ReplyToMessage,
+} from '@/components/chats/types';
 import { MessageTypeEnum } from '@/components/chats/types';
 import {
   OptimisticMessageIdPrefix,
@@ -193,6 +198,11 @@ interface UseTeamChatReturn {
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
 
+  // Reply
+  replyToMessage: ReplyToMessage | null;
+  handleReplyToMessage: (msg: Message) => void;
+  clearReplyToMessage: () => void;
+
   // Agent processing state
   processingAgentIds: Set<string>;
   stopAgent: (agentId: string) => void;
@@ -234,6 +244,11 @@ export function useTeamChat(): UseTeamChatReturn {
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  // Reply state
+  const [replyToMessage, setReplyToMessage] = useState<ReplyToMessage | null>(
+    null
+  );
 
   // Typing indicator state
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -787,6 +802,7 @@ export function useTeamChat(): UseTeamChatReturn {
     const stickyMentions =
       mentionStrings.length > 0 ? mentionStrings.join(' ') + ' ' : '';
     setMessageInput(stickyMentions);
+    setReplyToMessage(null);
     setSending(true);
     setSendError(null);
 
@@ -810,6 +826,7 @@ export function useTeamChat(): UseTeamChatReturn {
         body: JSON.stringify({
           content,
           targetIds: mentionedAgentIds, // Empty array = coordinator, agent IDs = specific agents
+          ...(replyToMessage ? { replyToMessageId: replyToMessage.id } : {}),
         }),
       });
 
@@ -1174,6 +1191,7 @@ export function useTeamChat(): UseTeamChatReturn {
     removeMessage,
     sendTypingIndicator,
     scrollToBottom,
+    replyToMessage,
   ]);
 
   // =========================================================================
@@ -1343,8 +1361,9 @@ export function useTeamChat(): UseTeamChatReturn {
             prev ? { ...prev, chatId: data.activeChatId } : prev
           );
 
-          // Clear messages (useChatMessages will refetch for new chatId)
+          // Clear messages and reply state (useChatMessages will refetch for new chatId)
           clearMessages();
+          setReplyToMessage(null);
         } else {
           const errorData = (await response.json()) as { error?: string };
           toast.error(errorData.error || 'Failed to switch conversation');
@@ -1474,6 +1493,26 @@ export function useTeamChat(): UseTeamChatReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally depend on id only
   }, [teamChat?.id, user, refreshConversations]);
 
+  // Reply handlers
+  const handleReplyToMessage = useCallback(
+    (msg: Message) => {
+      const participant = chatDetails?.participants?.find(
+        (p) => p.id === msg.senderId
+      );
+      setReplyToMessage({
+        id: msg.id,
+        content: msg.content,
+        senderId: msg.senderId,
+        senderName: participant?.displayName ?? undefined,
+      });
+    },
+    [chatDetails?.participants]
+  );
+
+  const clearReplyToMessage = useCallback(() => {
+    setReplyToMessage(null);
+  }, []);
+
   return {
     teamChat,
     chatDetails,
@@ -1492,6 +1531,10 @@ export function useTeamChat(): UseTeamChatReturn {
     messagesEndRef,
     topSentinelRef,
     messagesContainerRef,
+    // Reply
+    replyToMessage,
+    handleReplyToMessage,
+    clearReplyToMessage,
     // Agent processing state
     processingAgentIds,
     stopAgent,

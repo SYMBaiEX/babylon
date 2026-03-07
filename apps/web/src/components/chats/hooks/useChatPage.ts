@@ -8,7 +8,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { useToggleReaction } from '@/hooks/useToggleReaction';
 import { useAuthStore } from '@/stores/authStore';
-import type { Chat, ChatDetails, ChatFilter } from '../types';
+import type {
+  Chat,
+  ChatDetails,
+  ChatFilter,
+  Message,
+  ReplyToMessage,
+} from '../types';
 
 export function useChatPage() {
   const router = useRouter();
@@ -35,6 +41,11 @@ export function useChatPage() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendWarning, setSendWarning] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState(false);
+
+  // Reply state
+  const [replyToMessage, setReplyToMessage] = useState<ReplyToMessage | null>(
+    null
+  );
 
   // Leave chat state
   const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
@@ -208,6 +219,26 @@ export function useChatPage() {
     [getAccessToken, isDebugMode]
   );
 
+  // Handle reply to message — resolves sender name from participants
+  const handleReplyToMessage = useCallback(
+    (msg: Message) => {
+      const sender = chatDetails?.participants.find(
+        (p) => p.id === msg.senderId
+      );
+      setReplyToMessage({
+        id: msg.id,
+        content: msg.content,
+        senderId: msg.senderId,
+        senderName: sender?.displayName,
+      });
+    },
+    [chatDetails?.participants]
+  );
+
+  const clearReplyToMessage = useCallback(() => {
+    setReplyToMessage(null);
+  }, []);
+
   // Send message
   const sendMessage = useCallback(async () => {
     if (!selectedChatId || !messageInput.trim() || sending) return;
@@ -230,7 +261,10 @@ export function useChatPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ content: messageInput.trim() }),
+      body: JSON.stringify({
+        content: messageInput.trim(),
+        ...(replyToMessage ? { replyToMessageId: replyToMessage.id } : {}),
+      }),
     }).catch((error: Error) => {
       setSendError('Failed to send message. Please try again.');
       setSending(false);
@@ -271,6 +305,7 @@ export function useChatPage() {
     }
 
     setMessageInput('');
+    setReplyToMessage(null);
     void loadChats();
     setSending(false);
   }, [
@@ -280,6 +315,7 @@ export function useChatPage() {
     getAccessToken,
     addMessage,
     loadChats,
+    replyToMessage,
   ]);
 
   // Leave chat
@@ -505,6 +541,7 @@ export function useChatPage() {
   useEffect(() => {
     lastMessageIdRef.current = null;
     setIsAtBottom(true);
+    setReplyToMessage(null);
     if (selectedChatId) {
       pendingInitialScrollRef.current = selectedChatId;
       loadChatDetails(selectedChatId);
@@ -766,6 +803,11 @@ export function useChatPage() {
     messagesEndRef,
     topSentinelRef,
     setRefs,
+
+    // Reply
+    replyToMessage,
+    handleReplyToMessage,
+    clearReplyToMessage,
 
     // Actions
     sendMessage,

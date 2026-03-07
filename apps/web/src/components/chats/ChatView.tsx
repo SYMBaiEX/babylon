@@ -9,7 +9,7 @@ import type { MentionableAgent } from './MentionAutocomplete';
 import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
 import { NftVerificationBanner } from './NftVerificationBanner';
-import type { ChatDetails } from './types';
+import type { ChatDetails, Message, ReplyToMessage } from './types';
 
 interface ChatViewProps {
   chatDetails: ChatDetails | null;
@@ -37,6 +37,12 @@ interface ChatViewProps {
     emoji: string,
     currentlyReactedByMe: boolean
   ) => void;
+  /** Message being replied to */
+  replyToMessage?: ReplyToMessage | null;
+  /** Called when user initiates reply to a message */
+  onReply?: (message: Message) => void;
+  /** Called when user dismisses the reply */
+  onDismissReply?: () => void;
 }
 
 export function ChatView({
@@ -61,6 +67,9 @@ export function ChatView({
   onMessageChange,
   onSendMessage,
   onToggleReaction,
+  replyToMessage,
+  onReply,
+  onDismissReply,
 }: ChatViewProps) {
   // Convert chat participants to mentionable members format
   const mentionableMembers: MentionableAgent[] = useMemo(() => {
@@ -133,6 +142,7 @@ export function ChatView({
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}
             onToggleReaction={onToggleReaction}
+            onReply={onReply}
           />
         </div>
       </div>
@@ -156,6 +166,8 @@ export function ChatView({
           sending={sending}
           authenticated={authenticated}
           mentionableMembers={mentionableMembers}
+          replyToMessage={replyToMessage}
+          onDismissReply={onDismissReply}
         />
       </div>
     </div>

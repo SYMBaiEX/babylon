@@ -20,7 +20,7 @@ import {
   getDistanceFromBottom,
   shouldShowScrollToLatest,
 } from './scroll-utils';
-import type { ChatDetails } from './types';
+import type { ChatDetails, Message, ReplyToMessage } from './types';
 
 /** Typing user info */
 interface TypingUserInfo {
@@ -169,6 +169,12 @@ interface TeamChatViewProps {
   onViewSettings?: (agentId: string) => void;
   /** Called when the message input is focused (e.g. to scroll to bottom on mobile keyboard open) */
   onInputFocus?: () => void;
+  /** Message being replied to */
+  replyToMessage?: ReplyToMessage | null;
+  /** Called when user initiates reply to a message */
+  onReply?: (message: Message) => void;
+  /** Called when user dismisses the reply */
+  onDismissReply?: () => void;
 }
 
 /**
@@ -207,6 +213,9 @@ export function TeamChatView({
   agentIds,
   onViewSettings,
   onInputFocus,
+  replyToMessage,
+  onReply,
+  onDismissReply,
 }: TeamChatViewProps) {
   const compact = density === 'compact';
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -372,6 +381,7 @@ export function TeamChatView({
             compactActions
             agentIds={agentIds}
             onViewSettings={onViewSettings}
+            onReply={onReply}
           />
         </div>
 
@@ -419,6 +429,8 @@ export function TeamChatView({
           placeholder="Message your team — @ to mention agents"
           mentionableMembers={agents}
           onInputFocus={onInputFocus}
+          replyToMessage={replyToMessage}
+          onDismissReply={onDismissReply}
         />
       </div>
     </div>
