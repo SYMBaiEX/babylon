@@ -56,6 +56,9 @@ Generate {{numToGenerate}} NEW prediction market questions.
 
 Current phase: {{phaseContext}}
 
+=== DAILY TOPIC ===
+{{dailyTopicContext}}
+
 SCENARIOS IN PLAY:
 {{scenariosList}}
 
@@ -84,6 +87,7 @@ MANDATORY CHECKS (verify EACH question):
 5. ☐ Uses exact parody names
 6. ☐ Publicly verifiable outcome
 7. ☐ Appropriate resolution timeframe
+8. ☐ Directly related to the daily topic above
 
 QUESTION TYPES TO GENERATE:
 - Feuds & confrontations
