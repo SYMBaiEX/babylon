@@ -360,6 +360,34 @@ export const parodyHeadlines = pgTable(
   ]
 );
 
+export type DailyTopicSourceType =
+  | 'auto'
+  | 'manual_override'
+  | 'fallback_previous_day';
+
+// DailyTopic - The single narrative topic that should drive new gameplay for a day
+export const dailyTopics = pgTable(
+  'DailyTopic',
+  {
+    id: text('id').primaryKey(),
+    date: timestamp('date', { mode: 'date' }).notNull().unique(),
+    topicKey: text('topicKey').notNull(),
+    topicLabel: text('topicLabel').notNull(),
+    summary: text('summary').notNull(),
+    sourceType: text('sourceType').$type<DailyTopicSourceType>().notNull(),
+    sourceHeadlineIds: json('sourceHeadlineIds').$type<string[]>().notNull(),
+    selectionReason: text('selectionReason'),
+    isLocked: boolean('isLocked').notNull().default(false),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
+  },
+  (table) => [
+    index('DailyTopic_date_idx').on(table.date),
+    index('DailyTopic_topicKey_idx').on(table.topicKey),
+    index('DailyTopic_isLocked_date_idx').on(table.isLocked, table.date),
+  ]
+);
+
 // TickTokenStats - Stores LLM token usage statistics per game tick
 export const tickTokenStats = pgTable(
   'TickTokenStats',
@@ -412,6 +440,8 @@ export const parodyHeadlinesRelations = relations(
     }),
   })
 );
+
+export const dailyTopicsRelations = relations(dailyTopics, () => ({}));
 
 // AdminAuditLog - Stores audit trail for all admin actions
 export const adminAuditLogs = pgTable(
@@ -513,6 +543,8 @@ export type RSSFeedSource = typeof rssFeedSources.$inferSelect;
 export type NewRSSFeedSource = typeof rssFeedSources.$inferInsert;
 export type RSSHeadline = typeof rssHeadlines.$inferSelect;
 export type NewRSSHeadline = typeof rssHeadlines.$inferInsert;
+export type DailyTopic = typeof dailyTopics.$inferSelect;
+export type NewDailyTopic = typeof dailyTopics.$inferInsert;
 export type ParodyHeadline = typeof parodyHeadlines.$inferSelect;
 export type NewParodyHeadline = typeof parodyHeadlines.$inferInsert;
 export type TickTokenStatsRow = typeof tickTokenStats.$inferSelect;

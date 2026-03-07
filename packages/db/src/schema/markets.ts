@@ -74,6 +74,9 @@ export const questions = pgTable(
       .defaultNow(),
     resolutionDate: timestamp('resolutionDate', { mode: 'date' }).notNull(),
     status: text('status').notNull().default('active'),
+    topicKey: text('topicKey'),
+    topicLabel: text('topicLabel'),
+    topicDate: timestamp('topicDate', { mode: 'date' }),
     resolvedOutcome: boolean('resolvedOutcome'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
@@ -104,6 +107,7 @@ export const questions = pgTable(
       table.status,
       table.resolutionDate
     ),
+    index('Question_topicKey_topicDate_idx').on(table.topicKey, table.topicDate),
     index('Question_requiresManualReview_status_idx').on(
       table.status,
       table.requiresManualReview,

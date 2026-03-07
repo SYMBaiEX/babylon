@@ -44,6 +44,19 @@ interface WorldFactsData {
     general: string;
     headlines?: string;
   };
+  dailyTopic?: {
+    topicKey: string;
+    topicLabel: string;
+    summary: string;
+    sourceType: 'auto' | 'manual_override' | 'fallback_previous_day';
+    isLocked: boolean;
+  } | null;
+  dailyTopicCandidates?: Array<{
+    topicKey: string;
+    topicLabel: string;
+    summary: string;
+    score: number;
+  }>;
   realityGroundingContent?: string;
 }
 
@@ -74,6 +87,8 @@ export function WorldFactsSection() {
   const [editingFact, setEditingFact] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [newFactValue, setNewFactValue] = useState<string>('');
+  const [topicLabel, setTopicLabel] = useState('');
+  const [topicSummary, setTopicSummary] = useState('');
 
   const fetchData = useCallback(async () => {
     const response = await fetch('/api/admin/world-facts');
@@ -91,6 +106,12 @@ export function WorldFactsSection() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!data?.dailyTopic) return;
+    setTopicLabel(data.dailyTopic.topicLabel);
+    setTopicSummary(data.dailyTopic.summary);
+  }, [data?.dailyTopic]);
 
   const handleAction = async (
     action: string,
@@ -181,6 +202,81 @@ export function WorldFactsSection() {
               />
             </button>
           </div>
+        </div>
+
+        <div className="mb-4 rounded-lg border border-border bg-background/80 p-4">
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <div>
+              <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+                Daily Topic
+              </h4>
+              <p className="text-sm">
+                {data.dailyTopic
+                  ? `${data.dailyTopic.topicLabel} (${data.dailyTopic.sourceType}${data.dailyTopic.isLocked ? ', locked' : ''})`
+                  : 'No topic selected yet'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleAction('recompute_daily_topic')}
+                disabled={actionLoading}
+                className="rounded-lg bg-cyan-500/20 px-3 py-2 text-cyan-500 transition-colors hover:bg-cyan-500/30 disabled:opacity-50"
+              >
+                Recompute
+              </button>
+              <button
+                onClick={() => handleAction('clear_daily_topic_override')}
+                disabled={actionLoading}
+                className="rounded-lg bg-amber-500/20 px-3 py-2 text-amber-500 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
+              >
+                Clear Override
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+            <input
+              value={topicLabel}
+              onChange={(e) => setTopicLabel(e.target.value)}
+              placeholder="Manual topic label"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+            <input
+              value={topicSummary}
+              onChange={(e) => setTopicSummary(e.target.value)}
+              placeholder="Manual topic summary"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+            <button
+              onClick={() =>
+                handleAction('set_daily_topic_override', {
+                  topicLabel: topicLabel.trim(),
+                  summary: topicSummary.trim(),
+                })
+              }
+              disabled={actionLoading || !topicLabel.trim()}
+              className="rounded-lg bg-blue-500/20 px-4 py-2 text-blue-500 transition-colors hover:bg-blue-500/30 disabled:opacity-50"
+            >
+              Override
+            </button>
+          </div>
+
+          {data.dailyTopicCandidates?.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {data.dailyTopicCandidates.map((candidate) => (
+                <button
+                  key={candidate.topicKey}
+                  onClick={() => {
+                    setTopicLabel(candidate.topicLabel);
+                    setTopicSummary(candidate.summary);
+                  }}
+                  className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
+                >
+                  {candidate.topicLabel} ({candidate.score})
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {/* Action Buttons */}

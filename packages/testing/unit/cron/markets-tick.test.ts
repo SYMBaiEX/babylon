@@ -378,6 +378,28 @@ const registerMocks = () => {
         publishedAt: new Date(),
       });
     },
+    dailyTopicService: {
+      ensureTopicForDate: async () => ({
+        topicKey: 'openai',
+        topicLabel: 'OpenAI',
+        summary: 'OpenAI is the single topic for today',
+        date: new Date('2026-03-06T00:00:00.000Z'),
+        sourceType: 'auto' as const,
+        sourceHeadlineIds: [],
+        selectionReason: 'Matched headlines',
+        isLocked: false,
+      }),
+    },
+    deriveTopicFromText: (text: string, date?: Date) => ({
+      topicKey: 'legacy-parent',
+      topicLabel: 'Legacy Parent',
+      summary: text,
+      date: date ?? new Date('2026-03-06T00:00:00.000Z'),
+      sourceType: 'fallback_previous_day' as const,
+      sourceHeadlineIds: [],
+      selectionReason: 'Derived from text',
+      isLocked: false,
+    }),
     isEligibleActor: () => true,
     mapGranularToDbTimeframe: (timeframe: string) => timeframe,
     BabylonLLMClient: class MockBabylonLLMClient {

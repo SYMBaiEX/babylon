@@ -60,6 +60,7 @@ import {
   calculateTrendingTags,
   createArcState,
   createParodyHeadlineGenerator,
+  dailyTopicService,
   DistributedLockService,
   generateArcPulseEventsIfNeeded,
   generateEvents,
@@ -136,6 +137,7 @@ export interface GameTickResult {
     newHeadlines: number;
     parodiesGenerated: number;
     headlinesCleaned: number;
+    dailyTopic?: string | null;
     worldFactsGenerated: number;
     worldFactsArchived: number;
   };
@@ -2115,6 +2117,7 @@ export async function updateWorldFactsIfNeeded(): Promise<{
     newHeadlines: number;
     parodiesGenerated: number;
     headlinesCleaned: number;
+    dailyTopic?: string | null;
     worldFactsGenerated: number;
     worldFactsArchived: number;
   };
@@ -2218,6 +2221,9 @@ export async function updateWorldFactsIfNeeded(): Promise<{
       >
     > = [];
     let cleaned = 0;
+    let dailyTopic: Awaited<
+      ReturnType<typeof dailyTopicService.ensureTopicForDate>
+    > = null;
 
     try {
       // Step 1: Fetch all RSS feeds
@@ -2248,6 +2254,16 @@ export async function updateWorldFactsIfNeeded(): Promise<{
       logger.info(
         `Cleaned up ${cleaned} old headlines`,
         { count: cleaned },
+        'GameTick'
+      );
+
+      dailyTopic = await dailyTopicService.ensureTopicForDate(new Date());
+      logger.info(
+        'Daily topic ready',
+        {
+          topicKey: dailyTopic?.topicKey ?? null,
+          topicLabel: dailyTopic?.topicLabel ?? null,
+        },
         'GameTick'
       );
     } catch (error) {
@@ -2327,6 +2343,7 @@ export async function updateWorldFactsIfNeeded(): Promise<{
         newHeadlines: feedResult.stored,
         parodiesGenerated: parodies.length,
         headlinesCleaned: cleaned,
+        dailyTopic: dailyTopic?.topicLabel ?? null,
         worldFactsGenerated: factsResult.generated,
         worldFactsArchived: factsResult.archived,
       },
@@ -2340,6 +2357,7 @@ export async function updateWorldFactsIfNeeded(): Promise<{
         newHeadlines: feedResult.stored,
         parodiesGenerated: parodies.length,
         headlinesCleaned: cleaned,
+        dailyTopic,
         worldFactsGenerated: factsResult.generated,
         worldFactsArchived: factsResult.archived,
       },

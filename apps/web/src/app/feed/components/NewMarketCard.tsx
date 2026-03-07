@@ -154,7 +154,9 @@ export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
     : '/markets?tab=predictions';
 
   return (
-    <div className={`border-border px-4 py-4 ${embedded ? 'border-t' : 'border-b'}`}>
+    <div
+      className={`border-border px-4 py-4 ${embedded ? 'border-t' : 'border-b'}`}
+    >
       {/* Header row: label + countdown */}
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">

@@ -141,6 +141,7 @@ export function createJsonClient(): DrizzleClient {
     systemSettings: createJsonRepo('systemSettings'),
     worldEvent: createJsonRepo('worldEvents'),
     worldFact: createJsonRepo('worldFacts'),
+    dailyTopic: createJsonRepo('dailyTopics'),
     rssFeedSource: createJsonRepo('rssFeedSources'),
     rssHeadline: createJsonRepo('rssHeadlines'),
     parodyHeadline: createJsonRepo('parodyHeadlines'),
