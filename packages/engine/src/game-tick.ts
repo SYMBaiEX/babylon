@@ -2357,7 +2357,7 @@ export async function updateWorldFactsIfNeeded(): Promise<{
         newHeadlines: feedResult.stored,
         parodiesGenerated: parodies.length,
         headlinesCleaned: cleaned,
-        dailyTopic,
+        dailyTopic: dailyTopic?.topicLabel ?? null,
         worldFactsGenerated: factsResult.generated,
         worldFactsArchived: factsResult.archived,
       },
