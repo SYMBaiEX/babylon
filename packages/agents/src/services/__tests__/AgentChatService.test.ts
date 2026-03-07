@@ -218,6 +218,7 @@ beforeEach(() => {
   mockLogger.info.mockClear();
   mockLogger.warn.mockClear();
   mockLogger.error.mockClear();
+  mockComposePromptFromState.mockClear();
   mockGetAgentWithConfig.mockClear();
   mockListUserAgents.mockClear();
   mockListUserAgents.mockResolvedValue([]);
@@ -577,6 +578,72 @@ describe('dispatchAgentChat', () => {
       // Falls back to default summary text
       expect(result.response).toBeDefined();
       expect(result.response.length).toBeGreaterThan(0);
+    });
+
+    it('injects formatted action results into reused state before the next decision and summary', async () => {
+      mockGetAgentWithConfig.mockResolvedValue(MOCK_AGENT_WITH_CONFIG);
+
+      mockUseModel
+        .mockResolvedValueOnce('DECISION_1')
+        .mockResolvedValueOnce('DECISION_2')
+        .mockResolvedValueOnce('SUMMARY');
+      mockParseKeyValueXml
+        .mockReturnValueOnce({
+          thought: 'check market',
+          action: 'CHECK_PERPS',
+          parameters: { ticker: 'TSLAI' },
+          isFinish: 'false',
+        })
+        .mockReturnValueOnce({
+          thought: 'done',
+          action: '',
+          parameters: {},
+          isFinish: 'true',
+        })
+        .mockReturnValueOnce({
+          thought: 'summarize',
+          text: 'TSLAI is trading at $150.',
+        });
+
+      mockProcessActions.mockImplementation(
+        async (
+          _m: unknown,
+          _a: unknown,
+          _s: unknown,
+          cb: (r: unknown) => Promise<unknown[]>
+        ) => {
+          await cb([
+            {
+              content: {
+                success: true,
+                text: 'TSLAI is trading at $150.',
+                values: { ticker: 'TSLAI', price: 150 },
+              },
+            },
+          ]);
+        }
+      );
+
+      const result = await dispatchAgentChat(BASE_PARAMS);
+
+      expect(result.success).toBe(true);
+      expect(mockComposePromptFromState).toHaveBeenCalledTimes(3);
+
+      const secondDecisionState = mockComposePromptFromState.mock.calls[1]![0]
+        .state as {
+        values: Record<string, unknown>;
+      };
+      expect(secondDecisionState.values.hasActionResults).toBe(true);
+      expect(secondDecisionState.values.actionResults).toContain('CHECK_PERPS');
+      expect(secondDecisionState.values.actionResults).toContain(
+        'TSLAI is trading at $150.'
+      );
+
+      const summaryState = mockComposePromptFromState.mock.calls[2]![0].state as {
+        values: Record<string, unknown>;
+      };
+      expect(summaryState.values.hasActionResults).toBe(true);
+      expect(summaryState.values.actionResults).toContain('CHECK_PERPS');
     });
   });
 

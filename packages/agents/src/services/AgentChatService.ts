@@ -220,6 +220,46 @@ const DECISION_XML_FORMAT_HINT =
 const SUMMARY_XML_FORMAT_HINT =
   '\n\nYour previous response could not be parsed. Output ONLY this exact XML structure with no text outside the tags:\n<response>\n  <thought>reasoning</thought>\n  <text>Your response</text>\n</response>';
 
+type ActionTraceResult = {
+  actionType: string;
+  success: boolean;
+  text: string;
+  error?: string;
+  values?: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
+  timestamp: number;
+  durationMs?: number;
+  tag?: MessageTag;
+};
+
+function formatTraceResults(results: ActionTraceResult[]): string {
+  if (results.length === 0) return 'No actions taken yet in this request.';
+
+  return results
+    .map((result, index) => {
+      const status = result.success ? '✓ Success' : '✗ Failed';
+      let output = `${index + 1}. **${result.actionType}** - ${status}`;
+
+      if (result.text) {
+        output += `\n   Summary: ${result.text}`;
+      }
+
+      if (result.error) {
+        output += `\n   Error: ${result.error}`;
+      }
+
+      if (result.values && Object.keys(result.values).length > 0) {
+        const valuesStr = Object.entries(result.values)
+          .map(([key, value]) => `   - ${key}: ${JSON.stringify(value)}`)
+          .join('\n');
+        output += `\n   Values:\n${valuesStr}`;
+      }
+
+      return output;
+    })
+    .join('\n\n');
+}
+
 // =============================================================================
 // Core Dispatch Function
 // =============================================================================
@@ -350,17 +390,7 @@ export async function dispatchAgentChat(
   // (single action + finish). 2nd iteration covers edge cases like retries.
   // coordinator ≈ 3s + dispatch ≈ 4s (2 iters × 2s) + summary ≈ 2s = ~9s
   const MAX_ITERATIONS = 2;
-  const traceActionResults: Array<{
-    actionType: string;
-    success: boolean;
-    text: string;
-    error?: string;
-    values?: Record<string, unknown>;
-    parameters?: Record<string, unknown>;
-    timestamp: number;
-    durationMs?: number;
-    tag?: MessageTag;
-  }> = [];
+  const traceActionResults: ActionTraceResult[] = [];
   let finalResponse: string | null = null;
   let isLLMFailure = false;
   let totalParseRetries = 0;
@@ -423,6 +453,11 @@ export async function dispatchAgentChat(
     state.data = {
       ...state.data,
       actionResults: traceActionResults,
+    };
+    state.values = {
+      ...state.values,
+      actionResults: formatTraceResults(traceActionResults),
+      hasActionResults: traceActionResults.length > 0,
     };
 
     lastState = state;
@@ -661,6 +696,8 @@ export async function dispatchAgentChat(
       agentName,
       agentUsername: agentUsername ?? '',
       actionCount: traceActionResults.length,
+      actionResults: formatTraceResults(traceActionResults),
+      hasActionResults: traceActionResults.length > 0,
     };
     summaryState.data = {
       ...summaryState.data,
