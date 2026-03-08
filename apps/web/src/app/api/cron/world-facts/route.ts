@@ -61,6 +61,7 @@ import {
 import type { ParodyHeadline } from '@babylon/db';
 import {
   createParodyHeadlineGenerator,
+  dailyTopicService,
   rssFeedService,
   worldFactsGenerator,
 } from '@babylon/engine';
@@ -124,6 +125,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     logger.error('Error cleaning up old headlines', { error }, 'Cron');
   }
 
+  let dailyTopic = null;
+  try {
+    dailyTopic = await dailyTopicService.ensureTopicForDate(new Date());
+  } catch (error) {
+    logger.error('Error selecting daily topic', { error }, 'Cron');
+  }
+
   // Step 4: Generate new world facts from game activity
   // This creates fresh context based on events, markets, questions, and actor activity
   logger.info(
@@ -156,6 +164,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      dailyTopic: dailyTopic?.topicLabel ?? null,
       worldFactsGenerated: factsResult.generated,
       worldFactsArchived: factsResult.archived,
     },
@@ -170,6 +179,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      dailyTopic,
       worldFactsGenerated: factsResult.generated,
       worldFactsArchived: factsResult.archived,
       worldFactsSources: factsResult.sources,

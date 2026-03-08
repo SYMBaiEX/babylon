@@ -404,6 +404,44 @@ export const GET = withErrorHandling(
       }
     }
 
+    // Resolve replied-to messages in batch
+    const replyToIds = [
+      ...new Set(
+        messagesInOrder
+          .map((m) => m.replyToMessageId)
+          .filter((id): id is string => !!id)
+      ),
+    ];
+    const replyToMessagesMap = new Map<
+      string,
+      { id: string; content: string; senderId: string; senderName?: string }
+    >();
+    if (replyToIds.length > 0) {
+      const replyMessages = await asSystem(async (db) => {
+        return await db
+          .select({
+            id: messages.id,
+            content: messages.content,
+            senderId: messages.senderId,
+          })
+          .from(messages)
+          .where(
+            and(inArray(messages.id, replyToIds), eq(messages.chatId, chatId))
+          );
+      }, 'get-reply-to-messages');
+
+      for (const rm of replyMessages) {
+        const sender = usersMap.get(rm.senderId);
+        const actor = actorsMap.get(rm.senderId);
+        replyToMessagesMap.set(rm.id, {
+          id: rm.id,
+          content: rm.content.slice(0, 200),
+          senderId: rm.senderId,
+          senderName: sender?.displayName || actor?.name || undefined,
+        });
+      }
+    }
+
     // Get the cursor for the next page (oldest message ID in this batch)
     const nextCursor = hasMore
       ? fullChat.messages[effectiveLimit - 1]?.id
@@ -465,6 +503,10 @@ export const GET = withErrorHandling(
         createdAt: msg.createdAt,
         metadata: msg.metadata,
         reactions: reactionsByMessageId.get(msg.id) ?? [],
+        replyToMessageId: msg.replyToMessageId ?? null,
+        replyToMessage: msg.replyToMessageId
+          ? (replyToMessagesMap.get(msg.replyToMessageId) ?? null)
+          : null,
       })),
       participants: participantsInfo,
       pagination: {

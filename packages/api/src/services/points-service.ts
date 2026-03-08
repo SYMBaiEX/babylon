@@ -1910,8 +1910,8 @@ export class PointsService {
             OR (
               (u."totalPoints"::numeric + COALESCE(a."agentPoints", 0)) = ${teamTotal}
               AND (
-                u."createdAt" < ${effectiveUser.createdAt}
-                OR (u."createdAt" = ${effectiveUser.createdAt} AND u."id" < ${effectiveUserId})
+                u."createdAt" < ${effectiveUser.createdAt.toISOString()}
+                OR (u."createdAt" = ${effectiveUser.createdAt.toISOString()} AND u."id" < ${effectiveUserId})
               )
             )
           )

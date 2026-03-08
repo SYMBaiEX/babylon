@@ -242,6 +242,24 @@ export function MessageBubble({
             </button>
           )}
         </div>
+        {/* Quoted reply block */}
+        {message.replyToMessage && !isThinking && (
+          <div
+            className={cn(
+              'mb-1 max-w-full rounded-lg border-primary/40 border-l-2 bg-muted/40',
+              compact ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-xs'
+            )}
+          >
+            <p className="font-medium text-primary/80">
+              {message.replyToMessage.senderName || 'Unknown'}
+            </p>
+            <p className="truncate text-muted-foreground">
+              {message.replyToMessage.content.length > 100
+                ? `${message.replyToMessage.content.slice(0, 100)}...`
+                : message.replyToMessage.content}
+            </p>
+          </div>
+        )}
         <div
           className={cn(
             'message-bubble max-w-full overflow-x-auto break-words rounded-2xl',

@@ -20,6 +20,7 @@ export const ChatMessageContentSchema = createTrimmedStringSchema(1, 5000);
  */
 export const ChatMessageCreateSchema = z.object({
   content: ChatMessageContentSchema,
+  replyToMessageId: z.string().min(1).optional(),
 });
 
 /**

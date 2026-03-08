@@ -25,6 +25,9 @@ export function TerminalAgentsChat() {
     sendMessage,
     toggleReaction,
     handleScroll,
+    replyToMessage,
+    handleReplyToMessage,
+    clearReplyToMessage,
   } = useTeamChat();
 
   if (!authenticated) {
@@ -84,6 +87,9 @@ export function TerminalAgentsChat() {
         typingUsers={typingUsers}
         thinkingAgents={thinkingAgents}
         onScroll={handleScroll}
+        replyToMessage={replyToMessage}
+        onReply={handleReplyToMessage}
+        onDismissReply={clearReplyToMessage}
       />
     </div>
   );
