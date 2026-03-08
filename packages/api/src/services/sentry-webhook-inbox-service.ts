@@ -100,7 +100,7 @@ function areHexDigestsEqual(leftHex: string, rightHex: string): boolean {
   return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function computeSentrySignature(
+function computeTimestampPrefixedSentrySignature(
   secret: string,
   timestamp: string,
   rawBody: string
@@ -108,6 +108,37 @@ function computeSentrySignature(
   return createHmac('sha256', secret)
     .update(`${timestamp}.${rawBody}`)
     .digest('hex');
+}
+
+function computeBodyOnlySentrySignature(
+  secret: string,
+  rawBody: string
+): string {
+  return createHmac('sha256', secret).update(rawBody).digest('hex');
+}
+
+function isSupportedSentrySignature(params: {
+  secret: string;
+  timestamp: string;
+  rawBody: string;
+  providedSignature: string;
+}): boolean {
+  const timestampPrefixedSignature = computeTimestampPrefixedSentrySignature(
+    params.secret,
+    params.timestamp,
+    params.rawBody
+  );
+  if (
+    areHexDigestsEqual(timestampPrefixedSignature, params.providedSignature)
+  ) {
+    return true;
+  }
+
+  const bodyOnlySignature = computeBodyOnlySentrySignature(
+    params.secret,
+    params.rawBody
+  );
+  return areHexDigestsEqual(bodyOnlySignature, params.providedSignature);
 }
 
 function isJsonValue(value: unknown): value is JsonValue {
@@ -320,12 +351,14 @@ export async function ingestSentryWebhook(
     };
   }
 
-  const expectedSignature = computeSentrySignature(
-    input.secret,
-    timestampHeader,
-    input.rawBody
-  );
-  if (!areHexDigestsEqual(expectedSignature, providedSignature)) {
+  if (
+    !isSupportedSentrySignature({
+      secret: input.secret,
+      timestamp: timestampHeader,
+      rawBody: input.rawBody,
+      providedSignature,
+    })
+  ) {
     return {
       ok: false,
       httpStatus: 401,
