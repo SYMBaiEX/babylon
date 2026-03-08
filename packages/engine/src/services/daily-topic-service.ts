@@ -4,6 +4,7 @@ import {
   dailyTopics,
   db,
   desc,
+  eq,
   generateSnowflakeId,
   gte,
   parodyHeadlines,
