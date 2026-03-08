@@ -16,7 +16,7 @@ interface UseNewMarketsResult {
  * see updates on refresh / next tab visit.
  *
  * Note: New Market cards intentionally appear on both the Latest feed
- * (via this hook) and the Stories tab (via the narrative feed endpoint).
+ * (via this hook) and the For You tab (via the ranked feed endpoint).
  * The tabs are mutually exclusive so users never see both simultaneously.
  */
 export function useNewMarkets(enabled = true): UseNewMarketsResult {

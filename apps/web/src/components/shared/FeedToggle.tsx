@@ -6,13 +6,13 @@ import { Flame } from 'lucide-react';
 /**
  * Feed toggle component for switching between feed views.
  *
- * Tab order: Stories → Hot → Latest → Following → Trades
- * Default: Stories
+ * Tab order: For You → Hot → Latest → Following → Trades
+ * Default: For You
  */
 interface FeedToggleProps {
-  activeTab: 'narrative' | 'hot' | 'latest' | 'following' | 'trades';
+  activeTab: 'forYou' | 'hot' | 'latest' | 'following' | 'trades';
   onTabChange: (
-    tab: 'narrative' | 'hot' | 'latest' | 'following' | 'trades'
+    tab: 'forYou' | 'hot' | 'latest' | 'following' | 'trades'
   ) => void;
 }
 
@@ -21,16 +21,16 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
     <div className="flex w-full items-center border-border border-b">
       <button
         type="button"
-        onClick={() => onTabChange('narrative')}
+        onClick={() => onTabChange('forYou')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'narrative'
+          activeTab === 'forYou'
             ? 'text-foreground'
             : 'text-muted-foreground'
         )}
       >
-        Stories
-        {activeTab === 'narrative' && (
+        For You
+        {activeTab === 'forYou' && (
           <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
         )}
       </button>

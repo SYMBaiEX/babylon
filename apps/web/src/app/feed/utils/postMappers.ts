@@ -1,7 +1,7 @@
 /**
  * Post data transformation utilities for the feed.
  *
- * `NarrativePost` (from the narrative feed API) has a slightly different shape
+ * `NarrativePost` (from the feed ranking APIs) has a slightly different shape
  * than the props expected by `PostCard` and `ArticleCard`. These helpers do the
  * mapping in one place so `NarrativeStoryList` and `MixedFeedList` stay in sync.
  */

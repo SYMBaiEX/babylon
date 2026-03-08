@@ -20,6 +20,8 @@ interface NewMarketCardProps {
    * a double bottom border.
    */
   embedded?: boolean;
+  onOpenMarket?: () => void;
+  onTradeComplete?: () => void;
 }
 
 type TradeSide = 'YES' | 'NO';
@@ -115,13 +117,18 @@ function MarketChart({
 }
 
 /**
- * Inline prediction market card for the Stories and Latest feeds.
+ * Inline prediction market card for the For You and Latest feeds.
  *
  * Mirrors the pattern used in the markets page (PredictionMarketCard +
  * PredictionTradingModal) so users can trade directly from the feed without
  * navigating away. Falls back to navigation links when no marketId is available.
  */
-export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
+export function NewMarketCard({
+  story,
+  embedded = false,
+  onOpenMarket,
+  onTradeComplete,
+}: NewMarketCardProps) {
   const router = useRouter();
   const [tradeSide, setTradeSide] = useState<TradeSide | null>(null);
 
@@ -221,7 +228,10 @@ export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
           <>
             <button
               type="button"
-              onClick={() => setTradeSide('YES')}
+              onClick={() => {
+                onOpenMarket?.();
+                setTradeSide('YES');
+              }}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-green-600 py-2.5 font-bold text-sm text-white transition-colors hover:bg-green-700 active:scale-95"
             >
               <CheckCircle size={15} />
@@ -229,7 +239,10 @@ export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
             </button>
             <button
               type="button"
-              onClick={() => setTradeSide('NO')}
+              onClick={() => {
+                onOpenMarket?.();
+                setTradeSide('NO');
+              }}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-600 py-2.5 font-bold text-sm text-white transition-colors hover:bg-red-700 active:scale-95"
             >
               <XCircle size={15} />
@@ -241,12 +254,14 @@ export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
           <>
             <Link
               href={`/markets?tab=predictions&side=yes`}
+              onClick={() => onOpenMarket?.()}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-green-600 py-2.5 font-bold text-sm text-white transition-colors hover:bg-green-700"
             >
               BUY YES
             </Link>
             <Link
               href={`/markets?tab=predictions&side=no`}
+              onClick={() => onOpenMarket?.()}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-600 py-2.5 font-bold text-sm text-white transition-colors hover:bg-red-700"
             >
               BUY NO
@@ -255,6 +270,7 @@ export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
         )}
         <Link
           href={viewHref}
+          onClick={() => onOpenMarket?.()}
           className="inline-flex items-center gap-1 px-2 py-2.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
           aria-label="View full market"
         >
@@ -292,6 +308,7 @@ export function NewMarketCard({ story, embedded = false }: NewMarketCardProps) {
           isOpen={!!tradeSide}
           onClose={() => setTradeSide(null)}
           defaultSide={tradeSide}
+          onSuccess={onTradeComplete}
         />
       )}
     </div>

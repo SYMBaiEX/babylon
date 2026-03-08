@@ -19,15 +19,15 @@ import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
 import {
   EmptyFeed,
+  ForYouFeedList,
   MixedFeedList,
-  NarrativeStoryList,
   PostList,
 } from './components';
 import {
   useFeedPosts,
   useFollowingPosts,
+  useForYouFeed,
   useHotPosts,
-  useNarrativeFeed,
   useNewMarkets,
 } from './hooks';
 
@@ -51,9 +51,9 @@ const TradesFeed = dynamic(
   { ssr: false }
 );
 
-type FeedTab = 'latest' | 'hot' | 'narrative' | 'following' | 'trades';
+type FeedTab = 'latest' | 'hot' | 'forYou' | 'following' | 'trades';
 
-function NarrativeFeedError({ onRetry }: { onRetry: () => Promise<void> }) {
+function ForYouFeedError({ onRetry }: { onRetry: () => Promise<void> }) {
   const [isRetrying, setIsRetrying] = useState(false);
   const isMountedRef = useRef(true);
   useEffect(() => {
@@ -77,9 +77,9 @@ function NarrativeFeedError({ onRetry }: { onRetry: () => Promise<void> }) {
   return (
     <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
       <AlertCircle className="mb-4 h-12 w-12 text-destructive opacity-60" />
-      <h3 className="mb-2 font-semibold text-lg">Failed to load Stories</h3>
+      <h3 className="mb-2 font-semibold text-lg">Failed to load For You</h3>
       <p className="mb-6 max-w-sm text-muted-foreground text-sm">
-        Something went wrong fetching the narrative feed. Check your connection
+        Something went wrong fetching the For You feed. Check your connection
         and try again.
       </p>
       <button
@@ -116,7 +116,7 @@ export function FeedClient() {
     useFeedStore();
 
   // Tab state
-  const [tab, setTab] = useState<FeedTab>('narrative');
+  const [tab, setTab] = useState<FeedTab>('forYou');
 
   // Actor names for display
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map());
@@ -147,12 +147,12 @@ export function FeedClient() {
   });
 
   const {
-    stories: narrativeStories,
-    ready: narrativeReady,
-    loading: narrativeLoading,
-    error: narrativeError,
-    refresh: refreshNarrative,
-  } = useNarrativeFeed({ enabled: tab === 'narrative' });
+    stories: forYouStories,
+    ready: forYouReady,
+    loading: forYouLoading,
+    error: forYouError,
+    refresh: refreshForYou,
+  } = useForYouFeed({ enabled: tab === 'forYou' });
 
   // New market cards shown at the top of Latest and Hot tabs
   // New market cards only appear on the Latest tab, chronologically merged.
@@ -220,10 +220,10 @@ export function FeedClient() {
   const isLoading =
     (tab === 'latest' && latestLoading) ||
     (tab === 'hot' && hotLoading) ||
-    // Show skeleton while narrative tab hasn't completed its first fetch yet,
-    // preventing the "No Active Stories" flash that occurs between tab switch
+    // Show skeleton while the For You tab hasn't completed its first fetch yet,
+    // preventing the empty-state flash that occurs between tab switch
     // and the async effect firing.
-    (tab === 'narrative' && (narrativeLoading || !narrativeReady)) ||
+    (tab === 'forYou' && (forYouLoading || !forYouReady)) ||
     (tab === 'following' && followingLoading);
 
   // Load actor names — fire-and-forget, falls back to authorId on failure
@@ -275,10 +275,10 @@ export function FeedClient() {
     if (tab === 'latest') {
       await refreshLatest();
       refreshWidgets();
-    } else if (tab === 'narrative') {
-      await refreshNarrative();
+    } else if (tab === 'forYou') {
+      await refreshForYou();
     }
-  }, [tab, refreshLatest, refreshWidgets, refreshNarrative]);
+  }, [tab, refreshLatest, refreshWidgets, refreshForYou]);
 
   const {
     pullDistance,
@@ -286,7 +286,7 @@ export function FeedClient() {
     containerRef: scrollContainerCallbackRef,
   } = usePullToRefresh({
     onRefresh: handleRefresh,
-    enabled: tab === 'latest' || tab === 'trades' || tab === 'narrative',
+    enabled: tab === 'latest' || tab === 'trades' || tab === 'forYou',
   });
 
   const scrollContainerRef = useCallback(
@@ -356,12 +356,10 @@ export function FeedClient() {
       );
     }
 
-    if (tab === 'narrative') {
-      if (narrativeError)
-        return <NarrativeFeedError onRetry={refreshNarrative} />;
-      if (narrativeStories.length === 0)
-        return <EmptyFeed variant="narrative" />;
-      return <NarrativeStoryList stories={narrativeStories} />;
+    if (tab === 'forYou') {
+      if (forYouError) return <ForYouFeedError onRetry={refreshForYou} />;
+      if (forYouStories.length === 0) return <EmptyFeed variant="forYou" />;
+      return <ForYouFeedList stories={forYouStories} />;
     }
 
     if (currentPosts.length === 0) {

@@ -152,6 +152,47 @@ export const shareActions = pgTable(
   ]
 );
 
+// FeedEvent
+export const feedEvents = pgTable(
+  'FeedEvent',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    surface: text('surface').notNull(),
+    actionType: text('actionType').notNull(),
+    itemId: text('itemId').notNull(),
+    itemType: text('itemType').notNull(),
+    clusterId: text('clusterId'),
+    marketId: text('marketId'),
+    topicKey: text('topicKey'),
+    authorId: text('authorId'),
+    feedPosition: integer('feedPosition'),
+    dwellMs: integer('dwellMs'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('FeedEvent_actionType_createdAt_idx').on(
+      table.actionType,
+      table.createdAt
+    ),
+    index('FeedEvent_clusterId_createdAt_idx').on(
+      table.clusterId,
+      table.createdAt
+    ),
+    index('FeedEvent_itemId_createdAt_idx').on(table.itemId, table.createdAt),
+    index('FeedEvent_surface_createdAt_idx').on(table.surface, table.createdAt),
+    index('FeedEvent_topicKey_createdAt_idx').on(
+      table.topicKey,
+      table.createdAt
+    ),
+    index('FeedEvent_userId_surface_createdAt_idx').on(
+      table.userId,
+      table.surface,
+      table.createdAt
+    ),
+  ]
+);
+
 // Tag
 export const tags = pgTable(
   'Tag',
@@ -301,6 +342,13 @@ export const shareActionsRelations = relations(shareActions, ({ one }) => ({
   }),
 }));
 
+export const feedEventsRelations = relations(feedEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [feedEvents.userId],
+    references: [users.id],
+  }),
+}));
+
 export const tagsRelations = relations(tags, ({ many }) => ({
   postTags: many(postTags),
   trendingTags: many(trendingTags),
@@ -335,6 +383,8 @@ export type Share = typeof shares.$inferSelect;
 export type NewShare = typeof shares.$inferInsert;
 export type ShareAction = typeof shareActions.$inferSelect;
 export type NewShareAction = typeof shareActions.$inferInsert;
+export type FeedEvent = typeof feedEvents.$inferSelect;
+export type NewFeedEvent = typeof feedEvents.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
 export type PostTag = typeof postTags.$inferSelect;
