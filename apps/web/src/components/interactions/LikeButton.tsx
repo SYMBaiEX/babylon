@@ -118,6 +118,7 @@ export function LikeButton({
   size = 'md',
   showCount = true,
   className,
+  onLikeChange,
 }: LikeButtonProps & { initialReactionType?: ReactionType }) {
   const { authenticated, login } = useAuth();
   // Ensure size is properly typed for index access
@@ -174,6 +175,7 @@ export function LikeButton({
       if (willBeLiked) {
         trackPostLike(targetId, true);
       }
+      onLikeChange?.(willBeLiked);
     } else {
       await toggleCommentLike(targetId);
     }
@@ -193,6 +195,7 @@ export function LikeButton({
 
     if (targetType === 'post') {
       await toggleLike(targetId);
+      onLikeChange?.(!isLiked);
     } else {
       await toggleCommentLike(targetId);
     }

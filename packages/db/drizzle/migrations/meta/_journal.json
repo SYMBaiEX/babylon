@@ -316,6 +316,13 @@
       "when": 1772718287000,
       "tag": "0045_add_sentry_webhook_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1772899200000,
+      "tag": "0046_add_feed_events",
+      "breakpoints": true
     }
   ]
 }

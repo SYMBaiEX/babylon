@@ -309,6 +309,7 @@ export interface LikeButtonProps {
   size?: 'sm' | 'md' | 'lg';
   showCount?: boolean;
   className?: string;
+  onLikeChange?: (isLiked: boolean) => void;
 }
 
 export interface CommentButtonProps {
@@ -326,6 +327,7 @@ export interface RepostButtonProps {
   size?: 'sm' | 'md' | 'lg';
   showCount?: boolean;
   className?: string;
+  onShareChange?: (isShared: boolean) => void;
   postData?: {
     id: string;
     content: string;
@@ -349,6 +351,8 @@ export interface InteractionBarProps {
   postId: string;
   initialInteractions?: PostInteraction;
   onCommentClick?: () => void;
+  onLikeChange?: (isLiked: boolean) => void;
+  onShareChange?: (isShared: boolean) => void;
   className?: string;
   postData?: {
     id: string;

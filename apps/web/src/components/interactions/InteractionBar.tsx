@@ -44,6 +44,8 @@ export function InteractionBar({
   postId,
   initialInteractions,
   onCommentClick,
+  onLikeChange,
+  onShareChange,
   className,
   postData,
 }: InteractionBarProps) {
@@ -176,6 +178,7 @@ export function InteractionBar({
             initialShared={isShared}
             size="sm"
             showCount
+            onShareChange={onShareChange}
             postData={
               postData
                 ? {
@@ -201,6 +204,7 @@ export function InteractionBar({
             initialCount={likeCount}
             size="sm"
             showCount
+            onLikeChange={onLikeChange}
           />
         </div>
 

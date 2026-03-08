@@ -92,6 +92,8 @@ export interface PostCardProps {
   density?: 'default' | 'compact';
   onCommentClick?: () => void;
   onOpen?: () => void;
+  onLikeChange?: (isLiked: boolean) => void;
+  onShareChange?: (isShared: boolean) => void;
   showInteractions?: boolean;
   showCommentPreviews?: boolean;
   showCommentInputBar?: boolean;
@@ -104,6 +106,8 @@ export const PostCard = memo(function PostCard({
   density = 'default',
   onCommentClick,
   onOpen,
+  onLikeChange,
+  onShareChange,
   showInteractions = true,
   showCommentPreviews = true,
   showCommentInputBar = true,
@@ -537,6 +541,8 @@ export const PostCard = memo(function PostCard({
                 postId={post.id}
                 initialInteractions={initialInteractions}
                 onCommentClick={onCommentClick}
+                onLikeChange={onLikeChange}
+                onShareChange={onShareChange}
                 postData={post}
               />
             </div>

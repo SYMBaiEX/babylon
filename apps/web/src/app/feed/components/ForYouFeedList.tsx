@@ -209,8 +209,14 @@ export function ForYouFeedList({ stories }: ForYouFeedListProps) {
                 density="default"
                 showCommentInputBar={false}
                 onOpen={() => trackStoryEvent(story, index, 'open_post')}
+                onLikeChange={(isLiked) => {
+                  if (isLiked) trackStoryEvent(story, index, 'like');
+                }}
+                onShareChange={(isShared) => {
+                  if (isShared) trackStoryEvent(story, index, 'share');
+                }}
                 onCommentClick={() => {
-                  trackStoryEvent(story, index, 'comment');
+                  trackStoryEvent(story, index, 'open_post');
                   router.push(`/post/${leadPost.id}`);
                 }}
               />

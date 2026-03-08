@@ -62,6 +62,7 @@ export function RepostButton({
   size = 'md',
   showCount = true,
   className,
+  onShareChange,
   postData,
 }: RepostButtonProps) {
   // Ensure size is properly typed for index access
@@ -98,6 +99,7 @@ export function RepostButton({
   };
 
   const handleShare = async () => {
+    const willBeShared = !isShared;
     const commentToSend = quoteComment.trim() || undefined;
     const isQuote = !!commentToSend;
 
@@ -109,6 +111,7 @@ export function RepostButton({
     setTimeout(() => setIsAnimating(false), 300);
 
     const response = await toggleShare(postId, commentToSend);
+    onShareChange?.(willBeShared);
 
     // If this is a quote post and we got repost data back, add it optimistically to the feed
     if (response && response.repostPost && isQuote) {
