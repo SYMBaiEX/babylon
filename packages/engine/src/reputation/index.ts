@@ -33,12 +33,3 @@ export {
   updateGameMetrics,
   updateTradingMetrics,
 } from './reputation-calculation-service';
-
-// Trade Feedback Calculator
-export {
-  calculateEntryTimingScore,
-  calculateExitTimingScore,
-  calculateRiskScore,
-  calculateTradeMetrics,
-  getTradeFeedbackSummary,
-} from './trade-feedback-calculator';

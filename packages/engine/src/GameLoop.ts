@@ -30,8 +30,7 @@ export interface MarketDecisionEnginePort {
  * Result of a single simulation tick execution.
  * Used by GameLoop for offline/training game generation.
  *
- * Note: This is distinct from GameTick's TickResult (for injectable architecture)
- * and game-tick.ts's GameTickResult (for production cron).
+ * Note: This is distinct from game-tick.ts's GameTickResult (for production cron).
  */
 export interface SimulationTickResult {
   /** World events generated during this tick */

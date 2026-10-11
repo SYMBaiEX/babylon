@@ -186,11 +186,6 @@ export const feedPlugin: Plugin = {
 
   evaluators: [sharedChatContextEvaluator],
 
-  /**
-   * Trust tracking and performance evaluation moved to plugin-experience.
-   * See: marketOutcomeEvaluator in plugin-experience/src/evaluators
-   */
-
   actions: [
     // Trading actions
     buySharesAction,
