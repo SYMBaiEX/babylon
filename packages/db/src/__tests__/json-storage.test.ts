@@ -668,4 +668,49 @@ describe('Snapshot Operations', () => {
     expect(user).not.toBeNull();
     expect(user!.username).toBe('snapshotuser');
   });
+
+  test('honours take: 0, Date equality, numeric strings and duplicate IDs', async () => {
+    const when = new Date('2026-05-06T07:08:09.000Z');
+    await db.user.create({
+      data: {
+        id: 'sem-user',
+        username: 'semuser',
+        displayName: 'Sem User',
+        virtualBalance: '10',
+        totalDeposited: '0',
+        reputationPoints: 1,
+        lifetimePnL: '0',
+        isAgent: false,
+        role: 'user',
+        updatedAt: when,
+      },
+    });
+
+    expect(
+      await db.user.findMany({ where: { id: 'sem-user' }, take: 0 })
+    ).toEqual([]);
+    expect(
+      await db.user.findMany({ where: { id: 'sem-user', updatedAt: when } })
+    ).toHaveLength(1);
+    expect(
+      await db.user.findMany({
+        where: { id: 'sem-user', virtualBalance: { gt: '9' } },
+      })
+    ).toHaveLength(1);
+    await expect(
+      db.user.create({
+        data: {
+          id: 'sem-user',
+          username: 'dup',
+          displayName: 'Dup',
+          virtualBalance: '0',
+          totalDeposited: '0',
+          reputationPoints: 0,
+          lifetimePnL: '0',
+          isAgent: false,
+          role: 'user',
+        },
+      })
+    ).rejects.toThrow('Unique constraint violation');
+  });
 });
