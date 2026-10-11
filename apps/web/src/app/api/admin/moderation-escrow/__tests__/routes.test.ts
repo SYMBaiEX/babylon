@@ -25,8 +25,10 @@ mock.module('@feed/db', () => ({
   },
 }));
 
+const requirePermission = mock(async () => ({ userId: 'admin-1' }));
+
 mock.module('@feed/api', () => ({
-  requireAdmin: async () => ({ userId: 'admin-1' }),
+  requirePermission,
   withErrorHandling: (handler: (req: Request) => Promise<Response>) => handler,
 }));
 
@@ -47,6 +49,14 @@ describe('list', () => {
     const res = (await list(req('list'))) as Response;
     expect(res.status).toBe(200);
     expect(listSelectCalls).toBe(2);
+  });
+
+  it('requires the manage_escrow permission', async () => {
+    requirePermission.mockClear();
+    await list(req('list'));
+    expect(requirePermission.mock.calls.map((c) => c[1])).toEqual([
+      'manage_escrow',
+    ]);
   });
 
   it('rejects fractional limits', async () => {

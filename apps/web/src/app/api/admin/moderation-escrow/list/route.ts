@@ -2,7 +2,7 @@
  * Admin Moderation Escrow List API
  *
  * @route GET /api/admin/moderation-escrow/list - List escrow payments
- * @access Admin
+ * @access Admin with manage_escrow permission (SUPER_ADMIN by default)
  *
  * @description
  * Returns list of moderation escrow payments with filtering by recipient,
@@ -74,7 +74,7 @@
  * ```
  */
 
-import { requireAdmin, withErrorHandling } from '@feed/api';
+import { requirePermission, withErrorHandling } from '@feed/api';
 import { and, db, desc, eq, lt, moderationEscrows, sql } from '@feed/db';
 import { toISO, toISOOrNull } from '@feed/shared';
 import type { NextRequest } from 'next/server';
@@ -90,7 +90,7 @@ const ListEscrowQuerySchema = z.object({
 });
 
 export const GET = withErrorHandling(async (req: NextRequest) => {
-  await requireAdmin(req);
+  await requirePermission(req, 'manage_escrow');
 
   const { searchParams } = new URL(req.url);
   const validation = ListEscrowQuerySchema.safeParse({
