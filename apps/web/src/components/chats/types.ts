@@ -28,12 +28,6 @@ export interface Chat {
     /** The user ID that manages this agent (for detecting own agents) */
     managedBy?: string | null;
   };
-  nftRequirement?: {
-    contractAddress: string;
-    tokenId: number | null;
-    chainId: number;
-    chainName: string;
-  };
 }
 
 export interface ReplyToMessage {
@@ -93,12 +87,6 @@ export interface ChatDetails {
       /** The user ID that manages this agent (for detecting own agents) */
       managedBy?: string | null;
     } | null;
-    nftRequirement?: {
-      contractAddress: string;
-      tokenId: number | null;
-      chainId: number;
-      chainName: string;
-    };
   };
   messages: Message[];
   participants: ChatParticipant[];

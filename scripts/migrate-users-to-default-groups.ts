@@ -28,7 +28,6 @@ import {
   groups,
   inArray,
   isNull,
-  nftSnapshot,
   users,
   whitelist,
 } from '@feed/db';
@@ -141,11 +140,9 @@ async function main() {
     // Batch mode - get all eligible users
     // This query gets users with fewer than 3 NPC group memberships
     // Get user IDs that have actual platform access:
-    // 1. Users in NftSnapshot (top of leaderboard, eligible to mint)
-    // 2. Users in Whitelist (manually granted access)
-    // 3. Admin users
-    const [snapshotUsers, whitelistedUsers, adminUsers] = await Promise.all([
-      db.select({ userId: nftSnapshot.userId }).from(nftSnapshot),
+    // 1. Users in Whitelist (manually granted access)
+    // 2. Admin users
+    const [whitelistedUsers, adminUsers] = await Promise.all([
       db
         .select({ userId: whitelist.userId })
         .from(whitelist)
@@ -163,7 +160,6 @@ async function main() {
     ]);
 
     const accessUserIds = new Set([
-      ...snapshotUsers.map((u) => u.userId),
       ...whitelistedUsers.map((u) => u.userId),
       ...adminUsers.map((u) => u.id),
     ]);
@@ -171,7 +167,6 @@ async function main() {
     logger.info(
       'Access-granted users found',
       {
-        nftSnapshot: snapshotUsers.length,
         whitelisted: whitelistedUsers.length,
         admins: adminUsers.length,
         uniqueTotal: accessUserIds.size,

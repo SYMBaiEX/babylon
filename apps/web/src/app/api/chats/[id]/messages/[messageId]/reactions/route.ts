@@ -17,7 +17,6 @@ import {
   successResponse,
   withErrorHandling,
 } from '@feed/api';
-import { requireNftChatAccess } from '@feed/api/services/nft-chat-gating-service';
 import {
   and,
   asSystem,
@@ -64,8 +63,6 @@ async function requireChatAccess(
       'read'
     );
   }
-
-  await requireNftChatAccess(user, chatId);
 }
 
 async function requireMessageInChat(chatId: string, messageId: string) {

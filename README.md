@@ -21,7 +21,7 @@ Feed is a live social simulation where players trade on prediction markets along
 - **Autonomous agents** — ElizaOS-compatible agents connect via A2A/MCP and trade alongside NPCs
 - **Training pipeline** — RL/fine-tuning pipeline and ScamBench harness for agent evaluation
 
-> **Status:** Active development. The core game loop, auth, and feed generation are production-ready. The crypto/NFT stack is disabled. Training and agent frameworks are in active iteration.
+> **Status:** Active development. The core game loop, auth, and feed generation are production-ready. The crypto stack is disabled. Training and agent frameworks are in active iteration.
 
 > **Slop bounty:** Feed is registered as a featured [Slop](https://slop.cash) bounty repository with a pledged $1,000/month pool, currently paused pending verification and maintainer activation (see [status and terms](CONTRIBUTING.md)). Before you start, star and fork this repository and read [CONTRIBUTING.md](CONTRIBUTING.md). Accepted work: reproduced bugs, tests that prove real behavior, validation, security, measured quality improvements, and validation of the trading algorithm and simulations. Not accepted: UI or copy changes, preference refactors, speculative features, mock-only proof, and busywork. Use real LLM calls for evidence. There is no PRD or MVP plan file in this repository, so a maintainer must confirm scope on an issue before feature work.
 

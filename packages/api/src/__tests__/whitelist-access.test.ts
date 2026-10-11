@@ -10,7 +10,6 @@ const whitelistConfigTable = {
   id: 'id',
   leaderboardRankThreshold: 'leaderboardRankThreshold',
 };
-const nftSnapshotTable = { userId: 'userId' };
 const usersTable = {
   id: 'id',
   reputationPoints: 'reputationPoints',
@@ -79,12 +78,6 @@ const mockDbSelect = mock((fields?: unknown) => ({
       };
     }
 
-    if (table === nftSnapshotTable) {
-      return {
-        where: () => Promise.resolve([]),
-      };
-    }
-
     return {
       where: () => Promise.resolve([]),
     };
@@ -116,7 +109,6 @@ mock.module('@feed/db', () => ({
   inArray: (a: unknown, b: unknown) => [a, b],
   isNull: (a: unknown) => a,
   lt: (a: unknown, b: unknown) => [a, b],
-  nftSnapshot: nftSnapshotTable,
   or: (...args: unknown[]) => args,
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
     strings,

@@ -99,9 +99,6 @@ export default async function RootLayout({
                 <Suspense fallback={null}>
                   <GlobalLoginModal />
                 </Suspense>
-                {/* <Suspense fallback={null}>
-                  <NftPromoBanner />
-                </Suspense> */}
               </>
             )}
 

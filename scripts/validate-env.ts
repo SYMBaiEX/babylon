@@ -118,13 +118,6 @@ const CONDITIONAL_RULES: ValidationRule[] = [
     when: ({ env }) => isEnabled(env.AGENT0_ENABLED),
   },
   {
-    id: 'nft-chat-gating',
-    description: 'NFT chat gating dependencies when NFT chat gating is enabled',
-    kind: 'allOf',
-    keys: ['NFT_CONTRACT_ADDRESS', 'NFT_INDEXER_GRAPHQL_URL'],
-    when: ({ env }) => isEnabled(env.NFT_CHAT_GATING_ENABLED),
-  },
-  {
     id: 'public-app-url',
     description: 'Public app URL for non-local environments',
     kind: 'allOf',

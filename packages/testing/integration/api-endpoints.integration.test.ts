@@ -453,12 +453,12 @@ describe('API Endpoints - Complete Coverage', () => {
   });
 
   // ============================================
-  // NFT ENDPOINTS
+  // RETIRED ENDPOINTS
   // ============================================
-  describe('NFT', () => {
-    test('GET /api/nft/gallery', async () => {
+  describe('retired NFT gallery', () => {
+    test('GET /api/nft/gallery returns 404', async () => {
       const res = await get('/api/nft/gallery');
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(404);
     });
   });
 

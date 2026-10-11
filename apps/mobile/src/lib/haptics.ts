@@ -29,7 +29,7 @@ export async function tapMedium() {
   await haptics?.Haptics.impact({ style: haptics.ImpactStyle.Medium });
 }
 
-/** Heavy tap — for significant events like minting an NFT, completing onboarding. */
+/** Heavy tap — for significant events like completing onboarding. */
 export async function tapHeavy() {
   const haptics = await getHaptics();
   await haptics?.Haptics.impact({ style: haptics.ImpactStyle.Heavy });

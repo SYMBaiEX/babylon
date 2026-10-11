@@ -29,10 +29,6 @@ export function FullAppShellClient({
           <GlobalLoginModal />
         </Suspense>
 
-        {/* <Suspense fallback={null}>
-          <NftPromoBanner />
-        </Suspense> */}
-
         <Suspense fallback={null}>
           <MobileHeader />
         </Suspense>
