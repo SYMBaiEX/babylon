@@ -222,7 +222,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       reputationPoints: users.reputationPoints,
       referralCount: users.referralCount,
       nftTokenId: users.nftTokenId,
-      hasFarcaster: users.hasFarcaster,
       hasTwitter: users.hasTwitter,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,

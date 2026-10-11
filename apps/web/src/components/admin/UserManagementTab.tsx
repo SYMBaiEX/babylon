@@ -43,7 +43,6 @@ const UserSchema = z.object({
   reputationPoints: z.number(),
   referralCount: z.number(),
   nftTokenId: z.number().nullable(),
-  hasFarcaster: z.boolean(),
   hasTwitter: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),

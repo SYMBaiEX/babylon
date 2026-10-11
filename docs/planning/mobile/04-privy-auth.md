@@ -11,7 +11,6 @@
 - Privy SDK initializes in Capacitor WebView ✅
 - Privy login modal renders correctly ✅
 - Embedded wallet iframe loads without blocking errors ✅
-- OAuth redirect flow fires correctly (Farcaster → redirected to app store since Warpcast not on emulator, expected behavior) ✅
 - No HTTPS / iframe / postMessage errors ✅
 
 ### Why Embedded Wallet Works in WebView
@@ -85,13 +84,13 @@ Capacitor's WebView sends requests from `capacitor://localhost` (iOS) or `https:
 From `packages/shared/src/auth/privy-config.ts`:
 
 ```
-Primary: farcaster, email
+Primary: email
 Overflow: metamask, twitter, discord, telegram, phantom, rabby_wallet,
           coinbase_wallet, rainbow, backpack
 ```
 
 All of these use either:
 - **Email:** OTP code entry within the Privy modal (works in WebView, no external redirect)
-- **OAuth:** External browser redirect via Capacitor's `@capacitor/browser` plugin (Farcaster, Twitter, Discord, Telegram)
+- **OAuth:** External browser redirect via Capacitor's `@capacitor/browser` plugin (Twitter, Discord, Telegram)
 - **Wallet:** WalletConnect deep links or browser extension detection (MetaMask, Phantom, etc.)
 

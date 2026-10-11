@@ -35,8 +35,8 @@ interface CategoryPnLData {
 /**
  * PnL share modal component for sharing portfolio or category PnL.
  *
- * Provides a modal interface for sharing PnL data on social media (Twitter,
- * Farcaster). Generates shareable images, handles image download, and supports
+ * Provides a modal interface for sharing PnL data on Twitter/X.
+ * Generates shareable images, handles image download, and supports
  * direct posting to Twitter. Includes Twitter authentication and share tracking.
  *
  * Features:
@@ -44,7 +44,6 @@ interface CategoryPnLData {
  * - Shareable image generation
  * - Image download
  * - Twitter posting
- * - Farcaster sharing
  * - Twitter authentication
  * - Share tracking
  * - Loading states
@@ -76,27 +75,6 @@ interface PnLShareModalProps {
 }
 
 /**
- * Farcaster icon component for social sharing.
- *
- * @param props - FarcasterIcon component props
- * @returns Farcaster icon SVG element
- */
-function FarcasterIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 1000 1000"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M257.778 155.556H742.222V844.444H671.111V528.889H670.414C662.554 441.677 589.258 373.333 500 373.333C410.742 373.333 337.446 441.677 329.586 528.889H328.889V844.444H257.778V155.556Z" />
-      <path d="M128.889 253.333L157.778 351.111H182.222V844.444H128.889V253.333Z" />
-      <path d="M871.111 253.333L842.222 351.111H817.778V844.444H871.111V253.333Z" />
-    </svg>
-  );
-}
-
-/**
  * Category labels for display.
  */
 const categoryLabels: Record<MarketCategory, string> = {
@@ -115,7 +93,7 @@ export function PnLShareModal({
 }: PnLShareModalProps) {
   const { getAccessToken } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [sharing, setSharing] = useState<'twitter' | 'farcaster' | null>(null);
+  const [sharing, setSharing] = useState<'twitter' | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isPostingToTwitter, setIsPostingToTwitter] = useState(false);
@@ -230,7 +208,7 @@ export function PnLShareModal({
     setIsDownloading(false);
   };
 
-  const handleShare = async (platform: 'twitter' | 'farcaster') => {
+  const handleShare = async (platform: 'twitter') => {
     if (!canShare || !user || !data) return;
 
     setSharing(platform);
@@ -244,20 +222,6 @@ export function PnLShareModal({
       }
 
       setShowTwitterConfirm(true);
-      setSharing(null);
-    } else {
-      // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
-      const farcasterComposeUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareableLink || shareUrl)}`;
-      window.open(farcasterComposeUrl, '_blank', 'width=550,height=600');
-
-      await trackExternalShare({
-        platform,
-        contentType: 'market',
-        contentId,
-        url: shareableLink || shareUrl,
-        userId: user?.id,
-      });
-
       setSharing(null);
     }
   };
@@ -465,16 +429,6 @@ export function PnLShareModal({
               >
                 <Twitter className="h-4 w-4 text-sky-400" />
                 <span className="hidden sm:inline">Share to X</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleShare('farcaster')}
-                disabled={!canShare || sharing === 'farcaster'}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-sidebar-accent px-4 py-3 font-semibold text-foreground text-sm transition hover:border-border hover:bg-sidebar-accent/80 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <FarcasterIcon className="h-4 w-4 text-purple-400" />
-                <span className="hidden sm:inline">Share to Farcaster</span>
               </button>
             </div>
           </div>

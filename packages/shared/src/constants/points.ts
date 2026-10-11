@@ -16,8 +16,6 @@
 export const POINTS = {
   INITIAL_SIGNUP: 1000,
   PROFILE_COMPLETION: 200, // Username + Profile Image + Bio (consolidated)
-  FARCASTER_LINK: 300,
-  FARCASTER_FOLLOW: 100, // Follow Feed on Farcaster
   TWITTER_LINK: 300,
   TWITTER_FOLLOW: 100, // Follow Feed on Twitter/X
   DISCORD_LINK: 300, // Link Discord account
@@ -76,8 +74,6 @@ export const DAILY_LOGIN = {
 export type PointsReason =
   | 'initial_signup'
   | 'profile_completion'
-  | 'farcaster_link'
-  | 'farcaster_follow'
   | 'twitter_link'
   | 'twitter_follow'
   | 'discord_link'

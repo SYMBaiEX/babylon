@@ -55,7 +55,7 @@ export function OnboardingProvider({
 
   // Phase 2: isSocialLogin derived from the Feed user record (populated at login)
   const isSocialLogin = useMemo(() => {
-    return !!(user?.hasFarcaster || user?.hasTwitter);
+    return !!user?.hasTwitter;
   }, [user]);
 
   const { setUser, setNeedsOnboarding } = useAuthStore();
@@ -247,9 +247,7 @@ export function OnboardingProvider({
             coverImageUrl?: string;
             profileComplete?: boolean;
             reputationPoints?: number;
-            hasFarcaster?: boolean;
             hasTwitter?: boolean;
-            farcasterUsername?: string;
             twitterUsername?: string;
             nftTokenId?: number;
             createdAt?: string;
@@ -268,9 +266,7 @@ export function OnboardingProvider({
               u.coverImageUrl ?? payload.coverImageUrl ?? undefined,
             profileComplete: u.profileComplete ?? true,
             reputationPoints: u.reputationPoints ?? user?.reputationPoints,
-            hasFarcaster: u.hasFarcaster ?? user?.hasFarcaster,
             hasTwitter: u.hasTwitter ?? user?.hasTwitter,
-            farcasterUsername: u.farcasterUsername ?? user?.farcasterUsername,
             twitterUsername: u.twitterUsername ?? user?.twitterUsername,
             createdAt: u.createdAt ?? user?.createdAt,
             gameGuideCompletedAt: u.gameGuideCompletedAt ?? null,
@@ -283,7 +279,6 @@ export function OnboardingProvider({
         trackOnboardingStep('profile', true);
         trackSignupCompleted(data.user?.id ?? '', {
           hasReferrer: Boolean(referralCode),
-          hasFarcaster: data.user?.hasFarcaster ?? false,
           hasTwitter: data.user?.hasTwitter ?? false,
         });
         setIsSubmitting(false);
@@ -361,11 +356,6 @@ export function OnboardingProvider({
             importedProfileData.platform === 'twitter'
               ? importedProfileData.username
               : null,
-          farcasterFid: importedProfileData.farcasterFid ?? null,
-          farcasterUsername:
-            importedProfileData.platform === 'farcaster'
-              ? importedProfileData.username
-              : null,
           tosAccepted: true,
           privacyPolicyAccepted: true,
         };
@@ -395,36 +385,11 @@ export function OnboardingProvider({
   ]);
 
   // Phase 2: Auto-import social profile from Feed user record
-  // Social data (farcasterUsername, twitterUsername, etc.) is populated at login
-  // by the Farcaster/Twitter auth routes before this effect runs.
+  // by the Twitter auth routes before this effect runs.
   useEffect(() => {
     if (!authenticated || !needsOnboarding || !user) return;
     if (importedProfileData) return;
     if (loadingProfile) return;
-
-    if (user.hasFarcaster && user.farcasterUsername) {
-      const profileData: ImportedProfileData = {
-        platform: 'farcaster',
-        username: user.farcasterUsername,
-        displayName: user.displayName || user.farcasterUsername,
-        bio: user.bio || undefined,
-        profileImageUrl: user.profileImageUrl || null,
-        farcasterFid: undefined,
-      };
-
-      logger.info(
-        'Auto-imported Farcaster profile from Feed user record',
-        {
-          username: profileData.username,
-          expectedPoints: POINTS.FARCASTER_LINK,
-        },
-        'OnboardingProvider'
-      );
-
-      setImportedProfileData(profileData);
-      setHasProgressedPastSocialImport(true);
-      return;
-    }
 
     if (user.hasTwitter && user.twitterUsername) {
       const profileData: ImportedProfileData = {
@@ -470,7 +435,7 @@ export function OnboardingProvider({
           !('platform' in parsed) ||
           !('username' in parsed) ||
           !('displayName' in parsed) ||
-          (parsed.platform !== 'twitter' && parsed.platform !== 'farcaster') ||
+          parsed.platform !== 'twitter' ||
           typeof parsed.username !== 'string' ||
           typeof parsed.displayName !== 'string'
         ) {

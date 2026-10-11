@@ -31,14 +31,13 @@ import { GAME_GUIDE_SLIDES } from './game-guide-slides';
  * Imported profile data structure from social platforms.
  */
 export interface ImportedProfileData {
-  platform: 'twitter' | 'farcaster';
+  platform: 'twitter';
   username: string;
   displayName: string;
   bio?: string;
   profileImageUrl?: string | null;
   coverImageUrl?: string | null;
   twitterId?: string;
-  farcasterFid?: string;
 }
 
 const PROFILE_FORM_ID = 'user-onboarding-profile-form';
@@ -368,12 +367,6 @@ export function UserOnboardingFlow({
         importedData?.platform === 'twitter' ? importedData.twitterId : null,
       twitterUsername:
         importedData?.platform === 'twitter' ? importedData.username : null,
-      farcasterFid:
-        importedData?.platform === 'farcaster'
-          ? importedData.farcasterFid
-          : null,
-      farcasterUsername:
-        importedData?.platform === 'farcaster' ? importedData.username : null,
       tosAccepted: acceptedTerms,
       privacyPolicyAccepted: acceptedTerms,
     };
@@ -831,10 +824,7 @@ export function UserOnboardingFlow({
               {headerTitle}
             </h1>
             {phase === 'profile' && importedData && (
-              <p className="text-[#0066FF] text-xs">
-                Imported from{' '}
-                {importedData.platform === 'twitter' ? '𝕏' : 'Farcaster'}
-              </p>
+              <p className="text-[#0066FF] text-xs">Imported from 𝕏</p>
             )}
             {phase === 'guide' && !isReplayGuide && (
               <p className="text-muted-foreground text-xs">

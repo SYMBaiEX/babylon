@@ -7,7 +7,6 @@ export interface UserDisplayFields {
   displayName?: string | null;
   username?: string | null;
   email?: string | null;
-  farcasterUsername?: string | null;
   twitterUsername?: string | null;
   walletAddress?: string | null;
 }
@@ -26,7 +25,6 @@ export function getUserDisplayName(
     user.displayName ??
     user.username ??
     user.email ??
-    user.farcasterUsername ??
     user.twitterUsername ??
     user.walletAddress ??
     '';
@@ -39,21 +37,14 @@ export function getUserDisplayName(
  */
 export function getUserHandle(
   user:
-    | Pick<
-        UserDisplayFields,
-        'username' | 'farcasterUsername' | 'twitterUsername' | 'walletAddress'
-      >
+    | Pick<UserDisplayFields, 'username' | 'twitterUsername' | 'walletAddress'>
     | null
     | undefined,
   fallback = ''
 ): string {
   if (!user) return fallback;
   const handle =
-    user.username ??
-    user.farcasterUsername ??
-    user.twitterUsername ??
-    user.walletAddress ??
-    '';
+    user.username ?? user.twitterUsername ?? user.walletAddress ?? '';
   const s = handle.toString().trim();
   return s || fallback;
 }

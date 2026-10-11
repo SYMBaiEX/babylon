@@ -68,7 +68,6 @@ async function main(): Promise<void> {
         hasBio: true,
         reputationPoints: 0,
         bannerDismissCount: 0,
-        showFarcasterPublic: true,
         showTwitterPublic: true,
         showWalletPublic: true,
         appealCount: 0,

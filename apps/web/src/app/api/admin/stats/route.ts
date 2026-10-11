@@ -228,7 +228,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       profileImageUrl: true,
       walletAddress: true,
       createdAt: true,
-      hasFarcaster: true,
       hasTwitter: true,
     },
   });

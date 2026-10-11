@@ -103,7 +103,6 @@ type PositionResponse = {
     displayName: string | null;
     profileImageUrl: string | null;
     email: string | null;
-    farcasterUsername: string | null;
     twitterUsername: string | null;
     createdAt: string;
     status: 'pending';
@@ -220,7 +219,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       displayName: users.displayName,
       profileImageUrl: users.profileImageUrl,
       email: users.email,
-      farcasterUsername: users.farcasterUsername,
       twitterUsername: users.twitterUsername,
       createdAt: users.createdAt,
     })
@@ -238,7 +236,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     displayName: u.displayName,
     profileImageUrl: u.profileImageUrl,
     email: u.email,
-    farcasterUsername: u.farcasterUsername,
     twitterUsername: u.twitterUsername,
     createdAt: toISO(u.createdAt),
     status: 'pending' as const,

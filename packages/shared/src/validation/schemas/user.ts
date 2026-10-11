@@ -41,7 +41,6 @@ export const UpdateUserSchema = z.object({
   profileImageUrl: AssetOrUrlSchema.optional(),
   coverImageUrl: AssetOrUrlSchema.optional(),
   showTwitterPublic: z.boolean().optional(),
-  showFarcasterPublic: z.boolean().optional(),
   showWalletPublic: z.boolean().optional(),
 });
 
@@ -49,7 +48,7 @@ export const UpdateUserSchema = z.object({
  * Social connection schemas
  */
 export const ConnectSocialSchema = z.object({
-  platform: z.enum(['twitter', 'farcaster']),
+  platform: z.enum(['twitter']),
   username: z.string().min(1).max(50),
   verificationToken: z.string().optional(), // For verification purposes
 });
@@ -217,7 +216,6 @@ export const UserResponseSchema = z.object({
   lifetimePnL: z.string(), // Decimal as string
   nftTokenId: z.number().nullable(),
   profileComplete: z.boolean(),
-  hasFarcaster: z.boolean(),
   hasTwitter: z.boolean(),
   referralCode: z.string().nullable(),
   referralCount: z.number(),

@@ -128,7 +128,7 @@ export const ReferralQuerySchema = z.object({
  * Link social account schema
  */
 export const LinkSocialAccountSchema = z.object({
-  platform: z.enum(['twitter', 'farcaster']),
+  platform: z.enum(['twitter']),
   username: z.string().min(1).max(50),
   verificationToken: z.string().optional(),
 });
@@ -138,7 +138,6 @@ export const LinkSocialAccountSchema = z.object({
  */
 export const UpdateVisibilitySchema = z.object({
   showTwitterPublic: z.boolean().optional(),
-  showFarcasterPublic: z.boolean().optional(),
   showWalletPublic: z.boolean().optional(),
 });
 

@@ -27,12 +27,7 @@ export function SecurityTab() {
                 <span className="font-medium">{user.email}</span>
               </div>
             )}
-            {user.farcasterUsername && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Farcaster: </span>
-                <span className="font-medium">@{user.farcasterUsername}</span>
-              </div>
-            )}
+
             {user.twitterUsername && (
               <div className="text-sm">
                 <span className="text-muted-foreground">X / Twitter: </span>

@@ -10,7 +10,6 @@ const mockTrackServerEvent = mock();
 const mockGetOrCreateReferralCode = mock();
 const mockAwardReferralSignup = mock();
 const mockAwardPoints = mock();
-const mockAwardFarcasterLink = mock();
 const mockAwardTwitterLink = mock();
 const mockAwardWalletConnect = mock();
 const mockAwardProfileCompletion = mock();
@@ -80,7 +79,6 @@ mock.module('@feed/api', () => ({
     awardReferralSignup: mockAwardReferralSignup,
     awardReputation: mockAwardPoints,
     awardPoints: mockAwardPoints,
-    awardFarcasterLink: mockAwardFarcasterLink,
     awardTwitterLink: mockAwardTwitterLink,
     awardWalletConnect: mockAwardWalletConnect,
     awardProfileCompletion: mockAwardProfileCompletion,
@@ -88,7 +86,6 @@ mock.module('@feed/api', () => ({
   PointsService: {
     awardReferralSignup: mockAwardReferralSignup,
     awardPoints: mockAwardPoints,
-    awardFarcasterLink: mockAwardFarcasterLink,
     awardTwitterLink: mockAwardTwitterLink,
     awardWalletConnect: mockAwardWalletConnect,
     awardProfileCompletion: mockAwardProfileCompletion,
@@ -209,7 +206,6 @@ describe('signup route referral code handling', () => {
     mockGetOrCreateReferralCode.mockReset();
     mockAwardReferralSignup.mockReset();
     mockAwardPoints.mockReset();
-    mockAwardFarcasterLink.mockReset();
     mockAwardTwitterLink.mockReset();
     mockAwardWalletConnect.mockReset();
     mockAwardProfileCompletion.mockReset();
@@ -248,7 +244,6 @@ describe('signup route referral code handling', () => {
       pointsAwarded: 0,
       newTotal: 0,
     });
-    mockAwardFarcasterLink.mockResolvedValue({ pointsAwarded: 0 });
     mockAwardTwitterLink.mockResolvedValue({ pointsAwarded: 0 });
     mockAwardWalletConnect.mockResolvedValue({ pointsAwarded: 0 });
     mockAwardProfileCompletion.mockResolvedValue({ pointsAwarded: 0 });

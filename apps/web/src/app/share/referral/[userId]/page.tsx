@@ -44,11 +44,7 @@ export async function generateMetadata({
     };
   }
 
-  // Generate referral code if it doesn't exist (ensures OG metadata always has ref param)
-  const referralCode = await getOrCreateReferralCode(userId);
-
   const displayName = user.displayName || user.username || 'A Feed Trader';
-  const referralLink = `${appUrl}/?ref=${referralCode}`;
 
   return {
     title: `${displayName} invited you to Feed`,
@@ -71,15 +67,6 @@ export async function generateMetadata({
       title: `${displayName} invited you to Feed`,
       description: 'Trade narratives, share the upside',
       images: [ogImageUrl],
-    },
-    other: {
-      // Farcaster Frame meta tags
-      'fc:frame': 'vNext',
-      'fc:frame:image': ogImageUrl,
-      'fc:frame:image:aspect_ratio': '1.91:1',
-      'fc:frame:button:1': 'Join Feed',
-      'fc:frame:button:1:action': 'link',
-      'fc:frame:button:1:target': referralLink,
     },
   };
 }

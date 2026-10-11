@@ -67,6 +67,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       maxAge: THIRTY_DAYS,
       path: '/',
     });
+  } else {
+    cookieStore.delete('steward-refresh');
   }
 
   return NextResponse.json({ ok: true, userId });

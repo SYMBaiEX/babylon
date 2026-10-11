@@ -1,7 +1,6 @@
 'use client';
 
 import type { StewardSession } from '@stwd/sdk';
-import { StewardAuth } from '@stwd/sdk';
 import {
   createContext,
   useCallback,
@@ -10,21 +9,22 @@ import {
   useRef,
   useState,
 } from 'react';
+import { FeedStewardAuth } from '@/lib/auth/feed-steward-auth';
 
 // ── Singleton StewardAuth instance ───────────────────────────────────────────
 
 const STEWARD_TENANT_ID = process.env.NEXT_PUBLIC_STEWARD_TENANT_ID ?? 'feed';
 
-let _stewardAuthInstance: StewardAuth | null = null;
+let _stewardAuthInstance: FeedStewardAuth | null = null;
 
-function getOrCreateStewardAuth(): StewardAuth {
+function getOrCreateStewardAuth(): FeedStewardAuth {
   if (_stewardAuthInstance) return _stewardAuthInstance;
   const baseUrl =
     process.env.NEXT_PUBLIC_STEWARD_API_URL ??
     (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
       ? 'https://auth.elizacloud.ai'
       : 'http://localhost:3200');
-  _stewardAuthInstance = new StewardAuth({
+  _stewardAuthInstance = new FeedStewardAuth({
     baseUrl,
     tenantId: STEWARD_TENANT_ID,
     // Persist session across page reloads
@@ -36,7 +36,7 @@ function getOrCreateStewardAuth(): StewardAuth {
 // ── Context ───────────────────────────────────────────────────────────────────
 
 interface StewardAuthContextValue {
-  stewardAuth: StewardAuth;
+  stewardAuth: FeedStewardAuth;
   session: StewardSession | null;
   isLoading: boolean;
   /** Call after a successful login to sync the httpOnly cookie and fetch the user profile. */
@@ -114,11 +114,27 @@ export function StewardAuthProvider({
     const unsubscribe = stewardAuth.onSessionChange((next) => {
       void synchronize(next);
     });
+    const checkRefresh = () => {
+      if (!active || document.visibilityState === 'hidden') return;
+      const current = stewardAuth.getSession();
+      if (!current) setSession(null);
+      if (!stewardAuth.getRefreshToken()) return;
+      if (!current || stewardAuth.isNearExpiry()) {
+        void stewardAuth.refreshSession();
+      }
+    };
+    const timer = window.setInterval(checkRefresh, 30_000);
+    window.addEventListener('focus', checkRefresh);
+    document.addEventListener('visibilitychange', checkRefresh);
+    checkRefresh();
     const restored = stewardAuth.getSession();
     if (restored) void synchronize(restored);
     else setIsLoading(false);
     return () => {
       active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', checkRefresh);
+      document.removeEventListener('visibilitychange', checkRefresh);
       unsubscribe();
     };
   }, [stewardAuth]);
@@ -131,6 +147,7 @@ export function StewardAuthProvider({
 
   const onLoginSuccess = useCallback(
     async (token: string, refreshToken?: string | null) => {
+      const revision = stewardAuth.cancelPendingRefresh();
       setIsLoading(true);
       try {
         // Sync the token to the server-side httpOnly cookie before publishing a
@@ -139,25 +156,15 @@ export function StewardAuthProvider({
         // httpOnly cookies.
         await syncSessionCookie(token, refreshToken);
 
-        // For OAuth / Farcaster / Telegram callbacks we receive the JWT externally.
-        // The SDK's private storage key is 'steward_session_token' in localStorage.
-        // Writing there and then calling getSession() syncs the SDK without
-        // needing access to private members.
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('steward_session_token', token);
-          if (refreshToken) {
-            localStorage.setItem('steward_refresh_token', refreshToken);
-          }
+        if (revision !== stewardAuth.sessionRevision) {
+          throw new Error('Login was superseded by another session change');
         }
-        // Immediately update React session state so useAuth sees the new session
-        setSession(stewardAuth.getSession());
+        setSession(stewardAuth.acceptSession(token, refreshToken));
       } catch (err) {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.removeItem('steward_session_token');
-          localStorage.removeItem('steward_refresh_token');
+        if (revision === stewardAuth.sessionRevision) {
+          stewardAuth.signOut();
+          setSession(null);
         }
-        stewardAuth.signOut();
-        setSession(null);
         throw err;
       } finally {
         setIsLoading(false);

@@ -368,10 +368,10 @@ describe('Referral Points Integration Tests', () => {
       });
       testReferralIds.push(referralId);
 
-      // Simulate user linking Farcaster
+      // Simulate user linking Twitter
       await db
         .update(users)
-        .set({ hasFarcaster: true, farcasterFid: '12345' })
+        .set({ hasTwitter: true, twitterId: '12345' })
         .where(eq(users.id, referredUserId));
 
       // Get referrer's points before qualification
@@ -413,13 +413,25 @@ describe('Referral Points Integration Tests', () => {
       );
     });
 
+    it('does not qualify a referral from a historical retired social account', async () => {
+      const { userId: referrerId } = await createTestUser();
+      const { userId } = await createTestUser({
+        referredBy: referrerId,
+        hasFarcaster: true,
+        farcasterFid: 'historical-only',
+        hasTwitter: false,
+        walletAddress: null,
+      });
+      expect(await PointsService.checkAndQualifyReferral(userId)).toBeNull();
+    });
+
     it('should not qualify referral twice', async () => {
       // Create referrer and referred user with linked social
       const { userId: referrerId } = await createTestUser();
       const { userId: referredUserId } = await createTestUser({
         referredBy: referrerId,
-        hasFarcaster: true,
-        farcasterFid: '12345',
+        hasTwitter: true,
+        twitterId: '12345',
       });
 
       // Create already-qualified referral record

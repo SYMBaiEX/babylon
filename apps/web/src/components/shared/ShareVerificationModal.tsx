@@ -11,7 +11,7 @@ import { apiUrl } from '@/utils/api-url';
  * Share verification modal component for verifying external shares.
  *
  * Allows users to paste the URL of their shared post to verify the share
- * and earn reputation. Supports Twitter/X and Farcaster platforms. Shows
+ * and earn reputation. Supports Twitter/X platforms. Shows
  * platform-specific placeholder URLs and success/error feedback.
  *
  * @param props - ShareVerificationModal component props
@@ -32,7 +32,7 @@ interface ShareVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   shareId: string;
-  platform: 'twitter' | 'farcaster';
+  platform: 'twitter';
   userId: string;
   onSuccess?: (reputationAwarded: number) => void;
 }
@@ -108,11 +108,8 @@ export function ShareVerificationModal({
     setVerifying(false);
   };
 
-  const platformName = platform === 'twitter' ? 'X' : 'Farcaster';
-  const placeholderUrl =
-    platform === 'twitter'
-      ? 'https://x.com/username/status/1234567890'
-      : 'https://farcaster.xyz/username/0x1234abcd';
+  const platformName = 'X';
+  const placeholderUrl = 'https://x.com/username/status/1234567890';
 
   return (
     <div

@@ -23,7 +23,7 @@ interface CategoryPnLData {
  *
  * Generates a styled card image (1200x630) for sharing category PnL
  * on social media. Includes user profile, category information, and
- * PnL metrics. Designed for Twitter/Farcaster OG images.
+ * PnL metrics. Designed for Twitter OG images.
  *
  * Features:
  * - Shareable image generation

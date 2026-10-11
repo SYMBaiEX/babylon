@@ -82,14 +82,9 @@ const nextConfig: NextConfig = {
   // Skip prerendering for feed page (client-side only)
   skipTrailingSlashRedirect: true,
   skipProxyUrlNormalize: false,
-  // Farcaster Mini App manifest serving
   async rewrites() {
     // Legacy `/assets/agent-monkeys/` and `/assets/user-profiles/` preset URLs are rewritten to `user-pfps` in middleware.ts
     return [
-      {
-        source: '/.well-known/farcaster.json',
-        destination: '/farcaster.json',
-      },
       {
         source: '/.well-known/agent-card.json',
         destination: '/api/game/card',

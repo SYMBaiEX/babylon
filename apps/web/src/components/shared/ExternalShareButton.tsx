@@ -3,7 +3,7 @@
 /**
  * External share button component with tracking and reputation rewards.
  *
- * Provides sharing functionality to Twitter/X, Farcaster, and copy link.
+ * Provides sharing functionality to Twitter/X and copy link.
  * Tracks shares for authenticated users and awards reputation. Shows verification
  * modal after sharing to verify the share was posted.
  *
@@ -24,17 +24,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
 import { apiUrl } from '@/utils/api-url';
 import { ShareVerificationModal } from './ShareVerificationModal';
-
-// Farcaster icon component
-function FarcasterIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 1000 1000" fill="currentColor">
-      <path d="M257.778 155.556H742.222V844.444H671.111V528.889H670.414C662.554 441.677 589.258 373.333 500 373.333C410.742 373.333 337.446 441.677 329.586 528.889H328.889V844.444H257.778V155.556Z" />
-      <path d="M128.889 253.333L157.778 351.111H182.222V844.444H128.889V253.333Z" />
-      <path d="M871.111 253.333L842.222 351.111H817.778V844.444H871.111V253.333Z" />
-    </svg>
-  );
-}
 
 /**
  * Props for ExternalShareButton component.
@@ -69,7 +58,7 @@ export function ExternalShareButton({
   const [showVerification, setShowVerification] = useState(false);
   const [pendingVerification, setPendingVerification] = useState<{
     shareId: string;
-    platform: 'twitter' | 'farcaster';
+    platform: 'twitter';
   } | null>(null);
   const [earnedPlatforms, setEarnedPlatforms] = useState<Set<string>>(
     new Set()
@@ -157,49 +146,6 @@ export function ExternalShareButton({
     }
   };
 
-  const handleShareToFarcaster = async () => {
-    // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
-    const castText = shareText.includes('http')
-      ? shareText // Already has link in text
-      : `${shareText}\n\n${shareUrl}`; // Add link if not present
-    const farcasterComposeUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}&embeds[]=${encodeURIComponent(shareUrl)}`;
-    window.open(farcasterComposeUrl, '_blank', 'width=550,height=600');
-
-    // If already earned, skip verification
-    if (earnedPlatforms.has('farcaster')) {
-      setShared(true);
-      setTimeout(() => setShared(false), 2000);
-      setShowMenu(false);
-      return;
-    }
-
-    const result =
-      authenticated && user
-        ? await trackExternalShare({
-            platform: 'farcaster',
-            contentType,
-            contentId,
-            url: shareUrl,
-            userId: user.id,
-          })
-        : { shareActionId: null, reputationAwarded: 0, alreadyAwarded: false };
-    const reputationAwarded = result.reputationAwarded;
-    if (reputationAwarded > 0) {
-      setShared(true);
-      setTimeout(() => setShared(false), 2000);
-    }
-    const shareId = result.shareActionId;
-    setShowMenu(false);
-
-    // Show verification modal after a short delay (gives user time to post)
-    if (shareId && user) {
-      setTimeout(() => {
-        setPendingVerification({ shareId, platform: 'farcaster' });
-        setShowVerification(true);
-      }, 3000); // 3 second delay
-    }
-  };
-
   const handleCopyLink = async () => {
     await navigator.clipboard.writeText(shareUrl);
     if (authenticated && user) {
@@ -225,13 +171,6 @@ export function ExternalShareButton({
         >
           <Twitter className="h-4 w-4 text-blue-400" />
           <span className="font-medium text-sm">Share to X</span>
-        </button>
-        <button
-          onClick={handleShareToFarcaster}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-foreground transition-colors hover:bg-muted/50"
-        >
-          <FarcasterIcon className="h-4 w-4 text-purple-400" />
-          <span className="font-medium text-sm">Share to Farcaster</span>
         </button>
 
         {/* Verification Modal */}
@@ -288,16 +227,6 @@ export function ExternalShareButton({
             >
               <Twitter className="h-4 w-4 text-blue-400" />
               <span className="text-foreground text-sm">Share to X</span>
-            </button>
-
-            <button
-              onClick={handleShareToFarcaster}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-sidebar-accent"
-            >
-              <FarcasterIcon className="h-4 w-4 text-purple-400" />
-              <span className="text-foreground text-sm">
-                Share to Farcaster
-              </span>
             </button>
 
             <button
