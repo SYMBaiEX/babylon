@@ -78,14 +78,16 @@ export function getAvailableTools(): MCPTool[] {
   return [
     {
       name: 'get_markets',
-      description: 'Get all active prediction markets',
+      description:
+        'Get active prediction markets (use get_perpetuals for perpetual markets)',
       inputSchema: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
             enum: ['prediction', 'perpetuals', 'all'],
-            description: 'Market type to filter',
+            description:
+              "Market type: 'prediction' or 'all' return prediction markets; 'perpetuals' is rejected in favour of get_perpetuals",
           },
         },
       },

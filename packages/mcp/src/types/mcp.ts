@@ -962,7 +962,8 @@ export interface GetReferralsResult {
 
 export interface GetReferralStatsResult {
   totalReferrals: number;
-  totalEarnings: number;
+  /** null: referral earnings are not tracked. */
+  totalEarnings: number | null;
   referralCode: string;
 }
 
