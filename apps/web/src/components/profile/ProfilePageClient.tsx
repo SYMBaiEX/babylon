@@ -998,7 +998,6 @@ export function ProfilePageClient({
                     )}
                     {actorInfo.type === 'user' && (
                       <OnChainBadge
-                        isRegistered={Boolean(actorInfo.nftTokenId)}
                         nftTokenId={actorInfo.nftTokenId ?? null}
                         size="md"
                       />

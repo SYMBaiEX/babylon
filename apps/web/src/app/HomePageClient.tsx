@@ -19,7 +19,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Wait for Privy to be ready before deciding to show login modal
+    // Wait for auth to be ready before deciding to show login modal
     // This prevents the modal from flashing on every page load
     if (!ready) {
       return;
@@ -34,7 +34,8 @@ function HomePageContent() {
       });
     }
 
-    router.push(getHomeFeedUrl(searchParams));
+    // replace (not push) so Back does not loop through this redirect.
+    router.replace(getHomeFeedUrl(searchParams));
   }, [ready, authenticated, router, queueLoginModal, searchParams]);
 
   // Show feed skeleton while redirecting

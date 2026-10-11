@@ -230,7 +230,6 @@ export function LeaderboardWidgetSidebar({
                     </span>
                   ) : (
                     <OnChainBadge
-                      isRegistered={Boolean(selectedUser.nftTokenId)}
                       nftTokenId={selectedUser.nftTokenId ?? null}
                       size="sm"
                     />
