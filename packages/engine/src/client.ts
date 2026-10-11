@@ -78,6 +78,8 @@ export type {
   TradingDecision,
   TradingExecutionResult,
 } from './types/market-decisions';
+// Portfolio PnL type (client-safe type module, no runtime deps)
+export type { PortfolioPnLSnapshot } from './types/portfolio';
 // Shared Game Types (re-exported from types, no server deps)
 export type {
   Actor,
@@ -128,21 +130,6 @@ export {
   sampleRandom,
   shuffleArray,
 } from './utils/randomization';
-
-// Portfolio PnL type (interface only, no runtime deps - defined here to avoid importing from server-only file)
-export interface PortfolioPnLSnapshot {
-  lifetimePnL: number;
-  netContributions: number;
-  netPeerTransfers: number;
-  totalDeposited: number;
-  totalWithdrawn: number;
-  availableBalance: number;
-  unrealizedPerpPnL: number;
-  unrealizedPredictionPnL: number;
-  totalUnrealizedPnL: number;
-  totalPnL: number;
-  accountEquity: number;
-}
 
 export interface PortfolioBreakdownSnapshot {
   wallet: number;

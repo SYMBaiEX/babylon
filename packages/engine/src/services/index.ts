@@ -47,7 +47,6 @@ export * from './reply-rate-limiter';
 export * from './shared-chat-context-service';
 export * from './tier-config';
 export * from './tiered-group-service';
-export * from './training-quality-monitor';
 export * from './user-alpha-group-assignment-service';
 
 // =============================================================================
