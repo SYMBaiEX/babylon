@@ -2,7 +2,7 @@
  * Waitlist Position API
  *
  * @route GET /api/waitlist/position - Get waitlist position
- * @access Public
+ * @access Authenticated (self only)
  *
  * @description
  * Returns user's waitlist position including leaderboard rank, percentile, points,
@@ -14,14 +14,7 @@
  *     tags:
  *       - Waitlist
  *     summary: Get waitlist position
- *     description: Returns user's waitlist position, rank, and points breakdown
- *     parameters:
- *       - in: query
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID to check position for
+ *     description: Returns the authenticated user's waitlist position, rank, and points breakdown
  *     responses:
  *       200:
  *         description: Waitlist position retrieved successfully
@@ -57,7 +50,7 @@
  *
  * @example
  * ```typescript
- * const { position, points } = await fetch('/api/waitlist/position?userId=user-id')
+ * const { position, points } = await fetch('/api/waitlist/position', { headers: { Authorization: `Bearer ${token}` } })
  *   .then(r => r.json());
  * ```
  *
@@ -102,7 +95,6 @@ type PositionResponse = {
     username: string | null;
     displayName: string | null;
     profileImageUrl: string | null;
-    email: string | null;
     twitterUsername: string | null;
     createdAt: string;
     status: 'pending';
@@ -122,9 +114,22 @@ type PositionResponse = {
 };
 
 const CACHE_KEY_NAMESPACE = 'waitlist:position';
-const CACHE_TTL_MS = Number(process.env.WAITLIST_POSITION_CACHE_MS ?? 30_000); // 30s default (increased from 5s)
+const CACHE_TTL_MS = parseCacheTtlMs(process.env.WAITLIST_POSITION_CACHE_MS);
 const CACHE_TTL_SECONDS = Math.max(1, Math.floor(CACHE_TTL_MS / 1000));
-const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
+// Per-user referral data: never let a shared browser/proxy cache replay it
+// across an account switch. The server-side cache above is keyed by user ID.
+const NO_STORE = 'private, no-store';
+
+function parseCacheTtlMs(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return 30_000;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(
+      `WAITLIST_POSITION_CACHE_MS must be a non-negative number, got "${raw}"`
+    );
+  }
+  return parsed;
+}
 const MAX_REFERRALS_PER_LIST = 25; // Limit referral lists to prevent unbounded payloads
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -143,7 +148,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     if (cached) {
       return successResponse(cached, 200, {
         'x-cache': 'waitlist-position-hit',
-        'Cache-Control': `private, max-age=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+        'Cache-Control': NO_STORE,
       });
     }
   }
@@ -171,6 +176,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       200,
       {
         'x-cache': 'waitlist-position-miss',
+        'Cache-Control': NO_STORE,
       }
     );
   }
@@ -218,7 +224,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       username: users.username,
       displayName: users.displayName,
       profileImageUrl: users.profileImageUrl,
-      email: users.email,
       twitterUsername: users.twitterUsername,
       createdAt: users.createdAt,
     })
@@ -235,7 +240,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     username: u.username,
     displayName: u.displayName,
     profileImageUrl: u.profileImageUrl,
-    email: u.email,
     twitterUsername: u.twitterUsername,
     createdAt: toISO(u.createdAt),
     status: 'pending' as const,
@@ -291,6 +295,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   return successResponse(responseBody, 200, {
     'x-cache': 'waitlist-position-miss',
-    'Cache-Control': `private, max-age=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+    'Cache-Control': NO_STORE,
   });
 });
