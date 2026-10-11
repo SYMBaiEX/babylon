@@ -35,6 +35,7 @@ const result = spawnSync(
       DEPLOYMENT_PLATFORM: 'cloudflare',
       DEPLOYMENT_ENV: environment,
       NEXT_PUBLIC_DEPLOYMENT_ENV: environment,
+      NEXT_PUBLIC_COMMIT_SHA: process.env.COMMIT_SHA ?? '',
       DISABLE_SENTRY: 'true',
       NEXT_PUBLIC_DISABLE_SENTRY: 'true',
       NEXT_PUBLIC_APP_URL:

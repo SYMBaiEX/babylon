@@ -6,7 +6,7 @@
  *
  * @description
  * Runs hourly to score new trajectories with RULER, check training readiness,
- * and monitor system health. Triggered by Vercel Cron (hourly).
+ * and monitor system health. Triggered by the Cloudflare cron Worker (hourly).
  *
  * @openapi
  * /api/cron/training-check:
@@ -34,7 +34,7 @@
  *
  * @example
  * ```typescript
- * // Called by Vercel Cron (hourly)
+ * // Called by the Cloudflare cron Worker (hourly)
  * await fetch('/api/cron/training-check', {
  *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
  * });
@@ -48,7 +48,6 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutes
 
 /**
  * Hourly training check and RULER scoring

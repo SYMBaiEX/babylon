@@ -16,7 +16,6 @@ import type { NextRequest } from 'next/server';
 const TRACE_DIR = path.resolve(process.cwd(), 'runs', 'dag-traces');
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);

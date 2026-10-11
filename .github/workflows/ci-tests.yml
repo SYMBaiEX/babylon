@@ -134,7 +134,7 @@ jobs:
         run: |
           set -euo pipefail
           # Use the setup script for consistent database initialization
-          bash scripts/setup-test-db.sh 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          bash scripts/setup-test-db.sh 2>&1 | sed -E 's#(postgres(ql)?://)[^[:space:]]+#\1[REDACTED]#g'
 
       - name: Build production
         env:

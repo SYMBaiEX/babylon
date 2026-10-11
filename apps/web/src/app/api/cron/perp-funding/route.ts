@@ -10,15 +10,13 @@ import { FEE_CONFIG, WalletService } from '@feed/engine';
 import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 
-export const maxDuration = 300;
-
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const startTime = new Date();
 
   // Use centralized cron auth (fail-closed in production)
   requireCronAuth(request, { jobName: 'PerpFunding' });
 
-  // Relay to staging if configured (Vercel cron runs only on production)
+  // Relay to staging if configured (REDIRECT_CRON_STAGING; disabled on Cloudflare)
   // but still execute locally (fan-out).
   const relay = await relayCronToStaging(request, 'perp-funding');
   if (relay.forwarded) {

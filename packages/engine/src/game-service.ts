@@ -6,7 +6,7 @@
  * cron (production) or local simulator (development). All operations query the
  * database directly, which is updated by game tick.
  *
- * Vercel-compatible: No filesystem access, all data from database.
+ * Workers-compatible: No filesystem access, all data from database.
  */
 
 import {
@@ -106,7 +106,7 @@ class GameService {
   }
 
   async getRealtimePosts(limit = 100, offset = 0, actorId?: string) {
-    // On Vercel: Read from database instead of filesystem
+    // Serverless/Workers: Read from database instead of filesystem
     // The daemon writes posts to database, so we can query them directly
     const posts = actorId
       ? await getDbInstance().getPostsByActor(actorId, limit)

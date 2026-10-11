@@ -26,7 +26,7 @@ let managerPromise: Promise<X402Manager> | null = null;
 /**
  * Shared X402 manager for points purchase. Uses Redis when `REDIS_URL` is
  * configured so create-payment and verify-payment see the same pending state
- * across Vercel/serverless instances.
+ * across serverless/Worker instances.
  */
 export function getPointsPurchaseX402Manager(): Promise<X402Manager> {
   if (!managerPromise) {

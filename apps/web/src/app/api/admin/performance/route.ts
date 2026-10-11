@@ -149,7 +149,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       activeRequests: perfSnapshot.system.activeRequests,
       requestsPerSecond: perfSnapshot.system.requestsPerSecond,
     },
-    vercelCache: perfSnapshot.vercelCache || null,
     bottlenecks: bottlenecks.map((b) => ({
       type: b.type,
       severity: b.severity,

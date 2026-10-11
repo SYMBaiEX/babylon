@@ -18,9 +18,6 @@ const SENSITIVE_HEADER_KEYS = new Set([
   'authorization',
   'cookie',
   'set-cookie',
-  'x-vercel-oidc-token',
-  'x-vercel-proxy-signature',
-  'x-vercel-sc-headers',
 ]);
 
 function sanitizeHeaders(headers: Headers): Record<string, string> {

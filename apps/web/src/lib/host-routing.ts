@@ -14,7 +14,6 @@ export function isAssetRequest(pathname: string): boolean {
     pathname.startsWith('/images') ||
     pathname.startsWith('/fonts') ||
     pathname.startsWith('/.well-known') ||
-    pathname.startsWith('/_vercel') ||
     pathname.startsWith('/monitoring') ||
     /\.[^/]+$/.test(pathname)
   );

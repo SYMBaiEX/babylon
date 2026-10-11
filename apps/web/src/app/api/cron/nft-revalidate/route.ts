@@ -9,8 +9,7 @@
  * This ensures users who have sold or transferred their NFTs are automatically
  * removed from gated chats.
  *
- * Recommended schedule: Every 5-15 minutes
- * Vercel cron: "* /5 * * * *" or similar
+ * Recommended schedule: Every 5-15 minutes (not currently scheduled; see workers/cron/src/schedule.ts)
  */
 
 import {
@@ -35,7 +34,7 @@ import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-// Maximum time for a single run (Vercel function timeout - 10s buffer)
+// Maximum time for a single run (bounded so one run cannot hold the request indefinitely)
 // Configurable via environment variable for different deployment environments
 const MAX_RUN_TIME_MS = parseInt(
   process.env.NFT_REVALIDATE_TIMEOUT_MS ?? '50000',

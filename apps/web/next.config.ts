@@ -82,6 +82,57 @@ const nextConfig: NextConfig = {
   // Skip prerendering for feed page (client-side only)
   skipTrailingSlashRedirect: true,
   skipProxyUrlNormalize: false,
+  // Response headers formerly declared in vercel.json. Applied by Next.js (and
+  // OpenNext on Cloudflare Workers); later entries override earlier ones per key.
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value:
+              "frame-src 'self' https://oauth.telegram.org; frame-ancestors 'self'",
+          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Credentials', value: 'true' },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET,DELETE,PATCH,POST,PUT,OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value:
+              'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-admin-token, x-dev-admin-token',
+          },
+        ],
+      },
+      {
+        // Agent routes use Bearer token auth (not cookies), so wildcard CORS is safe.
+        source: '/api/agents/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     // Legacy `/assets/agent-monkeys/` and `/assets/user-profiles/` preset URLs are rewritten to `user-pfps` in middleware.ts
     return [
@@ -111,17 +162,12 @@ const nextConfig: NextConfig = {
     'drizzle-orm/postgres-js',
     'ioredis', // Node.js Redis client - requires tls/net modules not available in edge runtime
     // NOTE: @elizaos/core was removed from externals because it's ESM-only ("type": "module").
-    // Externalizing ESM packages causes require() errors at Vercel runtime (ERR_REQUIRE_ESM).
+    // Externalizing ESM packages causes require() errors at runtime (ERR_REQUIRE_ESM).
     // Webpack now bundles it directly which resolves the ESM compatibility issue.
   ],
   images: {
     qualities: [100, 75],
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.public.blob.vercel-storage.com',
-        pathname: '/**',
-      },
       {
         protocol: 'http',
         hostname: 'localhost',
@@ -397,12 +443,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Only enable Sentry uploads in CI/Vercel builds.
+// Only enable Sentry uploads in CI builds.
 // This prevents local builds from failing if a developer has a stale/invalid token set.
-const sentryAuthToken =
-  process.env.CI || process.env.VERCEL
-    ? sentryAuthTokenFromProcessEnv
-    : undefined;
+const sentryAuthToken = process.env.CI
+  ? sentryAuthTokenFromProcessEnv
+  : undefined;
 
 const sentryWebpackPluginOptions = {
   // For all available options, see:
@@ -428,13 +473,12 @@ const sentryWebpackPluginOptions = {
   // For all available options, see:
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 
-  // Keep uploads narrow so Sentry source maps don't bloat Vercel build artifacts.
+  // Keep uploads narrow so Sentry source maps don't bloat build artifacts.
   widenClientFileUpload: false,
 
   sourcemaps: {
-    // Vercel's serverless size limit applies to deployed output, not just runtime code.
-    // Remove uploaded source maps from `.next` after Sentry has them to keep the
-    // production build path aligned with preview output size.
+    // Worker bundle size limits apply to deployed output, not just runtime code.
+    // Remove uploaded source maps from `.next` after Sentry has them.
     deleteSourcemapsAfterUpload: true,
   },
 
@@ -446,12 +490,6 @@ const sentryWebpackPluginOptions = {
 
   // Automatically tree-shake Sentry logger statements to reduce bundle size
   disableLogger: true,
-
-  // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-  // See the following for more information:
-  // https://docs.sentry.io/product/crons/
-  // https://vercel.com/docs/cron-jobs
-  automaticVercelMonitors: true,
 };
 
 // Wrap Sentry config in async function to handle top-level await

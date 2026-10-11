@@ -3,7 +3,7 @@
  *
  * Extends the ExtendedTaskStore to add Redis-backed persistence for tasks.
  * This ensures tasks survive server restarts and work across multiple
- * serverless instances (e.g., Vercel functions).
+ * serverless instances (e.g., Cloudflare Worker isolates).
  *
  * Uses Redis for storage with an in-memory fallback when Redis is unavailable.
  *

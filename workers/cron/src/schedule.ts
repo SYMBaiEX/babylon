@@ -1,4 +1,4 @@
-// UTC schedules retained from the former Vercel deployment.
+// UTC cron schedules for all app cron routes (source of truth).
 export const jobs = [
   { path: '/api/cron/metrics-snapshot', cron: '0 * * * *' },
   { path: '/api/cron/game-tick', cron: '* * * * *' },

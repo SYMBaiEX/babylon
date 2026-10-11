@@ -30,6 +30,6 @@ test('local development stays usable and explicit TLS is verified', () => {
     postgresTlsMode('postgres://localhost/feed?sslmode=require', false, false)
   ).toBe('verify-full');
   expect(
-    postgresTlsMode('postgres://ep.example.neon.tech/feed', false, false)
+    postgresTlsMode('postgres://db.example.supabase.co/feed', false, false)
   ).toBe('verify-full');
 });

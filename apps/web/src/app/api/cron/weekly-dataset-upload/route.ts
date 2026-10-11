@@ -37,7 +37,7 @@
  *
  * @example
  * ```typescript
- * // Called by Vercel Cron (weekly)
+ * // Called by a scheduler (weekly)
  * await fetch('/api/cron/weekly-dataset-upload', {
  *   method: 'POST',
  *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
