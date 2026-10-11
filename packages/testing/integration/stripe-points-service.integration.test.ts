@@ -760,4 +760,93 @@ describe('TradingBalanceFundingService Stripe Integration', () => {
       expect(description.paymentProvider).toBe('stripe');
     });
   });
+
+  describe('concurrency (idempotency under parallel delivery)', () => {
+    async function ledger(userId: string) {
+      return db
+        .select({
+          amount: balanceTransactions.amount,
+          balanceBefore: balanceTransactions.balanceBefore,
+          balanceAfter: balanceTransactions.balanceAfter,
+          relatedId: balanceTransactions.relatedId,
+        })
+        .from(balanceTransactions)
+        .where(eq(balanceTransactions.userId, userId));
+    }
+
+    it('credits a purchase exactly once when the same event is delivered in parallel', async () => {
+      const userId = await createDbUser();
+      const paymentIntentId = `pi_${crypto.randomUUID()}`;
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          TradingBalanceFundingService.fundPurchase(
+            userId,
+            10,
+            `cs_${crypto.randomUUID()}`,
+            paymentIntentId,
+            'stripe'
+          )
+        )
+      );
+
+      expect(results.every((r) => r.success)).toBe(true);
+      expect(results.filter((r) => !r.alreadyProcessed)).toHaveLength(1);
+      expect(await getUserBalance(userId)).toBe(1000);
+      expect((await getUserFundingTotals(userId)).totalDeposited).toBe(1000);
+      expect(await ledger(userId)).toHaveLength(1);
+    });
+
+    it('reverses exactly once when the same refund event is delivered in parallel', async () => {
+      const userId = await createDbUser(1000, 1000);
+      const eventId = `evt_${crypto.randomUUID()}`;
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          TradingBalanceFundingService.reversePurchaseFunding(
+            userId,
+            `pi_${crypto.randomUUID()}`,
+            'refund',
+            4,
+            eventId
+          )
+        )
+      );
+
+      expect(results.filter((r) => !r.alreadyProcessed)).toHaveLength(1);
+      expect(await getUserBalance(userId)).toBe(600);
+      expect((await getUserFundingTotals(userId)).totalWithdrawn).toBe(400);
+      expect(await ledger(userId)).toHaveLength(1);
+    });
+
+    it('applies distinct concurrent events with a coherent ledger chain', async () => {
+      const userId = await createDbUser();
+      await Promise.all(
+        [1, 2, 3, 4].map((dollars) =>
+          TradingBalanceFundingService.fundPurchase(
+            userId,
+            dollars,
+            `cs_${crypto.randomUUID()}`,
+            `pi_${crypto.randomUUID()}`,
+            'stripe'
+          )
+        )
+      );
+
+      expect(await getUserBalance(userId)).toBe(1000);
+      const rows = (await ledger(userId))
+        .map((row) => ({
+          amount: Number(row.amount),
+          before: Number(row.balanceBefore),
+          after: Number(row.balanceAfter),
+        }))
+        .sort((a, b) => a.before - b.before);
+      expect(rows).toHaveLength(4);
+      let expectedBefore = 0;
+      for (const row of rows) {
+        expect(row.before).toBe(expectedBefore);
+        expect(row.after).toBe(row.before + row.amount);
+        expectedBefore = row.after;
+      }
+      expect(expectedBefore).toBe(1000);
+    });
+  });
 });
