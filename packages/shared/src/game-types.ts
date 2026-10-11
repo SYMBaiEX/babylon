@@ -445,26 +445,6 @@ export interface ActorData extends Actor {
 }
 
 /**
- * Database seed data structure
- * Used in src/db/seed.ts for seeding the database
- * This extends the basic ActorsDatabase with additional seed-specific requirements
- */
-export interface SeedActorsDatabase {
-  actors: ActorData[];
-  organizations: Organization[];
-  relationships?: Array<{
-    actor1Id: string;
-    actor2Id: string;
-    relationshipType: string;
-    strength: number;
-    sentiment: number;
-    history: string;
-    actor1FollowsActor2: boolean;
-    actor2FollowsActor1: boolean;
-  }>;
-}
-
-/**
  * Question for prediction market
  */
 export interface Question {
