@@ -3,7 +3,7 @@
  *
  * @route POST /api/agents/[agentId]/a2a - A2A message handler
  * @route GET /api/agents/[agentId]/a2a - A2A capabilities
- * @access Public (with agent authentication)
+ * @access API key (X-Feed-Api-Key: server key or per-user key)
  *
  * @description
  * A2A server endpoint for individual agents. When an agent has A2A enabled,
@@ -17,7 +17,7 @@
  *     tags:
  *       - Agents
  *     summary: Handle A2A message
- *     description: Processes A2A protocol message for agent (agent authentication required)
+ *     description: Processes A2A protocol message for agent (X-Feed-Api-Key required; per-user keys act only as their own user and only see their own tasks)
  *     parameters:
  *       - in: path
  *         name: agentId
@@ -61,7 +61,7 @@
  * // Send A2A message
  * await fetch(`/api/agents/${agentId}/a2a`, {
  *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${agentToken}` },
+ *   headers: { 'X-Feed-Api-Key': apiKey },
  *   body: JSON.stringify({ message: 'A2A message' })
  * });
  * ```
@@ -75,6 +75,7 @@ import {
   JsonRpcTransportHandler,
 } from '@a2a-js/sdk/server';
 import {
+  authorizeTaskReference,
   ErrorCode,
   FeedAgentExecutor,
   generateAgentCardSync,
@@ -82,6 +83,7 @@ import {
   type ListTasksParams,
   PersistentTaskStore,
   RateLimiter,
+  scopeRequestToCaller,
 } from '@feed/a2a';
 import { getAgentConfig } from '@feed/agents';
 import { withErrorHandling } from '@feed/api';
@@ -89,6 +91,7 @@ import { db, eq, users } from '@feed/db';
 import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { checkApiKey } from '@/lib/api/check-api-key';
 
 // Type assertions are used instead of type guards due to intersection type issues
 
@@ -260,7 +263,48 @@ export const POST = withErrorHandling(async function POST(
     );
   }
 
+  // The executor acts as the request's contextId, so this endpoint requires
+  // the same API-key authentication as /api/a2a.
+  const { error: authError, authResult } = await checkApiKey(req);
+  if (authError) return authError;
+
   const body = (await req.json()) as JsonRpcRequest;
+
+  if (authResult) {
+    const scope = scopeRequestToCaller(body, authResult);
+    if (!scope.ok) {
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: body.id ?? null,
+          error: { code: -32001, message: scope.message },
+        },
+        { status: 401 }
+      );
+    }
+
+    const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+    const { taskStore } = (
+      jsonRpcHandler as unknown as {
+        requestHandler: { taskStore: PersistentTaskStore };
+      }
+    ).requestHandler;
+    const taskAccess = await authorizeTaskReference(
+      body,
+      authResult,
+      taskStore
+    );
+    if (!taskAccess.ok) {
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: body.id ?? null,
+          error: { code: -32001, message: 'Task not found' },
+        },
+        { status: 404 }
+      );
+    }
+  }
 
   const requestingAgentId =
     req.headers.get('x-agent-id') ||
