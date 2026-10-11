@@ -313,7 +313,6 @@ function GroupInviteSection() {
   const [npcId, setNpcId] = useState('');
   const [userId, setUserId] = useState('');
   const [chatId, setChatId] = useState('');
-  const [chatName, setChatName] = useState('');
   const [sending, setSending] = useState(false);
 
   const handleSendInvite = useCallback(async () => {
@@ -335,7 +334,6 @@ function GroupInviteSection() {
         npcId: npcId.trim(),
         userId: userId.trim(),
         chatId: chatId.trim() || undefined,
-        chatName: chatName.trim() || undefined,
       },
       'Failed to add user to group'
     );
@@ -345,11 +343,10 @@ function GroupInviteSection() {
       toast.success(outcome.message ?? 'User added to group');
       setUserId('');
       setChatId('');
-      setChatName('');
     } else {
       toast.error(outcome.message);
     }
-  }, [sending, npcId, userId, chatId, chatName]);
+  }, [sending, npcId, userId, chatId]);
 
   return (
     <div className="space-y-4">
@@ -360,8 +357,8 @@ function GroupInviteSection() {
       </div>
 
       <p className="text-muted-foreground text-sm">
-        Adds the user directly to the NPC&apos;s group chat (no acceptance step)
-        and notifies them.
+        Adds the user directly to an existing NPC-owned group chat (no
+        acceptance step) and notifies them.
       </p>
 
       {/* Form */}
@@ -429,7 +426,7 @@ function GroupInviteSection() {
             type="text"
             value={chatId}
             onChange={(e) => setChatId(e.target.value)}
-            placeholder="Leave empty for auto-generated ID"
+            placeholder="Existing NPC group chat ID"
             className={cn(
               'w-full rounded-lg border border-border px-4 py-2',
               'bg-background text-foreground',
@@ -439,31 +436,8 @@ function GroupInviteSection() {
             disabled={sending}
           />
           <p className="mt-1 text-muted-foreground text-xs">
-            Optional. If empty, will use format: [npcId]-owned-chat
-          </p>
-        </div>
-
-        {/* Chat Name (Optional) */}
-        <div>
-          <label htmlFor="chatName" className="mb-2 block font-medium text-sm">
-            Chat Name (Optional)
-          </label>
-          <input
-            id="chatName"
-            type="text"
-            value={chatName}
-            onChange={(e) => setChatName(e.target.value)}
-            placeholder="Leave empty for auto-generated name"
-            className={cn(
-              'w-full rounded-lg border border-border px-4 py-2',
-              'bg-background text-foreground',
-              'focus:border-primary focus:outline-none',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-            disabled={sending}
-          />
-          <p className="mt-1 text-muted-foreground text-xs">
-            Optional. If empty, will use format: [NPC Name]&apos;s Inner Circle
+            Optional when the NPC owns exactly one group chat. Must be an
+            existing group chat owned by the NPC.
           </p>
         </div>
 
