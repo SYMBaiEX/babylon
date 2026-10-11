@@ -337,7 +337,6 @@ It's a **complete external agent** showing how to build with Feed's APIs!
 examples/feed-langgraph-agent/
 ├── agent.py                 # Production-ready agent (main file)
 ├── agent_instrumented.py    # Debugging version with full logging
-├── benchmark_runner.py      # Benchmark testing framework
 ├── tests/                   # Test suite
 ├── README.md               # This file
 └── pyproject.toml          # Dependencies
