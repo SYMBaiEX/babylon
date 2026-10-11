@@ -498,8 +498,6 @@ The `scripts/` directory contains standalone utilities for training operations:
 | `e2e-training-test.ts` | End-to-end pipeline verification |
 | `assess-training-data.ts` | Analyze training data quality |
 | `export-rubrics.ts` | Export rubrics to JSON |
-| `generate-research-report.ts` | Generate research documentation |
-| `verify-final.ts` | Post-training verification checks |
 
 Run any script with:
 

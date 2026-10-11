@@ -23,8 +23,7 @@
     "benchmark:scenarios": "bun run scripts/generate-benchmark-scenarios.ts",
     "assess": "bun run scripts/assess-training-data.ts",
     "e2e": "bun run scripts/e2e-training-test.ts",
-    "export-rubrics": "bun run scripts/export-rubrics.ts",
-    "research-report": "bun run scripts/generate-research-report.ts"
+    "export-rubrics": "bun run scripts/export-rubrics.ts"
   },
   "dependencies": {
     "@huggingface/hub": "^2.6.12",
