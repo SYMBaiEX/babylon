@@ -146,7 +146,6 @@ jobs:
       - name: Start production server
         run: |
           echo "🚀 Starting production server..."
-          SKIP_ENV_VALIDATION=1 bun scripts/validation/check-environment.ts || echo "⚠️  Environment check skipped in CI"
           (cd apps/web && bunx --bun next start -p 3000) > /tmp/prod-server.log 2>&1 &
           echo $! > /tmp/prod-server.pid
           echo "📝 Server PID: $(cat /tmp/prod-server.pid)"

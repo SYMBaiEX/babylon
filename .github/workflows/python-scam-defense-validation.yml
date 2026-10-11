@@ -49,6 +49,51 @@ jobs:
         # live services and run separately.
         run: pytest -q tests --ignore=tests/integration --ignore=tests/e2e
 
+  python-integration:
+    name: Python Training Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      # Disposable database matching the default URL in
+      # tests/integration/conftest.py, which creates the trajectories schema.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: feed_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: feed_test
+        options: >-
+          --health-cmd "pg_isready -U feed_test -d feed_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5434:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'packages/training/python/requirements-ci.txt'
+
+      - name: Install Python dependencies
+        working-directory: packages/training/python
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-ci.txt
+          pip install -e . --no-deps
+
+      - name: Run integration tests (JSON + DB mode)
+        working-directory: packages/training/python
+        run: pytest -q tests/integration
+        env:
+          DATABASE_URL: postgresql://feed_test:test_password@localhost:5434/feed_test
+
   audit-python-dependencies:
     name: Audit pinned Python dependencies (advisory)
     runs-on: ubuntu-latest

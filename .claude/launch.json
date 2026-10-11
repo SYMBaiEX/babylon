@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "feed-web",
-      "runtimeExecutable": "/Users/shawwalters/.bun/bin/bun",
+      "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev:web"],
       "port": 3000,
       "autoPort": false
