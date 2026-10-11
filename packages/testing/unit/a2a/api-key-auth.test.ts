@@ -79,7 +79,21 @@ describe('A2A API Key Authentication', () => {
 
     it('should return true for IPv6 localhost', () => {
       expect(isLocalHost('::1')).toBe(true);
-      expect(isLocalHost('::1:3000')).toBe(true);
+      expect(isLocalHost('[::1]')).toBe(true);
+      expect(isLocalHost('[::1]:3000')).toBe(true);
+      // Unbracketed IPv6 with a port is not a valid Host header.
+      expect(isLocalHost('::1:3000')).toBe(false);
+    });
+
+    it('rejects hosts that merely start with a loopback name', () => {
+      expect(isLocalHost('localhost.evil.com')).toBe(false);
+      expect(isLocalHost('localhost.evil.com:3000')).toBe(false);
+      expect(isLocalHost('127.0.0.10')).toBe(false);
+      expect(isLocalHost('127.0.0.1.nip.io')).toBe(false);
+      expect(isLocalHost('[::1]evil')).toBe(false);
+      expect(isLocalHost('localhost:abc')).toBe(false);
+      expect(isLocalHost('localhost:99999')).toBe(false);
+      expect(isLocalHost('')).toBe(false);
     });
 
     it('should return false for remote hosts', () => {

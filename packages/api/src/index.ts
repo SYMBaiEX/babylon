@@ -56,7 +56,6 @@ export {
   authenticate,
   authenticateUser,
   authenticateWithDbUser,
-  getPrivyClient,
   isAuthenticationError,
   optionalAuth,
   optionalAuthFromHeaders,
