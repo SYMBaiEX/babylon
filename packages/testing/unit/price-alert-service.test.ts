@@ -28,7 +28,10 @@ let mockDbUpdate: ReturnType<typeof mock>;
 function resetDbMocks() {
   mockDbSelectLimit = mock(async () => []);
   mockDbSelectWhere = mock(() => ({ limit: mockDbSelectLimit }));
-  mockDbSelectFrom = mock(() => ({ where: mockDbSelectWhere }));
+  mockDbSelectFrom = mock(() => ({
+    where: mockDbSelectWhere,
+    innerJoin: () => ({ where: mockDbSelectWhere }),
+  }));
   mockDbSelect = mock(() => ({ from: mockDbSelectFrom }));
   mockDbUpdateReturning = mock(async () => [{ id: 'cfg-1' }]);
   mockDbUpdateWhere = mock(() => ({ returning: mockDbUpdateReturning }));
@@ -334,6 +337,8 @@ describe('PriceAlertService', () => {
       mockDbSelectLimit.mockResolvedValueOnce([
         { markPrice: 0.5, currentPrice: 0.5 },
       ]);
+      // Membership check: agent is an active member of the group
+      mockDbSelectLimit.mockResolvedValueOnce([{ chatId: 'group-chat-999' }]);
       // No owner lookup needed — goes directly to group chat
 
       const result = await service.checkAlerts('agent-001');
@@ -341,6 +346,26 @@ describe('PriceAlertService', () => {
       expect(mockExecuteDirectMessage).toHaveBeenCalledWith(
         expect.objectContaining({ chatId: 'group-chat-999' })
       );
+    });
+
+    test('skips group delivery when the agent is not an active group member', async () => {
+      const alert = makeAlert({
+        deliveryChannel: 'group',
+        deliveryChatId: 'someone-elses-chat',
+        condition: 'below',
+        threshold: 1.0,
+      });
+
+      mockDbSelectLimit.mockResolvedValueOnce([{ priceAlerts: [alert] }]);
+      mockDbSelectLimit.mockResolvedValueOnce([
+        { markPrice: 0.5, currentPrice: 0.5 },
+      ]);
+      // Membership check: no row
+      mockDbSelectLimit.mockResolvedValueOnce([]);
+
+      const result = await service.checkAlerts('agent-001');
+      expect(result).toBe(0);
+      expect(mockExecuteDirectMessage).not.toHaveBeenCalled();
     });
 
     test('falls back to team_chat when deliveryChannel=group but no deliveryChatId', async () => {

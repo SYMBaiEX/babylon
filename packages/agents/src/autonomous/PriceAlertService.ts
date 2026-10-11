@@ -17,6 +17,8 @@
 
 import {
   and,
+  chatParticipants,
+  chats,
   db,
   eq,
   perpMarketSnapshots,
@@ -119,6 +121,18 @@ export class PriceAlertService {
       let deliveryChatId: string | undefined;
 
       if (alert.deliveryChannel === 'group' && alert.deliveryChatId) {
+        // Re-check membership at delivery time: the agent may have left the
+        // group since the alert was created.
+        if (
+          !(await this.isActiveGroupMember(agentUserId, alert.deliveryChatId))
+        ) {
+          logger.warn(
+            `[PriceAlert] Agent is not an active member of group ${alert.deliveryChatId}; skipping alert ${alert.id}`,
+            { agentUserId, tokenSymbol: alert.tokenSymbol },
+            'PriceAlertService'
+          );
+          continue;
+        }
         deliveryChatId = alert.deliveryChatId;
       } else {
         // Default: deliver to team chat (agent→owner standard channel)
@@ -228,6 +242,28 @@ export class PriceAlertService {
     const teamChat = await teamChatService.getTeamChat(agent.managedBy);
     return teamChat?.chatId;
   }
+
+  /** Whether the agent is an active participant of the given group chat. */
+  private async isActiveGroupMember(
+    agentUserId: string,
+    chatId: string
+  ): Promise<boolean> {
+    const [membership] = await db
+      .select({ chatId: chatParticipants.chatId })
+      .from(chatParticipants)
+      .innerJoin(chats, eq(chats.id, chatParticipants.chatId))
+      .where(
+        and(
+          eq(chatParticipants.chatId, chatId),
+          eq(chatParticipants.userId, agentUserId),
+          eq(chatParticipants.isActive, true),
+          eq(chats.isGroup, true)
+        )
+      )
+      .limit(1);
+    return Boolean(membership);
+  }
+
 
   /**
    * Set lastTriggeredAt for one enabled alert only if its current value equals
