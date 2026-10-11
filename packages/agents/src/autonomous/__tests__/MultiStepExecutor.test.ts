@@ -187,6 +187,39 @@ describe('normalizeTradeDecisionParameters', () => {
     });
   });
 
+  test('does not guess a sell side when both outcomes are held', () => {
+    const bothSides = {
+      ...context,
+      agentPositions: {
+        ...context.agentPositions,
+        predictions: [
+          ...context.agentPositions.predictions,
+          { ...context.agentPositions.predictions[0], side: 'YES' },
+        ],
+      },
+    };
+    const result = normalizeTradeDecisionParameters(
+      { marketType: 'prediction', marketId: '123456', side: 'sell' },
+      bothSides as never
+    );
+    expect(result.side).toBeUndefined();
+    expect(
+      normalizeTradeDecisionParameters(
+        { marketType: 'prediction', marketId: '123456', side: 'sell' },
+        context as never
+      ).side
+    ).toBe('sell_no');
+  });
+
+  test('does not resolve a perp ticker from a name substring', () => {
+    expect(
+      normalizeTradeDecisionParameters(
+        { marketType: 'perp', marketId: 'NOT-NVIDAI-FUND', side: 'open_long' },
+        context as never
+      )
+    ).toMatchObject({ marketId: 'NOT-NVIDAI-FUND' });
+  });
+
   test('rescues numeric market ids emitted as JSON numbers', () => {
     expect(
       normalizeTradeDecisionParameters(
