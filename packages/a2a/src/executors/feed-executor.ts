@@ -54,7 +54,7 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '../handlers/escrow-handlers';
-import { X402Manager } from '../payments/x402-manager';
+import { getSharedX402Manager } from '../payments/shared-manager';
 import type { JsonRpcRequest } from '../types/a2a';
 import {
   type OffsetPaginationParams,
@@ -3693,15 +3693,6 @@ export class FeedAgentExecutor implements AgentExecutor {
   }
 
   /**
-   * Get or create the X402 payment manager instance
-   */
-  private getX402Manager(): X402Manager {
-    const rpcUrl =
-      process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org';
-    return new X402Manager({ rpcUrl });
-  }
-
-  /**
    * Create a payment request (x402)
    *
    * Creates a blockchain-verified payment request using the x402 micropayment protocol.
@@ -3731,15 +3722,23 @@ export class FeedAgentExecutor implements AgentExecutor {
       | Record<string, string | number | boolean | null>
       | undefined;
 
-    const x402 = this.getX402Manager();
+    // The payer is the user's linked wallet: verification binds the on-chain
+    // sender to the request's `from`.
+    const payer = await db.user.findUnique({
+      where: { id: userId },
+      select: { walletAddress: true },
+    });
+    if (!payer?.walletAddress) {
+      throw new Error('A linked wallet is required to create payment requests');
+    }
 
-    // Create payment request via X402Manager
+    const x402 = await getSharedX402Manager();
     const paymentRequest = await x402.createPaymentRequest(
-      userId,
+      payer.walletAddress,
       to,
       amount,
       service,
-      metadata
+      { ...metadata, userId }
     );
 
     logger.info(
@@ -3784,11 +3783,12 @@ export class FeedAgentExecutor implements AgentExecutor {
       throw new Error('txHash must be a valid 66-character hex string (0x...)');
     }
 
-    const x402 = this.getX402Manager();
+    const x402 = await getSharedX402Manager();
+    const userId = requireContextAccountId({}, context);
 
-    // Get the pending payment request first
+    // Get the pending payment request first; only its creator may redeem it.
     const pendingRequest = await x402.getPaymentRequest(requestId);
-    if (!pendingRequest) {
+    if (!pendingRequest || pendingRequest.metadata?.userId !== userId) {
       logger.warn('Payment request not found', { requestId, txHash }, 'A2A');
       return {
         success: false,

@@ -817,6 +817,30 @@ describe('TradingBalanceFundingService Stripe Integration', () => {
       expect(await ledger(userId)).toHaveLength(1);
     });
 
+    it('credits one payment to at most one account', async () => {
+      const [userA, userB] = [await createDbUser(), await createDbUser()];
+      const txHash = `0x${crypto.randomUUID().replace(/-/g, '')}`;
+      const results = await Promise.all(
+        [userA, userB].map((userId) =>
+          TradingBalanceFundingService.fundPurchase(
+            userId,
+            5,
+            `x402-${crypto.randomUUID()}`,
+            txHash
+          )
+        )
+      );
+      expect(results.filter((r) => r.success)).toHaveLength(1);
+      expect(results.find((r) => !r.success)?.error).toBe(
+        'Payment has already been credited to another account'
+      );
+      const balances = [
+        await getUserBalance(userA),
+        await getUserBalance(userB),
+      ].sort();
+      expect(balances).toEqual([0, 500]);
+    });
+
     it('applies distinct concurrent events with a coherent ledger chain', async () => {
       const userId = await createDbUser();
       await Promise.all(

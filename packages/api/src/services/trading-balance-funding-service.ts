@@ -271,6 +271,12 @@ export class TradingBalanceFundingService {
 
     const result = await db.transaction(
       async (tx): Promise<TradingBalanceFundingResult> => {
+        // Serialize all funding attempts for this payment across users, so a
+        // payment can be credited to at most one account.
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`funding:${transactionType}:${relatedId}`}))`
+        );
+
         const balanceBefore = await lockUserBalance(tx, userId);
         if (balanceBefore === null) {
           return USER_NOT_FOUND;
@@ -279,17 +285,31 @@ export class TradingBalanceFundingService {
         const [existingTransaction] = await tx
           .select({
             id: balanceTransactions.id,
+            userId: balanceTransactions.userId,
             amount: balanceTransactions.amount,
           })
           .from(balanceTransactions)
           .where(
             and(
-              eq(balanceTransactions.userId, userId),
               eq(balanceTransactions.type, transactionType),
               eq(balanceTransactions.relatedId, relatedId)
             )
           )
           .limit(1);
+
+        if (existingTransaction && existingTransaction.userId !== userId) {
+          logger.warn(
+            'Purchase payment already credited to another account',
+            { userId, paymentRequestId, paymentProvider, relatedId },
+            'TradingBalanceFundingService'
+          );
+          return {
+            success: false,
+            balanceDelta: 0,
+            newBalance: balanceBefore,
+            error: 'Payment has already been credited to another account',
+          };
+        }
 
         if (existingTransaction) {
           logger.info(
