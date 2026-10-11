@@ -85,13 +85,20 @@ nohup python3 -m vllm.entrypoints.openai.api_server \
     > /tmp/vllm-serve.log 2>&1 &
 
 echo 'vLLM starting... waiting for health check'
+ready=0
 for i in \$(seq 1 60); do
-    if curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
+    if curl -sf --max-time 5 http://localhost:$PORT/health > /dev/null 2>&1; then
         echo 'vLLM is ready!'
+        ready=1
         break
     fi
     sleep 5
 done
+if [ \"\$ready\" -ne 1 ]; then
+    echo 'vLLM did not become healthy within 5 minutes; see /tmp/vllm-serve.log'
+    tail -n 50 /tmp/vllm-serve.log
+    exit 1
+fi
 
 echo ''
 echo '================================================'
