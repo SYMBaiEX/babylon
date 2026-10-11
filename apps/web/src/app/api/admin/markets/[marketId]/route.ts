@@ -91,7 +91,9 @@ const buildPredictionService = (marketId: string) =>
 const MarketActionSchema = z.object({
   action: z.enum(['resolve', 'extend', 'void']),
   resolution: z.boolean().optional(), // true for YES, false for NO
-  newEndDate: z.string().optional(),
+  // Must carry an explicit offset (e.g. toISOString()) so the server never
+  // reinterprets a browser-local wall-clock time in its own timezone.
+  newEndDate: z.iso.datetime({ offset: true }).optional(),
   reason: z.string().optional(),
 });
 
@@ -302,6 +304,12 @@ export const POST = withErrorHandling(
       if (newEnd <= new Date()) {
         return successResponse(
           { error: 'New end date must be in the future' },
+          400
+        );
+      }
+      if (market.endDate && newEnd <= market.endDate) {
+        return successResponse(
+          { error: 'New end date must be after the current end date' },
           400
         );
       }

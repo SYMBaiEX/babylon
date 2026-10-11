@@ -97,10 +97,9 @@ import { NextResponse } from 'next/server';
 /**
  * GET /api/admin/groups
  * Get all group chats with filtering and sorting
- * Admin only (localhost bypass handled by requireAdmin)
+ * Admin only
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Require admin (automatically bypassed on localhost)
   const admin = await requireAdmin(request);
 
   // Audit log the admin access
