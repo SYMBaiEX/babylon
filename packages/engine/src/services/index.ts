@@ -47,17 +47,12 @@ export * from './reply-rate-limiter';
 export * from './shared-chat-context-service';
 export * from './tier-config';
 export * from './tiered-group-service';
-export * from './training-quality-monitor';
 export * from './user-alpha-group-assignment-service';
 
 // =============================================================================
 // Market Services
 // =============================================================================
 
-export {
-  type EventArcValidationResult,
-  EventArcValidator,
-} from './event-arc-validator';
 export * from './event-market-linker'; // BAB-5: Event-market connection
 // Event-market pipeline for narrative-driven market impacts
 export * from './event-market-pipeline';
