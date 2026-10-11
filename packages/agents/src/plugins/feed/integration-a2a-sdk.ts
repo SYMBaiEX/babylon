@@ -9,7 +9,7 @@
  * - Lazy header injection per-request (not per-client initialization)
  */
 
-import type { AgentCard, Message, Task } from '@a2a-js/sdk';
+import type { AgentCard, Task } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
 import type { AgentRuntime, Plugin } from '@elizaos/core';
 import { db } from '@feed/db';
@@ -149,9 +149,11 @@ async function getCachedAgentCard(): Promise<CachedAgentCard | null> {
   }
 
   agentCardFetchPromise = fetchAgentCard();
-  const card = await agentCardFetchPromise;
-  agentCardFetchPromise = null;
-  return card;
+  try {
+    return await agentCardFetchPromise;
+  } finally {
+    agentCardFetchPromise = null;
+  }
 }
 
 /**
@@ -180,7 +182,9 @@ async function fetchAgentCard(): Promise<CachedAgentCard | null> {
       'FeedIntegration'
     );
 
-    const response = await fetch(agentCardUrl);
+    const response = await fetch(agentCardUrl, {
+      signal: AbortSignal.timeout(30000),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch agent card: ${response.status}`);
     }
@@ -208,7 +212,7 @@ async function fetchAgentCard(): Promise<CachedAgentCard | null> {
       },
       'FeedIntegration'
     );
-    return null;
+    throw error;
   }
 }
 
@@ -238,7 +242,13 @@ function createAuthenticatedFetchForAgent(
       headers.set('x-feed-api-key', apiKey);
     }
 
-    return fetch(url, { ...init, headers });
+    return fetch(url, {
+      ...init,
+      headers,
+      signal: init?.signal
+        ? AbortSignal.any([init.signal, AbortSignal.timeout(30000)])
+        : AbortSignal.timeout(30000),
+    });
   };
 
   // Bun may expose a non-standard `fetch.preconnect`; preserve it when present.
@@ -364,8 +374,8 @@ export class FeedA2AClient {
    * Execute via A2A message/send with skills
    * Maps a2a.* methods to A2A protocol
    *
-   * On server-side (serverless), uses direct executor to avoid HTTP self-call issues.
-   * On client-side or when A2A protocol is explicitly needed, uses SDK client with HTTP.
+   * HTTP is the default. Same-process execution requires explicit direct transport.
+   * Failures never switch transport or substitute another result.
    */
   private async executeViaA2A(
     action: string,
@@ -407,14 +417,67 @@ export class FeedA2AClient {
       getGroupInvites: 'notifications.get_group_invites',
       acceptGroupInvite: 'notifications.accept_invite',
       declineGroupInvite: 'notifications.decline_invite',
+      getPost: 'social.get_post',
+      unlikePost: 'social.unlike_post',
+      deletePost: 'social.delete_post',
+      sharePost: 'social.share_post',
+      getComments: 'social.get_comments',
+      createComment: 'social.create_comment',
+      deleteComment: 'social.delete_comment',
+      likeComment: 'social.like_comment',
+      listPredictionMarkets: 'markets.list_prediction',
+      listPerpetualMarkets: 'markets.list_perpetuals',
+      buyShares: 'markets.buy_shares',
+      sellShares: 'markets.sell_shares',
+      openPosition: 'markets.open_position',
+      closePosition: 'markets.close_position',
+      getTrades: 'markets.get_trades',
+      getTradeHistory: 'markets.get_trade_history',
+      updateProfile: 'users.update_profile',
+      followUser: 'users.follow',
+      unfollowUser: 'users.unfollow',
+      getFollowers: 'users.get_followers',
+      getFollowing: 'users.get_following',
+      createEscrowPayment: 'moderation.create_escrow_payment',
+      verifyEscrowPayment: 'moderation.verify_escrow_payment',
+      refundEscrowPayment: 'moderation.refund_escrow_payment',
+      listEscrowPayments: 'moderation.list_escrow_payments',
+      appealBanWithEscrow: 'moderation.appeal_ban_with_escrow',
+      blockUser: 'moderation.block_user',
+      unblockUser: 'moderation.unblock_user',
+      muteUser: 'moderation.mute_user',
+      unmuteUser: 'moderation.unmute_user',
+      reportUser: 'moderation.report_user',
+      reportPost: 'moderation.report_post',
+      getBlocks: 'moderation.get_blocks',
+      getMutes: 'moderation.get_mutes',
+      checkBlockStatus: 'moderation.check_block_status',
+      checkMuteStatus: 'moderation.check_mute_status',
+      getUserStats: 'stats.get_user_stats',
+      getReferralCode: 'stats.get_referral_code',
+      getReferrals: 'stats.get_referrals',
+      getReferralStats: 'stats.get_referral_stats',
+      getReputation: 'stats.get_reputation',
+      getReputationBreakdown: 'stats.get_reputation_breakdown',
+      favoriteProfile: 'favorites.add',
+      unfavoriteProfile: 'favorites.remove',
+      getFavorites: 'favorites.list',
+      getFavoritePosts: 'favorites.posts',
+      getMarketData: 'markets.get_market_data',
+      getMarketPrices: 'markets.get_market_prices',
+      paymentRequest: 'payments.request',
+      paymentReceipt: 'payments.receipt',
+      appealBan: 'moderation.appeal_ban',
     };
 
-    const operationName = operationMap[action] || action;
+    const operationName = operationMap[action];
+    if (!operationName) throw new Error(`Unsupported A2A action: ${action}`);
 
-    // On server-side (Next.js API routes), use direct executor to bypass HTTP
-    // This avoids serverless 503 errors from self-calls
-    const isServerSide = typeof window === 'undefined';
-    if (isServerSide) {
+    // Direct execution is an explicit deployment choice, never an error fallback.
+    const transport = process.env.FEED_A2A_TRANSPORT || 'http';
+    if (transport !== 'http' && transport !== 'direct')
+      throw new Error(`Invalid FEED_A2A_TRANSPORT: ${transport}`);
+    if (transport === 'direct') {
       const { FeedAgentExecutor } = await import('@feed/a2a');
       return FeedAgentExecutor.executeDirectly(
         operationName,
@@ -516,20 +579,19 @@ export class FeedA2AClient {
       checkMuteStatus: 'user-social-graph',
     };
 
-    const skillId = skillMap[action] || 'portfolio-balance';
+    const skillId = skillMap[action];
 
     const response = await this.sdkClient.sendMessage({
       message: {
         kind: 'message',
+        contextId: this.agentId,
         messageId: crypto.randomUUID(),
         role: 'user',
         parts: [
           {
             kind: 'data',
             data: { operation: operationName, params },
-            metadata: {
-              skillId,
-            },
+            ...(skillId ? { metadata: { skillId } } : {}),
           },
         ],
       },
@@ -545,64 +607,63 @@ export class FeedA2AClient {
       return part.kind === 'data' && 'data' in part;
     }
 
-    // Handle response - extract Task or Message
-    let task: Task | undefined;
-    if ('result' in response && response.result) {
-      const result = response.result;
-      if (typeof result === 'object' && result !== null && 'kind' in result) {
-        if (result.kind === 'task') {
-          task = result as Task;
-        } else if (result.kind === 'message') {
-          // Direct message response
-          const msg = result as Message;
-          const dataPart = msg.parts.find((p) => isDataPart(p));
-          return dataPart && isDataPart(dataPart) ? dataPart.data : {};
-        }
-      }
-    }
-
-    if (!task) {
-      throw new Error('Expected task response from A2A');
-    }
-
-    // Poll for completion
-    const maxWaitMs = 30000;
-    const startTime = Date.now();
-    while (Date.now() - startTime < maxWaitMs) {
-      const taskResponse = await this.sdkClient.getTask({ id: task.id });
-
-      if ('result' in taskResponse && taskResponse.result) {
-        const result = taskResponse.result as { task?: Task };
-        if (result.task) {
-          task = result.task;
-        }
-      }
-
-      const state = task.status?.state;
+    const extractData = (parts: Array<{ kind: string }>): JsonValue => {
+      const dataPart = parts.find(isDataPart);
+      if (!dataPart || !isDataPart(dataPart) || dataPart.data == null)
+        throw new Error('A2A response is missing required data');
+      return dataPart.data;
+    };
+    const resultFrom = (
+      response: Awaited<ReturnType<A2AClient['sendMessage']>>
+    ) => {
+      if ('error' in response)
+        throw new Error(`A2A RPC error: ${response.error.message}`);
+      if (!('result' in response) || !response.result)
+        throw new Error('A2A response is missing its result');
+      return response.result;
+    };
+    const result = resultFrom(response);
+    if (result.kind === 'message') return extractData(result.parts);
+    let task: Task = result;
+    const deadline = Date.now() + 30000;
+    while (true) {
+      if (task.contextId !== this.agentId)
+        throw new Error('A2A task context does not match the requesting agent');
+      const state = task.status.state;
       if (state === 'completed') {
-        if (task.artifacts && task.artifacts.length > 0) {
-          const artifact = task.artifacts[0];
-          if (artifact) {
-            const dataPart = artifact.parts.find((p) => isDataPart(p));
-            return dataPart && isDataPart(dataPart) ? dataPart.data : {};
-          }
-        }
-        return {};
+        return extractData(
+          (task.artifacts ?? []).flatMap((artifact) => artifact.parts)
+        );
       }
-
-      if (state === 'failed' || state === 'canceled' || state === 'rejected') {
-        const messagePart = task.status?.message?.parts?.[0];
-        const errorText =
-          messagePart && 'text' in messagePart
-            ? messagePart.text
-            : 'Unknown error';
-        throw new Error(`Task ${state}: ${errorText}`);
+      if (
+        state === 'failed' ||
+        state === 'canceled' ||
+        state === 'rejected' ||
+        state === 'input-required' ||
+        state === 'auth-required'
+      ) {
+        const detail = task.status.message?.parts
+          .filter((part) => part.kind === 'text')
+          .map((part) => part.text)
+          .join(' ');
+        throw new Error(`A2A task ${state}${detail ? `: ${detail}` : ''}`);
       }
-
+      if (Date.now() >= deadline)
+        throw new Error('Task did not complete within timeout');
       await new Promise((resolve) => setTimeout(resolve, 500));
+      const polled = await this.sdkClient.getTask({ id: task.id });
+      if ('error' in polled)
+        throw new Error(`A2A RPC error: ${polled.error.message}`);
+      if (
+        !('result' in polled) ||
+        !polled.result ||
+        polled.result.kind !== 'task'
+      )
+        throw new Error('A2A polling response is missing its task');
+      if (polled.result.id !== task.id)
+        throw new Error('A2A polling returned a different task');
+      task = polled.result;
     }
-
-    throw new Error('Task did not complete within timeout');
   }
 
   /**
@@ -1063,55 +1124,47 @@ export async function enhanceRuntimeWithFeed(
 ): Promise<void> {
   const feedRuntime = runtime as FeedRuntime;
 
-  // Initialize A2A client with cached identity and shared base client
-  const result = await initializeA2ASdkClient(agentUserId);
-
-  if (!result) {
-    if (isA2AExplicitlyDisabled()) {
-      logger.debug('A2A explicitly disabled; Feed plugin running without A2A', {
-        agentUserId,
-        pluginName: plugin.name,
-      });
-    } else {
-      logger.warn(
-        'A2A client initialization failed - plugin will have limited functionality',
-        {
-          agentUserId,
-          pluginName: plugin.name,
-        }
-      );
-    }
-    // Create a disconnected client for graceful degradation
-    const fallbackIdentity: CachedAgentIdentity = {
+  if (isA2AExplicitlyDisabled()) {
+    // Explicit local mode keeps only providers backed by Feed's database.
+    // Never advertise disconnected A2A actions or substitute error text for data.
+    const localProviders = new Set([
+      'FEED_GOALS',
+      'FEED_HEADLINES',
+      'SHARED_CHAT_FACTS',
+      'RECENT_RELEVANT_GROUP_CONTEXT',
+      'LIVE_PLAYER_ROSTER',
+      'AGENT_WORKING_MEMORY',
+    ]);
+    await runtime.registerPlugin({
+      ...plugin,
+      providers: plugin.providers?.filter((provider) =>
+        localProviders.has(provider.name)
+      ),
+      actions: [],
+    });
+    logger.debug('Feed plugin registered in explicit local mode', {
       agentUserId,
-      displayName: null,
-      cachedAt: Date.now(),
-    };
-    feedRuntime.a2aClient = new FeedA2AClient(
-      null,
-      agentUserId,
-      fallbackIdentity
-    );
-  } else {
-    feedRuntime.a2aClient = new FeedA2AClient(
-      result.client,
-      agentUserId,
-      result.identity
-    );
+    });
+    return;
   }
 
-  const a2aConnected = feedRuntime.a2aClient.isConnected();
-
-  runtime.registerPlugin(plugin);
-
-  // Use debug level for per-agent plugin registration to reduce startup noise
-  const a2aMode = a2aConnected ? 'a2a' : 'database-fallback';
+  const result = await initializeA2ASdkClient(agentUserId);
+  if (!result) {
+    throw new Error(
+      `A2A initialization failed for agent ${agentUserId}; no database fallback is available`
+    );
+  }
+  feedRuntime.a2aClient = new FeedA2AClient(
+    result.client,
+    agentUserId,
+    result.identity
+  );
+  await runtime.registerPlugin(plugin);
   logger.debug('Feed plugin registered', {
     agentUserId,
-    mode: a2aMode,
-    a2aEnabled: a2aConnected,
-    providersCount: plugin.providers?.length || 0,
-    actionsCount: plugin.actions?.length || 0,
+    mode: 'a2a',
+    providersCount: plugin.providers?.length ?? 0,
+    actionsCount: plugin.actions?.length ?? 0,
   });
 }
 

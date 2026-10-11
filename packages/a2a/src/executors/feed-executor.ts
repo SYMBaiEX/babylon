@@ -27,7 +27,11 @@ import {
 import type { WalletPort } from '@feed/core/markets/shared';
 import { db, getRawDrizzle } from '@feed/db';
 import { perpMarketSnapshots } from '@feed/db/schema';
-import { createPerpPriceImpactPort, WalletService } from '@feed/engine';
+import {
+  createPerpPriceImpactPort,
+  StaticDataRegistry,
+  WalletService,
+} from '@feed/engine';
 import type { JsonValue } from '@feed/shared';
 import {
   ContentValidator,
@@ -50,6 +54,18 @@ import {
   type OffsetPaginationParams,
   OffsetPaginationSchema,
 } from '../validation';
+
+function requiredFinancialValue(value: unknown, label: string): number {
+  if (
+    (typeof value !== 'number' && typeof value !== 'string') ||
+    (typeof value === 'string' && value.trim() === '')
+  ) {
+    throw new Error(`${label} is missing or invalid`);
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) throw new Error(`${label} must be finite`);
+  return numeric;
+}
 
 /**
  * Default timeout for external API fetch operations (in milliseconds)
@@ -229,9 +245,11 @@ interface MuteStatusResponse {
 
 interface TrendingTagsResponse {
   tags: Array<{
+    id: string;
+    score: number;
     name: string;
     displayName: string;
-    category: string;
+    category: string | null;
     postCount: number;
   }>;
 }
@@ -261,6 +279,20 @@ type ExecutorOperationResult =
   | BlockStatusResponse
   | MuteStatusResponse
   | JsonValue;
+
+function requireContextAccountId(
+  params: Record<string, JsonValue>,
+  context: RequestContext
+): string {
+  const authenticatedId = context.contextId?.trim();
+  const requestedId =
+    typeof params.userId === 'string' ? params.userId.trim() : '';
+  if (authenticatedId && requestedId && authenticatedId !== requestedId)
+    throw new Error('Account target does not match the authenticated context');
+  const userId = authenticatedId || requestedId;
+  if (!userId) throw new Error('Account ID is required');
+  return userId;
+}
 
 export class FeedAgentExecutor implements AgentExecutor {
   /**
@@ -418,6 +450,8 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     const command = this.parseCommand(userMessage);
     const result = await this.executeOperation(command, requestContext);
+    if (result === null || result === undefined)
+      throw new Error(`A2A operation ${command.operation} returned no result`);
 
     // Create artifact with result
     const artifactUpdate: TaskArtifactUpdateEvent = {
@@ -430,7 +464,7 @@ export class FeedAgentExecutor implements AgentExecutor {
         parts: [
           {
             kind: 'data',
-            data: (result ?? {}) as { [k: string]: JsonValue },
+            data: result as { [k: string]: JsonValue },
           },
         ],
       },
@@ -677,7 +711,7 @@ export class FeedAgentExecutor implements AgentExecutor {
       data: {
         id: await generateSnowflakeId(),
         content,
-        authorId: context.contextId || context.taskId,
+        authorId: requireContextAccountId({}, context),
         timestamp: new Date(),
       },
     });
@@ -725,11 +759,8 @@ export class FeedAgentExecutor implements AgentExecutor {
     }
 
     // Prefer request context identity when present (prevents params-based impersonation),
-    // then fall back to explicit params, then taskId.
-    const userIdFromContext = context.contextId;
-    const userIdFromParams =
-      typeof params.userId === 'string' ? params.userId.trim() : '';
-    const userId = userIdFromContext || userIdFromParams || context.taskId;
+    // Reject conflicting explicit targets; protocol task IDs are not account IDs.
+    const userId = requireContextAccountId(params, context);
 
     // Check if already liked
     const existingLike = await db.reaction.findFirst({
@@ -807,7 +838,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     const postId = String(params.postId ?? '');
     if (!postId) throw new Error('postId is required');
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     const deleted = await db.reaction.deleteMany({
       where: {
@@ -830,7 +861,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     const postId = String(params.postId ?? '');
     if (!postId) throw new Error('postId is required');
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Find post and verify ownership
     const post = await db.post.findFirst({
@@ -861,7 +892,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     const postId = String(params.postId ?? '');
     if (!postId) throw new Error('postId is required');
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Verify post exists
     const post = await db.post.findFirst({
@@ -945,7 +976,7 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     if (!postId) throw new Error('postId is required');
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Verify post exists
     const post = await db.post.findFirst({
@@ -986,7 +1017,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     const commentId = String(params.commentId ?? '');
     if (!commentId) throw new Error('commentId is required');
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Find comment and verify ownership
     const comment = await db.comment.findFirst({
@@ -1017,7 +1048,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     const commentId = String(params.commentId ?? '');
     if (!commentId) throw new Error('commentId is required');
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Verify comment exists
     const comment = await db.comment.findFirst({
@@ -1056,81 +1087,72 @@ export class FeedAgentExecutor implements AgentExecutor {
 
   private async listPredictionMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
+    const status = params.status ?? 'active';
+    if (status !== 'active' && status !== 'resolved')
+      throw new Error('Invalid prediction market status');
     const markets = await db.market.findMany({
       take: limit,
-      where: { resolved: false },
+      where: { resolved: status === 'resolved' },
       orderBy: { createdAt: 'desc' },
     });
     return {
-      markets: markets.map((m) => ({
+      predictions: markets.map((m) => ({
         id: m.id,
         question: m.question,
-        yesShares: Number(m.yesShares),
-        noShares: Number(m.noShares),
+        yesShares: requiredFinancialValue(
+          m.yesShares,
+          `market ${m.id} yesShares`
+        ),
+        noShares: requiredFinancialValue(m.noShares, `market ${m.id} noShares`),
+        liquidity: requiredFinancialValue(
+          m.liquidity,
+          `market ${m.id} liquidity`
+        ),
+        resolved: m.resolved,
+        endDate: m.endDate.toISOString(),
       })),
     };
   }
 
   private async listPerpetualMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
-
-    let snapshots: Array<{
-      ticker: string;
-      name: string | null;
-      organizationId: string;
-      currentPrice: number;
-      change24h: number | null;
-      changePercent24h: number | null;
-      volume24h: number | null;
-      openInterest: number | null;
-      fundingRate: unknown;
-    }>;
-
-    try {
-      const drizzle = getRawDrizzle();
-      snapshots = await drizzle
-        .select({
-          ticker: perpMarketSnapshots.ticker,
-          name: perpMarketSnapshots.name,
-          organizationId: perpMarketSnapshots.organizationId,
-          currentPrice: perpMarketSnapshots.currentPrice,
-          change24h: perpMarketSnapshots.change24h,
-          changePercent24h: perpMarketSnapshots.changePercent24h,
-          volume24h: perpMarketSnapshots.volume24h,
-          openInterest: perpMarketSnapshots.openInterest,
-          fundingRate: perpMarketSnapshots.fundingRate,
-        })
-        .from(perpMarketSnapshots)
-        .limit(limit);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (
-        message.includes(
-          'getRawDrizzle() is only available in PostgreSQL mode'
-        ) ||
-        message.includes('Database not initialized')
-      ) {
-        logger.debug('Perpetual markets unavailable, returning empty', {
-          message,
-        });
-        return { perpetuals: [] };
-      }
-      throw error;
-    }
-
+    const snapshots = await getRawDrizzle()
+      .select({
+        ticker: perpMarketSnapshots.ticker,
+        name: perpMarketSnapshots.name,
+        currentPrice: perpMarketSnapshots.currentPrice,
+        change24h: perpMarketSnapshots.change24h,
+        volume24h: perpMarketSnapshots.volume24h,
+        openInterest: perpMarketSnapshots.openInterest,
+        fundingRate: perpMarketSnapshots.fundingRate,
+      })
+      .from(perpMarketSnapshots)
+      .limit(limit);
     return {
       perpetuals: snapshots.map((s) => ({
         name: s.name || s.ticker,
         type: 'perpetual',
         ticker: s.ticker,
-        currentPrice: Number(s.currentPrice) || 0,
-        priceChange24h: Number(s.change24h) || 0,
-        volume24h: Number(s.volume24h) || 0,
-        openInterest: Number(s.openInterest) || 0,
-        fundingRate:
-          typeof s.fundingRate === 'object' && s.fundingRate !== null
-            ? (s.fundingRate as { rate?: number }).rate || 0
-            : 0,
+        currentPrice: requiredFinancialValue(
+          s.currentPrice,
+          `perp ${s.ticker} currentPrice`
+        ),
+        priceChange24h: requiredFinancialValue(
+          s.change24h,
+          `perp ${s.ticker} change24h`
+        ),
+        volume24h: requiredFinancialValue(
+          s.volume24h,
+          `perp ${s.ticker} volume24h`
+        ),
+        openInterest: requiredFinancialValue(
+          s.openInterest,
+          `perp ${s.ticker} openInterest`
+        ),
+        fundingRate: requiredFinancialValue(
+          s.fundingRate?.rate,
+          `perp ${s.ticker} fundingRate.rate`
+        ),
       })),
     };
   }
@@ -1157,22 +1179,7 @@ export class FeedAgentExecutor implements AgentExecutor {
       },
     });
 
-    if (!user) {
-      logger.debug('User not found for getUserProfile, returning defaults', {
-        userId,
-      });
-      return {
-        id: userId,
-        username: null,
-        displayName: null,
-        bio: null,
-        profileImageUrl: null,
-        reputationPoints: 0,
-        virtualBalance: 0,
-        walletAddress: null,
-        isAgent: false,
-      };
-    }
+    if (!user) throw new Error(`Profile user ${userId} does not exist`);
 
     return {
       id: user.id,
@@ -1180,8 +1187,14 @@ export class FeedAgentExecutor implements AgentExecutor {
       displayName: user.displayName,
       bio: user.bio,
       profileImageUrl: user.profileImageUrl,
-      reputationPoints: user.reputationPoints || 0,
-      virtualBalance: Number(user.virtualBalance) || 0,
+      reputationPoints: requiredFinancialValue(
+        user.reputationPoints,
+        'reputationPoints'
+      ),
+      virtualBalance: requiredFinancialValue(
+        user.virtualBalance,
+        'virtualBalance'
+      ),
       walletAddress: user.walletAddress,
       isAgent: user.isAgent,
     };
@@ -1191,7 +1204,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     const updateData: Record<string, string | null> = {};
 
@@ -1247,7 +1260,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const followerId = context.contextId || context.taskId;
+    const followerId = requireContextAccountId({}, context);
     const followingId = String(params.userId ?? '');
 
     if (!followingId) throw new Error('userId is required');
@@ -1277,7 +1290,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const followerId = context.contextId || context.taskId;
+    const followerId = requireContextAccountId({}, context);
     const followingId = String(params.userId ?? '');
 
     if (!followingId) throw new Error('userId is required');
@@ -1297,7 +1310,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId =
-      String(params.userId ?? '') || context.contextId || context.taskId;
+      String(params.userId ?? '') || requireContextAccountId({}, context);
     const { offset, limit } = this.validatePaginationParams(
       params.offset,
       params.limit
@@ -1352,7 +1365,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId =
-      String(params.userId ?? '') || context.contextId || context.taskId;
+      String(params.userId ?? '') || requireContextAccountId({}, context);
     const { offset, limit } = this.validatePaginationParams(
       params.offset,
       params.limit
@@ -1415,19 +1428,43 @@ export class FeedAgentExecutor implements AgentExecutor {
       },
     });
     return {
-      organizations: orgStates.map((o) => ({
-        id: o.id,
-        name: o.id,
-        ticker: o.id,
-        currentPrice: Number(o.currentPrice) || 0,
-        initialPrice: Number(o.basePrice) || 0,
-        priceChangePercentage:
-          Number(o.basePrice) > 0
-            ? ((Number(o.currentPrice) - Number(o.basePrice)) /
-                Number(o.basePrice)) *
-              100
-            : 0,
-      })),
+      organizations: orgStates.map((o) => {
+        const organization = StaticDataRegistry.getOrganization(o.id);
+        if (!organization)
+          throw new Error(`Missing organization definition: ${o.id}`);
+        const currentPrice =
+          o.currentPrice === null
+            ? null
+            : requiredFinancialValue(o.currentPrice, `${o.id} currentPrice`);
+        const initialPrice =
+          o.basePrice === null
+            ? null
+            : requiredFinancialValue(o.basePrice, `${o.id} basePrice`);
+        if (
+          organization.ticker &&
+          (currentPrice === null ||
+            currentPrice <= 0 ||
+            initialPrice === null ||
+            initialPrice <= 0)
+        ) {
+          throw new Error(
+            `Missing or invalid tradable organization prices: ${o.id}`
+          );
+        }
+        return {
+          id: o.id,
+          name: organization.name,
+          ticker: organization.ticker ?? null,
+          description: organization.description,
+          imageUrl: organization.imageUrl ?? null,
+          currentPrice,
+          initialPrice,
+          priceChangePercentage:
+            currentPrice !== null && initialPrice !== null && initialPrice > 0
+              ? ((currentPrice - initialPrice) / initialPrice) * 100
+              : null,
+        };
+      }),
     };
   }
 
@@ -1500,14 +1537,14 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Rate limit check for trading operations
     await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.BUY_PREDICTION);
 
     const marketId = String(params.marketId ?? '');
     const outcome = String(params.outcome ?? '').toUpperCase();
-    const amount = Number(params.amount ?? 0);
+    const amount = requiredFinancialValue(params.amount, 'amount');
 
     if (!marketId) throw new Error('marketId is required');
     if (!['YES', 'NO'].includes(outcome))
@@ -1533,7 +1570,7 @@ export class FeedAgentExecutor implements AgentExecutor {
         side: outcome,
         shares: result.shares,
         avgPrice: result.avgPrice,
-        totalCost: result.totalCost ?? 0,
+        totalCost: requiredFinancialValue(result.totalCost, 'totalCost'),
       },
       market: result.market,
       fee: {
@@ -1548,13 +1585,13 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Rate limit check for trading operations
     await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.SELL_PREDICTION);
 
     const positionId = String(params.positionId ?? '');
-    const shares = Number(params.shares ?? 0);
+    const shares = requiredFinancialValue(params.shares, 'shares');
 
     if (!positionId) throw new Error('positionId is required');
     if (shares <= 0) throw new Error('shares must be positive');
@@ -1578,20 +1615,28 @@ export class FeedAgentExecutor implements AgentExecutor {
     });
 
     const balance = await WalletService.getBalance(userId);
+    if (typeof result.positionClosed !== 'boolean')
+      throw new Error('Sell result requires positionClosed');
 
     return {
       success: true,
       sharesSold: shares,
-      grossProceeds: result.totalProceeds ?? result.netProceeds ?? 0,
-      netProceeds: result.netProceeds ?? 0,
-      pnl: result.pnl ?? 0,
+      grossProceeds: requiredFinancialValue(
+        result.totalProceeds,
+        'sell gross proceeds'
+      ),
+      netProceeds: requiredFinancialValue(result.netProceeds, 'netProceeds'),
+      pnl: requiredFinancialValue(result.pnl, 'pnl'),
       market: result.market,
       fee: {
         amount: result.feePaid,
         referrerPaid: 0,
       },
-      remainingShares: result.remainingShares ?? 0,
-      positionClosed: result.positionClosed ?? false,
+      remainingShares: requiredFinancialValue(
+        result.remainingShares,
+        'remainingShares'
+      ),
+      positionClosed: result.positionClosed,
       newBalance: balance.balance,
       positionId: result.positionId,
     };
@@ -1601,15 +1646,18 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Rate limit check for trading operations
     await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.OPEN_POSITION);
 
     const ticker = String(params.ticker ?? '');
     const sideParam = String(params.side ?? '').toLowerCase();
-    const amount = Number(params.amount ?? 0);
-    const leverage = Number(params.leverage ?? 1);
+    const amount = requiredFinancialValue(params.amount, 'amount');
+    const leverage =
+      params.leverage === undefined
+        ? 1
+        : requiredFinancialValue(params.leverage, 'leverage');
 
     if (!ticker) throw new Error('ticker is required');
     if (!['long', 'short'].includes(sideParam))
@@ -1636,14 +1684,14 @@ export class FeedAgentExecutor implements AgentExecutor {
         side: result.side === 'long' ? 'LONG' : 'SHORT',
         size: result.size,
         leverage: result.leverage,
-        entryPrice: result.entryPrice ?? 0,
+        entryPrice: requiredFinancialValue(result.entryPrice, 'entryPrice'),
       },
-      marginPaid: result.marginPaid ?? 0,
+      marginPaid: requiredFinancialValue(result.marginPaid, 'marginPaid'),
       fee: {
         amount: result.feePaid,
         referrerPaid: 0,
       },
-      newBalance: result.balance ?? 0,
+      newBalance: requiredFinancialValue(result.balance, 'balance'),
     };
   }
 
@@ -1651,7 +1699,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Rate limit check for trading operations
     await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.CLOSE_POSITION);
@@ -1673,16 +1721,16 @@ export class FeedAgentExecutor implements AgentExecutor {
         ticker: result.ticker,
         side: result.side === 'long' ? 'LONG' : 'SHORT',
         size: result.size,
-        entryPrice: result.entryPrice ?? 0,
-        exitPrice: result.exitPrice ?? 0,
+        entryPrice: requiredFinancialValue(result.entryPrice, 'entryPrice'),
+        exitPrice: requiredFinancialValue(result.exitPrice, 'exitPrice'),
       },
-      marginReturned: result.marginPaid ?? 0,
-      pnl: result.realizedPnL ?? 0,
+      marginReturned: requiredFinancialValue(result.marginPaid, 'marginPaid'),
+      pnl: requiredFinancialValue(result.realizedPnL, 'realizedPnL'),
       fee: {
         amount: result.feePaid,
         referrerPaid: 0,
       },
-      newBalance: result.balance ?? 0,
+      newBalance: requiredFinancialValue(result.balance, 'balance'),
     };
   }
 
@@ -1753,7 +1801,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const limit = this.parsePositiveInt(params.limit, 20, 100);
 
     // Query positions which contain the actual side (YES/NO), shares, and price
@@ -1787,7 +1835,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const limit = this.parsePositiveInt(params.limit, 20, 50);
 
     // Get chats where user is a participant
@@ -1817,12 +1865,22 @@ export class FeedAgentExecutor implements AgentExecutor {
       },
     });
 
+    if (chats.length !== chatIds.length) {
+      throw new Error('Chat membership references a missing chat');
+    }
+    const members = await db.chatParticipant.findMany({
+      where: { chatId: { in: chatIds }, isActive: true },
+      select: { chatId: true, userId: true },
+    });
     return {
       chats: chats.map((c) => ({
         id: c.id,
         name: c.name,
         isGroup: c.isGroup,
-        createdAt: c.createdAt?.toISOString(),
+        createdAt: c.createdAt.toISOString(),
+        participants: members
+          .filter((member) => member.chatId === c.id)
+          .map((member) => ({ id: member.userId })),
       })),
     };
   }
@@ -1831,7 +1889,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const chatId = String(params.chatId ?? '');
     const { offset, limit } = this.validatePaginationParams(
       params.offset,
@@ -1876,7 +1934,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const chatId = String(params.chatId ?? '');
     // Validate and sanitize content (checks type, length, profanity, injection)
     const content = this.validateUserContent(params.content, 'Message');
@@ -1901,24 +1959,17 @@ export class FeedAgentExecutor implements AgentExecutor {
       },
     });
 
-    // Fire-and-forget SSE broadcast — the message is already persisted to DB above,
-    // so a broadcast failure only affects real-time delivery (clients will pick it up
-    // on next poll/reconnect). We log the failure but don't block the response.
+    // A successful send includes delivery; persisted partial state remains visible on failure.
     const { broadcastChatMessage } = await import('@feed/api');
-    broadcastChatMessage(chatId, {
+    await broadcastChatMessage(chatId, {
       id: message.id,
       content: message.content,
       chatId,
       senderId: message.senderId,
       type: 'user',
-      createdAt: message.createdAt?.toISOString() ?? new Date().toISOString(),
+      createdAt: message.createdAt.toISOString(),
       isGameChat: false,
       isDMChat: false,
-    }).catch((err: Error) => {
-      logger.warn(
-        `[A2AExecutor] SSE broadcast failed (message ${message.id} persisted, will be visible on refresh): ${err.message}`,
-        { chatId, messageId: message.id }
-      );
     });
 
     return {
@@ -1928,7 +1979,7 @@ export class FeedAgentExecutor implements AgentExecutor {
         chatId,
         content: message.content,
         senderId: message.senderId,
-        createdAt: message.createdAt?.toISOString(),
+        createdAt: message.createdAt.toISOString(),
       },
     };
   }
@@ -1937,12 +1988,17 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
-    const name = String(params.name ?? '').trim();
+    const userId = requireContextAccountId({}, context);
+    if (typeof params.name !== 'string' || !params.name.trim())
+      throw new Error('Group name is required');
+    const name = params.name.trim();
     const description = String(params.description ?? '').trim();
-    const memberIds = Array.isArray(params.memberIds)
-      ? params.memberIds.map((id) => String(id))
-      : [];
+    if (
+      !Array.isArray(params.memberIds) ||
+      params.memberIds.some((id) => typeof id !== 'string' || !id.trim())
+    )
+      throw new Error('memberIds must be an explicit array of nonempty IDs');
+    const memberIds = [...new Set(params.memberIds as string[])];
 
     if (!name) throw new Error('name is required');
 
@@ -2010,7 +2066,7 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     // Broadcast a system message so members see the new group in real-time
     const { broadcastChatMessage } = await import('@feed/api');
-    broadcastChatMessage(chatId, {
+    await broadcastChatMessage(chatId, {
       id: await generateSnowflakeId(),
       content: `Group "${name}" created`,
       chatId,
@@ -2019,11 +2075,6 @@ export class FeedAgentExecutor implements AgentExecutor {
       createdAt: new Date().toISOString(),
       isGameChat: false,
       isDMChat: false,
-    }).catch((err: Error) => {
-      logger.warn(
-        `[A2AExecutor] Failed to broadcast group creation: ${err.message}`,
-        { chatId, groupId }
-      );
     });
 
     return {
@@ -2041,7 +2092,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const chatId = String(params.chatId ?? '');
 
     if (!chatId) throw new Error('chatId is required');
@@ -2061,17 +2112,20 @@ export class FeedAgentExecutor implements AgentExecutor {
 
   private async getUnreadCountHandler(
     _params: Record<string, JsonValue>,
-    _context: RequestContext
+    context: RequestContext
   ) {
-    // Return 0 unread count as default
-    return { unreadCount: 0 };
+    const userId = requireContextAccountId({}, context);
+    const unreadCount = await db.notification.count({
+      where: { userId, read: false, chatId: { not: null } },
+    });
+    return { unreadCount };
   }
 
   private async getNotificationsHandler(
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const limit = this.parsePositiveInt(params.limit, 20, 100);
 
     const notifications = await db.notification.findMany({
@@ -2088,7 +2142,11 @@ export class FeedAgentExecutor implements AgentExecutor {
       },
     });
 
+    const unreadCount = await db.notification.count({
+      where: { userId, read: false },
+    });
     return {
+      unreadCount,
       notifications: notifications.map((n) => ({
         id: n.id,
         type: n.type,
@@ -2104,7 +2162,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const notificationIds = Array.isArray(params.notificationIds)
       ? params.notificationIds.map((id) => String(id))
       : [];
@@ -2128,7 +2186,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     _params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     const invites = await db.groupInvite.findMany({
       where: { invitedUserId: userId, status: 'pending' },
@@ -2174,7 +2232,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const inviteId = String(params.inviteId ?? '');
 
     if (!inviteId) throw new Error('inviteId is required');
@@ -2234,7 +2292,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const inviteId = String(params.inviteId ?? '');
 
     if (!inviteId) throw new Error('inviteId is required');
@@ -2277,6 +2335,8 @@ export class FeedAgentExecutor implements AgentExecutor {
         username: true,
         displayName: true,
         reputationPoints: true,
+        bio: true,
+        isAgent: true,
       },
     });
     return { users };
@@ -2334,11 +2394,21 @@ export class FeedAgentExecutor implements AgentExecutor {
     return {
       tags: trendingTagsList.map((tt) => {
         const tag = tagMap.get(tt.tagId);
+        if (!tag || !tag.name.trim() || !tag.displayName.trim()) {
+          throw new Error(
+            `Trending tag ${tt.tagId} is missing its required identity`
+          );
+        }
         return {
-          name: tag?.name ?? '',
-          displayName: tag?.displayName ?? tag?.name ?? '',
-          category: tag?.category ?? 'general',
-          postCount: tt.postCount,
+          id: tag.id,
+          name: tag.name,
+          displayName: tag.displayName,
+          category: tag.category,
+          score: requiredFinancialValue(tt.score, 'trending score'),
+          postCount: requiredFinancialValue(
+            tt.postCount,
+            'trending post count'
+          ),
         };
       }),
     };
@@ -2423,11 +2493,8 @@ export class FeedAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     // Prefer contextId when present (prevents params-based impersonation),
-    // then fall back to explicit params, then taskId.
-    const userIdFromContext = context.contextId;
-    const userIdFromParams =
-      typeof params.userId === 'string' ? params.userId.trim() : '';
-    const userId = userIdFromContext || userIdFromParams || context.taskId;
+    // Reject conflicting explicit targets; protocol task IDs are not account IDs.
+    const userId = requireContextAccountId(params, context);
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -2441,26 +2508,22 @@ export class FeedAgentExecutor implements AgentExecutor {
       },
     });
 
-    // Return default values if user not found (graceful degradation for onboarding)
-    if (!user) {
-      logger.debug('User not found for getBalance, returning defaults', {
-        userId,
-      });
-      return {
-        balance: 0,
-        reputationPoints: 0,
-        lifetimePnL: 0,
-        totalDeposited: 0,
-        totalWithdrawn: 0,
-      };
-    }
-
+    if (!user) throw new Error(`Portfolio user ${userId} does not exist`);
     return {
-      balance: Number(user.virtualBalance) || 0,
-      reputationPoints: user.reputationPoints || 0,
-      lifetimePnL: Number(user.lifetimePnL) || 0,
-      totalDeposited: Number(user.totalDeposited) || 0,
-      totalWithdrawn: Number(user.totalWithdrawn) || 0,
+      balance: requiredFinancialValue(user.virtualBalance, 'virtualBalance'),
+      reputationPoints: requiredFinancialValue(
+        user.reputationPoints,
+        'reputationPoints'
+      ),
+      lifetimePnL: requiredFinancialValue(user.lifetimePnL, 'lifetimePnL'),
+      totalDeposited: requiredFinancialValue(
+        user.totalDeposited,
+        'totalDeposited'
+      ),
+      totalWithdrawn: requiredFinancialValue(
+        user.totalWithdrawn,
+        'totalWithdrawn'
+      ),
     };
   }
 
@@ -2468,10 +2531,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userIdFromContext = context.contextId;
-    const userIdFromParams =
-      typeof params.userId === 'string' ? params.userId.trim() : '';
-    const userId = userIdFromContext || userIdFromParams || context.taskId;
+    const userId = requireContextAccountId(params, context);
 
     // Check if user exists first (for graceful handling)
     const userExists = await db.user.findUnique({
@@ -2479,17 +2539,7 @@ export class FeedAgentExecutor implements AgentExecutor {
       select: { id: true },
     });
 
-    // Return empty positions if user not found (graceful degradation for onboarding)
-    if (!userExists) {
-      logger.debug('User not found for getPositions, returning empty', {
-        userId,
-      });
-      return {
-        marketPositions: [],
-        perpPositions: [],
-        totalPnL: 0,
-      };
-    }
+    if (!userExists) throw new Error(`Portfolio user ${userId} does not exist`);
 
     // Get prediction market positions
     const marketPositionsRaw = await db.position.findMany({
@@ -2520,27 +2570,31 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     const marketPositions = marketPositionsRaw.map((p) => {
       const market = marketMap.get(p.marketId);
-      const side: 'YES' | 'NO' = p.outcome === true ? 'YES' : 'NO';
+      if (!market)
+        throw new Error(
+          `Position ${p.id} references missing market ${p.marketId}`
+        );
+      if (typeof p.side !== 'boolean')
+        throw new Error(`Position ${p.id} has no side`);
+      const side: 'YES' | 'NO' = p.side ? 'YES' : 'NO';
 
       // CPMM price: yesPrice = noShares / total, noPrice = yesShares / total
-      const yesShares = Number(market?.yesShares ?? 0);
-      const noShares = Number(market?.noShares ?? 0);
+      const yesShares = requiredFinancialValue(market.yesShares, 'yesShares');
+      const noShares = requiredFinancialValue(market.noShares, 'noShares');
       const totalShares = yesShares + noShares;
+      if (yesShares < 0 || noShares < 0 || totalShares <= 0)
+        throw new Error(`Market ${market.id} has invalid reserves`);
       const currentPrice =
-        totalShares > 0
-          ? side === 'YES'
-            ? noShares / totalShares
-            : yesShares / totalShares
-          : 0.5;
+        side === 'YES' ? noShares / totalShares : yesShares / totalShares;
 
-      const avgPrice = Number(p.avgPrice);
-      const shares = Number(p.shares);
+      const avgPrice = requiredFinancialValue(p.avgPrice, 'avgPrice');
+      const shares = requiredFinancialValue(p.shares, 'shares');
       const unrealizedPnL = (currentPrice - avgPrice) * shares;
 
       return {
         id: p.id,
         marketId: String(p.marketId),
-        question: market?.question || 'Unknown',
+        question: market.question,
         side,
         shares,
         avgPrice,
@@ -2576,18 +2630,30 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     const perpPositions = perpPositionsRaw.map((position) => {
       const orgState = orgStateMap.get(position.organizationId);
-      const currentPrice = Number(
-        orgState?.currentPrice ?? position.entryPrice
+      if (!orgState)
+        throw new Error(
+          `Position ${position.id} references missing organization ${position.organizationId}`
+        );
+      const currentPrice = requiredFinancialValue(
+        orgState.currentPrice,
+        'currentPrice'
       );
+      if (currentPrice <= 0)
+        throw new Error('Current perp price must be positive');
+      if (position.side !== 'long' && position.side !== 'short')
+        throw new Error(`Position ${position.id} has invalid side`);
       return {
         id: position.id,
         ticker: position.ticker,
         side: position.side as 'long' | 'short',
-        size: Number(position.size),
-        entryPrice: Number(position.entryPrice),
+        size: requiredFinancialValue(position.size, 'size'),
+        entryPrice: requiredFinancialValue(position.entryPrice, 'entryPrice'),
         currentPrice,
-        leverage: Number(position.leverage),
-        unrealizedPnL: Number(position.unrealizedPnL) || 0,
+        leverage: requiredFinancialValue(position.leverage, 'leverage'),
+        unrealizedPnL: requiredFinancialValue(
+          position.unrealizedPnL,
+          'unrealizedPnL'
+        ),
       };
     });
 
@@ -2612,11 +2678,8 @@ export class FeedAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     // Prefer contextId when present (prevents params-based impersonation),
-    // then fall back to explicit params, then taskId.
-    const userIdFromContext = context.contextId;
-    const userIdFromParams =
-      typeof params.userId === 'string' ? params.userId.trim() : '';
-    const userId = userIdFromContext || userIdFromParams || context.taskId;
+    // Reject conflicting explicit targets; protocol task IDs are not account IDs.
+    const userId = requireContextAccountId(params, context);
 
     const [balance, positions] = await Promise.all([
       this.getBalance({ userId }, context),
@@ -2651,7 +2714,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const requestParams: Record<string, JsonValue> = {
       recipientId: String(params.recipientId ?? ''),
       amountUSD: Number(params.amountUSD ?? 0),
@@ -2677,7 +2740,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const request = {
       jsonrpc: '2.0' as const,
       method: 'a2a.verifyEscrowPayment',
@@ -2701,7 +2764,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const requestParams: Record<string, JsonValue> = {
       escrowId: String(params.escrowId ?? ''),
       refundTxHash: String(params.refundTxHash ?? ''),
@@ -2726,7 +2789,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const requestParams: Record<string, JsonValue> = {};
     if (params.recipientId)
       requestParams.recipientId = String(params.recipientId);
@@ -2751,7 +2814,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const request = {
       jsonrpc: '2.0' as const,
       method: 'a2a.appealBanWithEscrow',
@@ -2774,7 +2837,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const targetUserId = String(params.userId ?? '');
     const reason = params.reason ? String(params.reason) : null;
 
@@ -2838,7 +2901,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const targetUserId = String(params.userId ?? '');
 
     const deleted = await db.userBlock.deleteMany({
@@ -2859,7 +2922,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const targetUserId = String(params.userId ?? '');
     const reason = params.reason ? String(params.reason) : null;
 
@@ -2902,7 +2965,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const targetUserId = String(params.userId ?? '');
 
     const deleted = await db.userMute.deleteMany({
@@ -2923,7 +2986,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const targetUserId = String(params.userId ?? '');
     const category = String(params.category ?? 'other');
     const reason = String(params.reason ?? '');
@@ -2970,7 +3033,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const postId = String(params.postId ?? '');
     const category = String(params.category ?? 'other');
     const reason = String(params.reason ?? '');
@@ -3017,7 +3080,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const { offset, limit } = this.validatePaginationParams(
       params.offset,
       params.limit
@@ -3081,7 +3144,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const { offset, limit } = this.validatePaginationParams(
       params.offset,
       params.limit
@@ -3145,7 +3208,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const targetUserId = String(params.userId ?? '');
 
     const block = await db.userBlock.findFirst({
@@ -3170,7 +3233,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const agentId = context.contextId || context.taskId;
+    const agentId = requireContextAccountId({}, context);
     const targetUserId = String(params.userId ?? '');
 
     const mute = await db.userMute.findFirst({
@@ -3198,7 +3261,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId =
-      String(params.userId ?? '') || context.contextId || context.taskId;
+      String(params.userId ?? '') || requireContextAccountId({}, context);
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -3248,7 +3311,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     _params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -3268,7 +3331,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const { offset, limit } = this.validatePaginationParams(
       params.offset,
       params.limit
@@ -3301,7 +3364,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     _params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     const [referralCount, user] = await Promise.all([
       db.user.count({ where: { referredBy: userId } }),
@@ -3322,7 +3385,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId =
-      String(params.userId ?? '') || context.contextId || context.taskId;
+      String(params.userId ?? '') || requireContextAccountId({}, context);
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -3343,7 +3406,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId =
-      String(params.userId ?? '') || context.contextId || context.taskId;
+      String(params.userId ?? '') || requireContextAccountId({}, context);
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -3385,7 +3448,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const profileId = String(params.userId ?? params.profileId ?? '');
 
     if (!profileId) throw new Error('profileId or userId is required');
@@ -3415,7 +3478,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<SuccessResponse> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const profileId = String(params.userId ?? params.profileId ?? '');
 
     if (!profileId) throw new Error('profileId or userId is required');
@@ -3434,7 +3497,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const limit = this.parsePositiveInt(params.limit, 20, 100);
 
     const favorites = await db.favorite.findMany({
@@ -3482,7 +3545,7 @@ export class FeedAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const limit = this.parsePositiveInt(params.limit, 20, 100);
 
     // Get favorited user IDs
@@ -3667,7 +3730,7 @@ export class FeedAgentExecutor implements AgentExecutor {
       throw new Error('amount must be a valid integer in wei');
     }
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
     const metadata = params.metadata as
       | Record<string, string | number | boolean | null>
       | undefined;
@@ -3808,7 +3871,7 @@ export class FeedAgentExecutor implements AgentExecutor {
       throw new Error('Appeal reason must be at most 2000 characters');
     }
 
-    const userId = context.contextId || context.taskId;
+    const userId = requireContextAccountId({}, context);
 
     // Get user with all appeal-related fields
     const user = await db.user.findUnique({

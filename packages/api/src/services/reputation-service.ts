@@ -124,127 +124,141 @@ export class ReputationService {
     reason: PointsReason,
     metadata?: Record<string, JsonValue>
   ): Promise<AwardReputationResult> {
-    // Get current user state
-    const userResult = await db
-      .select({
-        reputationPoints: users.reputationPoints,
-        invitePoints: users.invitePoints,
-        earnedPoints: users.earnedPoints,
-        bonusPoints: users.bonusPoints,
-        pointsAwardedForProfile: users.pointsAwardedForProfile,
-        pointsAwardedForTwitter: users.pointsAwardedForTwitter,
-        pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
-        pointsAwardedForDiscord: users.pointsAwardedForDiscord,
-        pointsAwardedForDiscordJoin: users.pointsAwardedForDiscordJoin,
-        pointsAwardedForWallet: users.pointsAwardedForWallet,
-        pointsAwardedForReferralBonus: users.pointsAwardedForReferralBonus,
-        pointsAwardedForShare: users.pointsAwardedForShare,
-        pointsAwardedForPrivateGroup: users.pointsAwardedForPrivateGroup,
-        pointsAwardedForPrivateChannel: users.pointsAwardedForPrivateChannel,
-        pointsAwardedForTelegram: users.pointsAwardedForTelegram,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    if (!Number.isSafeInteger(amount))
+      throw new Error('Reputation award amount must be a finite integer');
+    return db.transaction(async (tx) => {
+      // Lock the row before reading counters or one-time award flags.
+      const userResult = await tx
+        .select({
+          reputationPoints: users.reputationPoints,
+          invitePoints: users.invitePoints,
+          earnedPoints: users.earnedPoints,
+          bonusPoints: users.bonusPoints,
+          pointsAwardedForProfile: users.pointsAwardedForProfile,
+          pointsAwardedForTwitter: users.pointsAwardedForTwitter,
+          pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
+          pointsAwardedForDiscord: users.pointsAwardedForDiscord,
+          pointsAwardedForDiscordJoin: users.pointsAwardedForDiscordJoin,
+          pointsAwardedForWallet: users.pointsAwardedForWallet,
+          pointsAwardedForReferralBonus: users.pointsAwardedForReferralBonus,
+          pointsAwardedForShare: users.pointsAwardedForShare,
+          pointsAwardedForPrivateGroup: users.pointsAwardedForPrivateGroup,
+          pointsAwardedForPrivateChannel: users.pointsAwardedForPrivateChannel,
+          pointsAwardedForTelegram: users.pointsAwardedForTelegram,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+        .for('update');
 
-    const user = userResult[0];
+      const user = userResult[0];
 
-    if (!user) {
-      return buildAwardReputationResult(0, 0, {
-        success: false,
-        error: 'User not found',
-      });
-    }
+      if (!user) {
+        return buildAwardReputationResult(0, 0, {
+          success: false,
+          error: 'User not found',
+        });
+      }
 
-    // Check if reputation was already awarded for this reason
-    const alreadyAwarded = ReputationService.checkAlreadyAwarded(user, reason);
-    if (alreadyAwarded) {
-      return buildAwardReputationResult(0, user.reputationPoints, {
-        alreadyAwarded: true,
-      });
-    }
+      // Check if reputation was already awarded for this reason
+      const alreadyAwarded = ReputationService.checkAlreadyAwarded(
+        user,
+        reason
+      );
+      if (alreadyAwarded) {
+        return buildAwardReputationResult(0, user.reputationPoints, {
+          alreadyAwarded: true,
+        });
+      }
 
-    const reputationBefore = user.reputationPoints;
-    const reputationAfter = reputationBefore + amount;
+      for (const value of [
+        user.reputationPoints,
+        user.invitePoints,
+        user.bonusPoints,
+      ]) {
+        if (!Number.isSafeInteger(value))
+          throw new Error(`Invalid reputation counters for ${userId}`);
+      }
+      const reputationBefore = user.reputationPoints;
+      const reputationAfter = reputationBefore + amount;
 
-    // Build update data
-    const updateData: Partial<{
-      reputationPoints: number;
-      invitePoints: number;
-      bonusPoints: number;
-      pointsAwardedForProfile: boolean;
-      pointsAwardedForTwitter: boolean;
-      pointsAwardedForTwitterFollow: boolean;
-      pointsAwardedForDiscord: boolean;
-      pointsAwardedForDiscordJoin: boolean;
-      pointsAwardedForWallet: boolean;
-      pointsAwardedForReferralBonus: boolean;
-      pointsAwardedForShare: boolean;
-      pointsAwardedForPrivateGroup: boolean;
-      pointsAwardedForPrivateChannel: boolean;
-      pointsAwardedForTelegram: boolean;
-    }> = {
-      reputationPoints: reputationAfter,
-    };
+      // Build update data
+      const updateData: Partial<{
+        reputationPoints: number;
+        invitePoints: number;
+        bonusPoints: number;
+        pointsAwardedForProfile: boolean;
+        pointsAwardedForTwitter: boolean;
+        pointsAwardedForTwitterFollow: boolean;
+        pointsAwardedForDiscord: boolean;
+        pointsAwardedForDiscordJoin: boolean;
+        pointsAwardedForWallet: boolean;
+        pointsAwardedForReferralBonus: boolean;
+        pointsAwardedForShare: boolean;
+        pointsAwardedForPrivateGroup: boolean;
+        pointsAwardedForPrivateChannel: boolean;
+        pointsAwardedForTelegram: boolean;
+      }> = {
+        reputationPoints: reputationAfter,
+      };
 
-    // Set the appropriate tracking flag and update the correct reputation bucket.
-    switch (reason) {
-      case 'referral_signup':
-        updateData.invitePoints = user.invitePoints + amount;
-        break;
-      case 'profile_completion':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForProfile = true;
-        break;
-      case 'twitter_link':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForTwitter = true;
-        break;
-      case 'twitter_follow':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForTwitterFollow = true;
-        break;
-      case 'discord_link':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForDiscord = true;
-        break;
-      case 'discord_join':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForDiscordJoin = true;
-        break;
-      case 'telegram_link':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForTelegram = true;
-        break;
-      case 'wallet_connect':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForWallet = true;
-        break;
-      case 'referral_bonus':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForReferralBonus = true;
-        break;
-      case 'share_action':
-      case 'share_to_twitter':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForShare = true;
-        break;
-      case 'private_group_create':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForPrivateGroup = true;
-        break;
-      case 'private_channel_create':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForPrivateChannel = true;
-        break;
-      default:
-        // For generic reputation rewards, add to bonus points.
-        updateData.bonusPoints = user.bonusPoints + amount;
-        break;
-    }
+      // Set the appropriate tracking flag and update the correct reputation bucket.
+      switch (reason) {
+        case 'referral_signup':
+          updateData.invitePoints = user.invitePoints + amount;
+          break;
+        case 'profile_completion':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForProfile = true;
+          break;
+        case 'twitter_link':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForTwitter = true;
+          break;
+        case 'twitter_follow':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForTwitterFollow = true;
+          break;
+        case 'discord_link':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForDiscord = true;
+          break;
+        case 'discord_join':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForDiscordJoin = true;
+          break;
+        case 'telegram_link':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForTelegram = true;
+          break;
+        case 'wallet_connect':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForWallet = true;
+          break;
+        case 'referral_bonus':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForReferralBonus = true;
+          break;
+        case 'share_action':
+        case 'share_to_twitter':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForShare = true;
+          break;
+        case 'private_group_create':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForPrivateGroup = true;
+          break;
+        case 'private_channel_create':
+          updateData.bonusPoints = user.bonusPoints + amount;
+          updateData.pointsAwardedForPrivateChannel = true;
+          break;
+        default:
+          // For generic reputation rewards, add to bonus points.
+          updateData.bonusPoints = user.bonusPoints + amount;
+          break;
+      }
 
-    // Execute in transaction
-    await db.transaction(async (tx) => {
+      // Counter mutation and its ledger entry commit together.
       await tx.update(users).set(updateData).where(eq(users.id, userId));
 
       await tx.insert(pointsTransactions).values({
@@ -256,15 +270,15 @@ export class ReputationService {
         reason,
         metadata: metadata ? JSON.stringify(metadata) : null,
       });
+
+      logger.info(
+        `Awarded ${amount} reputation to user ${userId} for ${reason}`,
+        { userId, amount, reason, reputationBefore, reputationAfter },
+        'ReputationService'
+      );
+
+      return buildAwardReputationResult(amount, reputationAfter);
     });
-
-    logger.info(
-      `Awarded ${amount} reputation to user ${userId} for ${reason}`,
-      { userId, amount, reason, reputationBefore, reputationAfter },
-      'ReputationService'
-    );
-
-    return buildAwardReputationResult(amount, reputationAfter);
   }
 
   /**

@@ -1,3 +1,8 @@
+import {
+  chatsContextSchema,
+  requireContextArray,
+  requireContextNumber,
+} from './context-contracts';
 /**
  * Messaging Provider
  * Provides access to chats and messages via A2A protocol
@@ -33,29 +38,9 @@ export const messagesProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - messages provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot fetch messages. Please ensure A2A server is running.',
-      };
-    }
-
-    // Define chat participant type
-    interface ChatParticipant {
-      id: string;
-      username?: string;
-      displayName?: string;
-    }
-
-    // Define chat type
-    interface Chat {
-      id: string;
-      name: string | null;
-      isGroup: boolean;
-      participants: ChatParticipant[];
     }
 
     const [chatsResult, unreadResult] = await Promise.all([
@@ -63,18 +48,20 @@ export const messagesProvider: Provider = {
       feedRuntime.a2aClient.getUnreadCount(),
     ]);
 
-    const chatsData = chatsResult as { chats?: Chat[] };
     const unreadData = unreadResult as { unreadCount?: number };
 
-    const chats = chatsData.chats || [];
-    const unreadCount = unreadData.unreadCount || 0;
+    const { chats } = chatsContextSchema.parse(chatsResult);
+    const unreadCount = requireContextNumber(
+      unreadData.unreadCount,
+      'unreadCount'
+    );
 
     const chatsText =
       chats.length > 0
         ? `Chats:\n${chats
             .map(
               (c) =>
-                `- ${c.name || 'Unnamed'} (${c.isGroup ? 'Group' : 'DM'}) | ID: ${c.id} | Participants: ${c.participants?.length ?? 0}`
+                `- ${c.name || 'Unnamed'} (${c.isGroup ? 'Group' : 'DM'}) | ID: ${c.id} | Participants: ${c.participants.length}`
             )
             .join('\n')}`
         : 'No chats available.';
@@ -102,20 +89,15 @@ export const notificationsProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - notifications provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot fetch notifications. Please ensure A2A server is running.',
-      };
     }
 
     try {
       const notificationsResult =
         await feedRuntime.a2aClient.getNotifications(20);
-      const notifications =
+      const notifications = requireContextArray(
         (
           notificationsResult as {
             notifications?: Array<{
@@ -126,9 +108,13 @@ export const notificationsProvider: Provider = {
               createdAt: string | Date;
             }>;
           }
-        )?.notifications || [];
-      const unreadCount =
-        (notificationsResult as { unreadCount?: number })?.unreadCount || 0;
+        )?.notifications,
+        'notifications'
+      );
+      const unreadCount = requireContextNumber(
+        (notificationsResult as { unreadCount?: number })?.unreadCount,
+        'unreadCount'
+      );
 
       if (notifications.length === 0) {
         return { text: 'No notifications available.' };

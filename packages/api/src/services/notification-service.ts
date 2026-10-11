@@ -11,6 +11,7 @@ import {
   eq,
   gt,
   hasBlocked,
+  isNotNull,
   notifications,
   users,
 } from '@feed/db';
@@ -259,7 +260,10 @@ export async function createNotification(
     const inserted = await db
       .insert(notifications)
       .values(values)
-      .onConflictDoNothing({ target: notifications.dedupeKey })
+      .onConflictDoNothing({
+        target: notifications.dedupeKey,
+        where: isNotNull(notifications.dedupeKey),
+      })
       .returning({ id: notifications.id });
 
     if (inserted.length === 0) {

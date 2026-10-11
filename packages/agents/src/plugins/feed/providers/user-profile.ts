@@ -11,8 +11,11 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../shared/logger';
 import type { FeedRuntime } from '../types';
+import {
+  explicitContextUserId,
+  userProfileContextSchema,
+} from './context-contracts';
 
 /**
  * Provider: View User Profile
@@ -34,61 +37,23 @@ export const userProfileProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - user profile provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
+    }
+
+    const userId = explicitContextUserId(message);
+    if (!userId)
       return {
-        text: 'ERROR: A2A client not connected. Cannot view user profiles. Please ensure A2A server is running.',
+        text: 'To query a profile, supply its exact account ID as userId: <id>. Resolve usernames to IDs before querying.',
       };
-    }
-
-    // Extract userId from message content
-    // Look for patterns like "user_123", "@username", or explicit userId mentions
-    const content = message.content?.text || '';
-    let userId: string | null = null;
-
-    // Try to extract user ID from common patterns
-    const userIdMatch =
-      content.match(/user[_\s]?(\w+)/i) ||
-      content.match(/@(\w+)/) ||
-      content.match(/userId[:\s]+(\w+)/i) ||
-      content.match(/profile[:\s]+(\w+)/i) ||
-      content.match(/view[:\s]+(\w+)/i);
-
-    if (userIdMatch) {
-      userId = userIdMatch[1] || null;
-    }
-
-    // If no userId found in message, return error guidance
-    if (!userId) {
-      return {
-        text: `To view a user's profile, please specify the user ID or username in your message.
-Example: "Show me user_abc123's profile" or "What is @trader's reputation?"`,
-      };
-    }
 
     // Fetch profile data via A2A protocol
     const profileData = await feedRuntime.a2aClient.getUserProfile(userId);
 
-    // Validate profileData structure matches A2AUserProfileResponse
-    if (
-      !profileData ||
-      typeof profileData !== 'object' ||
-      !('id' in profileData)
-    ) {
-      throw new Error('Invalid profile data format from A2A client');
-    }
-    const profile = profileData as {
-      id: string;
-      username: string | null;
-      displayName: string | null;
-      bio: string | null;
-      profileImageUrl: string | null;
-      reputationPoints: number | null;
-      virtualBalance: number | null;
-    };
+    const profile = userProfileContextSchema.parse(profileData);
+    if (profile.id !== userId)
+      throw new Error('Profile response does not match the requested account');
 
     return {
       text: `User Profile: ${profile.displayName || profile.username || profile.id}
@@ -96,8 +61,8 @@ Example: "Show me user_abc123's profile" or "What is @trader's reputation?"`,
 👤 Username: ${profile.username || 'Not set'}
 📝 Display Name: ${profile.displayName || 'Not set'}
 ${profile.bio ? `📄 Bio: ${profile.bio}` : ''}
-⭐ Reputation Points: ${profile.reputationPoints ?? 0} pts
-💰 Balance: $${profile.virtualBalance ?? 0}
+⭐ Reputation Points: ${profile.reputationPoints} pts
+💰 Balance: $${profile.virtualBalance}
 ${profile.profileImageUrl ? `🖼️  Profile Image: ${profile.profileImageUrl}` : ''}
 
 User ID: ${profile.id}`,

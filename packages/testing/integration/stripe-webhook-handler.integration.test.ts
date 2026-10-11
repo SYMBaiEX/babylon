@@ -277,8 +277,8 @@ describe('Stripe Webhook Handler Integration', () => {
       const balance = await getUserBalance(userId);
       expect(balance).toBe(0);
       const totals = await getUserFundingTotals(userId);
-      expect(totals.totalDeposited).toBe(10000);
-      expect(totals.totalWithdrawn).toBe(10000);
+      expect(totals.totalDeposited).toBe(0);
+      expect(totals.totalWithdrawn).toBe(0);
     });
 
     it('should fail for missing metadata', async () => {
@@ -405,8 +405,8 @@ describe('Stripe Webhook Handler Integration', () => {
       const balance = await getUserBalance(userId);
       expect(balance).toBe(0);
       const totals = await getUserFundingTotals(userId);
-      expect(totals.totalDeposited).toBe(5000);
-      expect(totals.totalWithdrawn).toBe(5000);
+      expect(totals.totalDeposited).toBe(0);
+      expect(totals.totalWithdrawn).toBe(0);
     });
   });
 

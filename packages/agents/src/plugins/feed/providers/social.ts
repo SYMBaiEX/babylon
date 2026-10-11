@@ -1,3 +1,7 @@
+import {
+  requireContextArray,
+  trendingContextSchema,
+} from './context-contracts';
 /**
  * Social Feed Provider
  * Provides access to social feed and posts via A2A protocol
@@ -31,14 +35,9 @@ export const feedProvider: Provider = {
 
     // A2A is required
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - feed provider requires A2A',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot fetch feed. Please ensure A2A server is running.',
-      };
     }
 
     // Validate feedResult structure
@@ -56,7 +55,7 @@ export const feedProvider: Provider = {
       }>;
     };
     const typedFeedResult = feedResult as FeedResult;
-    const posts = typedFeedResult.posts || [];
+    const posts = requireContextArray(typedFeedResult.posts, 'posts');
 
     if (posts.length === 0) {
       return { text: 'No posts in feed.' };
@@ -65,7 +64,7 @@ export const feedProvider: Provider = {
     const feedText = `Recent Feed Posts:\n${posts
       .map(
         (p, idx) =>
-          `${idx + 1}. [${p.type || 'post'}] ${p.content?.substring(0, 200) ?? ''}${(p.content?.length ?? 0) > 200 ? '...' : ''} (Author: ${p.authorId}, ID: ${p.id})`
+          `${idx + 1}. [${p.type || 'post'}] ${p.content} (Author: ${p.authorId}, ID: ${p.id})`
       )
       .join('\n\n')}`;
 
@@ -90,28 +89,14 @@ export const trendingProvider: Provider = {
 
     // A2A is required
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - trending provider requires A2A',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot fetch trending topics. Please ensure A2A server is running.',
-      };
     }
 
     try {
       const trendingResult = await feedRuntime.a2aClient.getTrendingTags(20);
-      const tags =
-        (
-          trendingResult as {
-            tags?: Array<{
-              id: string;
-              name: string;
-              displayName?: string;
-            }>;
-          }
-        )?.tags || [];
+      const { tags } = trendingContextSchema.parse(trendingResult);
 
       if (tags.length === 0) {
         return { text: 'No trending tags available.' };

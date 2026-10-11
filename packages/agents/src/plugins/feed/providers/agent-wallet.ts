@@ -10,27 +10,11 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../shared/logger';
-import type {
-  A2ABalanceResponse,
-  A2APositionsResponse,
-} from '../../../types/a2a-responses';
 import type { FeedRuntime } from '../types';
-
-// Type guards for A2A responses
-function isA2ABalanceResponse(data: object): data is A2ABalanceResponse {
-  return (
-    'balance' in data &&
-    typeof (data as A2ABalanceResponse).balance === 'number'
-  );
-}
-
-function isA2APositionsResponse(data: object): data is A2APositionsResponse {
-  return (
-    'marketPositions' in data &&
-    Array.isArray((data as A2APositionsResponse).marketPositions)
-  );
-}
+import {
+  balanceContextSchema,
+  positionsContextSchema,
+} from './context-contracts';
 
 /**
  * Provider: Agent's Own Wallet & Investments
@@ -51,14 +35,9 @@ export const agentWalletProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - agent wallet provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot fetch wallet data. Please ensure A2A server is running.',
-      };
     }
 
     // Get balance and positions via A2A
@@ -67,23 +46,8 @@ export const agentWalletProvider: Provider = {
       feedRuntime.a2aClient.getPositions(agentUserId),
     ]);
 
-    // Validate response structures match expected types using type guards
-    if (
-      !balanceData ||
-      typeof balanceData !== 'object' ||
-      !isA2ABalanceResponse(balanceData)
-    ) {
-      throw new Error('Invalid balance data format from A2A client');
-    }
-    if (
-      !positionsData ||
-      typeof positionsData !== 'object' ||
-      !isA2APositionsResponse(positionsData)
-    ) {
-      throw new Error('Invalid positions data format from A2A client');
-    }
-    const balance = balanceData;
-    const positions = positionsData;
+    const balance = balanceContextSchema.parse(balanceData);
+    const positions = positionsContextSchema.parse(positionsData);
 
     const totalUnrealizedPnL =
       (positions.marketPositions?.reduce(
@@ -109,7 +73,7 @@ export const agentWalletProvider: Provider = {
       output += `📊 PREDICTION MARKET POSITIONS (${positions.marketPositions.length}):
 ${positions.marketPositions
   .map((p) => {
-    return `• ${(p.question || 'Unknown Market').substring(0, 60)}...
+    return `• ${p.question}...
   Side: ${(p.side || 'UNKNOWN').toUpperCase()} | Shares: ${(p.shares || 0).toFixed(2)} @ avg $${(p.avgPrice || 0).toFixed(2)}
   Current: $${(p.currentPrice || 0).toFixed(2)} | Value: $${((p.shares || 0) * (p.currentPrice || 0)).toFixed(2)}
   P&L: ${(p.unrealizedPnL || 0) >= 0 ? '+' : ''}$${(p.unrealizedPnL || 0).toFixed(2)}`;
@@ -128,7 +92,7 @@ ${positions.marketPositions
       output += `🔮 PERPETUAL POSITIONS (${positions.perpPositions.length}):
 ${positions.perpPositions
   .map((p) => {
-    const amount = p.amount || p.size || 0;
+    const amount = p.amount ?? p.size;
     return `• ${p.ticker}: ${p.side.toUpperCase()} $${amount} @ $${p.entryPrice} (${p.leverage}x)
   Current: $${p.currentPrice} | P&L: ${(p.unrealizedPnL || 0) >= 0 ? '+' : ''}$${(p.unrealizedPnL || 0).toFixed(2)}`;
   })
