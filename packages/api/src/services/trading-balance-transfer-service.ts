@@ -79,7 +79,9 @@ export class TradingBalanceTransferService {
       new Map(usersToInvalidate.map((user) => [user.id, user])).values()
     );
 
-    await Promise.allSettled(
+    // The transfer has committed; invalidation failures are logged (stale
+    // caches expire by TTL) rather than failing the request.
+    const results = await Promise.allSettled(
       uniqueUsers.flatMap((user) => [
         invalidateCache(user.id, { namespace: CACHE_KEYS.USER_BALANCE }),
         invalidateCache(user.id, { namespace: CACHE_KEYS.USER }),
@@ -90,6 +92,20 @@ export class TradingBalanceTransferService {
         }),
       ])
     );
+    for (const failure of results) {
+      if (failure.status === 'rejected') {
+        logger.warn(
+          'Cache invalidation failed after trading balance transfer',
+          {
+            error:
+              failure.reason instanceof Error
+                ? failure.reason.message
+                : String(failure.reason),
+          },
+          'TradingBalanceTransferService'
+        );
+      }
+    }
   }
 
   static async getTransferHistory(
@@ -211,6 +227,9 @@ export class TradingBalanceTransferService {
         })
         .from(users)
         .where(inArray(users.id, userIds))
+        // Lock in a deterministic (id) order so opposing transfers between
+        // the same two users cannot deadlock.
+        .orderBy(users.id)
         .for('update');
 
       const sender = lockedUsers.find((user) => user.id === senderUserId);
@@ -245,8 +264,6 @@ export class TradingBalanceTransferService {
         } satisfies TradingBalanceTransferFailure;
       }
 
-      const senderBalanceAfter = senderBalanceBefore - amount;
-      const recipientBalanceAfter = recipientBalanceBefore + amount;
       const transferId = await generateSnowflakeId();
       const senderLabel =
         sender.displayName || sender.username || `user ${sender.id}`;
@@ -255,21 +272,35 @@ export class TradingBalanceTransferService {
         recipientUser.username ||
         `user ${recipientUser.id}`;
 
-      await tx
+      // Ledger balances come from the exact NUMERIC results (RETURNING),
+      // not JavaScript float arithmetic.
+      const [senderAfterRow] = await tx
         .update(users)
         .set({
           virtualBalance: sql`COALESCE(CAST("virtualBalance" AS NUMERIC), 0) - ${amount}`,
           updatedAt: new Date(),
         })
-        .where(eq(users.id, sender.id));
+        .where(eq(users.id, sender.id))
+        .returning({ virtualBalance: users.virtualBalance });
 
-      await tx
+      const [recipientAfterRow] = await tx
         .update(users)
         .set({
           virtualBalance: sql`COALESCE(CAST("virtualBalance" AS NUMERIC), 0) + ${amount}`,
           updatedAt: new Date(),
         })
-        .where(eq(users.id, recipientUser.id));
+        .where(eq(users.id, recipientUser.id))
+        .returning({ virtualBalance: users.virtualBalance });
+
+      if (!senderAfterRow || !recipientAfterRow) {
+        throw new Error('Locked transfer participant disappeared');
+      }
+      const senderBalanceAfterExact = String(senderAfterRow.virtualBalance);
+      const recipientBalanceAfterExact = String(
+        recipientAfterRow.virtualBalance
+      );
+      const senderBalanceAfter = Number(senderBalanceAfterExact);
+      const recipientBalanceAfter = Number(recipientBalanceAfterExact);
 
       await tx.insert(balanceTransactions).values([
         {
@@ -277,8 +308,8 @@ export class TradingBalanceTransferService {
           userId: sender.id,
           type: PEER_TRANSFER_OUT_TRANSACTION_TYPE,
           amount: String(-amount),
-          balanceBefore: String(senderBalanceBefore),
-          balanceAfter: String(senderBalanceAfter),
+          balanceBefore: String(sender.virtualBalance ?? 0),
+          balanceAfter: senderBalanceAfterExact,
           relatedId: transferId,
           description: buildTransferDescription({
             direction: 'out',
@@ -291,8 +322,8 @@ export class TradingBalanceTransferService {
           userId: recipientUser.id,
           type: PEER_TRANSFER_IN_TRANSACTION_TYPE,
           amount: String(amount),
-          balanceBefore: String(recipientBalanceBefore),
-          balanceAfter: String(recipientBalanceAfter),
+          balanceBefore: String(recipientUser.virtualBalance ?? 0),
+          balanceAfter: recipientBalanceAfterExact,
           relatedId: transferId,
           description: buildTransferDescription({
             direction: 'in',
