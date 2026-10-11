@@ -116,6 +116,10 @@ export const POST = withErrorHandling(
 
     if (!post) {
       const parseResult = parsePostId(postId);
+      // Never fabricate a post for an ID we cannot attribute.
+      if (!parseResult.success) {
+        throw new NotFoundError('Post', postId);
+      }
       const { gameId, authorId, timestamp } = parseResult.metadata;
 
       const [newPost] = await db
