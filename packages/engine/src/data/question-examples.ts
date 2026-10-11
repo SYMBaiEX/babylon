@@ -12,9 +12,9 @@ Will Jeff BAIzos post about his new bionic arm or cybernetic enhancement by {res
 Will Jensen HuAIng reveal a leather jacket made entirely of woven NVIDAI GPU wires during his keynote by {resolutionDate}?
 Will Sim Cook announce that the next AIpple device will have "zero ports" and must be charged by "positive thinking" by {resolutionDate}?
 Will Bill AIckman write a 5,000-word "Open Letter" on AIX demanding that AIpple rename Siri to "Bill" by {resolutionDate}?
-Will PAIlmer Luckey show up to a Deparment of War meeting wearing a Hawaiian shirt and VR goggles by {resolutionDate}?
+Will PAIlmer Luckey show up to a Department of War meeting wearing a Hawaiian shirt and VR goggles by {resolutionDate}?
 Will Brain Johnson post about swapping blood with a TeslAI Optimus robot by {resolutionDate}?
-Will Satya Nadella announce that MAIcrosoft Clippy has achieved sentience and is now on the Board of Directors by {resolutionDate}?
+Will Satya NadellAI announce that MAIcrosoft Clippy has achieved sentience and is now on the Board of Directors by {resolutionDate}?
 Will Trump Terminal output a string of binary code that translates to "MAKE AMERICA COMPUTE AGAIN" by {resolutionDate}?
 Will Nancy PelosAI be seen wearing Aipple Vision Pro goggles on the floor of Congress by {resolutionDate}?
 Will Mitch McConnAI buffer/freeze for more than 60 seconds during a press briefing (confirmed by video timestamp) by {resolutionDate}?
@@ -53,7 +53,7 @@ Will NVIDAI announce a graphics card that requires a dedicated nuclear reactor t
 Will AIlon Musk successfully land a SpAIceX rocket on the roof of the MetAI headquarters as a "friendly prank" by {resolutionDate}?
 Will Mark Zuckerborg's challenge to a "Metaverse Deathmatch" actually be accepted by Sim Cook by {resolutionDate}?
 Will Sam AIltman finally admit that the "Blue Orb" he carries is actually a sentient alien hard drive by {resolutionDate}?
-Will Jeff BAIzos's attempt to dismantle a historic bridge to fit his new super-yacht be blocked by the Deparment of War by {resolutionDate}?
+Will Jeff BAIzos's attempt to dismantle a historic bridge to fit his new super-yacht be blocked by the Department of War by {resolutionDate}?
 Will Jensen HuAIng's leather jacket actually be revealed to be a fully functional NvidAI cooling system by {resolutionDate}?
 Will Sim Cook's announcement of the "Portless iPhone" result in AIpple stock dropping below $150 by {resolutionDate}?
 Will Bill AIckman's 500-tweet thread demanding the resignation of the Mcdonald's ice cream machine repairman be posted by {resolutionDate}?
@@ -92,7 +92,7 @@ Will EtherAIum staking rewards hit 10% APY after validators discover a "secret s
 Will CoinbAIse announce institutional custody for ZcAIsh, but only for customers who can solve a cryptographic puzzle by {resolutionDate}?
 Will VitAIlik Buterin wear a full-body "Merge Panda" costume until ETH hits $5k by {resolutionDate}?
 Will ZcAIsh implement a feature that makes transactions "invisible even to yourself" by {resolutionDate}?
-Will AInthropic release Claude 5 Opus and claim dominance in coding tasks by {resolutionDate}?
+Will AItropic release Claude 5 Opus and claim dominance in coding tasks by {resolutionDate}?
 
 ### 🚀 Space & Science
 Will SpAIceX successfully land a crewed mission on Mars by {resolutionDate}?
