@@ -28,12 +28,12 @@ import localDeployment from '../../deployments/local';
  * - External contracts query: feedOracle.getOutcome(sessionId)
  */
 export interface DeployedContracts {
-  /** Diamond proxy contract address */
-  diamond: Address;
-  /** Feed Game Oracle - THE GAME IS THE PREDICTION ORACLE */
-  feedOracle: Address;
-  /** Prediction Market Facet address */
-  predictionMarketFacet: Address;
+  /** Diamond proxy contract address (null where no Diamond is deployed) */
+  diamond: Address | null;
+  /** Feed Game Oracle (null where FeedGameOracle is not deployed) */
+  feedOracle: Address | null;
+  /** Prediction Market Facet address (null where no Diamond is deployed) */
+  predictionMarketFacet: Address | null;
   /** ERC-8004 Identity Registry contract address */
   identityRegistry: Address;
   /** ERC-8004 Reputation System contract address */
@@ -51,7 +51,7 @@ export interface DeployedContracts {
  * and returns the corresponding contract addresses.
  *
  * @returns Contract addresses for the detected network
- * @throws Error if Base mainnet is detected (not yet deployed)
+ * @throws Error for Base mainnet (not yet deployed) or an unsupported chain
  *
  * @example
  * ```typescript
@@ -76,14 +76,13 @@ export function getContractAddresses(): DeployedContracts {
   }
 
   if (chainId === 84532) {
-    // Note: FeedGameOracle needs to be deployed to Sepolia
-    // Currently using oracleFacet as placeholder until deployed
+    // FeedGameOracle is not deployed to Base Sepolia. The oracle facet has a
+    // different interface, so it is not substituted.
+    const sepoliaContracts: Record<string, string | undefined> =
+      baseSepoliaDeployment.contracts;
     return {
       diamond: baseSepoliaDeployment.contracts.diamond as Address,
-      feedOracle:
-        ((baseSepoliaDeployment.contracts as Record<string, string>)
-          .feedOracle as Address) ||
-        (baseSepoliaDeployment.contracts.oracleFacet as Address),
+      feedOracle: (sepoliaContracts.feedOracle as Address | undefined) ?? null,
       predictionMarketFacet: baseSepoliaDeployment.contracts
         .predictionMarketFacet as Address,
       identityRegistry: baseSepoliaDeployment.contracts
@@ -96,13 +95,12 @@ export function getContractAddresses(): DeployedContracts {
   }
 
   if (chainId === 1) {
-    // Ethereum Mainnet - identity & reputation contracts deployed, others not applicable
+    // Ethereum Mainnet: only identity & reputation contracts are deployed.
     const ethContracts = PUBLIC_CONFIG.networks.ethereum.contracts;
     return {
-      diamond: '0x0000000000000000000000000000000000000000' as Address,
-      feedOracle: '0x0000000000000000000000000000000000000000' as Address,
-      predictionMarketFacet:
-        '0x0000000000000000000000000000000000000000' as Address,
+      diamond: null,
+      feedOracle: null,
+      predictionMarketFacet: null,
       identityRegistry: ethContracts.identityRegistry as Address,
       reputationSystem: ethContracts.reputationSystem as Address,
       chainId: 1,
@@ -116,26 +114,9 @@ export function getContractAddresses(): DeployedContracts {
     );
   }
 
-  // Default to localnet for unknown chains (development only)
-  if (
-    process.env.NODE_ENV === 'production' ||
-    process.env.DEPLOYMENT_ENV === 'mainnet'
-  ) {
-    throw new Error(
-      `Unsupported chain ID ${chainId} in production. Supported: 1 (Ethereum), 84532 (Base Sepolia), 31337 (local).`
-    );
-  }
-
-  return {
-    diamond: localDeployment.contracts.diamond as Address,
-    feedOracle: localDeployment.contracts.feedOracle as Address,
-    predictionMarketFacet: localDeployment.contracts
-      .predictionMarketFacet as Address,
-    identityRegistry: localDeployment.contracts.identityRegistry as Address,
-    reputationSystem: localDeployment.contracts.reputationSystem as Address,
-    chainId: 31337,
-    network: 'localnet',
-  };
+  throw new Error(
+    `Unsupported chain ID ${chainId}. Supported: 1 (Ethereum), 84532 (Base Sepolia), 31337 (local).`
+  );
 }
 
 /**

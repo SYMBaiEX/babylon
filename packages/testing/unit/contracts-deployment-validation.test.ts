@@ -106,3 +106,43 @@ describe('waitForTransaction', () => {
     ).rejects.toThrow('was not mined');
   });
 });
+
+describe('getContractAddresses', () => {
+  async function withChainId<T>(chainId: string, fn: () => T): Promise<T> {
+    const previous = process.env.NEXT_PUBLIC_CHAIN_ID;
+    process.env.NEXT_PUBLIC_CHAIN_ID = chainId;
+    try {
+      return fn();
+    } finally {
+      if (previous === undefined) delete process.env.NEXT_PUBLIC_CHAIN_ID;
+      else process.env.NEXT_PUBLIC_CHAIN_ID = previous;
+    }
+  }
+
+  it('does not substitute the oracle facet for an undeployed FeedGameOracle', async () => {
+    const { getContractAddresses } = await import(
+      '../../contracts/src/deployment/addresses'
+    );
+    const addresses = await withChainId('84532', getContractAddresses);
+    expect(addresses.feedOracle).toBeNull();
+    expect(addresses.diamond).toMatch(/^0x[0-9a-fA-F]{40}$/);
+  });
+
+  it('reports absent Diamond contracts on Ethereum as null, not zero addresses', async () => {
+    const { getContractAddresses } = await import(
+      '../../contracts/src/deployment/addresses'
+    );
+    const addresses = await withChainId('1', getContractAddresses);
+    expect(addresses.diamond).toBeNull();
+    expect(addresses.predictionMarketFacet).toBeNull();
+  });
+
+  it('rejects unknown chains instead of falling back to local addresses', async () => {
+    const { getContractAddresses } = await import(
+      '../../contracts/src/deployment/addresses'
+    );
+    await expect(withChainId('999999', getContractAddresses)).rejects.toThrow(
+      'Unsupported chain ID 999999'
+    );
+  });
+});
