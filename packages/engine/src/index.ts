@@ -162,7 +162,6 @@ export { cosineSimilarity, getEmbedding } from './llm/embedding-client';
 export {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
-  parseContinuationContent,
 } from './llm/json-continuation-parser';
 // LLM Exports (re-exported for convenience)
 export {
