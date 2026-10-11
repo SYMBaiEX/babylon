@@ -213,7 +213,7 @@ export const POST = withErrorHandling(
     );
 
     // Audit log the ban/unban action (persist to database)
-    logAdminAction(action === 'ban' ? 'BAN' : 'UNBAN', {
+    await logAdminAction(action === 'ban' ? 'BAN' : 'UNBAN', {
       adminId: adminUser.userId,
       ipAddress: getClientIp(request.headers) ?? undefined,
       resourceType: 'user',

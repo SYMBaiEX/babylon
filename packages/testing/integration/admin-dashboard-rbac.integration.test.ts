@@ -517,7 +517,8 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
 
       expect(stats.llm).toBeDefined();
       expect(typeof stats.llm.callsLast24h).toBe('number');
-      expect(typeof stats.llm.errorsLastHour).toBe('number');
+      // LLM call errors are not persisted, so no count is reported.
+      expect(stats.llm.errorsLastHour).toBeNull();
 
       expect(stats.content).toBeDefined();
       expect(typeof stats.content.lookaheadMinutes).toBe('number');

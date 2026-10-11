@@ -43,7 +43,8 @@ interface SystemLlmMetrics {
   callsLast24h: number;
   inputTokensLast24h: number;
   outputTokensLast24h: number;
-  errorsLastHour: number;
+  /** null: LLM call errors are not persisted, so no count is available. */
+  errorsLastHour: number | null;
 }
 
 interface SystemContentMetrics {
@@ -303,13 +304,16 @@ function withPersistedMetricsSnapshotJob(
     snapshotDurationMs: number;
   } | null
 ): ReturnType<typeof cronMetrics.getDashboardMetrics> {
-  if (!snapshot) {
+  // The cron may run in another isolate, so this process's in-memory metrics
+  // often have no record of it. Only then is the persisted snapshot used as
+  // evidence of its last success. Real in-memory history (including failures
+  // and alerts) is never replaced.
+  if (
+    !snapshot ||
+    dashboard.jobs.some((job) => job.jobName === 'metrics-snapshot')
+  ) {
     return dashboard;
   }
-
-  const existingIndex = dashboard.jobs.findIndex(
-    (job) => job.jobName === 'metrics-snapshot'
-  );
 
   const metricsSnapshotJob: CronJobStats = {
     jobName: 'metrics-snapshot',
@@ -326,16 +330,8 @@ function withPersistedMetricsSnapshotJob(
     consecutiveFailures: 0,
   };
 
-  const jobs =
-    existingIndex >= 0
-      ? dashboard.jobs.map((job, index) =>
-          index === existingIndex ? metricsSnapshotJob : job
-        )
-      : [...dashboard.jobs, metricsSnapshotJob];
-
-  const alerts = dashboard.alerts.filter(
-    (alert) => alert.jobName !== 'metrics-snapshot'
-  );
+  const jobs = [...dashboard.jobs, metricsSnapshotJob];
+  const alerts = dashboard.alerts;
   const totalExecutions = jobs.reduce(
     (sum, job) => sum + job.totalExecutions,
     0
@@ -653,15 +649,23 @@ export function buildSystemStatusSnapshot(
     {
       key: 'llm',
       label: 'LLM Calls',
-      status: input.llm.errorsLastHour > 0 ? 'warning' : 'healthy',
+      status:
+        input.llm.errorsLastHour !== null && input.llm.errorsLastHour > 0
+          ? 'warning'
+          : 'healthy',
       summary:
-        input.llm.errorsLastHour > 0
-          ? `${formatCount(input.llm.errorsLastHour)} recent error${input.llm.errorsLastHour === 1 ? '' : 's'}`
-          : 'No recent LLM errors',
+        input.llm.errorsLastHour === null
+          ? 'LLM error counts are not tracked'
+          : input.llm.errorsLastHour > 0
+            ? `${formatCount(input.llm.errorsLastHour)} recent error${input.llm.errorsLastHour === 1 ? '' : 's'}`
+            : 'No recent LLM errors',
       details: `${formatCount(input.llm.callsLast24h)} calls in the last 24 hours.`,
       metric: {
         label: 'Errors last hour',
-        value: formatCount(input.llm.errorsLastHour),
+        value:
+          input.llm.errorsLastHour === null
+            ? 'n/a'
+            : formatCount(input.llm.errorsLastHour),
       },
     },
     getQuerySubsystem(input),
@@ -824,7 +828,7 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
         callsLast24h: 0,
         inputTokensLast24h: 0,
         outputTokensLast24h: 0,
-        errorsLastHour: 0,
+        errorsLastHour: null,
       },
       content: {
         lookaheadMinutes: 0,
@@ -860,7 +864,6 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
     newUsersLastDay,
     newPostsLastHour,
     newPostsLastDay,
-    llmErrorCountResult,
     llmStats,
     tableSizes,
     outboxStats,
@@ -877,9 +880,6 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
     db.user.count({ where: { createdAt: { gte: oneDayAgo } } }),
     db.post.count({ where: { createdAt: { gte: oneHourAgo } } }),
     db.post.count({ where: { createdAt: { gte: oneDayAgo } } }),
-    db.$queryRaw<{ count: string }>`
-      SELECT 0::text as count
-    `,
     db.$queryRaw<{
       totalCalls: string;
       totalInputTokens: string;
@@ -948,9 +948,6 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
     latestMetricsSnapshot[0] ?? null
   );
 
-  const recentLlmErrorsCount = llmErrorCountResult[0]
-    ? Number(llmErrorCountResult[0].count)
-    : 0;
   const llmUsageRow = llmStats[0];
   const outboxPending = outboxStats[0] ? Number(outboxStats[0].pending) : 0;
   const outboxOldest = outboxStats[0]?.oldest ?? null;
@@ -1004,7 +1001,9 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
       outputTokensLast24h: llmUsageRow
         ? Number(llmUsageRow.totalOutputTokens)
         : 0,
-      errorsLastHour: recentLlmErrorsCount,
+      // LLM call errors are not persisted (llm_call_logs records successful
+      // calls only), so there is no honest count to report.
+      errorsLastHour: null,
     },
     content: {
       lookaheadMinutes,
@@ -1050,18 +1049,28 @@ function cleanupExpiredAlertReservations(nowMs: number) {
   }
 }
 
-function getAlertFingerprint(snapshot: SystemStatusSnapshot): string {
+/**
+ * Stable identity of an incident: environment, overall status and which
+ * subsystems are critical. Human-readable summaries are excluded because they
+ * embed changing values (e.g. elapsed minutes) that would defeat throttling.
+ */
+export function getAlertFingerprint(snapshot: SystemStatusSnapshot): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
         environment:
           snapshot.environment.deploymentEnv ?? snapshot.environment.nodeEnv,
         status: snapshot.status,
-        criticalIssues: snapshot.criticalIssues,
+        criticalSubsystems: snapshot.subsystems
+          .filter((subsystem) => subsystem.status === 'critical')
+          .map((subsystem) => subsystem.key)
+          .sort(),
       })
     )
     .digest('hex');
 }
+
+const DISCORD_ALERT_TIMEOUT_MS = 10_000;
 
 function getDiscordWebhookUrl(): string | null {
   const value = process.env.DISCORD_SYSTEM_ALERT_WEBHOOK_URL?.trim();
@@ -1181,6 +1190,7 @@ export async function sendDiscordSystemAlertIfNeeded(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(DISCORD_ALERT_TIMEOUT_MS),
     });
 
     if (!response.ok) {

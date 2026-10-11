@@ -3,6 +3,7 @@ import {
   type BuildSystemStatusInput,
   buildSystemStatusSnapshot,
   formatSystemStatusDiscordMessage,
+  getAlertFingerprint,
 } from '@feed/api';
 
 function createBaseInput(): BuildSystemStatusInput {
@@ -187,5 +188,32 @@ describe('system-status-service', () => {
     expect(message).toContain('Feed CRITICAL system alert');
     expect(message).toContain('Environment: staging');
     expect(message).toContain('Server Memory: 96% heap used');
+  });
+
+  test('alert fingerprint is stable while the same incident ages', () => {
+    const staleAt = (iso: string) =>
+      buildSystemStatusSnapshot({
+        ...createBaseInput(),
+        game: { ...createBaseInput().game!, lastTickAt: new Date(iso) },
+      });
+    const first = staleAt('2026-03-07T11:47:00.000Z');
+    const later = staleAt('2026-03-07T11:30:00.000Z');
+    expect(first.status).toBe('critical');
+    expect(getAlertFingerprint(first)).toBe(getAlertFingerprint(later));
+
+    const healthy = buildSystemStatusSnapshot(createBaseInput());
+    expect(getAlertFingerprint(healthy)).not.toBe(getAlertFingerprint(first));
+  });
+
+  test('does not claim zero LLM errors when errors are not tracked', () => {
+    const snapshot = buildSystemStatusSnapshot({
+      ...createBaseInput(),
+      llm: { ...createBaseInput().llm, errorsLastHour: null },
+    });
+    const llm = snapshot.subsystems.find(
+      (subsystem) => subsystem.key === 'llm'
+    );
+    expect(llm?.summary).toBe('LLM error counts are not tracked');
+    expect(llm?.metric?.value).toBe('n/a');
   });
 });
