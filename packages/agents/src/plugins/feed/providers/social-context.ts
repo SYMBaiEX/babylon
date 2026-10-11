@@ -50,7 +50,10 @@ type LivePlayerRosterEntry = {
 };
 
 type SharedChatContextServiceShape = {
-  getSharedFacts: (options: { limit?: number }) => Promise<SharedChatFact[]>;
+  getSharedFacts: (options: {
+    viewerUserId: string;
+    limit?: number;
+  }) => Promise<SharedChatFact[]>;
   getRelevantGroupContextForUser: (
     userId: string,
     options: {
@@ -104,13 +107,15 @@ export const sharedChatFactsProvider: Provider = {
   description: 'Compact facts extracted from recent group chat summaries',
 
   get: async (
-    _runtime: IAgentRuntime,
+    runtime: IAgentRuntime,
     _message: Memory,
     _state: State
   ): Promise<ProviderResult> => {
     try {
       const sharedChatContextService = await getSharedChatContextService();
+      // Only chats this agent is a member of
       const facts = await sharedChatContextService.getSharedFacts({
+        viewerUserId: runtime.agentId,
         limit: 12,
       });
 

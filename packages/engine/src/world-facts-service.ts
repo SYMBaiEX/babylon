@@ -8,7 +8,18 @@
  */
 
 import type { WorldFact } from '@feed/db';
-import { and, db, desc, eq, gte, isNull, lte, or, worldFacts } from '@feed/db';
+import {
+  and,
+  db,
+  desc,
+  eq,
+  gte,
+  isNull,
+  lte,
+  ne,
+  or,
+  worldFacts,
+} from '@feed/db';
 import { generateSnowflakeId, logger } from '@feed/shared';
 import {
   buildDailyTopicPromptContext,
@@ -19,6 +30,13 @@ import {
   MIN_QUALITY_SCORE,
 } from './services/parody-headline-generator';
 import { isSimulationMode } from './storage-bridge';
+
+/**
+ * WorldFact category used by SharedChatContextService for per-chat snapshots.
+ * These rows hold private group chat content and are excluded from every
+ * global world-fact read path.
+ */
+export const SHARED_CHAT_CONTEXT_CATEGORY = 'shared_chat_context';
 
 export interface WorldFactsContext {
   crypto: string;
@@ -99,7 +117,9 @@ export class WorldFactsService {
             gte(worldFacts.qualityScore, MIN_QUALITY_SCORE)
           ),
           // Exclude depth >= 2 (derived from LLM output) to prevent recursive amplification
-          lte(worldFacts.generationDepth, 1)
+          lte(worldFacts.generationDepth, 1),
+          // Per-chat snapshots contain private group chat content
+          ne(worldFacts.category, SHARED_CHAT_CONTEXT_CATEGORY)
         )
       )
       .orderBy(desc(worldFacts.createdAt))
@@ -137,7 +157,8 @@ export class WorldFactsService {
             isNull(worldFacts.qualityScore),
             gte(worldFacts.qualityScore, MIN_QUALITY_SCORE)
           ),
-          lte(worldFacts.generationDepth, 1)
+          lte(worldFacts.generationDepth, 1),
+          ne(worldFacts.category, SHARED_CHAT_CONTEXT_CATEGORY)
         )
       )
       .orderBy(desc(worldFacts.createdAt))
