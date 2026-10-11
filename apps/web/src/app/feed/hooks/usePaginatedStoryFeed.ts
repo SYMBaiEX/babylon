@@ -195,6 +195,7 @@ export function usePaginatedStoryFeed<TPage extends StoryFeedPage>({
 
   // (Re)load on enable and on viewer change; clear the previous viewer's
   // stories immediately.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a viewer change (viewerKey) must clear and reload even when no callback identity changes
   useEffect(() => {
     storiesRef.current = [];
     setStories([]);
