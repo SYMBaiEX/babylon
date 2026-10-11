@@ -428,16 +428,28 @@ uploads, SSE, agent actions, and Surplus generation on staging before promotion.
 
 ### Data and cutover
 
-The Railway account inspected on 2026-10-10 contains an empty `the-feed` project
-(no services or environments). It supplies no reusable database/Redis service.
-Identify and back up the active Vercel-linked PostgreSQL and Redis services, then
-retain their direct provider connections or migrate into dedicated replacements.
-The existing GitHub database secret names do not prove which live dataset they use.
+The target architecture uses Railway PostgreSQL and Redis, replacing Neon, with
+Cloudflare hosting the web app, uploads, and scheduler. The initially empty
+`the-feed` Railway project now has separate `staging` and `production` environments,
+each with PostgreSQL 18 and Redis 8.2 services and persistent volumes. Daily and
+weekly volume backups are configured. The source databases are Neon PostgreSQL 17
+with no extensions beyond `plpgsql`; preserve them until verified restoration,
+schema reconciliation, and cutover finish. The private `feed-migration-backups` R2
+bucket holds migration snapshots. Database secrets must not switch to Railway
+until the restored datasets and application connections pass validation.
+
+Cloudflare connections require publicly trusted TLS certificates. Railway's
+default PostgreSQL certificate is self-signed, and its Redis template starts
+without TLS; finish certificate issuance, renewal, and connection verification
+before connecting the Workers. Keep Redis private until TLS is configured.
 
 Copy legacy Vercel Blob uploads into the uploads R2 bucket and training artifacts
 into the private training bucket, verify counts/checksums, and update stored URLs
 using a reviewed manifest. The 2026-10-10 inventory found 1,077 public images
 (566,522,262 bytes), shared across the old environments.
+All 1,077 objects have been copied into both uploads buckets and verified by
+SHA-256 readback. Stored database URLs still require migration, and a fresh Blob
+inventory/delta copy is required immediately before cutover.
 `bun scripts/cloudflare/copy-uploads.ts staging inventory.json manifest.jsonl --audit`
 validates an inventory exported by the Blob SDK. Set `LEGACY_BLOB_HOST` to the
 audited store hostname. With `--copy` and Cloudflare account/token credentials,

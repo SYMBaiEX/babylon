@@ -23,6 +23,7 @@ import {
 } from './json-storage';
 import { logger } from './logger';
 import * as schema from './schema';
+import { postgresTlsMode } from './tls';
 
 // ============================================================================
 // Types
@@ -146,30 +147,11 @@ function getPostgresClientConfig(
   const isTest = isTestEnvironment();
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Determine if this is a local database connection
-  const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
-
-  // Check if SSL is already specified in the URL (sslmode=require or ssl=true)
-  const hasExplicitSSL =
-    url.includes('sslmode=require') || url.includes('ssl=true');
-
-  // Check for cloud database providers that require SSL (Neon, Supabase, etc.)
-  const isCloudProvider =
-    url.includes('neon.tech') ||
-    url.includes('supabase.co') ||
-    url.includes('pooler.supabase') ||
-    url.includes('db.bit.io') ||
-    url.includes('.postgres.database.azure.com') ||
-    url.includes('.rds.amazonaws.com');
-
-  // SSL is required for:
-  // - URL explicitly specifies sslmode=require
-  // - Production with non-localhost connections
-  // - Any cloud database provider (even in development)
-  const sslMode: 'require' | false =
-    hasExplicitSSL || (!isLocalhost && (isProd || isCloudProvider))
-      ? 'require'
-      : false;
+  const sslMode = postgresTlsMode(
+    url,
+    isProd,
+    process.env.DEPLOYMENT_PLATFORM === 'cloudflare'
+  );
 
   // Node serves many concurrent requests in one process; without a bounded pool we'd get
   // one connection per in-flight query and exhaust Neon/Postgres limits. Pool caps connections
@@ -239,9 +221,6 @@ function getPostgresClientConfig(
 
   logger.debug(`[Drizzle] Creating ${role} postgres client`, {
     isProd,
-    isLocalhost,
-    isCloudProvider,
-    hasExplicitSSL,
     sslMode,
     isPooler,
     poolMax,
