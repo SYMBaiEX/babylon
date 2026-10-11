@@ -12,7 +12,7 @@
 import type { IAgentRuntime } from '@elizaos/core';
 import { db, userAgentConfigs } from '@feed/db';
 import { StaticDataRegistry } from '@feed/engine';
-import { getAgentConfig } from '../shared/agent-config';
+import { getAgentConfig, getAlignment, getTeam } from '../shared/agent-config';
 
 /** Agent identity entry for interaction labeling */
 export interface AgentIdentity {
@@ -54,15 +54,16 @@ export async function buildAgentIdentityMap(): Promise<
     const agents = await db
       .select({
         userId: userAgentConfigs.userId,
+        team: userAgentConfigs.team,
+        alignment: userAgentConfigs.alignment,
       })
       .from(userAgentConfigs);
 
     for (const agent of agents) {
       if (!agent.userId) continue;
-      // User agents default to gray/neutral — team/alignment not stored in DB schema
       map.set(agent.userId, {
-        team: 'gray',
-        alignment: 'neutral',
+        team: getTeam(agent),
+        alignment: getAlignment(agent),
         instanceId: agent.userId,
       });
     }
@@ -98,13 +99,8 @@ export async function populateIdentityMapOnRuntime(
       (feed?.alignment as string) ?? 'neutral';
   } else {
     const config = await getAgentConfig(agentUserId);
-    const alignment = (config as Record<string, unknown>)?.alignment;
-    const team = (config as Record<string, unknown>)?.team;
-    (runtime as { _agentTeam?: string })._agentTeam =
-      team === 'red' || team === 'blue' ? (team as string) : 'gray';
+    (runtime as { _agentTeam?: string })._agentTeam = getTeam(config);
     (runtime as { _agentAlignment?: string })._agentAlignment =
-      alignment === 'good' || alignment === 'evil'
-        ? (alignment as string)
-        : 'neutral';
+      getAlignment(config);
   }
 }
