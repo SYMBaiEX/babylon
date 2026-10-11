@@ -70,7 +70,6 @@ describe('coordinatorAgentActivityProvider', () => {
         type: 'agent.dispatch.result',
         data: {
           teamChatId: TEAM,
-          teamChatId: TEAM,
           agentUsername: 'trader-bot',
           command: 'buy OPENAGI',
           response: 'Bought 100 shares',
@@ -100,7 +99,6 @@ describe('coordinatorAgentActivityProvider', () => {
         type: 'agent.dispatch.result',
         data: {
           teamChatId: TEAM,
-          teamChatId: TEAM,
           agentUsername: 'trader-bot',
           command: 'buy NONEXIST',
           response: 'Market not found',
@@ -125,7 +123,6 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
-          teamChatId: TEAM,
           teamChatId: TEAM,
           agentId: 'agent-xyz-123',
           command: 'check balance',
@@ -152,7 +149,6 @@ describe('coordinatorAgentActivityProvider', () => {
         type: 'agent.dispatch.result',
         data: {
           teamChatId: TEAM,
-          teamChatId: TEAM,
           command: 'check',
           response: 'OK',
           success: true,
@@ -176,7 +172,6 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
-          teamChatId: TEAM,
           teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'A'.repeat(200),
@@ -204,7 +199,6 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
-          teamChatId: TEAM,
           teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
@@ -236,7 +230,6 @@ describe('coordinatorAgentActivityProvider', () => {
         type: 'agent.dispatch.result',
         data: {
           teamChatId: TEAM,
-          teamChatId: TEAM,
           agentUsername: 'bot',
           command: { action: 'buy' }, // Object, not string
           response: 'OK',
@@ -263,7 +256,6 @@ describe('coordinatorAgentActivityProvider', () => {
         type: 'agent.dispatch.result',
         data: {
           teamChatId: TEAM,
-          teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
           response: null, // Not a string
@@ -289,7 +281,6 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.custom.event',
         data: {
-          teamChatId: TEAM,
           teamChatId: TEAM,
           foo: 'bar',
           timestamp: '2025-06-15T10:30:00.000Z',
@@ -341,7 +332,6 @@ describe('coordinatorAgentActivityProvider', () => {
         type: 'agent.dispatch.result',
         data: {
           teamChatId: TEAM,
-          teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
           response: 'OK',
@@ -366,7 +356,6 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
-          teamChatId: TEAM,
           teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
