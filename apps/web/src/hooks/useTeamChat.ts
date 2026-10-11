@@ -574,7 +574,7 @@ export function useTeamChat(): UseTeamChatReturn {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ isTyping }),
+        body: JSON.stringify({ isTyping, chatId: teamChat.chatId }),
       }).catch((err) => {
         // Log for debugging but don't block user experience
         logger.debug('Typing indicator failed', { error: err }, 'useTeamChat');
@@ -840,6 +840,7 @@ export function useTeamChat(): UseTeamChatReturn {
         },
         body: JSON.stringify({
           content,
+          chatId: teamChat.chatId,
           targetIds: targetAgentIds,
           ...(replyToMessage ? { replyToMessageId: replyToMessage.id } : {}),
         }),
