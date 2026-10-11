@@ -57,7 +57,6 @@ import type {
   MarketCategory,
   MarketTimeframe,
 } from '@feed/db';
-import { logger } from '@feed/shared';
 import { clamp01 } from '../utils/math-utils';
 
 // Re-export types from DB schema for consumers of this module
@@ -103,24 +102,6 @@ export interface TimeframeConfig {
   postingMultiplier: number;
   /** Event generation probability multiplier */
   eventMultiplier: number;
-}
-
-/**
- * Sub-market spawn trigger
- */
-export interface SubMarketTrigger {
-  /** Event type that triggers spawn */
-  eventType: string;
-  /** Probability of spawning (0-1) */
-  spawnProbability: number;
-  /** Timeframe for spawned market */
-  childTimeframe: MarketTimeframe;
-  /** Template for generating question */
-  questionTemplate: string;
-  /** Duration modifier (multiplier on default) */
-  durationModifier?: number;
-  /** Template var key to use as the topic label (e.g., 'org', 'ticker', 'team') */
-  topicSourceVar?: string;
 }
 
 /**
@@ -310,192 +291,6 @@ export const TIMEFRAME_CONFIGS: Record<MarketTimeframe, TimeframeConfig> = {
 };
 
 // =============================================================================
-// SUB-MARKET TRIGGERS BY CATEGORY
-// =============================================================================
-
-/**
- * Trigger configurations for spawning sub-markets from events
- */
-export const SUB_MARKET_TRIGGERS: Record<MarketCategory, SubMarketTrigger[]> = {
-  tech: [
-    {
-      eventType: 'announcement',
-      spawnProbability: 0.8,
-      childTimeframe: 'intraday',
-      questionTemplate:
-        'Will {org} stock move more than {threshold}% following the announcement?',
-      topicSourceVar: 'org',
-    },
-    {
-      eventType: 'keynote_start',
-      spawnProbability: 0.9,
-      childTimeframe: 'flash',
-      questionTemplate:
-        'Will {actor} announce a new product in the first 30 minutes?',
-      topicSourceVar: 'actor',
-    },
-    {
-      eventType: 'product_leak',
-      spawnProbability: 0.6,
-      childTimeframe: 'daily',
-      questionTemplate: 'Will {org} confirm or deny the leak within 24 hours?',
-      topicSourceVar: 'org',
-    },
-    {
-      eventType: 'earnings_scheduled',
-      spawnProbability: 0.95,
-      childTimeframe: 'daily',
-      questionTemplate: 'Will {org} beat earnings estimates?',
-      topicSourceVar: 'org',
-    },
-  ],
-
-  crypto: [
-    {
-      eventType: 'price_breakout',
-      spawnProbability: 0.7,
-      childTimeframe: 'flash',
-      questionTemplate:
-        'Will {ticker} hold above {price} for the next 15 minutes?',
-      topicSourceVar: 'ticker',
-    },
-    {
-      eventType: 'whale_movement',
-      spawnProbability: 0.5,
-      childTimeframe: 'intraday',
-      questionTemplate: 'Will {ticker} move more than 5% in the next 4 hours?',
-      topicSourceVar: 'ticker',
-    },
-    {
-      eventType: 'protocol_upgrade',
-      spawnProbability: 0.8,
-      childTimeframe: 'daily',
-      questionTemplate: 'Will the {protocol} upgrade complete without issues?',
-      topicSourceVar: 'protocol',
-    },
-  ],
-
-  politics: [
-    {
-      eventType: 'vote_scheduled',
-      spawnProbability: 0.9,
-      childTimeframe: 'intraday',
-      questionTemplate: 'Will the bill pass the {chamber} vote?',
-      topicSourceVar: 'chamber',
-    },
-    {
-      eventType: 'debate',
-      spawnProbability: 0.8,
-      childTimeframe: 'flash',
-      questionTemplate:
-        'Will {candidate} mention {topic} in the first 30 minutes?',
-      topicSourceVar: 'candidate',
-    },
-    {
-      eventType: 'poll_release',
-      spawnProbability: 0.6,
-      childTimeframe: 'daily',
-      questionTemplate:
-        'Will {candidate} lead in the next major poll released?',
-      topicSourceVar: 'candidate',
-    },
-  ],
-
-  sports: [
-    {
-      eventType: 'game_start',
-      spawnProbability: 1.0,
-      childTimeframe: 'flash',
-      questionTemplate: 'Will {team} score first?',
-      topicSourceVar: 'team',
-    },
-    {
-      eventType: 'halftime',
-      spawnProbability: 0.9,
-      childTimeframe: 'flash',
-      questionTemplate: 'Will {team} win the second half?',
-      topicSourceVar: 'team',
-    },
-    {
-      eventType: 'injury_report',
-      spawnProbability: 0.7,
-      childTimeframe: 'daily',
-      questionTemplate: 'Will {player} play in the next game?',
-      topicSourceVar: 'player',
-    },
-  ],
-
-  business: [
-    {
-      eventType: 'merger_rumor',
-      spawnProbability: 0.7,
-      childTimeframe: 'weekly',
-      questionTemplate:
-        'Will {org1} and {org2} confirm merger talks this week?',
-      topicSourceVar: 'org1',
-    },
-    {
-      eventType: 'ipo_filing',
-      spawnProbability: 0.8,
-      childTimeframe: 'monthly',
-      questionTemplate: 'Will {company} price above ${price} per share?',
-      topicSourceVar: 'company',
-    },
-    {
-      eventType: 'ceo_resignation',
-      spawnProbability: 0.6,
-      childTimeframe: 'daily',
-      questionTemplate: 'Will {org} announce a replacement within 48 hours?',
-      topicSourceVar: 'org',
-    },
-  ],
-
-  entertainment: [
-    {
-      eventType: 'awards_ceremony',
-      spawnProbability: 0.9,
-      childTimeframe: 'flash',
-      questionTemplate: 'Will {nominee} win {award}?',
-      topicSourceVar: 'nominee',
-    },
-    {
-      eventType: 'release_weekend',
-      spawnProbability: 0.8,
-      childTimeframe: 'intraday',
-      questionTemplate:
-        'Will {movie} gross over ${amount}M in opening weekend?',
-      topicSourceVar: 'movie',
-    },
-  ],
-
-  science: [
-    {
-      eventType: 'launch_window',
-      spawnProbability: 0.9,
-      childTimeframe: 'flash',
-      questionTemplate: 'Will the {mission} launch successfully?',
-      topicSourceVar: 'mission',
-    },
-    {
-      eventType: 'fda_decision',
-      spawnProbability: 0.85,
-      childTimeframe: 'daily',
-      questionTemplate: 'Will {drug} receive FDA approval?',
-      topicSourceVar: 'drug',
-    },
-  ],
-
-  general: [
-    {
-      eventType: 'breaking_news',
-      spawnProbability: 0.5,
-      childTimeframe: 'intraday',
-      questionTemplate: 'Will this story develop further in the next 6 hours?',
-    },
-  ],
-};
-
-// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 
@@ -631,56 +426,6 @@ export function getStateBoundaries(
 }
 
 /**
- * Check if an event should spawn a sub-market
- *
- * @param eventType - The type of event that occurred
- * @param category - The market category
- * @param parentTimeframe - The parent market's timeframe
- * @param randomValue - Optional random value (0-1) for deterministic testing. Defaults to Math.random().
- */
-export function shouldSpawnSubMarket(
-  eventType: string,
-  category: MarketCategory,
-  parentTimeframe: MarketTimeframe,
-  randomValue?: number
-): SubMarketTrigger | null {
-  const config = TIMEFRAME_CONFIGS[parentTimeframe];
-
-  if (!config.canSpawnChildren) {
-    return null;
-  }
-
-  const triggers = SUB_MARKET_TRIGGERS[category] ?? [];
-  const matchingTrigger = triggers.find((t) => t.eventType === eventType);
-
-  if (!matchingTrigger) {
-    return null;
-  }
-
-  // Check if child timeframe is allowed
-  if (!config.childTimeframes.includes(matchingTrigger.childTimeframe)) {
-    return null;
-  }
-
-  // Check probability
-  const rand = randomValue ?? Math.random();
-  if (rand > matchingTrigger.spawnProbability) {
-    logger.debug(
-      `Sub-market spawn skipped (probability check failed)`,
-      {
-        eventType,
-        category,
-        probability: matchingTrigger.spawnProbability,
-      },
-      'MarketTimeframes'
-    );
-    return null;
-  }
-
-  return matchingTrigger;
-}
-
-/**
  * Get event cooldown for a timeframe
  */
 export function getEventCooldownMs(timeframe: MarketTimeframe): number {
@@ -764,24 +509,6 @@ export class MarketTimeframeService {
     timeframe: MarketTimeframe
   ): Array<{ state: string; start: Date; end: Date }> {
     return getStateBoundaries(startTime, endTime, timeframe);
-  }
-
-  shouldSpawnSubMarket(
-    eventType: string,
-    category: MarketCategory,
-    parentTimeframe: MarketTimeframe,
-    randomValue?: number
-  ): SubMarketTrigger | null {
-    return shouldSpawnSubMarket(
-      eventType,
-      category,
-      parentTimeframe,
-      randomValue
-    );
-  }
-
-  getTriggers(category: MarketCategory): SubMarketTrigger[] {
-    return SUB_MARKET_TRIGGERS[category] ?? [];
   }
 }
 

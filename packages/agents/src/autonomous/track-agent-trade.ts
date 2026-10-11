@@ -1,6 +1,6 @@
 /**
  * Server-side PostHog tracking for agent trades.
- * Used by AutonomousTradingService, AutonomousA2AService, and MultiStepExecutor
+ * Used by AutonomousTradingService and MultiStepExecutor
  * when running in the Next.js app (e.g. cron); no-ops when NEXT_PUBLIC_POSTHOG_PROJECT_ID is not set.
  * Environment properties match apps/web/src/lib/posthog/server.ts for consistent filtering.
  */

@@ -192,11 +192,6 @@ export {
   type PortfolioPosition,
   type RebalanceAction,
 } from './npc/npc-investment-manager';
-// NPC Portfolio Strategy
-export {
-  NPCPortfolioStrategy,
-  type StrategyConfig,
-} from './npc/npc-portfolio-strategy';
 // NPC Portfolio Metrics (shared calculation utilities)
 export {
   buildFallbackMetricsByPool,
@@ -222,19 +217,6 @@ export {
   type ParseResult,
   parsePostId,
 } from './post-id-parser';
-// Concentrated Liquidity
-export {
-  type AddPositionParams,
-  ConcentratedLiquidityPool,
-  type ConcentratedPosition,
-  type ConcentratedTradeResult,
-  calculateOptimalRange,
-  createPoolFromMarket,
-  estimateFeeAPR,
-  type PoolConfig,
-  type PoolState,
-  type RemovePositionResult,
-} from './prediction-concentrated-liquidity';
 // Prompts
 export * from './prompts';
 // Question Manager

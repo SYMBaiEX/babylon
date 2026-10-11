@@ -163,7 +163,6 @@ src/
 │   ├── index.ts                              # Exports
 │   ├── AutonomousCoordinator.ts             # Main orchestrator ⭐
 │   ├── AutonomousBatchResponseService.ts    # Batch processing ⭐
-│   ├── AutonomousA2AService.ts              # A2A integration
 │   ├── AutonomousTradingService.ts
 │   ├── AutonomousPostingService.ts
 │   ├── AutonomousCommentingService.ts

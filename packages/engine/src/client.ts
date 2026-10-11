@@ -27,19 +27,6 @@ export {
   calculatePerpPositionMarketValue,
   toNumber,
 } from './portfolio-valuation';
-// Concentrated Liquidity (pure math)
-export {
-  type AddPositionParams,
-  ConcentratedLiquidityPool,
-  type ConcentratedPosition,
-  type ConcentratedTradeResult,
-  calculateOptimalRange,
-  createPoolFromMarket,
-  estimateFeeAPR,
-  type PoolConfig,
-  type PoolState,
-  type RemovePositionResult,
-} from './prediction-concentrated-liquidity';
 // Reputation calculations that are pure functions (no DB)
 // Import directly from the pnl-normalizer file to avoid pulling in server-side deps from the barrel export
 export {

@@ -70,7 +70,6 @@ export * from './perp-price-impact-port';
 export * from './prediction-market-profiles';
 export * from './price-update-service';
 export * from './signal-extraction-service';
-export * from './sub-market-service'; // Sub-market spawning
 export * from './timeframe-arc-planner'; // Compressed arc planning for timeframe markets
 export * from './timeframe-arc-processor'; // Time-based arc state machine
 
@@ -91,7 +90,6 @@ export * from './npc-character-config';
 export * from './parody-headline-generator';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';
-export * from './story-seed-service';
 // Tag Service
 export {
   type GeneratedTag,
