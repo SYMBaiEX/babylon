@@ -11,11 +11,37 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { logger } from '@feed/shared';
 import { R2StorageClient } from './r2-client';
 
-// MinIO configuration (local development)
-const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
-const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY || 'feed';
-const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY || 'feed_dev_password';
-const MINIO_BUCKET = process.env.MINIO_BUCKET || 'feed-uploads';
+interface S3StorageConfig {
+  endpoint: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+}
+
+/**
+ * S3/MinIO configuration. The docker-compose MinIO defaults are only used
+ * outside production; production must configure every value explicitly (or
+ * use STORAGE_PROVIDER=r2).
+ */
+function resolveS3Config(): S3StorageConfig {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const read = (name: string, devDefault: string): string => {
+    const value = process.env[name];
+    if (value) return value;
+    if (isProduction) {
+      throw new Error(
+        `${name} is required for S3 storage in production (or set STORAGE_PROVIDER=r2)`
+      );
+    }
+    return devDefault;
+  };
+  return {
+    endpoint: read('MINIO_ENDPOINT', 'http://localhost:9000'),
+    accessKeyId: read('MINIO_ACCESS_KEY', 'feed'),
+    secretAccessKey: read('MINIO_SECRET_KEY', 'feed_dev_password'),
+    bucket: read('MINIO_BUCKET', 'feed-uploads'),
+  };
+}
 
 interface UploadOptions {
   file: Buffer;
@@ -43,21 +69,21 @@ interface UploadResult {
 }
 
 class S3StorageClient {
-  private client: S3Client | null = null;
-  private bucket!: string;
-  private publicUrl!: string | null;
-  constructor() {
+  private readonly client: S3Client;
+  private readonly bucket: string;
+  private readonly publicUrl: string;
+  constructor(config: S3StorageConfig = resolveS3Config()) {
     this.client = new S3Client({
       region: 'us-east-1',
-      endpoint: MINIO_ENDPOINT,
+      endpoint: config.endpoint,
       credentials: {
-        accessKeyId: MINIO_ACCESS_KEY,
-        secretAccessKey: MINIO_SECRET_KEY,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
       },
       forcePathStyle: true,
     });
-    this.bucket = MINIO_BUCKET;
-    this.publicUrl = MINIO_ENDPOINT;
+    this.bucket = config.bucket;
+    this.publicUrl = config.endpoint.replace(/\/$/, '');
   }
 
   /**
@@ -70,11 +96,6 @@ class S3StorageClient {
     // Generate path/key
     const folder = options.folder || 'uploads';
     const pathname = `${folder}/${options.filename}`;
-
-    // Upload to MinIO/S3
-    if (!this.client) {
-      throw new Error('S3 client not initialized');
-    }
 
     const upload = new Upload({
       client: this.client,
@@ -89,10 +110,7 @@ class S3StorageClient {
 
     await upload.done();
 
-    // Generate public URL
-    const url = this.publicUrl
-      ? `${this.publicUrl}/${this.bucket}/${pathname}`
-      : `http://localhost:9000/${this.bucket}/${pathname}`;
+    const url = `${this.publicUrl}/${this.bucket}/${pathname}`;
 
     logger.info('Image uploaded successfully to MinIO', {
       key: pathname,
@@ -111,19 +129,7 @@ class S3StorageClient {
    * Delete an image file
    */
   async deleteImage(url: string): Promise<void> {
-    // Delete from MinIO/S3
-    if (!this.client) {
-      throw new Error('S3 client not initialized');
-    }
-
-    // Extract key from URL if full URL is provided
-    let key = url;
-    if (url.startsWith('http')) {
-      // URL format: http://localhost:9000/feed-uploads/folder/file.jpg
-      // Extract: folder/file.jpg
-      const urlParts = url.split(`/${this.bucket}/`);
-      key = urlParts.length > 1 ? urlParts[1] || url : url;
-    }
+    const key = this.objectKey(url);
 
     const command = new DeleteObjectCommand({
       Bucket: this.bucket,
@@ -135,10 +141,26 @@ class S3StorageClient {
   }
 
   /**
+   * Object key for a key or a public URL of this store. URLs must point at
+   * this endpoint and bucket.
+   */
+  private objectKey(input: string): string {
+    if (!/^https?:\/\//.test(input)) return input;
+    const url = new URL(input);
+    const base = new URL(`${this.publicUrl}/${this.bucket}/`);
+    if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) {
+      throw new Error('Object URL does not belong to this storage bucket');
+    }
+    const key = decodeURIComponent(url.pathname.slice(base.pathname.length));
+    if (!key) throw new Error('Invalid object key');
+    return key;
+  }
+
+  /**
    * Initialize bucket (for development/MinIO only)
    */
   async initializeBucket(): Promise<void> {
-    await this.client!.send(new CreateBucketCommand({ Bucket: this.bucket }));
+    await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
     logger.info(`Created bucket: ${this.bucket}`);
 
     const policy = {
@@ -153,7 +175,7 @@ class S3StorageClient {
       ],
     };
 
-    await this.client!.send(
+    await this.client.send(
       new PutBucketPolicyCommand({
         Bucket: this.bucket,
         Policy: JSON.stringify(policy),
@@ -167,29 +189,41 @@ class S3StorageClient {
    */
   async listObjects(prefix: string): Promise<string[]> {
     const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
-    const command = new ListObjectsV2Command({
-      Bucket: this.bucket,
-      Prefix: prefix,
-    });
-    const response = await this.client!.send(command);
-    return (response.Contents || []).map((obj) => obj.Key || '');
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+    do {
+      const response = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        })
+      );
+      for (const object of response.Contents ?? []) {
+        if (object.Key) keys.push(object.Key);
+      }
+      continuationToken = response.IsTruncated
+        ? response.NextContinuationToken
+        : undefined;
+    } while (continuationToken);
+    return keys;
   }
 
   /**
    * Check if an object exists
    */
   async exists(key: string): Promise<boolean> {
-    const { HeadObjectCommand } = await import('@aws-sdk/client-s3');
-    if (!this.client) {
-      return false;
+    const { HeadObjectCommand, NotFound } = await import('@aws-sdk/client-s3');
+    try {
+      await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) })
+      );
+      return true;
+    } catch (error) {
+      // Only "not found" means absent; provider failures propagate.
+      if (error instanceof NotFound) return false;
+      throw error;
     }
-    await this.client.send(
-      new HeadObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      })
-    );
-    return true;
   }
 }
 
@@ -207,3 +241,5 @@ export function getStorageClient(): S3StorageClient | R2StorageClient {
 }
 
 export type { UploadOptions, UploadResult };
+
+export { resolveS3Config, S3StorageClient };
