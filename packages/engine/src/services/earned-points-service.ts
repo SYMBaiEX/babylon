@@ -7,6 +7,7 @@
  */
 
 import {
+  type DrizzleClient,
   db,
   eq,
   pointsTransactions,
@@ -170,7 +171,7 @@ export class EarnedPointsService {
     newLifetimePnL: number,
     tradeType: string,
     relatedId?: string,
-    tx?: Transaction
+    tx?: Transaction | DrizzleClient
   ): Promise<number> {
     if (!tx) {
       return withTransaction((transaction) =>

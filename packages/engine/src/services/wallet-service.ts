@@ -389,7 +389,7 @@ export class WalletService {
     pnl: number,
     tradeType: string,
     relatedId?: string,
-    tx?: Transaction
+    tx?: Transaction | DrizzleClient
   ): Promise<{
     previousLifetimePnL: number;
     newLifetimePnL: number;
@@ -402,7 +402,7 @@ export class WalletService {
       );
     }
 
-    const apply = async (transaction: Transaction) => {
+    const apply = async (transaction: Transaction | DrizzleClient) => {
       const [user] = await transaction
         .select({ lifetimePnL: users.lifetimePnL })
         .from(users)
