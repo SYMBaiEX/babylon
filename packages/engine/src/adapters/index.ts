@@ -1,8 +1,7 @@
 /**
- * State store adapters for GameTick.
+ * State store adapters implementing GameStateStore.
  */
 
-export { DbStateStore } from './DbStateStore';
 export {
   InMemoryStateStore,
   type PerpMarket,

@@ -22,7 +22,7 @@ export {
   loadOrganizationById,
 } from './actors-loader';
 // State Store Adapters
-export { DbStateStore, InMemoryStateStore } from './adapters';
+export { InMemoryStateStore } from './adapters';
 // Alpha Group Configuration
 export {
   ALPHA_GROUP_CONFIG,
@@ -111,14 +111,13 @@ export {
   OrganizationBehavior,
   type OrganizationType,
 } from './GameGenerator';
-// Game Tick (canonical tick executor)
+// Game state store contract and tick data types
 export {
   type ActiveMarket,
   type ActiveQuestion,
   type GameActor,
   type GameOrganization,
   type GameStateStore,
-  GameTick,
   type TickConfig,
   type TickResult,
   type TickServices,
