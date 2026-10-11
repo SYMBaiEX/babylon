@@ -885,10 +885,6 @@ export function useTeamChat(): UseTeamChatReturn {
         return next;
       });
 
-      // Get user info for team chat context
-      const ownerName = getUserDisplayName(user, 'User');
-      const ownerUsername = user.username || '';
-
       // Create thinking message IDs for each agent (for tracking)
       const thinkingIds = new Map<string, string>();
 
@@ -935,8 +931,6 @@ export function useTeamChat(): UseTeamChatReturn {
               message: content,
               usePro,
               teamChatId: teamChat.chatId,
-              teamChatOwnerName: ownerName,
-              teamChatOwnerUsername: ownerUsername,
             }),
             signal: controller.signal,
           });
