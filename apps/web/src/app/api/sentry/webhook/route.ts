@@ -7,7 +7,6 @@ const MIN_TIMESTAMP_SKEW_SECONDS = 30;
 const MAX_TIMESTAMP_SKEW_SECONDS = 3600;
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
 
 function parseMaxTimestampSkewSeconds(): number {
   const rawValue = process.env.SENTRY_WEBHOOK_MAX_TIMESTAMP_SKEW_SECONDS;

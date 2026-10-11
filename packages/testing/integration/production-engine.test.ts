@@ -9,7 +9,7 @@
  * standalone GameGenerator which is used for full game pre-generation.
  *
  * **Production Code Path:**
- * 1. `/api/cron/game-tick` is called by Vercel Cron every minute
+ * 1. `/api/cron/game-tick` is called by the Cloudflare cron Worker every minute
  * 2. `bootstrapGameIfNeeded()` ensures game, actors, orgs exist
  * 3. `checkLookaheadStatus()` checks if content buffer is sufficient
  * 4. `generateAheadIfNeeded()` generates 5-minute content windows

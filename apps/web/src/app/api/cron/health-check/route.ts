@@ -19,7 +19,6 @@ import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 async function handler(_request: NextRequest) {

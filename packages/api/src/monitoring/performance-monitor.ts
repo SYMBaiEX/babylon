@@ -4,9 +4,8 @@
  * Tracks:
  * - Redis cache performance (hit/miss rates, latency)
  * - Database query performance (operations, CPU impact)
- * - Storage operations (MinIO/Vercel Blob)
+ * - Storage operations (MinIO/R2)
  * - Memory and CPU usage
- * - Vercel cache effectiveness
  */
 
 import { logger } from '@feed/shared';
@@ -72,11 +71,6 @@ interface PerformanceSnapshot {
   storage: StorageMetrics;
   database: DatabaseMetrics;
   system: SystemMetrics;
-  vercelCache?: {
-    hits: number;
-    misses: number;
-    hitRate: number;
-  };
 }
 
 class PerformanceMonitor {
@@ -116,10 +110,6 @@ class PerformanceMonitor {
   // System metrics
   private requestCount = 0;
   private activeRequests = 0;
-
-  // Vercel cache metrics
-  private vercelCacheHits = 0;
-  private vercelCacheMisses = 0;
 
   /**
    * Record a cache operation
@@ -215,17 +205,6 @@ class PerformanceMonitor {
 
   endRequest(): void {
     this.activeRequests = Math.max(0, this.activeRequests - 1);
-  }
-
-  /**
-   * Record Vercel cache hit/miss
-   */
-  recordVercelCache(hit: boolean): void {
-    if (hit) {
-      this.vercelCacheHits++;
-    } else {
-      this.vercelCacheMisses++;
-    }
   }
 
   /**
@@ -343,16 +322,6 @@ class PerformanceMonitor {
         requestsPerSecond,
       },
     };
-
-    // Add Vercel cache stats if available
-    if (this.vercelCacheHits + this.vercelCacheMisses > 0) {
-      const total = this.vercelCacheHits + this.vercelCacheMisses;
-      snapshot.vercelCache = {
-        hits: this.vercelCacheHits,
-        misses: this.vercelCacheMisses,
-        hitRate: this.vercelCacheHits / total,
-      };
-    }
 
     // Store snapshot
     this.snapshots.push(snapshot);
@@ -582,9 +551,6 @@ class PerformanceMonitor {
 
     this.requestCount = 0;
     this.activeRequests = 0;
-
-    this.vercelCacheHits = 0;
-    this.vercelCacheMisses = 0;
 
     this.snapshots = [];
 

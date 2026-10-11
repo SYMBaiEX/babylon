@@ -33,7 +33,7 @@ export default defineConfig({
   //
   // eliza.ts is listed separately rather than re-exported through index.ts.
   // Keeping it out of the index.ts barrel prevents @elizaos/plugin-sql from being
-  // traced into every Lambda that imports @feed/db (would exceed Vercel 250 MB limit).
+  // traced into every server bundle that imports @feed/db (keeps Worker bundles small).
   schema: ['./src/schema/index.ts', './src/schema/eliza.ts'],
   out: './drizzle/migrations',
   dialect: 'postgresql',

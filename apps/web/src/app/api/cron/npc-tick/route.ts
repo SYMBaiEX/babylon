@@ -99,8 +99,6 @@ interface GameState {
   currentDay: number | null;
 }
 
-// Vercel function configuration
-export const maxDuration = 300; // 5 minutes max for NPC tick
 export const dynamic = 'force-dynamic';
 
 /**
@@ -159,10 +157,10 @@ export const POST = withErrorHandling(async function POST(_req: NextRequest) {
   }
 
   // Acquire global lock to prevent overlapping cron invocations
-  // Duration matches maxDuration (300s) to prevent overlap when ticks take longer than cron interval
+  // 300s lock duration prevents overlap when ticks take longer than cron interval
   const globalLockAcquired = await DistributedLockService.acquireLock({
     lockId: 'npc-tick-global',
-    durationMs: 300 * 1000, // 300 seconds (5 minutes) - matches maxDuration
+    durationMs: 300 * 1000, // 300 seconds (5 minutes)
     operation: 'npc-tick-global',
     processId,
   });

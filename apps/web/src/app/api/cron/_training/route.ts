@@ -34,7 +34,7 @@
  *
  * @example
  * ```typescript
- * // Called by Vercel Cron
+ * // Called by the cron scheduler
  * await fetch('/api/cron/_training', {
  *   headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
  * });

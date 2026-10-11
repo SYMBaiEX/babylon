@@ -364,7 +364,7 @@ export class FeedA2AClient {
    * Execute via A2A message/send with skills
    * Maps a2a.* methods to A2A protocol
    *
-   * On server-side (Vercel serverless), uses direct executor to avoid HTTP self-call issues.
+   * On server-side (serverless), uses direct executor to avoid HTTP self-call issues.
    * On client-side or when A2A protocol is explicitly needed, uses SDK client with HTTP.
    */
   private async executeViaA2A(
@@ -412,7 +412,7 @@ export class FeedA2AClient {
     const operationName = operationMap[action] || action;
 
     // On server-side (Next.js API routes), use direct executor to bypass HTTP
-    // This fixes Vercel serverless 503 errors from self-calls
+    // This avoids serverless 503 errors from self-calls
     const isServerSide = typeof window === 'undefined';
     if (isServerSide) {
       const { FeedAgentExecutor } = await import('@feed/a2a');

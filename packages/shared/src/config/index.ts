@@ -165,13 +165,11 @@ export function getCurrentRpcUrl(): string {
  * Priority order:
  * 0. `window.location.origin` (browser runtime, always accurate)
  * 1. NEXT_PUBLIC_APP_URL (explicit override for all environments)
- * 2. NEXT_PUBLIC_VERCEL_URL or VERCEL_URL (Vercel auto-set for preview/staging/production)
- * 3. http://localhost:3000 (local development fallback)
+ * 2. http://localhost:3000 (local development fallback)
  *
  * This ensures:
  * - Production: Uses feed.fun (via NEXT_PUBLIC_APP_URL)
  * - Staging: Uses staging.feed.fun (via NEXT_PUBLIC_APP_URL)
- * - Preview: Uses unique Vercel URL (e.g., feed-pr-123.vercel.app via VERCEL_URL)
  * - Local: Uses localhost:3000
  */
 function normalizeBaseUrl(input: string): string {
@@ -194,14 +192,7 @@ export function getBaseUrl(): string {
     return normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
   }
 
-  // 2. Vercel auto-set variables (preview/staging/production)
-  const vercelUrl =
-    process.env.NEXT_PUBLIC_VERCEL_URL || process.env.VERCEL_URL;
-  if (vercelUrl) {
-    return normalizeBaseUrl(vercelUrl);
-  }
-
-  // 3. Local development fallback
+  // 2. Local development fallback
   return 'http://localhost:3000';
 }
 

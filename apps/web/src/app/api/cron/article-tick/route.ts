@@ -139,8 +139,6 @@ type ArticleGenerationResult =
   | { status: 'skipped'; reason: string }
   | { status: 'error'; error: string };
 
-// Vercel function configuration
-export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
 
 /**

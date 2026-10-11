@@ -68,7 +68,6 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { snapshotAllUserPnlMetrics } from '@/lib/wallet/pnlHistory';
 
-export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 /**

@@ -83,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           # Use the setup script for consistent database initialization
-          bash scripts/setup-test-db.sh 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          bash scripts/setup-test-db.sh 2>&1 | sed -E 's#(postgres(ql)?://)[^[:space:]]+#\1[REDACTED]#g'
 
       - name: Clean stale .next types before typecheck
         run: rm -rf .next/types
@@ -102,7 +102,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "🏗️ Building production..."
-          bunx turbo build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          bunx turbo build 2>&1 | sed -E 's#(postgres(ql)?://)[^[:space:]]+#\1[REDACTED]#g'
           echo "✅ Build complete"
       
       - name: Verify build artifacts exist

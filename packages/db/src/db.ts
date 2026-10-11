@@ -154,16 +154,11 @@ function getPostgresClientConfig(
   );
 
   // Node serves many concurrent requests in one process; without a bounded pool we'd get
-  // one connection per in-flight query and exhaust Neon/Postgres limits. Pool caps connections
-  // and queues work. Defaults stay small so (instances × pool max) stays within Neon caps.
-  const isPooler =
-    url.includes('pooler') ||
-    url.includes('pgbouncer') ||
-    url.includes('?pgbouncer=true') ||
-    url.includes('?pgbouncer=1') ||
-    url.includes('-pooler.') ||
-    url.includes('pooler.supabase') ||
-    url.includes('transaction-pooler');
+  // one connection per in-flight query and exhaust Postgres max_connections. Pool caps
+  // connections and queues work. Defaults stay small so (instances × pool max) stays within
+  // the server's limits (Railway Postgres, or PgBouncer in front of it).
+  // Generic pooler detection: hostnames/params containing "pooler" or "pgbouncer".
+  const isPooler = url.includes('pooler') || url.includes('pgbouncer');
 
   const envKey =
     role === 'primary' ? 'DATABASE_POOL_MAX' : 'DATABASE_READ_REPLICA_POOL_MAX';
@@ -500,7 +495,7 @@ async function withRetryInternal<T>(
         errorMsg.includes('econnrefused') ||
         errorMsg.includes('econnreset') ||
         errorMsg.includes('etimedout') ||
-        // SSL connection errors common with Neon's pooler (excludes certificate validation errors)
+        // SSL connection errors common with connection poolers (excludes certificate validation errors)
         (errorMsg.includes('ssl') &&
           (errorMsg.includes('connection') ||
             errorMsg.includes('handshake') ||

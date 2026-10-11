@@ -58,9 +58,6 @@ apps/*/.env.local
 .secrets
 .secrets.local
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts

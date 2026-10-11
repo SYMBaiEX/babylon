@@ -69,8 +69,6 @@ import { benchmarkService } from '@feed/training';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 300; // 5 minutes for benchmarking
-
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request);
 

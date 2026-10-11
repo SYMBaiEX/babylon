@@ -3,13 +3,13 @@
  *
  * @description
  * Handles image uploads for user profiles, cover images, and post attachments.
- * Stores raw images - optimization is handled by Vercel's Image Optimization CDN.
+ * Stores raw images - optimization is handled by Cloudflare Images (next/image loader).
  *
  * **Features:**
  * - Rate limiting to prevent abuse
  * - Multi-folder organization (profiles, covers, posts)
  * - Preserves original image format (JPEG, PNG, GIF, WebP)
- * - Vercel Image Optimization for delivery (WebP/AVIF, resizing, caching)
+ * - Cloudflare Images optimization for delivery (WebP/AVIF, resizing, caching)
  *
  * **Supported Image Types:**
  * - profile: User profile avatars
@@ -19,15 +19,11 @@
  * **Storage:**
  * - **Development (USE_LOCAL_STORAGE=true):** Local filesystem `/public/uploads/`
  * - **Development (MinIO):** S3-compatible MinIO container
- * - **Production:** Vercel Blob Storage
+ * - **Production:** Cloudflare R2
  *
  * **Image Optimization:**
- * Images are stored as-is. When displayed via `next/image`, Vercel automatically:
- * - Converts to WebP/AVIF for modern browsers
- * - Resizes to requested dimensions
- * - Caches at the CDN edge globally
- *
- * @see https://vercel.com/docs/image-optimization
+ * Images are stored as-is. When displayed via `next/image`, the Cloudflare
+ * Images binding converts to WebP/AVIF, resizes, and caches at the edge.
  *
  * @openapi
  * /api/upload/image:
@@ -132,7 +128,7 @@ const USE_LOCAL_STORAGE =
   process.env.USE_LOCAL_STORAGE === 'true' &&
   process.env.NODE_ENV === 'development';
 
-// Runtime configuration for Vercel
+// Route segment configuration
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -229,7 +225,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Upload to S3-compatible storage (production or fallback)
-  // Image optimization is handled by Vercel's Image Optimization CDN
+  // Image optimization is handled at delivery time by Cloudflare Images
   const storage = getStorageClient();
   const result = await storage.uploadImage({
     file: buffer,

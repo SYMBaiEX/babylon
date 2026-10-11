@@ -72,9 +72,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     request.headers.get('x-forwarded-host') &&
     request.headers.get('x-forwarded-proto')
       ? `${request.headers.get('x-forwarded-proto')}://${request.headers.get('x-forwarded-host')}`
-      : process.env.NEXT_PUBLIC_BASE_URL ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-        new URL(request.url).origin;
+      : process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
 
   if (streams.has('news')) {
     try {

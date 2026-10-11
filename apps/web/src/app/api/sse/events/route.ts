@@ -12,10 +12,6 @@ import {
 import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 
-// Vercel function configuration
-// Max duration for SSE connections - 300s on Enterprise, 60s on Pro, 10s on Hobby
-export const maxDuration = 300;
-
 // Force dynamic to prevent caching, use nodejs runtime for streaming support
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
