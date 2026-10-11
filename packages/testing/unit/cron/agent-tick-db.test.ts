@@ -166,6 +166,11 @@ mock.module('@feed/agents/services/agent-registry.service', () => ({
 }));
 
 mock.module('@feed/agents/services/agent-lock-service', () => ({
+  withAgentExecutionLease: async <T>(
+    _agentId: string,
+    _processId: string,
+    work: (signal: AbortSignal) => Promise<T>
+  ) => work(new AbortController().signal),
   acquireAgentLock: async () => true,
   releaseAgentLock: async () => {},
 }));

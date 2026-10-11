@@ -11,14 +11,11 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../shared/logger';
-import type { A2AUserWalletResponse } from '../../../types/a2a-responses';
 import type { FeedRuntime } from '../types';
-
-// Type guard for A2A user wallet response
-function isA2AUserWalletResponse(data: object): data is A2AUserWalletResponse {
-  return 'balance' in data && 'positions' in data;
-}
+import {
+  explicitContextUserId,
+  userWalletContextSchema,
+} from './context-contracts';
 
 /**
  * Provider: Query User Wallet
@@ -40,36 +37,16 @@ export const userWalletProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - user wallet provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot query user wallets. Please ensure A2A server is running.',
-      };
     }
 
-    // Extract userId from message content
-    // Look for patterns like "user_123", "@username", or explicit userId mentions
-    const content = message.content?.text || '';
-    let userId: string | null = null;
-
-    // Try to extract user ID from common patterns
-    const userIdMatch =
-      content.match(/user[_\s]?(\w+)/i) ||
-      content.match(/@(\w+)/) ||
-      content.match(/userId[:\s]+(\w+)/i);
-
-    if (userIdMatch) {
-      userId = userIdMatch[1] || null;
-    }
-
-    // If no userId found in message, return error guidance
+    // A display name or a substring of prose is not a canonical account ID.
+    const userId = explicitContextUserId(message);
     if (!userId) {
       return {
-        text: `To query a user's wallet, please specify the user ID or username in your message.
-Example: "Check user_abc123's wallet" or "What positions does @trader have?"`,
+        text: 'To query a wallet, supply its exact account ID as userId: <id>. Resolve usernames to IDs before querying.',
       };
     }
 
@@ -79,33 +56,21 @@ Example: "Check user_abc123's wallet" or "What positions does @trader have?"`,
       { userId }
     );
 
-    // Validate walletData structure using type guard
-    if (
-      !walletData ||
-      typeof walletData !== 'object' ||
-      !isA2AUserWalletResponse(walletData)
-    ) {
-      throw new Error('Invalid wallet data format from A2A client');
-    }
-    const walletTyped = walletData;
-
-    const balance = walletTyped.balance;
-    const positions = walletTyped.positions;
+    const { balance, positions } = userWalletContextSchema.parse(walletData);
 
     const totalPositions =
-      (positions.marketPositions?.length || 0) +
-      (positions.perpPositions?.length || 0);
-    const lifetimePnL = balance.lifetimePnL || 0;
+      positions.marketPositions.length + positions.perpPositions.length;
+    const lifetimePnL = balance.lifetimePnL;
     const isProfitable = lifetimePnL > 0;
 
     return {
       text: `User ${userId}'s Wallet:
 
-💰 Balance: $${balance.balance || 0}
-⭐ Points: ${balance.reputationPoints || 0} pts
+💰 Balance: $${balance.balance}
+⭐ Points: ${balance.reputationPoints} pts
 ${isProfitable ? '📈' : '📉'} Lifetime P&L: ${isProfitable ? '+' : ''}$${lifetimePnL}
-💵 Total Deposited: $${balance.totalDeposited || 0}
-💸 Total Withdrawn: $${balance.totalWithdrawn || 0}
+💵 Total Deposited: $${balance.totalDeposited}
+💸 Total Withdrawn: $${balance.totalWithdrawn}
 
 📊 Open Positions (${totalPositions}):
 
@@ -114,7 +79,7 @@ ${
     ? `🔮 Perpetual Futures (${positions.perpPositions.length}):
 ${positions.perpPositions
   .map((p) => {
-    const amount = p.amount || p.size;
+    const amount = p.amount ?? p.size;
     return `  • ${p.ticker}: ${p.side.toUpperCase()} $${amount} @ ${p.entryPrice} (${p.leverage}x)
     Current: $${p.currentPrice} | P&L: ${p.unrealizedPnL >= 0 ? '+' : ''}$${p.unrealizedPnL}`;
   })
@@ -127,7 +92,7 @@ ${
     ? `🎯 Prediction Markets (${positions.marketPositions.length}):
 ${positions.marketPositions
   .map(
-    (p) => `  • ${p.side} on "${p.question.substring(0, 60)}..."
+    (p) => `  • ${p.side} on "${p.question}"
     ${p.shares.toFixed(2)} shares @ $${p.avgPrice.toFixed(3)} (Current: $${p.currentPrice.toFixed(3)})
     P&L: ${p.unrealizedPnL >= 0 ? '+' : ''}$${p.unrealizedPnL.toFixed(2)}`
   )

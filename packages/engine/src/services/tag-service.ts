@@ -25,6 +25,7 @@ import {
 } from '@feed/db';
 import { generateSnowflakeId, logger } from '@feed/shared';
 import OpenAI from 'openai';
+import { tracedCompletion } from '../llm/traced-completion';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 // =============================================================================
@@ -114,6 +115,8 @@ async function getOpenAIClient(): Promise<OpenAIClient | null> {
     openaiClient = new OpenAI({
       apiKey,
       baseURL,
+      maxRetries: 0,
+      timeout: 60000,
     });
   }
 
@@ -193,24 +196,37 @@ If no good tags, return: <response><tags></tags></response>`;
 
   const model =
     getSurplusConfig()?.model ||
-    (process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-5-nano');
+    (process.env.GROQ_API_KEY
+      ? process.env.GROQ_SMALL_MODEL ||
+        process.env.GROQ_PRIMARY_MODEL ||
+        'llama-3.1-8b-instant'
+      : 'gpt-5-nano');
 
-  const response = await openai.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: 'system',
-        content:
-          'You are an XML-only assistant for tag extraction. You must respond ONLY with valid XML. No JSON, no explanations, no markdown.',
-      },
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    temperature: 0.3,
-    max_tokens: 500,
-  });
+  const response = await tracedCompletion(
+    openai,
+    getSurplusConfig()
+      ? 'surplus'
+      : process.env.GROQ_API_KEY
+        ? 'groq'
+        : 'openai',
+    'tag_generation',
+    {
+      model,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an XML-only assistant for tag extraction. You must respond ONLY with valid XML. No JSON, no explanations, no markdown.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 500,
+    }
+  );
 
   const contentText = response.choices[0]?.message?.content?.trim();
 
@@ -229,18 +245,20 @@ If no good tags, return: <response><tags></tags></response>`;
   }
 
   if (!contentText) {
-    logger.warn(
-      'No content in tag generation response',
-      { content },
-      'TagService'
-    );
-    return [];
+    throw new Error('Tag generation returned empty content');
   }
 
   const xmlContent = contentText
     .replace(/```xml\n?/g, '')
     .replace(/```\n?/g, '')
     .trim();
+
+  if (
+    !/<tags(?:\s[^>]*)?>[\s\S]*?<\/tags>/.test(xmlContent) &&
+    !/<tags\s*\/>/.test(xmlContent)
+  ) {
+    throw new Error('Tag generation returned malformed XML');
+  }
 
   const parsedTags: Array<{ displayName: string; category?: string }> = [];
 

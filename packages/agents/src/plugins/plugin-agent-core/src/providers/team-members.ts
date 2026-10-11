@@ -41,8 +41,15 @@ export const teamMembersProvider: Provider = {
     _message: Memory,
     state: State
   ): Promise<ProviderResult> => {
-    const agentId = runtime.agentId;
-    const teamChatId = state?.values?.teamChatId as string | undefined;
+    const agentId =
+      typeof _message.content.agentId === 'string'
+        ? _message.content.agentId
+        : runtime.agentId;
+    const teamChatId = (
+      typeof _message.content.teamChatId === 'string'
+        ? _message.content.teamChatId
+        : state?.values?.teamChatId
+    ) as string | undefined;
 
     // If no team chat ID, return empty (not in team chat mode)
     if (!teamChatId) {
@@ -130,18 +137,7 @@ export const teamMembersProvider: Provider = {
         error instanceof Error ? error : { error },
         'TeamMembers'
       );
-      return {
-        data: {
-          teamMembers: [],
-          memberCount: 0,
-        },
-        values: {
-          teamMembers: 'Error retrieving team members.',
-          memberCount: 0,
-          hasTeamMembers: false,
-        },
-        text: 'Error retrieving team members.',
-      };
+      throw error;
     }
   },
 };

@@ -191,11 +191,13 @@ export function truncateToTokenLimitSync(
  * Model-specific INPUT CONTEXT token limits
  *
  * @description Defines input context token limits for various LLM models.
- * Note: Output limits are separate from input limits on modern models.
+ * Context windows include both input and generated output tokens.
  * See individual model comments for output limits.
  */
 export const MODEL_TOKEN_LIMITS: Record<string, number> = {
   // OpenAGI (input context)
+  'qwen3-32b': 32768,
+  'gpt-6-luna': 1050000,
   'gpt-5.1': 128000, // 128k input, separate output limit
   'gpt-5-nano': 128000, // 128k input, separate output limit
   'gpt-5.1-turbo': 128000,
@@ -278,14 +280,26 @@ export function getModelTokenLimit(model: string): number {
  */
 export function getSafeContextLimit(
   model: string,
-  _outputTokens = 8000, // Kept for API compatibility, but input/output are separate
-  safetyMargin = 0.02 // Reduced from 10% to 2% - input/output are separate on modern models
+  outputTokens = 8000,
+  safetyMargin = 0.02
 ): number {
-  const inputLimit = getModelTokenLimit(model);
-  // Apply minimal safety margin to input context (most models have separate input/output limits)
-  const safeLimit = Math.floor(inputLimit * (1 - safetyMargin));
-
-  return Math.max(1000, safeLimit); // Minimum 1000 tokens
+  const contextLimit = getModelTokenLimit(model);
+  if (
+    !Number.isSafeInteger(outputTokens) ||
+    outputTokens < 0 ||
+    !Number.isFinite(safetyMargin) ||
+    safetyMargin < 0 ||
+    safetyMargin >= 1
+  ) {
+    throw new Error('Invalid model token budget');
+  }
+  const available =
+    Math.floor(contextLimit * (1 - safetyMargin)) - outputTokens;
+  if (available <= 0)
+    throw new Error(
+      `No input context remains for ${model} after reserving ${outputTokens} output tokens`
+    );
+  return available;
 }
 
 /**

@@ -202,7 +202,7 @@ describe('Agent LLM Provider', () => {
       expect(result).toBe('Trader response');
     });
 
-    it('falls back to base model if archetype model not found', async () => {
+    it('fails when the required archetype model is unavailable', async () => {
       process.env.AGENT_LLM_PROVIDER = 'ollama';
       process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
 
@@ -234,12 +234,9 @@ describe('Agent LLM Provider', () => {
       });
 
       const { callAgentLLM } = await import('../agent-llm');
-      const result = await callAgentLLM({
-        prompt: 'Trade decision',
-        archetype: 'trader',
-      });
-
-      expect(result).toBe('Fallback response');
+      await expect(
+        callAgentLLM({ prompt: 'Trade decision', archetype: 'trader' })
+      ).rejects.toThrow('Required Ollama model is unavailable');
     });
   });
 

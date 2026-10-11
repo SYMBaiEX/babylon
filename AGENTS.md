@@ -11,7 +11,8 @@ for these files: the `.ruler/` sources are older, and Ruler overwrites
 
 ## Slop bounty rules
 
-Feed is a featured [Slop](https://slop.cash) bounty repository. Read
+Feed is registered as a featured [Slop](https://slop.cash) bounty repository;
+the program is paused pending activation. Read
 [CONTRIBUTING.md](CONTRIBUTING.md) before you select work. Summary:
 
 1. **Star and fork first.** Star and fork `feedforagents/feed` with the
@@ -212,9 +213,10 @@ query is safe without runtime evidence (`EXPLAIN (ANALYZE)`,
   `idle_in_transaction_session_timeout` on new connections (tunable by env).
 - **DDL.** `CREATE INDEX` on large tables blocks writes unless you use
   `CONCURRENTLY`, which cannot run inside a transaction. Drizzle migrations
-  block by default. Migrations 0055 and 0056 use blocking indexes. This is
-  acceptable below about 100k rows; rewrite them with `CONCURRENTLY` before the
-  tables grow past that.
+  block by default. The fresh baseline (`0000_fresh_baseline`) runs against
+  an empty database, so its blocking indexes are fine. Later indexes on
+  populated tables must use `CONCURRENTLY` in a hand-written migration outside
+  a transaction.
 - **Observability.** Enable `pg_stat_statements`. Watch `pg_locks` and
   `pg_stat_activity`. Alert on slow queries and connection saturation.
 - **Read path.** Route read-heavy, latency-tolerant queries through

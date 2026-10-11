@@ -20,7 +20,7 @@
  * the key is absent but provide stronger coverage with it.
  */
 
-import { describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import {
   ContentQualityGate,
   cosineSimilarity,
@@ -28,6 +28,19 @@ import {
   getEmbedding,
   validateGrounding,
 } from '@feed/engine';
+
+const embeddingKeys = ['OPENAI_API_KEY', 'ELIZACLOUD_API_KEY'] as const;
+const savedEmbeddingKeys = embeddingKeys.map((key) => process.env[key]);
+beforeAll(() => {
+  for (const key of embeddingKeys) delete process.env[key];
+});
+afterAll(() => {
+  embeddingKeys.forEach((key, i) => {
+    const value = savedEmbeddingKeys[i];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  });
+});
 
 // ─── Helper: check if embeddings are available ──────────────────────────────
 

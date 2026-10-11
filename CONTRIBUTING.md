@@ -1,7 +1,12 @@
 # Contributing to Feed
 
-Feed is a featured [Slop](https://slop.cash) bounty repository. The Slop pool for
-this repository is $1,000 per month. Read this whole file before you select work.
+Feed is registered as a featured [Slop](https://slop.cash) bounty repository
+with a pledged $1,000 monthly pool. The program is paused pending authority,
+license, inbound-terms verification, and maintainer activation; merging the
+authority proof alone does not activate rewards. See the
+[registration proposal](https://github.com/SlopDotCash/slopdotcash/pull/645)
+and current [project status](https://slop.cash/projects/feed).
+Read this whole file before you select work.
 
 Short rules:
 

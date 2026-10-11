@@ -171,8 +171,10 @@ async function countActiveMainMarkets(): Promise<number> {
 // ============ TEST SETUP ============
 
 let dbAvailable = false;
+const originalCronSecret = process.env.CRON_SECRET;
 
 beforeAll(async () => {
+  process.env.CRON_SECRET = originalCronSecret || 'integration-test-cron';
   try {
     // Verify database connection
     await db.execute(sql`SELECT 1`);
@@ -203,6 +205,8 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  if (originalCronSecret === undefined) delete process.env.CRON_SECRET;
+  else process.env.CRON_SECRET = originalCronSecret;
   if (dbAvailable) {
     await cleanupTestData();
   }

@@ -1,3 +1,4 @@
+import { trendingContextSchema } from './context-contracts';
 /**
  * Trending Topics Provider
  * Provides current trending tags and topics via A2A protocol
@@ -10,7 +11,6 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../shared/logger';
 import type { FeedRuntime } from '../types';
 
 /**
@@ -31,31 +31,14 @@ export const trendingTopicsProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - trending topics provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot fetch trending topics. Please ensure A2A server is running.',
-      };
     }
 
     // Get trending tags via A2A
     const trendingResult = await feedRuntime.a2aClient.getTrendingTags(20);
-    const tags =
-      (
-        trendingResult as {
-          tags?: Array<{
-            id: string;
-            name: string;
-            displayName?: string;
-            category?: string;
-            postCount?: number;
-            score?: number;
-          }>;
-        }
-      )?.tags || [];
+    const { tags } = trendingContextSchema.parse(trendingResult);
 
     if (tags.length === 0) {
       return { text: 'No trending topics available.' };
