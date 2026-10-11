@@ -9,6 +9,7 @@
  *   scambench-seed - Seed a ScamBench scenario into Feed chats
  */
 
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { getOption, parseArgs, wantsHelp } from '../lib/args.js';
@@ -68,8 +69,7 @@ function resolveDefaultCatalogPath(): string {
   ];
 
   return (
-    candidates.find((candidate) => Bun.file(candidate).exists()) ??
-    candidates[0]!
+    candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]!
   );
 }
 

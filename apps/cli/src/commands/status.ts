@@ -10,6 +10,7 @@
  *   all     - Show all status (default)
  */
 
+import { execFileSync } from 'node:child_process';
 import { getAgentLLMStatus } from '@feed/agents/llm';
 import {
   actorState,
@@ -28,7 +29,6 @@ import {
   worldEvents,
 } from '@feed/db';
 import { StaticDataRegistry } from '@feed/engine';
-import { execSync } from 'child_process';
 import { ethers } from 'ethers';
 import { parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
@@ -311,8 +311,18 @@ async function checkAgent0Status(): Promise<void> {
       console.log(`   Token ID: ${tokenId}`);
 
       try {
-        const owner = execSync(
-          `cast call ${registryAddress} "ownerOf(uint256)(address)" ${tokenId} --rpc-url ${rpcUrl}`,
+        // Pass values as argv (no shell) so env-provided RPC URLs and addresses
+        // cannot inject shell syntax.
+        const owner = execFileSync(
+          'cast',
+          [
+            'call',
+            registryAddress,
+            'ownerOf(uint256)(address)',
+            String(tokenId),
+            '--rpc-url',
+            rpcUrl,
+          ],
           { encoding: 'utf-8' }
         ).trim();
 
@@ -328,8 +338,16 @@ async function checkAgent0Status(): Promise<void> {
           logger.warn('Owner does NOT match FEED_GAME_WALLET_ADDRESS');
         }
 
-        const tokenURI = execSync(
-          `cast call ${registryAddress} "tokenURI(uint256)(string)" ${tokenId} --rpc-url ${rpcUrl}`,
+        const tokenURI = execFileSync(
+          'cast',
+          [
+            'call',
+            registryAddress,
+            'tokenURI(uint256)(string)',
+            String(tokenId),
+            '--rpc-url',
+            rpcUrl,
+          ],
           { encoding: 'utf-8' }
         )
           .trim()
