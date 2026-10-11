@@ -298,11 +298,18 @@ export async function generateEvents(
       const arcPlan = await getArcPlan(question.id);
       if (arcPlan) {
         phase = getPhaseForDay(currentDay, arcPlan);
-        // Events don't have an actor, so pass empty string
-        // Use question.outcome if available, default to true
-        const outcome = question.outcome ?? true;
-        const signal = getSignalDirection(arcPlan, phase, '', outcome);
-        pointsToward = signal.direction === 'NEUTRAL' ? null : signal.direction;
+        // Events don't have an actor, so pass empty string.
+        // Without a known outcome there is no truthful direction: leave
+        // pointsToward null instead of inventing a YES outcome.
+        const outcome = question.outcome;
+        if (typeof outcome === 'boolean') {
+          pointsToward = getSignalDirection(
+            arcPlan,
+            phase,
+            '',
+            outcome
+          ).direction;
+        }
 
         logger.debug(
           'Event signal direction determined',
