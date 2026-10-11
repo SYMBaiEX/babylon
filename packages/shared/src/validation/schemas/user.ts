@@ -5,10 +5,8 @@
 import { z } from 'zod';
 import {
   AssetOrUrlSchema,
-  createQueryBooleanSchema,
   createTrimmedStringSchema,
   EmailSchema,
-  PaginationSchema,
   SnowflakeIdSchema,
   URLSchema,
   UsernameSchema,
@@ -246,6 +244,7 @@ export const UserPostsQuerySchema = z.object({
 /**
  * User followers/following query schema
  */
-export const UserFollowersQuerySchema = PaginationSchema.extend({
-  includeMutual: createQueryBooleanSchema(false),
+export const UserFollowersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
 });
