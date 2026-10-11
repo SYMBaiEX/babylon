@@ -70,13 +70,15 @@ export function resolvePerpTicker(
       );
     };
 
-    const partial = allOrgs.find((org) => {
-      return (
+    // Only a UNIQUE prefix match is accepted: picking the first of several
+    // candidates would route a trade to a guessed market.
+    const partials = allOrgs.filter(
+      (org) =>
         matchesPrefix(org.ticker) ||
         matchesPrefix(org.name) ||
         matchesPrefix(org.originalName)
-      );
-    });
+    );
+    const partial = partials.length === 1 ? partials[0] : undefined;
 
     if (partial?.ticker) {
       return {
