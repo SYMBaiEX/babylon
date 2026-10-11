@@ -189,11 +189,11 @@ export function LeaderboardWidgetSidebar({
       : (selectedUser?.effectiveCapitalBase ?? 0)
     : 0;
 
-  const primaryLifetimePnL = isTradingView
-    ? isTeamView
-      ? (selectedUser?.teamLifetimePnL ?? selectedUser?.lifetimePnL ?? 0)
-      : (selectedUser?.lifetimePnL ?? 0)
-    : 0;
+  // Lifetime P&L is shown for every metric, so it must not depend on the
+  // sort metric (it was forced to 0 for the reputation view).
+  const primaryLifetimePnL = isTeamView
+    ? (selectedUser?.teamLifetimePnL ?? selectedUser?.lifetimePnL ?? 0)
+    : (selectedUser?.lifetimePnL ?? 0);
 
   return (
     <div ref={containerRef} className="hidden w-96 shrink-0 flex-col xl:flex">
