@@ -5,7 +5,15 @@
  * discovery, and trust verification integrated with CommunicationHub.
  */
 
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from 'bun:test';
 import { CommunicationHub } from '../communication/CommunicationHub';
 import { getEventBus } from '../communication/EventBus';
 import {
@@ -23,13 +31,28 @@ type MockFetchFn = ((
   mockResolvedValueOnce: (value: Response) => MockFetchFn;
   mockImplementation: (fn: (url: string) => Promise<Response>) => MockFetchFn;
   mockClear: () => void;
+  mockReset: () => void;
 };
 
-// Mock fetch globally
+// Mock fetch for this file only; restored in afterAll so other suites in the
+// same process see the real fetch.
+const originalFetch = global.fetch;
+const defaultFetchResponse = () => Promise.resolve(new Response());
 const mockFetchFn = mock<
   (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
->(() => Promise.resolve(new Response())) as MockFetchFn;
+>(defaultFetchResponse) as MockFetchFn;
 global.fetch = mockFetchFn;
+
+// Reset implementation AND queued once-responses between tests (mockClear
+// only clears call history).
+beforeEach(() => {
+  mockFetchFn.mockReset();
+  mockFetchFn.mockImplementation(defaultFetchResponse);
+});
+
+afterAll(() => {
+  global.fetch = originalFetch;
+});
 
 // Create chainable mock for Drizzle query builder API
 const createChainableMock = (
@@ -94,7 +117,6 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
 
   beforeEach(() => {
     adapter = new ExternalAgentAdapter();
-    mockFetchFn.mockClear();
   });
 
   afterEach(() => {
@@ -423,7 +445,6 @@ describe('CommunicationHub - Streaming and Context Support', () => {
   beforeEach(() => {
     const eventBus = getEventBus();
     hub = new CommunicationHub(eventBus);
-    mockFetchFn.mockClear();
   });
 
   afterEach(() => {
@@ -525,21 +546,18 @@ describe('CommunicationHub - Streaming and Context Support', () => {
   });
 });
 
-describe('End-to-End Integration', () => {
+// Mocked transport: exercises the adapter's verify + authenticated send path.
+// Messages are sent through the adapter directly, not routed via the hub.
+describe('ExternalAgentAdapter mocked A2A workflow', () => {
   let adapter: ExternalAgentAdapter;
-  let hub: CommunicationHub;
 
   beforeEach(() => {
     adapter = new ExternalAgentAdapter();
-    const eventBus = getEventBus();
-    hub = new CommunicationHub(eventBus);
-    mockFetchFn.mockClear();
   });
 
   afterEach(() => {
     adapter.stopHealthChecks();
     adapter.shutdown();
-    hub.clearHistory();
   });
 
   it('should handle complete A2A workflow with authentication and trust', async () => {
@@ -603,7 +621,7 @@ describe('End-to-End Integration', () => {
     const connection = adapter.getConnectionStatus('external-agent-1');
     expect(connection?.trustScore).toBeGreaterThanOrEqual(60);
 
-    // Send authenticated message via CommunicationHub
+    // Send authenticated message through the adapter
     const response = await adapter.sendMessage('external-agent-1', {
       type: 'analysis-request',
       content: { data: 'test' },
