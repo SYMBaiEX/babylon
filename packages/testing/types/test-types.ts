@@ -105,41 +105,6 @@ export interface MetaMask {
 // Note: ApiResponse is now exported from src/types/common.ts
 // Import it from there: import type { ApiResponse } from '@/types/common';
 
-export interface PerpetualsData {
-  positions: Array<{
-    id: string;
-    ticker?: string;
-    side: string;
-    unrealizedPnL: number;
-  }>;
-  stats: {
-    totalPositions: number;
-    totalPnL: number;
-    totalFunding: number;
-  };
-}
-
-export interface PredictionsData {
-  positions: Array<{
-    id: string;
-    side: string;
-    unrealizedPnL: number;
-  }>;
-  stats: {
-    totalPositions: number;
-  };
-}
-
-export interface PositionsResponse {
-  perpetuals: PerpetualsData;
-  predictions: PredictionsData;
-}
-
-export type PartialPositionsResponse = {
-  perpetuals?: PerpetualsData | null;
-  predictions?: PredictionsData | undefined;
-};
-
 // ============================================================================
 // Actors Index Types (deprecated - kept for backwards compatibility)
 // Note: Data is now stored in TypeScript files, not JSON
