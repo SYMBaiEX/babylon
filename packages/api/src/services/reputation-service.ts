@@ -25,6 +25,7 @@ import {
   pointsTransactions,
   referrals,
   sql,
+  type Transaction,
   users,
 } from '@feed/db';
 import { StaticDataRegistry } from '@feed/engine';
@@ -124,161 +125,179 @@ export class ReputationService {
     reason: PointsReason,
     metadata?: Record<string, JsonValue>
   ): Promise<AwardReputationResult> {
-    if (!Number.isSafeInteger(amount))
-      throw new Error('Reputation award amount must be a finite integer');
-    return db.transaction(async (tx) => {
-      // Lock the row before reading counters or one-time award flags.
-      const userResult = await tx
-        .select({
-          reputationPoints: users.reputationPoints,
-          invitePoints: users.invitePoints,
-          earnedPoints: users.earnedPoints,
-          bonusPoints: users.bonusPoints,
-          pointsAwardedForProfile: users.pointsAwardedForProfile,
-          pointsAwardedForTwitter: users.pointsAwardedForTwitter,
-          pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
-          pointsAwardedForDiscord: users.pointsAwardedForDiscord,
-          pointsAwardedForDiscordJoin: users.pointsAwardedForDiscordJoin,
-          pointsAwardedForWallet: users.pointsAwardedForWallet,
-          pointsAwardedForReferralBonus: users.pointsAwardedForReferralBonus,
-          pointsAwardedForShare: users.pointsAwardedForShare,
-          pointsAwardedForPrivateGroup: users.pointsAwardedForPrivateGroup,
-          pointsAwardedForPrivateChannel: users.pointsAwardedForPrivateChannel,
-          pointsAwardedForTelegram: users.pointsAwardedForTelegram,
-        })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1)
-        .for('update');
-
-      const user = userResult[0];
-
-      if (!user) {
-        return buildAwardReputationResult(0, 0, {
-          success: false,
-          error: 'User not found',
-        });
-      }
-
-      // Check if reputation was already awarded for this reason
-      const alreadyAwarded = ReputationService.checkAlreadyAwarded(
-        user,
-        reason
-      );
-      if (alreadyAwarded) {
-        return buildAwardReputationResult(0, user.reputationPoints, {
-          alreadyAwarded: true,
-        });
-      }
-
-      for (const value of [
-        user.reputationPoints,
-        user.invitePoints,
-        user.bonusPoints,
-      ]) {
-        if (!Number.isSafeInteger(value))
-          throw new Error(`Invalid reputation counters for ${userId}`);
-      }
-      const reputationBefore = user.reputationPoints;
-      const reputationAfter = reputationBefore + amount;
-
-      // Build update data
-      const updateData: Partial<{
-        reputationPoints: number;
-        invitePoints: number;
-        bonusPoints: number;
-        pointsAwardedForProfile: boolean;
-        pointsAwardedForTwitter: boolean;
-        pointsAwardedForTwitterFollow: boolean;
-        pointsAwardedForDiscord: boolean;
-        pointsAwardedForDiscordJoin: boolean;
-        pointsAwardedForWallet: boolean;
-        pointsAwardedForReferralBonus: boolean;
-        pointsAwardedForShare: boolean;
-        pointsAwardedForPrivateGroup: boolean;
-        pointsAwardedForPrivateChannel: boolean;
-        pointsAwardedForTelegram: boolean;
-      }> = {
-        reputationPoints: reputationAfter,
-      };
-
-      // Set the appropriate tracking flag and update the correct reputation bucket.
-      switch (reason) {
-        case 'referral_signup':
-          updateData.invitePoints = user.invitePoints + amount;
-          break;
-        case 'profile_completion':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForProfile = true;
-          break;
-        case 'twitter_link':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForTwitter = true;
-          break;
-        case 'twitter_follow':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForTwitterFollow = true;
-          break;
-        case 'discord_link':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForDiscord = true;
-          break;
-        case 'discord_join':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForDiscordJoin = true;
-          break;
-        case 'telegram_link':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForTelegram = true;
-          break;
-        case 'wallet_connect':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForWallet = true;
-          break;
-        case 'referral_bonus':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForReferralBonus = true;
-          break;
-        case 'share_action':
-        case 'share_to_twitter':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForShare = true;
-          break;
-        case 'private_group_create':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForPrivateGroup = true;
-          break;
-        case 'private_channel_create':
-          updateData.bonusPoints = user.bonusPoints + amount;
-          updateData.pointsAwardedForPrivateChannel = true;
-          break;
-        default:
-          // For generic reputation rewards, add to bonus points.
-          updateData.bonusPoints = user.bonusPoints + amount;
-          break;
-      }
-
-      // Counter mutation and its ledger entry commit together.
-      await tx.update(users).set(updateData).where(eq(users.id, userId));
-
-      await tx.insert(pointsTransactions).values({
-        id: await generateSnowflakeId(),
+    return db.transaction((tx) =>
+      ReputationService.awardReputationInTx(
+        tx,
         userId,
         amount,
-        pointsBefore: reputationBefore,
-        pointsAfter: reputationAfter,
         reason,
-        metadata: metadata ? JSON.stringify(metadata) : null,
+        metadata
+      )
+    );
+  }
+
+  /**
+   * Transaction-aware award primitive. Locks the user row, checks one-time
+   * flags, updates counters and writes the ledger entry within `tx`, so
+   * callers can combine the award with their own claim in one transaction.
+   */
+  static async awardReputationInTx(
+    tx: Transaction,
+    userId: string,
+    amount: number,
+    reason: PointsReason,
+    metadata?: Record<string, JsonValue>
+  ): Promise<AwardReputationResult> {
+    if (!Number.isSafeInteger(amount))
+      throw new Error('Reputation award amount must be a finite integer');
+    // Lock the row before reading counters or one-time award flags.
+    const userResult = await tx
+      .select({
+        reputationPoints: users.reputationPoints,
+        invitePoints: users.invitePoints,
+        earnedPoints: users.earnedPoints,
+        bonusPoints: users.bonusPoints,
+        pointsAwardedForProfile: users.pointsAwardedForProfile,
+        pointsAwardedForTwitter: users.pointsAwardedForTwitter,
+        pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
+        pointsAwardedForDiscord: users.pointsAwardedForDiscord,
+        pointsAwardedForDiscordJoin: users.pointsAwardedForDiscordJoin,
+        pointsAwardedForWallet: users.pointsAwardedForWallet,
+        pointsAwardedForReferralBonus: users.pointsAwardedForReferralBonus,
+        pointsAwardedForShare: users.pointsAwardedForShare,
+        pointsAwardedForPrivateGroup: users.pointsAwardedForPrivateGroup,
+        pointsAwardedForPrivateChannel: users.pointsAwardedForPrivateChannel,
+        pointsAwardedForTelegram: users.pointsAwardedForTelegram,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+      .for('update');
+
+    const user = userResult[0];
+
+    if (!user) {
+      return buildAwardReputationResult(0, 0, {
+        success: false,
+        error: 'User not found',
       });
+    }
 
-      logger.info(
-        `Awarded ${amount} reputation to user ${userId} for ${reason}`,
-        { userId, amount, reason, reputationBefore, reputationAfter },
-        'ReputationService'
-      );
+    // Check if reputation was already awarded for this reason
+    const alreadyAwarded = ReputationService.checkAlreadyAwarded(user, reason);
+    if (alreadyAwarded) {
+      return buildAwardReputationResult(0, user.reputationPoints, {
+        alreadyAwarded: true,
+      });
+    }
 
-      return buildAwardReputationResult(amount, reputationAfter);
+    for (const value of [
+      user.reputationPoints,
+      user.invitePoints,
+      user.bonusPoints,
+    ]) {
+      if (!Number.isSafeInteger(value))
+        throw new Error(`Invalid reputation counters for ${userId}`);
+    }
+    const reputationBefore = user.reputationPoints;
+    const reputationAfter = reputationBefore + amount;
+
+    // Build update data
+    const updateData: Partial<{
+      reputationPoints: number;
+      invitePoints: number;
+      bonusPoints: number;
+      pointsAwardedForProfile: boolean;
+      pointsAwardedForTwitter: boolean;
+      pointsAwardedForTwitterFollow: boolean;
+      pointsAwardedForDiscord: boolean;
+      pointsAwardedForDiscordJoin: boolean;
+      pointsAwardedForWallet: boolean;
+      pointsAwardedForReferralBonus: boolean;
+      pointsAwardedForShare: boolean;
+      pointsAwardedForPrivateGroup: boolean;
+      pointsAwardedForPrivateChannel: boolean;
+      pointsAwardedForTelegram: boolean;
+    }> = {
+      reputationPoints: reputationAfter,
+    };
+
+    // Set the appropriate tracking flag and update the correct reputation bucket.
+    switch (reason) {
+      case 'referral_signup':
+        updateData.invitePoints = user.invitePoints + amount;
+        break;
+      case 'profile_completion':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForProfile = true;
+        break;
+      case 'twitter_link':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForTwitter = true;
+        break;
+      case 'twitter_follow':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForTwitterFollow = true;
+        break;
+      case 'discord_link':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForDiscord = true;
+        break;
+      case 'discord_join':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForDiscordJoin = true;
+        break;
+      case 'telegram_link':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForTelegram = true;
+        break;
+      case 'wallet_connect':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForWallet = true;
+        break;
+      case 'referral_bonus':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForReferralBonus = true;
+        break;
+      case 'share_action':
+      case 'share_to_twitter':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForShare = true;
+        break;
+      case 'private_group_create':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForPrivateGroup = true;
+        break;
+      case 'private_channel_create':
+        updateData.bonusPoints = user.bonusPoints + amount;
+        updateData.pointsAwardedForPrivateChannel = true;
+        break;
+      default:
+        // For generic reputation rewards, add to bonus points.
+        updateData.bonusPoints = user.bonusPoints + amount;
+        break;
+    }
+
+    // Counter mutation and its ledger entry commit together.
+    await tx.update(users).set(updateData).where(eq(users.id, userId));
+
+    await tx.insert(pointsTransactions).values({
+      id: await generateSnowflakeId(),
+      userId,
+      amount,
+      pointsBefore: reputationBefore,
+      pointsAfter: reputationAfter,
+      reason,
+      metadata: metadata ? JSON.stringify(metadata) : null,
     });
+
+    logger.info(
+      `Awarded ${amount} reputation to user ${userId} for ${reason}`,
+      { userId, amount, reason, reputationBefore, reputationAfter },
+      'ReputationService'
+    );
+
+    return buildAwardReputationResult(amount, reputationAfter);
   }
 
   /**
@@ -446,32 +465,6 @@ export class ReputationService {
     referrerId: string,
     referredUserId: string
   ): Promise<AwardReputationResult> {
-    // Count unqualified referrals with points already awarded (toward the limit)
-    // Unqualified = completed AND qualifiedAt IS NULL AND signupPointsAwarded = true
-    const [unqualifiedCountResult] = await db
-      .select({ count: count() })
-      .from(referrals)
-      .where(
-        and(
-          eq(referrals.referrerId, referrerId),
-          eq(referrals.status, 'completed'),
-          isNull(referrals.qualifiedAt),
-          eq(referrals.signupPointsAwarded, true)
-        )
-      );
-
-    const unqualifiedCount = unqualifiedCountResult?.count ?? 0;
-    const shouldAwardPoints = unqualifiedCount < UNQUALIFIED_REFERRAL_LIMIT;
-
-    if (!shouldAwardPoints) {
-      logger.info(
-        `Unqualified referral limit reached for user ${referrerId}. Points deferred.`,
-        { referrerId, unqualifiedCount, limit: UNQUALIFIED_REFERRAL_LIMIT },
-        'ReputationService'
-      );
-      // Don't return error - we still track the referral, just defer reputation.
-    }
-
     // Check IP addresses and other identifiers for self-referral detection
     const [referrerResult, referredUserResult] = await Promise.all([
       db
@@ -587,72 +580,94 @@ export class ReputationService {
       }
     }
 
-    // Award reputation only if under the unqualified limit.
-    let result: AwardReputationResult;
-
-    if (shouldAwardPoints) {
-      result = await this.awardReputation(
-        referrerId,
-        POINTS.REFERRAL_SIGNUP,
-        'referral_signup',
-        {
-          referredUserId,
-          referrerIpHash: referrer?.registrationIpHash || null,
-          referredIpHash: referredUser?.registrationIpHash || null,
-          sameIp:
-            referrer?.registrationIpHash === referredUser?.registrationIpHash,
-        }
-      );
-    } else {
-      // Reputation deferred - return success but with 0 reputation awarded.
-      const userResult = await db
+    // Everything below runs in one transaction serialized on the referrer
+    // row: the quota count, the per-referral idempotency check, the award,
+    // and the referral bookkeeping cannot interleave with another award for
+    // the same referrer, and a retried request cannot pay twice.
+    return db.transaction(async (tx) => {
+      const [referrerRow] = await tx
         .select({ reputationPoints: users.reputationPoints })
         .from(users)
         .where(eq(users.id, referrerId))
+        .for('update');
+      if (!referrerRow) {
+        return buildAwardReputationResult(0, 0, {
+          success: false,
+          error: 'Referrer not found',
+        });
+      }
+
+      if (
+        await ReputationService.hasReferralSignupAward(
+          tx,
+          referrerId,
+          referredUserId
+        )
+      ) {
+        return buildAwardReputationResult(0, referrerRow.reputationPoints, {
+          alreadyAwarded: true,
+        });
+      }
+
+      const unqualifiedCount = await ReputationService.countUnqualifiedAwarded(
+        tx,
+        referrerId
+      );
+      const shouldAwardPoints = unqualifiedCount < UNQUALIFIED_REFERRAL_LIMIT;
+      if (!shouldAwardPoints) {
+        logger.info(
+          `Unqualified referral limit reached for user ${referrerId}. Points deferred.`,
+          { referrerId, unqualifiedCount, limit: UNQUALIFIED_REFERRAL_LIMIT },
+          'ReputationService'
+        );
+      }
+
+      const result = shouldAwardPoints
+        ? await ReputationService.awardReputationInTx(
+            tx,
+            referrerId,
+            POINTS.REFERRAL_SIGNUP,
+            'referral_signup',
+            {
+              referredUserId,
+              referrerIpHash: referrer?.registrationIpHash || null,
+              referredIpHash: referredUser?.registrationIpHash || null,
+              sameIp:
+                referrer?.registrationIpHash ===
+                referredUser?.registrationIpHash,
+            }
+          )
+        : buildAwardReputationResult(0, referrerRow.reputationPoints);
+
+      const [referralRecord] = await tx
+        .select({ id: referrals.id })
+        .from(referrals)
+        .where(
+          and(
+            eq(referrals.referrerId, referrerId),
+            eq(referrals.referredUserId, referredUserId)
+          )
+        )
+        .orderBy(desc(referrals.createdAt))
         .limit(1);
 
-      result = buildAwardReputationResult(
-        0,
-        userResult[0]?.reputationPoints ?? 0
-      );
-    }
+      if (referralRecord) {
+        const updateData: {
+          signupPointsAwarded: boolean;
+          suspiciousReferralFlags?: JsonValue;
+        } = { signupPointsAwarded: shouldAwardPoints && result.success };
 
-    // Find the referral record to update
-    const referralRecordResult = await db
-      .select({ id: referrals.id })
-      .from(referrals)
-      .where(
-        and(
-          eq(referrals.referrerId, referrerId),
-          eq(referrals.referredUserId, referredUserId)
-        )
-      )
-      .orderBy(desc(referrals.createdAt))
-      .limit(1);
-
-    const referralRecord = referralRecordResult[0];
-
-    if (referralRecord) {
-      // Build update object
-      const updateData: {
-        signupPointsAwarded?: boolean;
-        suspiciousReferralFlags?: JsonValue;
-      } = {};
-
-      // Mark signupPointsAwarded based on whether reputation was actually awarded.
-      updateData.signupPointsAwarded = shouldAwardPoints && result.success;
-
-      // Check for suspicious flags if IPs match
-      if (referrer?.registrationIpHash && referredUser?.registrationIpHash) {
-        if (referrer.registrationIpHash === referredUser.registrationIpHash) {
+        if (
+          referrer?.registrationIpHash &&
+          referredUser?.registrationIpHash &&
+          referrer.registrationIpHash === referredUser.registrationIpHash
+        ) {
           const timeDiff =
             referredUser.createdAt.getTime() - referrer.createdAt.getTime();
           const oneHour = 60 * 60 * 1000;
           const twentyFourHours = 24 * 60 * 60 * 1000;
-
           const isSuspicious = timeDiff >= 0 && timeDiff < twentyFourHours;
           const isBlocked = timeDiff >= 0 && timeDiff < oneHour;
-
           if (isSuspicious || isBlocked) {
             updateData.suspiciousReferralFlags = {
               sameIp: true,
@@ -663,38 +678,58 @@ export class ReputationService {
             };
           }
         }
+
+        await tx
+          .update(referrals)
+          .set(updateData)
+          .where(eq(referrals.id, referralRecord.id));
       }
 
-      await db
-        .update(referrals)
-        .set(updateData)
-        .where(eq(referrals.id, referralRecord.id));
-    }
+      if (shouldAwardPoints && result.success) {
+        await tx
+          .update(users)
+          .set({
+            referralCount: sql`${users.referralCount} + 1`,
+            lastReferralIpHash: referredUser?.registrationIpHash || null,
+          })
+          .where(eq(users.id, referrerId));
+      }
 
-    // Also increment referral count only if reputation was successfully awarded.
-    if (shouldAwardPoints && result.success) {
-      await db
-        .update(users)
-        .set({
-          referralCount: sql`${users.referralCount} + 1`,
-          lastReferralIpHash: referredUser?.registrationIpHash || null,
-        })
-        .where(eq(users.id, referrerId));
-    }
-
-    return result;
+      return result;
+    });
   }
 
   /**
-   * Award pending referral signup reputation when a slot opens.
-   * Called when a referral becomes qualified, which frees up a slot for pending referrals.
-   * Uses FIFO ordering based on completedAt timestamp
+   * Whether the referrer already received signup reputation for this
+   * referred user (ledger-based, so it holds even without a Referral row).
    */
-  static async awardPendingReferralSignupPoints(
+  private static async hasReferralSignupAward(
+    tx: Transaction,
+    referrerId: string,
+    referredUserId: string
+  ): Promise<boolean> {
+    const [existing] = await tx
+      .select({ id: pointsTransactions.id })
+      .from(pointsTransactions)
+      .where(
+        and(
+          eq(pointsTransactions.userId, referrerId),
+          eq(pointsTransactions.reason, 'referral_signup'),
+          // metadata is JSON text written by awardReputationInTx; match the
+          // exact serialized key/value without casting legacy rows.
+          sql`position(${`"referredUserId":${JSON.stringify(referredUserId)}`} in ${pointsTransactions.metadata}) > 0`
+        )
+      )
+      .limit(1);
+    return existing !== undefined;
+  }
+
+  /** Completed, unqualified referrals that already earned signup points. */
+  private static async countUnqualifiedAwarded(
+    tx: Transaction,
     referrerId: string
-  ): Promise<AwardReputationResult | null> {
-    // Check current unqualified count to see if there's a slot available
-    const [unqualifiedCountResult] = await db
+  ): Promise<number> {
+    const [row] = await tx
       .select({ count: count() })
       .from(referrals)
       .where(
@@ -705,64 +740,74 @@ export class ReputationService {
           eq(referrals.signupPointsAwarded, true)
         )
       );
+    return row?.count ?? 0;
+  }
 
-    const unqualifiedCount = unqualifiedCountResult?.count ?? 0;
+  /**
+   * Award pending referral signup reputation when a slot opens.
+   * Called when a referral becomes qualified, which frees up a slot for pending referrals.
+   * Uses FIFO ordering based on completedAt timestamp
+   */
+  static async awardPendingReferralSignupPoints(
+    referrerId: string
+  ): Promise<AwardReputationResult | null> {
+    const outcome = await db.transaction(async (tx) => {
+      // Serialize with other awards for this referrer.
+      const [referrerRow] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, referrerId))
+        .for('update');
+      if (!referrerRow) return null;
 
-    // If still at or above limit, no slot is available.
-    if (unqualifiedCount >= UNQUALIFIED_REFERRAL_LIMIT) {
-      return null;
-    }
-
-    // Find the oldest pending referral (FIFO) that hasn't received signup reputation yet.
-    const pendingReferralResult = await db
-      .select({
-        id: referrals.id,
-        referredUserId: referrals.referredUserId,
-        completedAt: referrals.completedAt,
-      })
-      .from(referrals)
-      .where(
-        and(
-          eq(referrals.referrerId, referrerId),
-          eq(referrals.status, 'completed'),
-          eq(referrals.signupPointsAwarded, false)
-        )
-      )
-      .orderBy(asc(referrals.completedAt))
-      .limit(1);
-
-    const pendingReferral = pendingReferralResult[0];
-
-    if (!pendingReferral) {
-      // No pending referrals waiting for reputation.
-      return null;
-    }
-
-    // Award the deferred signup reputation.
-    const result = await this.awardReputation(
-      referrerId,
-      POINTS.REFERRAL_SIGNUP,
-      'referral_signup',
-      {
-        referredUserId: pendingReferral.referredUserId,
-        deferredAward: true,
-        originalCompletedAt: pendingReferral.completedAt?.toISOString() ?? null,
+      const unqualifiedCount = await ReputationService.countUnqualifiedAwarded(
+        tx,
+        referrerId
+      );
+      if (unqualifiedCount >= UNQUALIFIED_REFERRAL_LIMIT) {
+        return null;
       }
-    );
 
-    if (result.success) {
-      // Mark this referral as having received signup reputation.
-      await db
+      // Oldest pending referral (FIFO) without signup reputation yet.
+      const [pendingReferral] = await tx
+        .select({
+          id: referrals.id,
+          referredUserId: referrals.referredUserId,
+          completedAt: referrals.completedAt,
+        })
+        .from(referrals)
+        .where(
+          and(
+            eq(referrals.referrerId, referrerId),
+            eq(referrals.status, 'completed'),
+            eq(referrals.signupPointsAwarded, false)
+          )
+        )
+        .orderBy(asc(referrals.completedAt))
+        .limit(1);
+      if (!pendingReferral) return null;
+
+      const result = await ReputationService.awardReputationInTx(
+        tx,
+        referrerId,
+        POINTS.REFERRAL_SIGNUP,
+        'referral_signup',
+        {
+          referredUserId: pendingReferral.referredUserId,
+          deferredAward: true,
+          originalCompletedAt:
+            pendingReferral.completedAt?.toISOString() ?? null,
+        }
+      );
+      if (!result.success) return result;
+
+      await tx
         .update(referrals)
         .set({ signupPointsAwarded: true })
         .where(eq(referrals.id, pendingReferral.id));
-
-      // Increment referral count for deferred awards.
-      await db
+      await tx
         .update(users)
-        .set({
-          referralCount: sql`${users.referralCount} + 1`,
-        })
+        .set({ referralCount: sql`${users.referralCount} + 1` })
         .where(eq(users.id, referrerId));
 
       logger.info(
@@ -775,9 +820,9 @@ export class ReputationService {
         },
         'ReputationService'
       );
-    }
-
-    return result;
+      return result;
+    });
+    return outcome;
   }
 
   /**
@@ -842,28 +887,41 @@ export class ReputationService {
       return null;
     }
 
-    // Qualify the referral and award bonus reputation to the referrer.
-    const qualificationResult = await ReputationService.awardReputation(
-      user.referredBy,
-      POINTS.REFERRAL_QUALIFIED,
-      'referral_qualified',
-      {
-        referredUserId,
-        qualifiedAt: new Date().toISOString(),
-      }
-    );
+    const referrerId = user.referredBy;
 
-    if (qualificationResult.success) {
-      // Update referral record to mark as qualified
-      await db
+    // Claim the qualification (qualifiedAt IS NULL) and award the referrer in
+    // one transaction: concurrent callers (Twitter/Discord/profile hooks)
+    // qualify and pay once, and a failed award rolls back the claim.
+    const qualificationResult = await db.transaction(async (tx) => {
+      const [claimed] = await tx
         .update(referrals)
         .set({ qualifiedAt: new Date() })
-        .where(eq(referrals.id, referral.id));
+        .where(
+          and(eq(referrals.id, referral.id), isNull(referrals.qualifiedAt))
+        )
+        .returning({ id: referrals.id });
+      if (!claimed) return null;
 
+      const result = await ReputationService.awardReputationInTx(
+        tx,
+        referrerId,
+        POINTS.REFERRAL_QUALIFIED,
+        'referral_qualified',
+        { referredUserId, qualifiedAt: new Date().toISOString() }
+      );
+      if (!result.success) {
+        throw new Error(
+          result.error ?? 'Failed to award referral qualification reputation'
+        );
+      }
+      return result;
+    });
+
+    if (qualificationResult) {
       logger.info(
-        `Referral qualified: referrer ${user.referredBy} earned ${POINTS.REFERRAL_QUALIFIED} reputation for a qualified referral`,
+        `Referral qualified: referrer ${referrerId} earned ${POINTS.REFERRAL_QUALIFIED} reputation for a qualified referral`,
         {
-          referrerId: user.referredBy,
+          referrerId,
           referredUserId,
           referralId: referral.id,
           reputationAwarded: qualificationResult.reputationAwarded,
@@ -871,9 +929,8 @@ export class ReputationService {
         'ReputationService'
       );
 
-      // When a referral becomes qualified, a slot opens for pending referrals
-      // Award signup reputation to the oldest pending referral (FIFO).
-      await this.awardPendingReferralSignupPoints(user.referredBy);
+      // A qualified referral frees a slot for the oldest pending referral.
+      await this.awardPendingReferralSignupPoints(referrerId);
     }
 
     return qualificationResult;
@@ -892,6 +949,8 @@ export class ReputationService {
       pointsAwardedForWallet: boolean;
       pointsAwardedForReferralBonus: boolean;
       pointsAwardedForShare: boolean;
+      pointsAwardedForPrivateGroup: boolean;
+      pointsAwardedForPrivateChannel: boolean;
       pointsAwardedForTelegram: boolean;
     },
     reason: PointsReason
@@ -918,6 +977,10 @@ export class ReputationService {
       case 'share_action':
       case 'share_to_twitter':
         return user.pointsAwardedForShare;
+      case 'private_group_create':
+        return user.pointsAwardedForPrivateGroup;
+      case 'private_channel_create':
+        return user.pointsAwardedForPrivateChannel;
       default:
         return false;
     }

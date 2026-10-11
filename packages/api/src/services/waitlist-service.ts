@@ -100,68 +100,22 @@ export class WaitlistService {
       });
     }
 
-    // If user already marked as waitlisted, still check for referral code validation
-    // but don't change their position or status
+    // Already waitlisted: position, status and referral attribution are
+    // fixed; a referral code supplied now is ignored.
     if (user.waitlistPosition && user.isWaitlistActive) {
-      // Still validate referral code if provided (for self-referral/double-referral checks)
-      let referrerRewarded = false;
-
       if (referralCode) {
-        const referrerResult = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.referralCode, referralCode))
-          .limit(1);
-
-        const referrer = referrerResult[0];
-
-        if (referrer) {
-          // PREVENT SELF-REFERRAL: Can't refer yourself!
-          if (referrer.id === userId) {
-            logger.warn(
-              `User ${userId} attempted self-referral`,
-              {
-                userId,
-                referralCode,
-              },
-              'WaitlistService'
-            );
-            referrerRewarded = false;
-          }
-          // PREVENT DOUBLE-REFERRAL: Check if user was already referred
-          else if (user.referredBy) {
-            logger.warn(
-              `User ${userId} already referred by ${user.referredBy}, ignoring new referral`,
-              {
-                userId,
-                existingReferrer: user.referredBy,
-                attemptedReferrer: referrer.id,
-              },
-              'WaitlistService'
-            );
-            referrerRewarded = false;
-          }
-          // Valid referral - but user already waitlisted, so don't reward again
-          else {
-            referrerRewarded = false;
-            logger.info(
-              `User ${userId} already waitlisted, referral code ${referralCode} ignored`,
-              {
-                userId,
-                referralCode,
-              },
-              'WaitlistService'
-            );
-          }
-        }
+        logger.info(
+          `User ${userId} already waitlisted, referral code ignored`,
+          { userId, referralCode },
+          'WaitlistService'
+        );
       }
-
       return {
         success: true,
         waitlistPosition: user.waitlistPosition,
         inviteCode: user.referralCode || '',
         points: user.reputationPoints,
-        referrerRewarded,
+        referrerRewarded: false,
       };
     }
 
@@ -176,9 +130,9 @@ export class WaitlistService {
     const lastPosition = lastPositionResult[0];
     const newPosition = (lastPosition?.waitlistPosition || 0) + 1;
 
-    // Generate invite code if user doesn't have one
+    // Use the user's referral code, creating the canonical one if missing.
     const inviteCode =
-      user.referralCode || WaitlistService.generateInviteCode();
+      user.referralCode || (await getOrCreateReferralCode(userId));
 
     // Handle referral rewards with validation
     let referrerRewarded = false;
@@ -223,61 +177,36 @@ export class WaitlistService {
           );
           referrerRewarded = false;
         }
-        // Valid referral - use referral system
+        // Valid referral: record the completed referral and the referredBy
+        // link FIRST, then award, so the award is bookkept on the referral
+        // row (signupPointsAwarded) and retries are idempotent.
         else {
-          // Use ReputationService.awardReferralSignup for referral processing
-          // This handles weekly limits, IP checks, and creates proper Referral records
+          await db
+            .insert(referrals)
+            .values({
+              id: await generateSnowflakeId(),
+              referrerId: referrer.id,
+              referralCode,
+              referredUserId: userId,
+              status: 'completed',
+              completedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+              target: [referrals.referralCode, referrals.referredUserId],
+              set: { status: 'completed', completedAt: new Date() },
+            });
+          await db
+            .update(users)
+            .set({ referredBy: referrer.id })
+            .where(eq(users.id, userId));
+
           const referralResult = await ReputationService.awardReferralSignup(
             referrer.id,
             userId
           );
 
-          if (referralResult.success) {
-            // Create or update Referral record if it doesn't exist
-            // Check if referral exists
-            const existingReferral = await db
-              .select({ id: referrals.id })
-              .from(referrals)
-              .where(
-                and(
-                  eq(referrals.referralCode, referralCode),
-                  eq(referrals.referredUserId, userId)
-                )
-              )
-              .limit(1);
-
-            if (existingReferral.length > 0) {
-              await db
-                .update(referrals)
-                .set({
-                  status: 'completed',
-                  completedAt: new Date(),
-                })
-                .where(
-                  and(
-                    eq(referrals.referralCode, referralCode),
-                    eq(referrals.referredUserId, userId)
-                  )
-                );
-            } else {
-              await db.insert(referrals).values({
-                id: await generateSnowflakeId(),
-                referrerId: referrer.id,
-                referralCode,
-                referredUserId: userId,
-                status: 'completed',
-                completedAt: new Date(),
-              });
-            }
-
-            // Update referredBy field on user
-            await db
-              .update(users)
-              .set({ referredBy: referrer.id })
-              .where(eq(users.id, userId));
-
+          if (referralResult.success && !referralResult.alreadyAwarded) {
             referrerRewarded = true;
-
             logger.info(
               `Rewarded referrer ${referrer.id} with ${referralResult.reputationAwarded} reputation via referral system`,
               {
@@ -287,8 +216,7 @@ export class WaitlistService {
               },
               'WaitlistService'
             );
-          } else {
-            // Referral failed (weekly limit, IP check, etc.)
+          } else if (!referralResult.success) {
             logger.warn(
               `Failed to award referral points: ${referralResult.error}`,
               {
@@ -298,7 +226,6 @@ export class WaitlistService {
               },
               'WaitlistService'
             );
-            referrerRewarded = false;
           }
         }
       } else {
@@ -311,11 +238,6 @@ export class WaitlistService {
           'WaitlistService'
         );
       }
-    }
-
-    // Ensure user has a referral code
-    if (!user.referralCode) {
-      await getOrCreateReferralCode(userId);
     }
 
     // Update user as waitlisted

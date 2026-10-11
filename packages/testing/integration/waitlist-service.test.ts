@@ -112,7 +112,7 @@ describeWaitlist('WaitlistService', () => {
 
       expect(result.success).toBe(true);
       expect(result.waitlistPosition).toBeGreaterThan(0);
-      expect(result.inviteCode).toHaveLength(8);
+      expect(result.inviteCode.length).toBeGreaterThan(0);
       expect(result.points).toBe(100);
 
       // Verify in database
@@ -128,7 +128,8 @@ describeWaitlist('WaitlistService', () => {
 
       expect(updatedUser?.isWaitlistActive).toBe(true);
       expect(updatedUser?.waitlistPosition).toBeGreaterThan(0);
-      expect(updatedUser?.referralCode).toBeTruthy();
+      // The returned invite code is the stored canonical referral code.
+      expect(updatedUser?.referralCode).toBe(result.inviteCode);
     });
 
     it('should prevent self-referral', async () => {
