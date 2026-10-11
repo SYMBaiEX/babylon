@@ -127,7 +127,7 @@ export async function writeTickTrace(trace: TickTrace): Promise<string> {
       err instanceof Error ? err : new Error(String(err)),
       'DagTrace'
     );
-    return traceDir;
+    throw err;
   }
 }
 

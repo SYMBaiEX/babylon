@@ -5,8 +5,14 @@ const mockLanguageModel = mock((model: string) => `language-model:${model}`);
 const mockCreateGroq = mock(() => ({
   languageModel: mockLanguageModel,
 }));
-const mockGenerateText = mock(async () => ({ text: 'mocked response' }));
-const mockGenerateObject = mock(async () => ({ object: { ok: true } }));
+const mockGenerateText = mock(async () => ({
+  text: 'mocked response',
+  usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+}));
+const mockGenerateObject = mock(async () => ({
+  object: { ok: true },
+  usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+}));
 const mockLogPrompt = mock(async () => undefined);
 
 mock.module('@ai-sdk/groq', () => ({
@@ -15,6 +21,7 @@ mock.module('@ai-sdk/groq', () => ({
 
 mock.module('ai', () => ({
   generateObject: mockGenerateObject,
+  jsonSchema: (schema: object) => schema,
   generateText: mockGenerateText,
 }));
 
@@ -24,6 +31,7 @@ mock.module('@feed/engine/embedding', () => ({
 
 mock.module('@feed/shared', () => ({
   getSurplusConfig: () => null,
+  getAgentLLMBridge: () => undefined,
   GROQ_MODELS: {
     FREE: { modelId: 'groq-small-model' },
     PRO: { modelId: 'groq-large-model' },
@@ -155,4 +163,63 @@ describe('groqPlugin TEXT_SMALL', () => {
     expect(mockLanguageModel).toHaveBeenCalledWith('proxy-small');
     expect(mockLanguageModel).toHaveBeenCalledWith('proxy-large');
   });
+});
+
+it('passes system, schema and limits to object generation', async () => {
+  const schema = { type: 'object', properties: { ok: { type: 'boolean' } } };
+  await groqPlugin.models[ModelType.OBJECT_LARGE]?.(runtime, {
+    prompt: 'make a decision',
+    schema,
+    maxTokens: 123,
+    temperature: 0.3,
+  });
+  expect(mockGenerateObject).toHaveBeenCalledWith(
+    expect.objectContaining({
+      system: 'System prompt',
+      prompt: 'make a decision',
+      schema,
+      maxOutputTokens: 123,
+      maxRetries: 0,
+    })
+  );
+});
+
+it('records failed text and object requests in the active training step', async () => {
+  const { setTrajectoryContext, clearTrajectoryContext } = await import(
+    '../plugin-trajectory-logger/src/action-interceptor'
+  );
+  const logLLMCall = mock();
+  setTrajectoryContext(runtime, 'audit-trajectory', {
+    startStep: () => 'audit-step',
+    getCurrentStepId: () => 'audit-step',
+    logLLMCall,
+    logProviderAccess: () => {},
+    completeStep: () => {},
+  });
+  try {
+    mockGenerateText.mockRejectedValueOnce(new Error('text provider failed'));
+    await expect(
+      groqPlugin.models![ModelType.TEXT_SMALL]!(runtime, {
+        prompt: 'retain failed text context',
+      })
+    ).rejects.toThrow('text provider failed');
+    expect(logLLMCall.mock.calls.at(-1)?.[1]).toMatchObject({
+      userPrompt: 'retain failed text context',
+      metadata: { success: false, error: 'text provider failed' },
+    });
+    mockGenerateObject.mockRejectedValueOnce(
+      new Error('object provider failed')
+    );
+    await expect(
+      groqPlugin.models![ModelType.OBJECT_SMALL]!(runtime, {
+        prompt: 'retain failed object context',
+      })
+    ).rejects.toThrow('object provider failed');
+    expect(logLLMCall.mock.calls.at(-1)?.[1]).toMatchObject({
+      userPrompt: 'retain failed object context',
+      metadata: { success: false, error: 'object provider failed' },
+    });
+  } finally {
+    clearTrajectoryContext(runtime);
+  }
 });

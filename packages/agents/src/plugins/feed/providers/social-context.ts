@@ -66,16 +66,13 @@ type SharedChatContextServiceShape = {
   }) => Promise<LivePlayerRosterEntry[]>;
 };
 
-const SHARED_CHAT_CONTEXT_SERVICE_PATH =
-  '../../../../../engine/src/services/shared-chat-context-service';
-
 let sharedChatContextServicePromise: Promise<SharedChatContextServiceShape> | null =
   null;
 
 async function getSharedChatContextService(): Promise<SharedChatContextServiceShape> {
   if (!sharedChatContextServicePromise) {
     sharedChatContextServicePromise = import(
-      SHARED_CHAT_CONTEXT_SERVICE_PATH
+      '../../../../../engine/src/services/shared-chat-context-service'
     ).then(
       (module) =>
         module.sharedChatContextService as SharedChatContextServiceShape
@@ -85,16 +82,10 @@ async function getSharedChatContextService(): Promise<SharedChatContextServiceSh
   return sharedChatContextServicePromise;
 }
 
-function truncateText(text: string, maxLength: number): string {
-  const normalized = text.trim().replace(/\s+/g, ' ');
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
-}
-
 function formatRelativeTime(isoString: string): string {
   const timestamp = new Date(isoString).getTime();
   if (Number.isNaN(timestamp)) {
-    return 'recently';
+    throw new Error(`Invalid social-context timestamp: ${isoString}`);
   }
 
   const diffMs = Date.now() - timestamp;
@@ -157,15 +148,7 @@ export const sharedChatFactsProvider: Provider = {
         error instanceof Error ? error.message : String(error),
         'SharedChatFactsProvider'
       );
-      return {
-        data: { facts: [], factCount: 0 },
-        values: {
-          sharedChatFacts: 'Shared chat facts unavailable.',
-          factCount: 0,
-          hasSharedChatFacts: false,
-        },
-        text: 'Shared chat facts unavailable.',
-      };
+      throw error;
     }
   },
 };
@@ -217,7 +200,7 @@ export const recentRelevantGroupContextProvider: Provider = {
               ? context.recentMessages
                   .map(
                     (item) =>
-                      `  - ${item.speaker}: ${truncateText(item.content, 160)} (${formatRelativeTime(item.createdAt)})`
+                      `  - ${item.speaker}: ${item.content} (${formatRelativeTime(item.createdAt)})`
                   )
                   .join('\n')
               : '  - No recent messages';
@@ -241,16 +224,7 @@ export const recentRelevantGroupContextProvider: Provider = {
         error instanceof Error ? error.message : String(error),
         'RecentRelevantGroupContextProvider'
       );
-      return {
-        data: { contexts: [], contextCount: 0 },
-        values: {
-          recentRelevantGroupContext:
-            'Recent relevant group context unavailable.',
-          contextCount: 0,
-          hasRelevantGroupContext: false,
-        },
-        text: 'Recent relevant group context unavailable.',
-      };
+      throw error;
     }
   },
 };
@@ -306,15 +280,7 @@ export const livePlayerRosterProvider: Provider = {
         error instanceof Error ? error.message : String(error),
         'LivePlayerRosterProvider'
       );
-      return {
-        data: { roster: [], playerCount: 0 },
-        values: {
-          livePlayerRoster: 'Live player roster unavailable.',
-          playerCount: 0,
-          hasLivePlayerRoster: false,
-        },
-        text: 'Live player roster unavailable.',
-      };
+      throw error;
     }
   },
 };

@@ -156,6 +156,48 @@ describe('TrajectoryRecorder - Real Class Tests', () => {
     expect(recorder.getCurrentStepId(trajectoryId)).toBe(stepId);
   });
 
+  test('does not overwrite or discard an unfinished model call', async () => {
+    const id = await recorder.startTrajectory({
+      agentId: 'test-agent-incomplete',
+    });
+    recorder.startStep(id, {
+      agentBalance: 1000,
+      agentPnL: 0,
+      openPositions: 0,
+    });
+    recorder.logLLMCall(id, {
+      model: 'test-model',
+      systemPrompt: 'identity',
+      userPrompt: 'required context',
+      response: 'invalid decision',
+      temperature: 0,
+      maxTokens: 100,
+      purpose: 'action',
+    });
+    expect(() =>
+      recorder.startStep(id, {
+        agentBalance: 1000,
+        agentPnL: 0,
+        openPositions: 0,
+      })
+    ).toThrow('unfinished');
+    await recorder.endTrajectory(id, { failure: 'Decision parsing failed' });
+    const saved = JSON.parse(
+      fs.readFileSync(path.join(TEST_OUTPUT_DIR, `${id}.json`), 'utf8')
+    );
+    expect(saved.trajectory.finalStatus).toBe('completed_with_errors');
+    expect(
+      JSON.parse(saved.trajectory.stepsJson)[0].llmCalls[0].userPrompt
+    ).toBe('required context');
+    expect(JSON.parse(saved.trajectory.stepsJson)[0].action.success).toBe(
+      false
+    );
+    expect(JSON.parse(saved.trajectory.metadataJson).executionError).toBe(
+      'Decision parsing failed'
+    );
+    fs.unlinkSync(path.join(TEST_OUTPUT_DIR, `${id}.json`));
+  });
+
   test('startStep throws for non-existent trajectory', () => {
     expect(() => {
       recorder.startStep('fake-id', {

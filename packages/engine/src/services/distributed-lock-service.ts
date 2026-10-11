@@ -27,7 +27,11 @@ class InMemoryDistributedLockProvider implements DistributedLockProvider {
     const now = Date.now();
     const current = this.locks.get(params.lockId);
 
-    if (current && current.expiresAt > now) {
+    if (
+      current &&
+      current.expiresAt > now &&
+      current.processId !== params.processId
+    ) {
       return false;
     }
 

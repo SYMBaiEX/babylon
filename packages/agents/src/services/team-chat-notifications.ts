@@ -91,5 +91,6 @@ export async function notifyTeamChatMessage({
       },
       'TeamChatNotifications'
     );
+    throw error;
   }
 }

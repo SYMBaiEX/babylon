@@ -11,6 +11,7 @@ import 'dotenv/config';
 // Force enable tracing
 process.env.FEED_DAG_TRACE = 'true';
 
+import { $disconnect } from '@feed/db';
 import { executeGameTick } from '@feed/engine';
 import { logger } from '@feed/shared';
 
@@ -64,9 +65,10 @@ async function main() {
       error instanceof Error ? error : new Error(String(error)),
       'TracedTick'
     );
+    process.exitCode = 1;
+  } finally {
+    await $disconnect();
   }
-
-  process.exit(0);
 }
 
-main();
+await main();

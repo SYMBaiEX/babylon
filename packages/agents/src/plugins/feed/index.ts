@@ -106,11 +106,11 @@ export type { FeedRuntime } from './types';
  * ✅ Batch Response System - Intelligent evaluation of pending interactions
  * ✅ Full Trading Coverage - Buy/sell predictions, open/close perps
  * ✅ Social Integration - Posts, comments, likes, messaging
- * ✅ A2A Protocol - Direct integration when available, DB fallback
+ * ✅ A2A Protocol - Active connection required unless explicit local mode is selected
  *
  * Integration:
  *
- * Basic Usage (Direct Database):
+ * Basic Usage:
  * ```typescript
  * import { autonomousCoordinator, feedPlugin } from '@feed/agents'
  *
@@ -152,8 +152,8 @@ export type { FeedRuntime } from './types';
  * runtime.registerPlugin(feedPlugin)
  * ```
  *
- * The plugin automatically uses the A2A client when available,
- * falling back to direct database access when not connected.
+ * A2A failures are fatal. FEED_DISABLE_A2A explicitly selects local providers
+ * and omits remote actions in AgentRuntimeManager.
  *
  * See: /src/lib/agents/AUTONOMOUS_AGENTS_GUIDE.md for complete documentation
  */
@@ -249,6 +249,7 @@ export async function initializeFeedPlugin(
 
   const a2aClient = await initializeAgentA2AClient(runtime.agentId);
 
+  if (!a2aClient) throw new Error('An active A2A connection is required');
   logger.debug('A2A client ready');
 
   // Inject into runtime
@@ -256,7 +257,7 @@ export async function initializeFeedPlugin(
 
   // Register plugin
   if (runtime.registerPlugin) {
-    runtime.registerPlugin(feedPlugin);
+    await runtime.registerPlugin(feedPlugin);
     logger.debug('Feed plugin registered with A2A client');
   }
 

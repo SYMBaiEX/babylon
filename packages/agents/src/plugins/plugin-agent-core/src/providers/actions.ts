@@ -94,6 +94,7 @@ export const actionsProvider: Provider = {
           },
           'AgentActions'
         );
+        throw e;
       }
       return null;
     });

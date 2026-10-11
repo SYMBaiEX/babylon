@@ -42,8 +42,13 @@ export * from './plugins/plugin-experience/src';
 export * from './plugins/plugin-trajectory-logger/src';
 // Runtime
 export * from './runtime/AgentRuntimeManager';
+export { describeRuntimeModel } from './runtime/model-identity';
 // Services
 export * from './services';
+export {
+  formatAgentActionResults,
+  requireAgentAction,
+} from './services/agent-action-context';
 // Shared utilities
 export {
   getAgentConfig,

@@ -1,3 +1,4 @@
+import { requireContextArray } from './context-contracts';
 /**
  * Market Movers Provider
  * Provides top gainers and losers in the market via A2A protocol
@@ -31,20 +32,15 @@ export const marketMoversProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - market movers provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot fetch market movers. Please ensure A2A server is running.',
-      };
     }
 
     try {
       // Get organizations via A2A
       const orgsResult = await feedRuntime.a2aClient.getOrganizations(100);
-      const organizations =
+      const organizations = requireContextArray(
         (
           orgsResult as {
             organizations?: Array<{
@@ -56,7 +52,9 @@ export const marketMoversProvider: Provider = {
               priceChangePercentage?: number;
             }>;
           }
-        )?.organizations || [];
+        )?.organizations,
+        'organizations'
+      );
 
       if (organizations.length === 0) {
         return { text: 'No market data available.' };

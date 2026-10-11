@@ -552,7 +552,7 @@ describe('MarketDecisionEngine - Token Management', () => {
       expect(decisions[0]?.action).toBe('hold');
     });
 
-    test('should return empty array for invalid response format', async () => {
+    test('should reject invalid response format', async () => {
       const npcs = [createMockNPC('npc1', 'NPC 1')];
       mockContext.setMockNPCs(npcs);
 
@@ -560,9 +560,7 @@ describe('MarketDecisionEngine - Token Management', () => {
       mockLLMInstance.setMockResponse(mockResponse);
 
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
-      const decisions = await engine.generateBatchDecisions();
-
-      expect(decisions.length).toBe(0);
+      await expect(engine.generateBatchDecisions()).rejects.toThrow();
     });
   });
 
@@ -684,8 +682,7 @@ describe('MarketDecisionEngine - Token Management', () => {
 
       // In test mode, exceeding balance skips the decision (no throw)
       // In dev mode, it would throw - but tests skip fail-fast behavior
-      const decisions = await engine.generateBatchDecisions();
-      expect(decisions.length).toBe(0); // Decision rejected due to exceeding balance
+      await expect(engine.generateBatchDecisions()).rejects.toThrow();
     });
 
     test('should accept valid trade decisions', async () => {
@@ -735,9 +732,7 @@ describe('MarketDecisionEngine - Token Management', () => {
       ]);
 
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
-      const decisions = await engine.generateBatchDecisions();
-
-      expect(decisions.length).toBe(0);
+      await expect(engine.generateBatchDecisions()).rejects.toThrow();
     });
 
     test('should map prediction sells to the held position id', async () => {
@@ -790,7 +785,7 @@ describe('MarketDecisionEngine - Token Management', () => {
       expect(decisions.length).toBe(0);
     });
 
-    test('should handle batch failure with individual retry', async () => {
+    test('should propagate batch failure without manufacturing holds', async () => {
       const npcs = [
         createMockNPC('npc1', 'NPC 1'),
         createMockNPC('npc2', 'NPC 2'),
@@ -825,9 +820,7 @@ describe('MarketDecisionEngine - Token Management', () => {
 
       const engine = new MarketDecisionEngine(mockLLM, mockContext);
 
-      const decisions = await engine.generateBatchDecisions();
-
-      expect(decisions).toBeDefined();
+      await expect(engine.generateBatchDecisions()).rejects.toThrow();
     });
   });
 

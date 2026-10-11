@@ -10,27 +10,11 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../shared/logger';
-import type {
-  A2ABalanceResponse,
-  A2APositionsResponse,
-} from '../../../types/a2a-responses';
 import type { FeedRuntime } from '../types';
-
-// Type guards for A2A responses
-function isA2ABalanceResponse(data: object): data is A2ABalanceResponse {
-  return (
-    'balance' in data &&
-    typeof (data as A2ABalanceResponse).balance === 'number'
-  );
-}
-
-function isA2APositionsResponse(data: object): data is A2APositionsResponse {
-  return (
-    'marketPositions' in data &&
-    Array.isArray((data as A2APositionsResponse).marketPositions)
-  );
-}
+import {
+  balanceContextSchema,
+  positionsContextSchema,
+} from './context-contracts';
 
 /**
  * Provider: Portfolio State
@@ -51,12 +35,9 @@ export const portfolioProvider: Provider = {
 
     // A2A is required
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - portfolio provider requires A2A',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return { text: 'A2A client not connected. Cannot fetch portfolio data.' };
     }
 
     const [balanceData, positionsData] = await Promise.all([
@@ -68,23 +49,8 @@ export const portfolioProvider: Provider = {
       }),
     ]);
 
-    // Validate response structures using type guards
-    if (
-      !balanceData ||
-      typeof balanceData !== 'object' ||
-      !isA2ABalanceResponse(balanceData)
-    ) {
-      throw new Error('Invalid balance data format from A2A client');
-    }
-    if (
-      !positionsData ||
-      typeof positionsData !== 'object' ||
-      !isA2APositionsResponse(positionsData)
-    ) {
-      throw new Error('Invalid positions data format from A2A client');
-    }
-    const balance = balanceData;
-    const positions = positionsData;
+    const balance = balanceContextSchema.parse(balanceData);
+    const positions = positionsContextSchema.parse(positionsData);
 
     return {
       text: `Your Portfolio:
