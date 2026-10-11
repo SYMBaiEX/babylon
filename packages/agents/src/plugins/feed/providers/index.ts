@@ -15,7 +15,7 @@ export { messagesProvider, notificationsProvider } from './messaging';
 // NPC-specific provider for game awareness
 export { getNpcGameContext, npcGameContextProvider } from './npc-game-context';
 export { portfolioProvider } from './portfolio';
-export { feedProvider, trendingProvider } from './social';
+export { feedProvider } from './social';
 export {
   livePlayerRosterProvider,
   recentRelevantGroupContextProvider,

@@ -128,7 +128,7 @@ Agent's portfolio, positions, and balance
 Social feed via A2A protocol
 - **A2A Methods:** getFeed
 
-### FEED_TRENDING
+### FEED_TRENDING_TOPICS
 Trending topics via A2A protocol
 - **A2A Methods:** getTrendingTags
 

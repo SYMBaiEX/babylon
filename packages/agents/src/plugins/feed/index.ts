@@ -55,7 +55,6 @@ import {
   portfolioProvider,
   recentRelevantGroupContextProvider,
   sharedChatFactsProvider,
-  trendingProvider,
   trendingTopicsProvider,
   userProfileProvider,
   userWalletProvider,
@@ -81,7 +80,7 @@ export type { FeedRuntime } from './types';
  * - FEED_MARKETS: Market data for predictions and perpetuals
  * - FEED_PORTFOLIO: Agent portfolio, positions, and balance
  * - FEED_FEED: Social feed with recent posts
- * - FEED_TRENDING: Trending topics and tags
+ * - FEED_TRENDING_TOPICS: Trending topics and tags
  * - FEED_MESSAGES: Unread messages and chats
  * - FEED_NOTIFICATIONS: Recent notifications
  *
@@ -170,8 +169,7 @@ export const feedPlugin: Plugin = {
     marketMoversProvider, // Top gainers and losers
     portfolioProvider,
     feedProvider,
-    trendingProvider,
-    trendingTopicsProvider, // Database-backed trending topics
+    trendingTopicsProvider, // Trending tags and topics (A2A getTrendingTags)
     headlinesProvider, // Recent news headlines
     messagesProvider,
     notificationsProvider,
