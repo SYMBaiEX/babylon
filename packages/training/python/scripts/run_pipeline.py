@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import logging
 import os
 import shutil
@@ -372,20 +373,23 @@ class CanonicalPipeline:
 
     @staticmethod
     def _safe_float(value: Any) -> float | None:
+        # NaN/inf compare False against every threshold, so they would pass
+        # quality gates; treat them (and booleans) as missing metrics.
+        if value is None or isinstance(value, bool):
+            return None
         try:
-            if value is None:
-                return None
-            return float(value)
+            result = float(value)
         except (TypeError, ValueError):
             return None
+        return result if math.isfinite(result) else None
 
     @staticmethod
     def _safe_int(value: Any) -> int | None:
+        if value is None or isinstance(value, bool):
+            return None
         try:
-            if value is None:
-                return None
             return int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return None
 
     def _normalize_served_eval_stage(
