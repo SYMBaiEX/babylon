@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { evaluateEnv } from '../../../scripts/validate-env';
 
 const baseEnv = {
-  DATABASE_URL: 'postgresql://localhost:5432/babylon',
+  DATABASE_URL: 'postgresql://localhost:5432/feed',
   NEXT_PUBLIC_STEWARD_API_URL: 'https://auth.example.com',
   STEWARD_API_URL: 'https://auth.example.com',
   STEWARD_JWT_SECRET: 'test-jwt-secret',

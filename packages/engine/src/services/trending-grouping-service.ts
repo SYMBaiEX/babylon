@@ -1,4 +1,4 @@
-import { getSurplusConfig } from '@babylon/shared';
+import { getSurplusConfig } from '@feed/shared';
 /**
  * Trending Grouping Service
  *
@@ -8,7 +8,7 @@ import { getSurplusConfig } from '@babylon/shared';
  * is unavailable.
  */
 
-import { logger } from '@babylon/shared';
+import { logger } from '@feed/shared';
 import OpenAI from 'openai';
 import { first } from '../utils/array-utils';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
@@ -35,9 +35,7 @@ const useGroq = !!process.env.GROQ_API_KEY;
 const groqBaseURL =
   process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
 const suppressOptionalLlmWarnings = ['1', 'true', 'yes'].includes(
-  (process.env.BABYLON_SUPPRESS_OPTIONAL_LLM_WARNINGS || '')
-    .trim()
-    .toLowerCase()
+  (process.env.FEED_SUPPRESS_OPTIONAL_LLM_WARNINGS || '').trim().toLowerCase()
 );
 
 // Only initialize OpenAI client if we have an API key

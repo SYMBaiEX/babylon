@@ -1,4 +1,5 @@
 import { generateSurplusImage } from './surplus-image-service';
+
 /**
  * Agent profile avatar generation via fal.ai (Nano Banana 2).
  *
@@ -7,8 +8,8 @@ import { generateSurplusImage } from './surplus-image-service';
  * that style; otherwise text-to-image with a detailed style prompt.
  */
 
-import { getSurplusConfig, logger } from '@babylon/shared';
 import { fal } from '@fal-ai/client';
+import { getSurplusConfig, logger } from '@feed/shared';
 import { formatError } from '../utils/error-utils';
 import {
   initFalClient,

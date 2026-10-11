@@ -1,4 +1,5 @@
 import { generateSurplusImage } from './surplus-image-service';
+
 /**
  * Article Image Generation Service
  *
@@ -13,8 +14,8 @@ import { generateSurplusImage } from './surplus-image-service';
  * via ArticleGenerator's character mapping. No additional name sanitization needed here.
  */
 
-import { getSurplusConfig, logger } from '@babylon/shared';
 import { fal } from '@fal-ai/client';
+import { getSurplusConfig, logger } from '@feed/shared';
 import { articleCover, getRandomTwist, renderPrompt } from '../prompts';
 import { formatError } from '../utils/error-utils';
 

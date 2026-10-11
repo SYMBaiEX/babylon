@@ -5,7 +5,7 @@
  * other modules can import `db`/`Database` without importing `src/index.ts`.
  */
 
-import { requestResource } from '@babylon/shared/server/request-scope';
+import { requestResource } from '@feed/shared/server/request-scope';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -124,7 +124,7 @@ function parsePositiveIntEnv(key: string): number | undefined {
 // ============================================================================
 
 function getConnectionUrl(): string {
-  return process.env.DATABASE_URL || 'postgresql://localhost:5432/babylon';
+  return process.env.DATABASE_URL || 'postgresql://localhost:5432/feed';
 }
 
 function getReadReplicaUrl(): string | undefined {
@@ -194,7 +194,7 @@ function getPostgresClientConfig(
   const applicationName =
     role === 'replica' && process.env.DATABASE_READ_REPLICA_APPLICATION_NAME
       ? process.env.DATABASE_READ_REPLICA_APPLICATION_NAME
-      : (process.env.DATABASE_APPLICATION_NAME ?? 'babylon');
+      : (process.env.DATABASE_APPLICATION_NAME ?? 'feed');
 
   const applyGuardrails =
     !isTest &&
@@ -261,7 +261,7 @@ function getPostgresClient(): ReturnType<typeof postgres> | null {
 
   if (!globalForDb.postgresClient) {
     const url = getConnectionUrl();
-    if (!url || url === 'postgresql://localhost:5432/babylon') {
+    if (!url || url === 'postgresql://localhost:5432/feed') {
       if (isTestEnvironment()) {
         throw new Error('DATABASE_URL is required in test environment');
       }
@@ -559,7 +559,7 @@ export async function initializeJsonMode(
  * Useful for testing.
  */
 export async function initializeMemoryMode(): Promise<void> {
-  await initJsonStorage('/tmp/babylon-memory', { autoSave: false });
+  await initJsonStorage('/tmp/feed-memory', { autoSave: false });
   currentStorageMode = 'memory';
   jsonClient = createJsonClient();
   logger.info('[DB] Initialized memory storage mode');

@@ -4,7 +4,6 @@
  * Wraps actions with trajectory logging
  */
 
-import type { JsonValue } from '@babylon/shared';
 import type {
   Action,
   HandlerCallback,
@@ -14,6 +13,7 @@ import type {
   Plugin,
   State,
 } from '@elizaos/core';
+import type { JsonValue } from '@feed/shared';
 import { logger } from '../../../shared/logger';
 
 interface RuntimeEnvironmentState {

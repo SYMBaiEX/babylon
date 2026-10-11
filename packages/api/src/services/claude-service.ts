@@ -6,7 +6,7 @@ import OpenAI from 'openai';
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getSurplusConfig, logger } from '@babylon/shared';
+import { getSurplusConfig, logger } from '@feed/shared';
 
 export async function callClaudeDirect(params: {
   prompt: string;

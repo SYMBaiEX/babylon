@@ -14,8 +14,8 @@
  * Falls back gracefully if Redis is not configured.
  */
 
-import { logger } from '@babylon/shared';
-import { requestResource } from '@babylon/shared/server/request-scope';
+import { logger } from '@feed/shared';
+import { requestResource } from '@feed/shared/server/request-scope';
 import type IORedis from 'ioredis';
 
 // Type for ioredis instance
@@ -34,7 +34,7 @@ declare global {
 const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
 const isTestEnv = process.env.NODE_ENV === 'test';
 const isDev = process.env.NODE_ENV === 'development';
-const isRedisDisabled = process.env.BABYLON_DISABLE_REDIS === '1';
+const isRedisDisabled = process.env.FEED_DISABLE_REDIS === '1';
 
 // Use globalThis to persist across hot reloads in development
 // This prevents multiple Redis connections from being created
@@ -94,7 +94,7 @@ async function initializeRedis(): Promise<void> {
 
   if (isRedisDisabled) {
     logger.info(
-      'Redis explicitly disabled via BABYLON_DISABLE_REDIS=1',
+      'Redis explicitly disabled via FEED_DISABLE_REDIS=1',
       undefined,
       'Redis'
     );

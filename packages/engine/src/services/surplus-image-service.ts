@@ -1,4 +1,4 @@
-import { getSurplusConfig } from '@babylon/shared';
+import { getSurplusConfig } from '@feed/shared';
 import { z } from 'zod';
 
 export function parseSurplusImageSource(body: unknown): string {

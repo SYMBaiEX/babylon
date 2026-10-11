@@ -1,5 +1,5 @@
-import { withRequestResources } from '@babylon/shared/server/request-scope';
 import type { ExecutionContext, R2Bucket } from '@cloudflare/workers-types';
+import { withRequestResources } from '@feed/shared/server/request-scope';
 import { ensureRedisReady } from '../../packages/api/src/redis/client';
 // OpenNext generates this module during build.
 // @ts-ignore generated module

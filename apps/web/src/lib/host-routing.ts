@@ -1,6 +1,5 @@
 const LEGACY_CANONICAL_HOSTS: Record<string, string> = {
-  'babylon.social': 'babylon.market',
-  'www.babylon.social': 'babylon.market',
+  'www.feed.fun': 'feed.fun',
 };
 
 function normalizeHostname(hostname: string): string {

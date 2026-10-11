@@ -11,7 +11,7 @@
  * - Real vLLM/OpenAI-compatible API integration
  */
 
-import { getSurplusConfig } from '@babylon/shared';
+import { getSurplusConfig } from '@feed/shared';
 import { logger } from '../utils/logger';
 import {
   getModelForArchetype as getArchetypeModel,

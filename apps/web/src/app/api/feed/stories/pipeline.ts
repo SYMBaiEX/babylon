@@ -23,18 +23,14 @@ import {
   shares,
   sql,
   users,
-} from '@babylon/db';
+} from '@feed/db';
 import {
   dailyTopicService,
   isTextOnTopic,
   StaticDataRegistry,
-} from '@babylon/engine';
-import type {
-  ArcStateType,
-  NarrativePost,
-  NarrativeStory,
-} from '@babylon/shared';
-import { logger } from '@babylon/shared';
+} from '@feed/engine';
+import type { ArcStateType, NarrativePost, NarrativeStory } from '@feed/shared';
+import { logger } from '@feed/shared';
 import { compareFeedStories } from '@/app/api/feed/feed-cursor';
 import { spreadNewMarkets } from '@/app/api/feed/for-you/scoring';
 import {

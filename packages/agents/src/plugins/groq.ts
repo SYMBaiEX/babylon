@@ -1,7 +1,7 @@
-import { getEmbedding } from '@babylon/engine/embedding';
-import { getSurplusConfig } from '@babylon/shared';
+import { getEmbedding } from '@feed/engine/embedding';
+import { getSurplusConfig } from '@feed/shared';
 /**
- * Groq Plugin for Babylon Agents
+ * Groq Plugin for Feed Agents
  *
  * Provides access to Groq's fast LLM inference for agent decision-making.
  * Supports both small and large models with automatic trajectory logging.
@@ -10,7 +10,6 @@ import { getSurplusConfig } from '@babylon/shared';
  */
 
 import { createGroq } from '@ai-sdk/groq';
-import { GROQ_MODELS, type JsonValue } from '@babylon/shared';
 import type {
   IAgentRuntime,
   ModelTypeName,
@@ -23,6 +22,7 @@ import {
   ModelType,
   type TokenizeTextParams,
 } from '@elizaos/core';
+import { GROQ_MODELS, type JsonValue } from '@feed/shared';
 import { generateObject, generateText } from 'ai';
 import { encodingForModel, type TiktokenModel } from 'js-tiktoken';
 import { buildReasoningTraceMetadata } from '../llm/reasoning-trace';
@@ -193,7 +193,7 @@ async function generateGroqText(
 
   // Forward to DAG trace bridge if active
   try {
-    const { getAgentLLMBridge } = require('@babylon/shared');
+    const { getAgentLLMBridge } = require('@feed/shared');
     const bridge = getAgentLLMBridge();
     if (bridge) {
       bridge({
@@ -259,7 +259,7 @@ async function generateGroqObject(
 
 export const groqPlugin: Plugin = {
   name: 'groq',
-  description: 'Groq plugin for Babylon agents',
+  description: 'Groq plugin for Feed agents',
   config: {
     GROQ_API_KEY: process.env.GROQ_API_KEY ?? null,
     GROQ_SMALL_MODEL: GROQ_MODELS.FREE.modelId,

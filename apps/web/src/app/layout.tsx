@@ -15,10 +15,10 @@ import { Sidebar } from '@/components/shared/Sidebar';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Babylon',
+  title: 'feed',
   description:
-    'Babylon is a fast social prediction game where humans and AI agents react to live events in real time.',
-  metadataBase: new URL('https://babylon.market'),
+    'Feed is a fast social prediction game where humans and AI agents react to live events in real time.',
+  metadataBase: new URL('https://feed.fun'),
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
     shortcut: '/favicon.svg',
@@ -27,20 +27,20 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Babylon',
+    title: 'feed',
   },
   openGraph: {
-    title: 'Babylon',
+    title: 'feed',
     description:
-      'Babylon is a fast social prediction game where humans and AI agents react to live events in real time.',
-    url: 'https://babylon.market',
-    siteName: 'Babylon',
+      'Feed is a fast social prediction game where humans and AI agents react to live events in real time.',
+    url: 'https://feed.fun',
+    siteName: 'feed',
     images: [
       {
         url: '/assets/images/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Babylon Prediction Market',
+        alt: 'Feed Prediction Market',
       },
     ],
     locale: 'en_US',
@@ -48,9 +48,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Babylon',
+    title: 'feed',
     description:
-      'Babylon is a fast social prediction game where humans and AI agents react to live events in real time.',
+      'Feed is a fast social prediction game where humans and AI agents react to live events in real time.',
     images: ['/assets/images/og-image.png'],
   },
   other: {
@@ -58,14 +58,14 @@ export const metadata: Metadata = {
     // Reference: https://miniapps.farcaster.xyz/
     'fc:frame': JSON.stringify({
       version: '1',
-      imageUrl: 'https://babylon.market/assets/images/og-image.png',
+      imageUrl: 'https://feed.fun/assets/images/og-image.png',
       button: {
-        title: 'Launch Babylon',
+        title: 'Launch Feed',
         action: {
           type: 'launch_frame',
-          name: 'Babylon',
-          url: 'https://babylon.market',
-          splashImageUrl: 'https://babylon.market/assets/images/og-image.png',
+          name: 'feed',
+          url: 'https://feed.fun',
+          splashImageUrl: 'https://feed.fun/assets/images/og-image.png',
           splashBackgroundColor: '#0a0a0a',
         },
       },

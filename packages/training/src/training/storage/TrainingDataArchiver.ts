@@ -5,7 +5,7 @@
  * for long-term storage and reproducibility.
  */
 
-import type { JsonValue } from '@babylon/shared';
+import type { JsonValue } from '@feed/shared';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../../utils/logger';

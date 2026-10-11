@@ -1,6 +1,6 @@
 'use client';
 
-import { logger } from '@babylon/shared';
+import { logger } from '@feed/shared';
 import { Copy, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -289,9 +289,7 @@ export function ApiKeysTab() {
           </p>
           <p>
             3. Use the key in the{' '}
-            <code className="rounded bg-background px-1">
-              X-Babylon-Api-Key
-            </code>{' '}
+            <code className="rounded bg-background px-1">X-Feed-Api-Key</code>{' '}
             header when making MCP requests
           </p>
           <p>

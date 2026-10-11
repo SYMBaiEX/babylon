@@ -1,4 +1,4 @@
-import { getSurplusConfig } from '@babylon/shared';
+import { getSurplusConfig } from '@feed/shared';
 /**
  * Team Chat Message API
  *
@@ -48,16 +48,16 @@ import { getSurplusConfig } from '@babylon/shared';
  */
 
 import { createGroq } from '@ai-sdk/groq';
-import { teamChatService } from '@babylon/agents';
+import { teamChatService } from '@feed/agents';
 import {
   authenticateUser,
   broadcastChatMessage,
   checkRateLimitAsync,
   RATE_LIMIT_CONFIGS,
   withErrorHandling,
-} from '@babylon/api';
-import { and, db, eq, generateSnowflakeId, messages, users } from '@babylon/db';
-import { logger, toISO } from '@babylon/shared';
+} from '@feed/api';
+import { and, db, eq, generateSnowflakeId, messages, users } from '@feed/db';
+import { logger, toISO } from '@feed/shared';
 import { generateText } from 'ai';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

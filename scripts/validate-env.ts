@@ -105,7 +105,7 @@ const CONDITIONAL_RULES: ValidationRule[] = [
     keys: [
       'AGENT0_RPC_URL',
       'AGENT0_PRIVATE_KEY',
-      'BABYLON_GAME_WALLET_ADDRESS',
+      'FEED_GAME_WALLET_ADDRESS',
       'AGENT0_SUBGRAPH_URL',
     ],
     when: ({ env }) => isEnabled(env.AGENT0_ENABLED),
@@ -144,8 +144,8 @@ const DEPRECATED_ENV_VARS: DeprecatedEnvVar[] = [
     message: 'Deprecated alias. Use NEXT_PUBLIC_POSTHOG_PROJECT_ID.',
   },
   {
-    key: 'BABYLON_GAME_WALLET',
-    message: 'Legacy alias. Use BABYLON_GAME_WALLET_ADDRESS.',
+    key: 'FEED_GAME_WALLET',
+    message: 'Legacy alias. Use FEED_GAME_WALLET_ADDRESS.',
   },
 ];
 
@@ -418,7 +418,7 @@ function getDefaultEnvFiles(profile: ValidationProfile): string[] {
 }
 
 function printHelp(): void {
-  console.info('Validate Babylon environment variables');
+  console.info('Validate Feed environment variables');
   console.info('');
   console.info('Usage:');
   console.info(

@@ -8,14 +8,14 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import { logger } from '@babylon/shared';
+import { logger } from '@feed/shared';
 import { R2StorageClient } from './r2-client';
 
 // MinIO configuration (local development)
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
-const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY || 'babylon';
-const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY || 'babylon_dev_password';
-const MINIO_BUCKET = process.env.MINIO_BUCKET || 'babylon-uploads';
+const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY || 'feed';
+const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY || 'feed_dev_password';
+const MINIO_BUCKET = process.env.MINIO_BUCKET || 'feed-uploads';
 
 interface UploadOptions {
   file: Buffer;
@@ -119,7 +119,7 @@ class S3StorageClient {
     // Extract key from URL if full URL is provided
     let key = url;
     if (url.startsWith('http')) {
-      // URL format: http://localhost:9000/babylon-uploads/folder/file.jpg
+      // URL format: http://localhost:9000/feed-uploads/folder/file.jpg
       // Extract: folder/file.jpg
       const urlParts = url.split(`/${this.bucket}/`);
       key = urlParts.length > 1 ? urlParts[1] || url : url;

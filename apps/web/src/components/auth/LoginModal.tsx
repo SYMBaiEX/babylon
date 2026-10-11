@@ -1,6 +1,6 @@
 'use client';
 
-import { logger } from '@babylon/shared';
+import { logger } from '@feed/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { useStewardAuthContext } from '@/components/providers/StewardAuthProvider';
 import { Button } from '@/components/ui/button';
@@ -40,8 +40,7 @@ function getStewardApiUrl(): string {
   return process.env.NEXT_PUBLIC_STEWARD_API_URL ?? 'http://localhost:3200';
 }
 
-const STEWARD_TENANT_ID =
-  process.env.NEXT_PUBLIC_STEWARD_TENANT_ID ?? 'babylon';
+const STEWARD_TENANT_ID = process.env.NEXT_PUBLIC_STEWARD_TENANT_ID ?? 'feed';
 
 /** Build the Steward OAuth authorize URL. Callback lands on our /auth/callback/[provider] page. */
 function oauthUrl(provider: string): string {
@@ -142,7 +141,7 @@ export function LoginModal({
       <DialogContent className="p-8 sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-center text-xl">
-            {title ?? 'Sign in to Babylon'}
+            {title ?? 'Sign in to Feed'}
           </DialogTitle>
           {message && (
             <DialogDescription className="text-center">

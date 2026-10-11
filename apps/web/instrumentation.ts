@@ -31,7 +31,7 @@ export async function register() {
       createNotification,
       logDevCredentials,
       getStorageClient,
-    } = await import('@babylon/api');
+    } = await import('@feed/api');
     const { createSentryApiRouteCapture } = await import(
       './src/lib/sentry/api-route-capture'
     );
@@ -48,12 +48,12 @@ export async function register() {
     // Initialize agent service container with required services
     // Uses globalThis to persist across module instances
     const { setServiceContainer, agentRegistry, npcBootstrapService } =
-      await import('@babylon/agents');
+      await import('@feed/agents');
     setServiceContainer({
       agentRegistry,
     });
 
-    const { setGeneratedImageStorage } = await import('@babylon/engine');
+    const { setGeneratedImageStorage } = await import('@feed/engine');
     setGeneratedImageStorage(async (url) => {
       const response = await fetch(url, {
         signal: AbortSignal.timeout(30_000),
@@ -119,7 +119,7 @@ export async function register() {
       process.env.DEPLOYMENT_PLATFORM !== 'cloudflare' &&
       !g.__lastUsedFlusherStarted
     ) {
-      const { startLastUsedFlusher } = await import('@babylon/api');
+      const { startLastUsedFlusher } = await import('@feed/api');
       startLastUsedFlusher();
       g.__lastUsedFlusherStarted = true;
     }

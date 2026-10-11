@@ -1,4 +1,4 @@
-# Babylon Web (`apps/web`)
+# Feed Web (`apps/web`)
 
 Next.js application: UI, API routes, SSE, and Steward auth wiring, deployed through OpenNext to Cloudflare Workers.
 

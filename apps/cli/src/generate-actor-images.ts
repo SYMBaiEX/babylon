@@ -56,6 +56,7 @@
  * @env {string} OPENAI_API_KEY - Required: direct OpenAI API key (gpt-image-1.5 is OpenAI-only)
  */
 
+import { fal } from '@fal-ai/client';
 import {
   actorBanner,
   actorPortrait,
@@ -63,8 +64,7 @@ import {
   organizationBanner,
   organizationLogo,
   renderPrompt,
-} from '@babylon/engine';
-import { fal } from '@fal-ai/client';
+} from '@feed/engine';
 import { config } from 'dotenv';
 import { access, mkdir, rm, writeFile } from 'fs/promises';
 import { join, join as pathJoin } from 'path';

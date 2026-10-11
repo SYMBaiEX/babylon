@@ -1,4 +1,4 @@
-import { runInBackground } from '@babylon/shared/server/request-scope';
+import { runInBackground } from '@feed/shared/server/request-scope';
 /**
  * Admin Audit Logger
  *
@@ -8,8 +8,8 @@ import { runInBackground } from '@babylon/shared/server/request-scope';
  * the AdminAuditLog database table (for persistence and reporting).
  */
 
-import { adminAuditLogs, db } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import { adminAuditLogs, db } from '@feed/db';
+import { generateSnowflakeId, logger } from '@feed/shared';
 import type { JsonValue } from './types';
 
 export interface AdminAuditContext {

@@ -18,11 +18,11 @@ mock.module('ai', () => ({
   generateText: mockGenerateText,
 }));
 
-mock.module('@babylon/engine/embedding', () => ({
+mock.module('@feed/engine/embedding', () => ({
   getEmbedding: mock(async () => [0.1, 0.2]),
 }));
 
-mock.module('@babylon/shared', () => ({
+mock.module('@feed/shared', () => ({
   getSurplusConfig: () => null,
   GROQ_MODELS: {
     FREE: { modelId: 'groq-small-model' },

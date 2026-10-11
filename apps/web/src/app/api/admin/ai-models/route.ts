@@ -46,8 +46,8 @@ import {
   logAdminView,
   requireAdmin,
   withErrorHandling,
-} from '@babylon/api';
-import { getSurplusConfig } from '@babylon/shared';
+} from '@feed/api';
+import { getSurplusConfig } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 

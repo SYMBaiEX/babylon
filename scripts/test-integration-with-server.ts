@@ -30,10 +30,7 @@ const serverPort =
   requestedUrl.port || (requestedUrl.protocol === 'https:' ? '443' : '80');
 const includeOptionalIntegrationTests =
   process.env.RUN_OPTIONAL_INTEGRATION_TESTS === '1';
-const portReservationDir = path.join(
-  tmpdir(),
-  'babylon-integration-server-ports'
-);
+const portReservationDir = path.join(tmpdir(), 'feed-integration-server-ports');
 const optionalIntegrationTestMatchers = [
   /agent-actions-persistence\.integration\.test\.ts$/,
   /agent0-localnet\.test\.ts$/,
@@ -189,7 +186,7 @@ function releasePortReservation(reservation: PortReservation | null) {
 
 function prepareIsolatedWorkspace(port: number): IsolatedWorkspace {
   const workspaceDir = mkdtempSync(
-    path.join(tmpdir(), `babylon-integration-workspace-${port}-`)
+    path.join(tmpdir(), `feed-integration-workspace-${port}-`)
   );
   const isolatedAppDir = path.join(workspaceDir, 'apps', 'web');
   const appNodeModulesPath = path.join(appDir, 'node_modules');

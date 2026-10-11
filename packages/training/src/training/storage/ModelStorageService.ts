@@ -5,8 +5,8 @@
  * Stores trained models with metadata for easy deployment.
  */
 
-import { db, eq, trainedModels } from '@babylon/db';
-import type { JsonValue } from '@babylon/shared';
+import { db, eq, trainedModels } from '@feed/db';
+import type { JsonValue } from '@feed/shared';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../../utils/logger';
@@ -69,7 +69,7 @@ export class ModelStorageService {
     // Save to database using native Drizzle
     await db.insert(trainedModels).values({
       id: `model-${Date.now()}`,
-      modelId: `babylon-agent-${options.version}`,
+      modelId: `feed-agent-${options.version}`,
       version: options.version,
       baseModel:
         (options.metadata?.baseModel as string) || 'unsloth/Qwen3-4B-128K',
