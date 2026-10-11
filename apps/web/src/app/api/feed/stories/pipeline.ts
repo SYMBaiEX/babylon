@@ -352,7 +352,10 @@ export async function buildStoriesFeed(): Promise<StoriesPipelineResult> {
         timestamp: posts.timestamp,
       })
       .from(posts)
-      .where(inArray(posts.id, repostOriginalIds));
+      // Deleted originals must not be rendered inside reposts.
+      .where(
+        and(inArray(posts.id, repostOriginalIds), isNull(posts.deletedAt))
+      );
     const originalAuthorIds = [...new Set(originalRows.map((r) => r.authorId))];
     const originalAuthorUsers =
       originalAuthorIds.length > 0
@@ -545,6 +548,9 @@ export async function buildStoriesFeed(): Promise<StoriesPipelineResult> {
   const stories: NarrativeStory[] = [];
 
   for (const [storyKey, storyPosts] of storyPostMap) {
+    // General posts are emitted below as standalone cards; grouping them into
+    // a "General" mega-story as well duplicated every one of them.
+    if (storyKey === GENERAL_STORY_KEY) continue;
     storyPosts.sort(
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()

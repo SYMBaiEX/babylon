@@ -42,6 +42,10 @@ import {
   calculateResolutionBoost,
   calculateStoryScore,
 } from '@/app/api/feed/narrative/scoring';
+import {
+  filterStoriesForViewer,
+  loadViewerExcludedAuthorIds,
+} from '../_lib/viewer-moderation';
 import { dedupeQuestionMarketRows } from '../questionMarketRows';
 import {
   loadDiscoveryForYouCandidatePosts,
@@ -528,7 +532,10 @@ async function loadBaseCandidates(): Promise<BaseForYouResult> {
         timestamp: posts.timestamp,
       })
       .from(posts)
-      .where(inArray(posts.id, repostOriginalIds));
+      // Deleted originals must not be rendered inside reposts.
+      .where(
+        and(inArray(posts.id, repostOriginalIds), isNull(posts.deletedAt))
+      );
 
     const originalAuthorIds = [
       ...new Set(originalRows.map((row) => row.authorId)),
@@ -1633,11 +1640,20 @@ export async function buildForYouFeed(userId?: string | null) {
   const MAX_STORIES = 200;
   const allStories = [...rankedStories, ...discoveryStories];
 
+  // Base and discovery candidates are global caches: apply the viewer's
+  // block/mute policy before paging.
+  const visibleStories = userId
+    ? filterStoriesForViewer(
+        allStories,
+        await loadViewerExcludedAuthorIds(userId)
+      )
+    : allStories;
+
   return {
     stories:
-      allStories.length > MAX_STORIES
-        ? allStories.slice(0, MAX_STORIES)
-        : allStories,
+      visibleStories.length > MAX_STORIES
+        ? visibleStories.slice(0, MAX_STORIES)
+        : visibleStories,
     generatedAt: baseResult.generatedAt,
   };
 }
