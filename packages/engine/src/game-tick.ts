@@ -1915,11 +1915,18 @@ const WORLD_FACTS_LOCK_DURATION_MS =
     : DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES) *
   60 *
   1000;
-// Renew lock at half the TTL to prevent expiry during long-running generation
-// No minimum floor - allows short locks for testing while ensuring renewal before expiry
-const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = Math.min(
-  Math.floor(WORLD_FACTS_LOCK_DURATION_MS / 2),
-  WORLD_FACTS_LOCK_DURATION_MS - 1 // Ensure renewal is always before expiry
+/**
+ * Renew a lock at half its TTL so renewal always happens before expiry.
+ * No minimum floor - short locks still renew before they expire.
+ */
+export function computeLockRenewalIntervalMs(lockDurationMs: number): number {
+  if (!Number.isFinite(lockDurationMs) || lockDurationMs < 2) {
+    throw new Error(`Invalid lock duration: ${lockDurationMs}ms`);
+  }
+  return Math.min(Math.floor(lockDurationMs / 2), lockDurationMs - 1);
+}
+const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = computeLockRenewalIntervalMs(
+  WORLD_FACTS_LOCK_DURATION_MS
 );
 
 /**
