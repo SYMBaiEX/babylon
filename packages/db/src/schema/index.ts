@@ -8,9 +8,9 @@ export * from './actors';
 export * from './admin';
 export * from './agents';
 // NOTE: ElizaOS schema tables (packages/db/src/schema/eliza.ts) are intentionally
-// NOT exported here. They are only referenced by drizzle.config.ts so Drizzle Kit
+// NOT exported here. They are only referenced by drizzle.config.cjs so Drizzle Kit
 // can manage their DDL. Exporting them here would pull @elizaos/plugin-sql into
-// every Lambda that imports @feed/db (250 MB limit breach).
+// every bundle that imports @feed/db.
 // Enums
 export * from './enums';
 export * from './markets';
