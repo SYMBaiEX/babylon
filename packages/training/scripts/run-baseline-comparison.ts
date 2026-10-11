@@ -10,10 +10,10 @@
  *   bun packages/training/scripts/run-baseline-comparison.ts
  */
 
+import type { IAgentRuntime } from '@elizaos/core';
 // Import initializeJsonMode to enable file-based DB for trajectory recording
 // This prevents "Database not initialized" errors when saveTrajectory is true
-import { initializeJsonMode } from '@babylon/db';
-import type { IAgentRuntime } from '@elizaos/core';
+import { initializeJsonMode } from '@feed/db';
 import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { type BenchmarkConfig } from '../src/benchmark/BenchmarkDataGenerator';

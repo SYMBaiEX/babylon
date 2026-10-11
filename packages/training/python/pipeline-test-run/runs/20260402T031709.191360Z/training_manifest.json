@@ -24,7 +24,7 @@
   "trajectory_count": 6549,
   "training_sample_count": 24263,
   "trajectory_source": "local_export",
-  "source_dir": "/home/shaw/babylon-workspace/babylon/training-data/scam-defense-export/full-corpus-unweighted",
+  "source_dir": "/home/shaw/feed-workspace/feed/training-data/scam-defense-export/full-corpus-unweighted",
   "requested_recipe": {
     "sample_profile": "canonical",
     "steps": 2,
@@ -60,7 +60,7 @@
     "validation_split_ratio": 0.1
   },
   "output_path": null,
-  "training_artifact": "/home/shaw/babylon-workspace/babylon/packages/training/python/pipeline-test-run/runs/20260402T031709.191360Z/training_data.json",
+  "training_artifact": "/home/shaw/feed-workspace/feed/packages/training/python/pipeline-test-run/runs/20260402T031709.191360Z/training_data.json",
   "downloaded_checkpoint_archive": null,
   "downloaded_adapter_path": null,
   "training_metrics_path": null,
@@ -70,7 +70,7 @@
   "data_provenance": {
     "trajectory_source": "local_export",
     "source_split": "local_export",
-    "source_dir": "/home/shaw/babylon-workspace/babylon/training-data/scam-defense-export/full-corpus-unweighted",
+    "source_dir": "/home/shaw/feed-workspace/feed/training-data/scam-defense-export/full-corpus-unweighted",
     "hf_dataset": null,
     "hf_split": null,
     "lookback_hours": 72,

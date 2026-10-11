@@ -403,7 +403,7 @@ describe('SSE Message Parsing', () => {
 
   const isAgentActivityMessage = (
     message: Record<string, unknown>
-  ): message is SSEActivityMessage => {
+  ): message is SSEActivityMessage & Record<string, unknown> => {
     const eventType = message.type as string;
     return eventType?.startsWith('agent_') && message.activity !== undefined;
   };
@@ -643,6 +643,8 @@ describe('Error States', () => {
 });
 
 describe('Pagination', () => {
+  const getHasMore = (pagination: { hasMore: boolean } | null | undefined) =>
+    pagination?.hasMore ?? false;
   it('should determine hasMore from pagination response', () => {
     const paginationWithMore = { limit: 50, count: 50, hasMore: true };
     const paginationWithoutMore = { limit: 50, count: 30, hasMore: false };
@@ -653,14 +655,14 @@ describe('Pagination', () => {
 
   it('should handle null pagination gracefully', () => {
     const pagination = null;
-    const hasMore = pagination?.hasMore ?? false;
+    const hasMore = getHasMore(pagination);
 
     expect(hasMore).toBe(false);
   });
 
   it('should handle undefined pagination gracefully', () => {
     const pagination = undefined;
-    const hasMore = pagination?.hasMore ?? false;
+    const hasMore = getHasMore(pagination);
 
     expect(hasMore).toBe(false);
   });
