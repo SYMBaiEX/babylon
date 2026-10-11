@@ -115,7 +115,7 @@ interface ThinkingAgent {
 }
 
 /** Agent info in team chat */
-interface TeamChatAgent {
+export interface TeamChatAgent {
   id: string;
   username: string | null;
   displayName: string | null;
