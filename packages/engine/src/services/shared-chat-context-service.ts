@@ -551,7 +551,15 @@ export class SharedChatContextService {
     return stored;
   }
 
-  async getSharedFacts(options: { limit?: number } = {}): Promise<
+  /**
+   * Facts from group chats the viewer is an active member of. Facts are
+   * extracted from private group conversations, so they are never returned
+   * to non-members.
+   */
+  async getSharedFacts(options: {
+    viewerUserId: string;
+    limit?: number;
+  }): Promise<
     Array<{
       chatId: string;
       chatName: string | null;
@@ -561,6 +569,14 @@ export class SharedChatContextService {
     }>
   > {
     const limit = Math.max(1, options.limit ?? DEFAULT_FACT_LIMIT);
+    const memberships = await GroupChatService.getUserGroupChats(
+      options.viewerUserId
+    );
+    const memberChatIds = new Set(memberships.map((chat) => chat.id));
+    if (memberChatIds.size === 0) {
+      return [];
+    }
+
     const rows = await db
       .select()
       .from(worldFacts)
@@ -585,7 +601,7 @@ export class SharedChatContextService {
 
     for (const row of rows) {
       const snapshot = parseStoredSnapshot(row.value);
-      if (!snapshot) continue;
+      if (!snapshot || !memberChatIds.has(snapshot.chatId)) continue;
 
       for (const fact of snapshot.facts) {
         const key = `${snapshot.chatId}:${fact}`;
