@@ -921,10 +921,7 @@ async function loadBaseCandidates(): Promise<BaseForYouResult> {
         noShares: markets.noShares,
       })
       .from(questions)
-      .innerJoin(
-        markets,
-        sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
-      )
+      .innerJoin(markets, eq(markets.id, questions.marketId))
       .where(inArray(questions.questionNumber, storyQuestionNumbers))
       .orderBy(desc(markets.createdAt));
 
@@ -966,10 +963,7 @@ async function loadBaseCandidates(): Promise<BaseForYouResult> {
     })
     .from(questions)
     .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
-    .innerJoin(
-      markets,
-      sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
-    )
+    .innerJoin(markets, eq(markets.id, questions.marketId))
     .where(
       and(
         eq(questions.status, 'active'),
@@ -1051,10 +1045,7 @@ async function loadBaseCandidates(): Promise<BaseForYouResult> {
       topicLabel: questions.topicLabel,
     })
     .from(questions)
-    .innerJoin(
-      markets,
-      sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
-    )
+    .innerJoin(markets, eq(markets.id, questions.marketId))
     .where(
       and(
         eq(questions.status, 'resolved'),
@@ -1286,7 +1277,7 @@ export async function buildForYouFeed(userId?: string | null) {
   const currentTopic = await dailyTopicService.getCurrentTopic();
 
   const baseResult = await getCacheOrFetch<BaseForYouResult>(
-    'feed:for-you:v2:base',
+    'feed:for-you:v3:base',
     () => loadBaseCandidates(),
     { namespace: 'feed', ttl: BASE_CACHE_TTL_S }
   );

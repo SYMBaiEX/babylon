@@ -19,7 +19,6 @@ import type {
   State,
 } from '@elizaos/core';
 import {
-  type DatabaseArcPlan,
   gameService,
   getArcPhaseForDay,
   getArcPlan,
@@ -30,7 +29,7 @@ import {
 
 /**
  * Extract key topic from full question text for natural language
- * Avoids exposing full prediction market question text to NPCs
+ * Directional guidance retains the full claim so negations stay unambiguous.
  */
 function summarizeQuestion(fullText: string): string {
   // Extract actor mentions (anything with AI in the name)
@@ -71,33 +70,40 @@ function summarizeQuestion(fullText: string): string {
 
 /**
  * Format signal direction into natural language intuition
- * Never exposes YES/NO direction or insider status directly
+ * Presents the direction as a personal hunch without revealing insider status.
  */
 function formatSignalAsNaturalLanguage(
   signal: { direction: 'YES' | 'NO' | 'NEUTRAL'; reason: string },
   phase: 'early' | 'middle' | 'late' | 'climax',
   questionTopic: string
 ): string {
+  const expectation =
+    signal.direction === 'NEUTRAL'
+      ? ''
+      : ` You expect the following claim to ${signal.direction === 'YES' ? 'come true' : 'not come true'}: "${questionTopic}".`;
+
   if (signal.reason === 'insider') {
     // Insider: confident but subtle - never say "you know the answer"
-    return `You have a strong gut feeling about ${questionTopic}. You're more confident than most people seem to be.`;
+    return `You have a strong gut feeling about this situation. You're more confident than most people seem to be.${expectation}`;
   }
 
   if (signal.reason === 'deceiver') {
     // Deceiver: convinced but will be wrong
-    return `You're convinced you know how ${questionTopic} will play out. Trust your instincts on this one.`;
+    return `You're convinced you know how this situation will play out. Trust your instincts on this one.${expectation}`;
   }
+
+  const topic = summarizeQuestion(questionTopic);
 
   // Regular NPC: phase-appropriate uncertainty
   switch (phase) {
     case 'early':
-      return `${questionTopic} feels uncertain. Hard to say which way it goes.`;
+      return `${topic} feels uncertain. Hard to say which way it goes.${expectation}`;
     case 'middle':
-      return `Mixed signals on ${questionTopic}. The picture is murky.`;
+      return `Mixed signals on ${topic}. The picture is murky.${expectation}`;
     case 'late':
-      return `${questionTopic} is becoming clearer. You're starting to see a pattern.`;
+      return `${topic} is becoming clearer. You're starting to see a pattern.${expectation}`;
     case 'climax':
-      return `${questionTopic} seems obvious now. You feel confident in your read.`;
+      return `${topic} seems obvious now. You feel confident in your read.${expectation}`;
     default:
       return '';
   }
@@ -164,28 +170,24 @@ You are ${npcActor.name}. Just be yourself — talk about what interests you, re
   const intuitions: string[] = [];
 
   for (const market of activeMarkets) {
-    const arcPlan = (await getArcPlan(market.id)) as DatabaseArcPlan | null;
+    const arcPlan = await getArcPlan(market.questionId);
     if (!arcPlan) continue;
 
     const phase = getArcPhaseForDay(currentDay, arcPlan);
 
-    // Fetch the actual predetermined outcome from the question
-    // This ensures insiders get correct signals (not always YES)
-    let outcome = true; // fallback
-    try {
-      const questionData = await gameService.getQuestionOutcome(market.id);
-      if (questionData != null) {
-        outcome = questionData;
-      }
-    } catch {
-      // Fallback to true if lookup fails
+    const outcome = await gameService.getQuestionOutcome(market.id);
+    if (outcome === null) {
+      throw new Error(`Missing question outcome for market ${market.id}`);
     }
 
     const signal = getSignalDirection(arcPlan, phase, agentId, outcome);
 
     // Convert to natural language (NEVER expose technical details)
-    const topic = summarizeQuestion(market.question);
-    const intuition = formatSignalAsNaturalLanguage(signal, phase, topic);
+    const intuition = formatSignalAsNaturalLanguage(
+      signal,
+      phase,
+      market.question
+    );
 
     if (intuition) {
       intuitions.push(intuition);

@@ -215,21 +215,33 @@ export class PredictionDbAdapter implements PredictionDbPort {
       resolutionDescription: null,
     };
 
-    // Note: Destructuring [inserted] extracts the first element directly
-    // So `inserted` is a single market object or undefined, not an array
-    const [inserted] = await this.client
-      .insert(markets)
-      .values(data)
-      .onConflictDoNothing()
-      .returning();
+    // Publish the market and its question link together, including concurrent
+    // creation attempts. A failed link must not leave an orphaned market.
+    return this.client.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(markets)
+        .values(data)
+        .onConflictDoNothing()
+        .returning();
+      const market =
+        inserted ??
+        (
+          await tx
+            .select()
+            .from(markets)
+            .where(eq(markets.id, question.id))
+            .limit(1)
+        )[0];
+      if (!market) throw new Error('Failed to create market');
 
-    if (inserted) {
-      return mapMarket(inserted);
-    }
-
-    const existing = await this.getMarketById(question.id);
-    if (!existing) throw new Error('Failed to create market');
-    return existing;
+      const [linked] = await tx
+        .update(questions)
+        .set({ marketId: market.id, updatedAt: now })
+        .where(eq(questions.id, question.id))
+        .returning({ id: questions.id });
+      if (!linked) throw new Error(`Question not found: ${question.id}`);
+      return mapMarket(market);
+    });
   }
 
   async updateMarketState(

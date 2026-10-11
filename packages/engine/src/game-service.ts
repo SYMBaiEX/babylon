@@ -28,6 +28,7 @@ import { getGameDayNumber } from './utils/date-utils';
 export interface ActiveMarketSummary {
   id: string;
   question: string;
+  questionId: string;
 }
 
 /**
@@ -172,9 +173,11 @@ class GameService {
     const activeMarkets = await db
       .select({
         id: markets.id,
-        question: markets.question,
+        question: questions.text,
+        questionId: questions.id,
       })
       .from(markets)
+      .innerJoin(questions, eq(questions.marketId, markets.id))
       .where(eq(markets.resolved, false))
       .limit(limit);
 
@@ -186,18 +189,13 @@ class GameService {
    * Used by NPC game context to provide correct insider signals.
    */
   async getQuestionOutcome(marketId: string): Promise<boolean | null> {
-    try {
-      // Markets and questions are linked — market.id maps to question.id
-      const [question] = await db
-        .select({ outcome: questions.outcome })
-        .from(questions)
-        .where(eq(questions.id, marketId))
-        .limit(1);
+    const [question] = await db
+      .select({ outcome: questions.outcome })
+      .from(questions)
+      .where(eq(questions.marketId, marketId))
+      .limit(1);
 
-      return question?.outcome ?? null;
-    } catch {
-      return null;
-    }
+    return question?.outcome ?? null;
   }
 }
 

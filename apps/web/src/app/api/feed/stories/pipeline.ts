@@ -650,10 +650,7 @@ export async function buildStoriesFeed(): Promise<StoriesPipelineResult> {
         marketId: markets.id,
       })
       .from(questions)
-      .innerJoin(
-        markets,
-        sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
-      )
+      .innerJoin(markets, eq(markets.id, questions.marketId))
       .where(inArray(questions.questionNumber, storyQuestionNumbers))
       .orderBy(desc(markets.createdAt));
     const questionToMarket = new Map(
@@ -695,10 +692,7 @@ export async function buildStoriesFeed(): Promise<StoriesPipelineResult> {
     })
     .from(questions)
     .leftJoin(arcStates, eq(arcStates.questionId, questions.id))
-    .leftJoin(
-      markets,
-      sql`lower(trim(${markets.question})) = lower(trim(${questions.text}))`
-    )
+    .leftJoin(markets, eq(markets.id, questions.marketId))
     .where(
       and(
         eq(questions.status, 'active'),
