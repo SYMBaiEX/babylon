@@ -14,22 +14,21 @@ import type { ImportedProfileData } from '@/components/onboarding/UserOnboarding
 import { UserSignupOnboardingContextProvider } from '@/components/onboarding/user-signup-onboarding-context';
 import { useAuth } from '@/hooks/useAuth';
 import { useSignupTracking } from '@/hooks/usePostHog';
+import { safeReturnTo } from '@/lib/auth/safe-return-to';
 import {
   hasCompletedGameGuide,
   markGameGuideCompletedLocal,
 } from '@/lib/game-guide-completion';
 import { useAuthStore } from '@/stores/authStore';
 import { apiFetch } from '@/utils/api-fetch';
-
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
 function getSafeReturnTo(): string {
   if (typeof window === 'undefined') return '/feed';
-  const raw = new URLSearchParams(window.location.search).get('returnTo');
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
-    return '/feed';
-  }
-  return raw;
+  return safeReturnTo(
+    new URLSearchParams(window.location.search).get('returnTo'),
+    '/feed'
+  );
 }
 
 /**

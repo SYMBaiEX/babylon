@@ -28,7 +28,6 @@ export const FEED_WIDGET_CONFIG = {
   PRICE_TRENDING_HOURS: 2, // Hours before a price update is considered "trending"
   SIGNIFICANT_PRICE_CHANGE_PERCENT: 2, // Minimum % change to be considered significant
   MIN_PRICE_CHANGE_PERCENT: 0.5, // Minimum % change for any price update to show
-  ATH_THRESHOLD_PERCENT: 2, // Minimum % change to qualify as ATH
 
   // Upcoming Events thresholds
   UPCOMING_EVENTS_DAYS: 7, // Days ahead to show upcoming events

@@ -225,6 +225,32 @@ export function addPublicReadHeaders(
   return response;
 }
 
+/**
+ * Add rate limit headers plus `private, no-store` to a personalized read
+ * response (e.g. one containing the viewer's likes, follows or moderation
+ * filtering). Such responses must never be stored by a shared CDN cache.
+ */
+export function addPrivateReadHeaders(
+  response: NextResponse,
+  rateLimitInfo: {
+    limit: number;
+    remaining: number;
+    resetAt: Date;
+  }
+): NextResponse {
+  response.headers.set('X-RateLimit-Limit', rateLimitInfo.limit.toString());
+  response.headers.set(
+    'X-RateLimit-Remaining',
+    rateLimitInfo.remaining.toString()
+  );
+  response.headers.set(
+    'X-RateLimit-Reset',
+    rateLimitInfo.resetAt.toISOString()
+  );
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
+}
+
 /** Options for public rate limit: 'read' for GET endpoints, 'firehose' for SSE token/connection limits. */
 export type PublicRateLimitKind = 'read' | 'firehose';
 

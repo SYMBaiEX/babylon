@@ -71,8 +71,13 @@ function isAllowedOrigin(origin: string | null): boolean {
   return ALLOWED_ORIGINS.has(origin);
 }
 
+function isPathOrSubtree(pathname: string, base: string) {
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+/** `/api` and its subtree only — not lookalikes such as `/api-docs`. */
 function isApiRequest(pathname: string) {
-  return pathname.startsWith('/api');
+  return isPathOrSubtree(pathname, '/api');
 }
 
 /**
@@ -80,7 +85,7 @@ function isApiRequest(pathname: string) {
  * Agent routes use Bearer token auth, not cookies, so they can have wildcard CORS
  */
 function isAgentApiRequest(pathname: string) {
-  return pathname.startsWith('/api/agents');
+  return isPathOrSubtree(pathname, '/api/agents');
 }
 
 /**

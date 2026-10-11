@@ -20,6 +20,7 @@ export {
 } from '../utils/duplicate-detector';
 // Middleware
 export {
+  addPrivateReadHeaders,
   addPublicReadHeaders,
   addRateLimitHeaders,
   applyDuplicateDetection,

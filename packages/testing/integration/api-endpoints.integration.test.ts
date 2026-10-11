@@ -111,6 +111,14 @@ describe('API Endpoints - Complete Coverage', () => {
       expect(data.total).toBe(0);
     });
 
+    test('GET /api/posts/:id - unknown ID is 404 and never created on read', async () => {
+      const unknownId = `game-unknown-${Date.now()}-2024-01-01T00:00:00.000Z`;
+      const first = await get(`/api/posts/${encodeURIComponent(unknownId)}`);
+      expect(first.status).toBe(404);
+      const second = await get(`/api/posts/${encodeURIComponent(unknownId)}`);
+      expect(second.status).toBe(404);
+    });
+
     test('POST /api/posts - requires auth', async () => {
       const res = await post('/api/posts', { content: 'Test' });
       expect(res.status).toBe(401);
