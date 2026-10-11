@@ -18,6 +18,9 @@ import { logger } from '../lib/logger.js';
 const CONTAINER_NAME = 'feed-postgres';
 const COMPOSE_FILE = 'docker-compose.yml';
 const HOST_PORT = '5433';
+const REPO_ROOT = join(import.meta.dir, '../../../..');
+// Credentials of the local docker-compose Postgres (see docker-compose.yml).
+const LOCAL_DATABASE_URL = `postgresql://feed:feed_dev_password@localhost:${HOST_PORT}/feed`;
 
 export function isRecoverableComposeStartError(message: string): boolean {
   const normalized = message.toLowerCase();
@@ -336,10 +339,11 @@ async function showConnectionInfo(): Promise<void> {
 }
 
 /**
- * Runs database migrations using drizzle-kit push.
+ * Applies the committed migration history to the local container database
+ * via the canonical `bun run db:migrate` (drizzle-kit migrate).
  *
- * Pushes schema changes from Drizzle ORM definitions to the database.
- * Requires the database container to be running.
+ * DATABASE_URL is pinned to the local container so a remote URL in the
+ * developer's environment is never migrated by this local-dev command.
  *
  * @throws Exits process with code 1 if database is not running
  * @internal
@@ -353,9 +357,17 @@ async function runMigrations(): Promise<void> {
     process.exit(1);
   }
 
-  logger.step('Pushing schema changes...');
-  await $`bunx drizzle-kit push --config=packages/db/drizzle.config.cjs`;
+  await applyMigrationsToLocalContainer();
   logger.success('Migrations complete');
+}
+
+async function applyMigrationsToLocalContainer(): Promise<void> {
+  logger.step('Applying migrations...');
+  await $`bun run db:migrate`.cwd(REPO_ROOT).env({
+    ...process.env,
+    DATABASE_URL: LOCAL_DATABASE_URL,
+    DIRECT_DATABASE_URL: LOCAL_DATABASE_URL,
+  });
 }
 
 /**
@@ -377,16 +389,21 @@ async function seedDatabase(): Promise<void> {
   }
 
   logger.step('Running seed script...');
-  const rootDir = import.meta.dirname.replace('/apps/cli/src/commands', '');
-  await $`bun run ${rootDir}/scripts/seed-database.ts`;
+  // Seed the local container this command just checked, not whatever
+  // DATABASE_URL happens to be set in the shell.
+  await $`bun run scripts/seed-database.ts`.cwd(REPO_ROOT).env({
+    ...process.env,
+    DATABASE_URL: LOCAL_DATABASE_URL,
+  });
   logger.success('Database seeded');
 }
 
 /**
- * Resets the database by dropping and recreating schema.
+ * Resets the local container database: drops and recreates the public schema
+ * inside the docker-compose container, then reapplies the migration history.
  *
- * **Warning:** This will delete all data! Forces schema push using drizzle-kit.
- * Requires the database container to be running.
+ * **Warning:** This deletes all data in the local container database. It only
+ * ever targets the local container, never DATABASE_URL.
  *
  * @throws Exits process with code 1 if database is not running
  * @internal
@@ -394,7 +411,7 @@ async function seedDatabase(): Promise<void> {
 async function resetDatabase(): Promise<void> {
   logger.header('Resetting Database');
 
-  logger.warn('This will delete all data!');
+  logger.warn('This will delete all data in the local container database!');
 
   if (!(await isContainerRunning())) {
     logger.fail('PostgreSQL is not running!');
@@ -402,8 +419,9 @@ async function resetDatabase(): Promise<void> {
     process.exit(1);
   }
 
-  logger.step('Resetting schema...');
-  await $`bunx drizzle-kit push --force --config=packages/db/drizzle.config.cjs`;
+  logger.step('Dropping and recreating schema...');
+  await $`docker exec ${CONTAINER_NAME} psql -U feed -d feed -v ON_ERROR_STOP=1 -c ${'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'}`;
+  await applyMigrationsToLocalContainer();
   logger.success('Database reset complete');
 }
 

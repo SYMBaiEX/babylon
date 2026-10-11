@@ -471,9 +471,13 @@ async function main() {
   const jobs: ImageJob[] = [];
 
   // Determine which actors/orgs to process
+  // Filters are symmetric: --org alone must not also regenerate (and pay for)
+  // every actor image, just as --actor alone skips organizations.
   const actorsToProcess = filterActorId
     ? actorsDb.actors.filter((a) => a.id === filterActorId)
-    : actorsDb.actors;
+    : filterOrgId
+      ? [] // --org implies skip actors unless --actor also specified
+      : actorsDb.actors;
   const orgsToProcess = filterOrgId
     ? actorsDb.organizations.filter((o) => o.id === filterOrgId)
     : filterActorId

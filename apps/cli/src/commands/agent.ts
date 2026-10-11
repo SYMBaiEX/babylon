@@ -10,7 +10,16 @@
  */
 
 import { createTestAgent } from '@feed/agents';
-import { closeDatabase, db, desc, eq, userAgentConfigs, users } from '@feed/db';
+import {
+  and,
+  closeDatabase,
+  db,
+  desc,
+  eq,
+  or,
+  userAgentConfigs,
+  users,
+} from '@feed/db';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getFlag, getOption, parseArgs, wantsHelp } from '../lib/args.js';
@@ -100,7 +109,14 @@ async function spawnAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
 
 async function listAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
   const activeOnly = getFlag(args, 'active');
-  const limit = parseInt(getOption(args, 'limit') || '20', 10);
+  const limitOption = getOption(args, 'limit') || '20';
+  const limit = Number(limitOption);
+  if (!Number.isInteger(limit) || limit < 1) {
+    logger.fail(
+      `--limit must be a positive integer, received "${limitOption}"`
+    );
+    process.exit(1);
+  }
 
   logger.header('Agents');
 
@@ -120,23 +136,26 @@ async function listAgents(args: ReturnType<typeof parseArgs>): Promise<void> {
     })
     .from(users)
     .leftJoin(userAgentConfigs, eq(users.id, userAgentConfigs.userId))
-    .where(eq(users.isAgent, true))
+    // Filter active agents in SQL before LIMIT; filtering the page afterwards
+    // hid active agents that were not among the newest `limit` agents.
+    .where(
+      activeOnly
+        ? and(
+            eq(users.isAgent, true),
+            or(
+              eq(userAgentConfigs.autonomousTrading, true),
+              eq(userAgentConfigs.autonomousPosting, true),
+              eq(userAgentConfigs.autonomousCommenting, true),
+              eq(userAgentConfigs.autonomousDMs, true),
+              eq(userAgentConfigs.autonomousGroupChats, true)
+            )
+          )
+        : eq(users.isAgent, true)
+    )
     .orderBy(desc(users.createdAt))
     .limit(limit);
 
-  const agents = await baseQuery;
-
-  // Filter for active agents if requested
-  const filteredAgents = activeOnly
-    ? agents.filter(
-        (a) =>
-          a.autonomousTrading ||
-          a.autonomousPosting ||
-          a.autonomousCommenting ||
-          a.autonomousDMs ||
-          a.autonomousGroupChats
-      )
-    : agents;
+  const filteredAgents = await baseQuery;
 
   if (filteredAgents.length === 0) {
     console.log('No agents found.');
