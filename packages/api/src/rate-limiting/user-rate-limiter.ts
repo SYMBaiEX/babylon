@@ -208,7 +208,7 @@ export const RATE_LIMIT_CONFIGS = {
     maxRequests: 60,
     windowMs: 60000,
     actionType: 'external_agent_discover',
-  }, // 60 discovery requests per minute (default, can be overridden by agent's discoveryRateLimit)
+  }, // 60 discovery requests per minute per external agent (server policy)
   EXTERNAL_AGENT_REGISTER: {
     maxRequests: 5,
     windowMs: 3600000,
