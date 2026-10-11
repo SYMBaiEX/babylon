@@ -180,11 +180,6 @@ export {
 export { parseXML, type XMLParseResult } from './llm/xml-parser';
 // Market Decision Engine
 export { MarketDecisionEngine } from './MarketDecisionEngine';
-// News Article Pacing Engine
-export {
-  type ArticleStage,
-  NewsArticlePacingEngine,
-} from './NewsArticlePacingEngine';
 // NPC Investment Manager
 export {
   NPCInvestmentManager,
