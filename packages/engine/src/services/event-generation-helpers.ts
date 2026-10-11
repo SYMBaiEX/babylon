@@ -859,7 +859,7 @@ export async function maybeGenerateBreakingArticle(
     // Reuse the existing arc event article generation logic
     // This handles org selection, article generation, and persistence
     // Pass skipRateLimit=true since we've already reserved a slot
-    const articlesCreated = await generateArticlesForArcEvent(
+    return await generateArticlesForArcEvent(
       eventId,
       'created', // Breaking articles are always fresh coverage
       question,
@@ -868,23 +868,11 @@ export async function maybeGenerateBreakingArticle(
       dayNumber,
       { skipRateLimit: true }
     );
-
-    // If we created more than 1 article, record the additional ones
-    // (first one was already recorded via tryReserveSlot)
-    for (let i = 1; i < articlesCreated; i++) {
-      breakingArticleRateLimiter.recordBreakingArticle(timestamp.getTime());
-    }
-
-    // If no articles were created, release the reserved slot
-    if (articlesCreated === 0) {
-      breakingArticleRateLimiter.releaseSlot(reservationId);
-    }
-
-    return articlesCreated;
-  } catch (error) {
-    // Release the reserved slot on failure
+  } finally {
+    // Persisted articles are counted from the posts table; on failure or no
+    // output the slot is simply returned. Holding the reservation after
+    // persistence would double-count the article for the whole window.
     breakingArticleRateLimiter.releaseSlot(reservationId);
-    throw error;
   }
 }
 
