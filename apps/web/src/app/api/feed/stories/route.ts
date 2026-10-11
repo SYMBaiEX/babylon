@@ -20,7 +20,7 @@ const CACHE_TTL_S = 60;
 
 // Stories are globally scored (not user-personalised), so all users share one
 // cached snapshot. Per-user like/share state is applied after cache lookup.
-const CACHE_KEY = 'feed:stories:v1:current';
+const CACHE_KEY = 'feed:stories:v2:current';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const {
