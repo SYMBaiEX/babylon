@@ -80,6 +80,12 @@ interface InteractionStoreActions {
     comment?: string
   ) => Promise<ShareResult | null>;
 
+  /**
+   * Merge authoritative server interaction data for a post. Skipped while a
+   * mutation for that post is in flight (its own result is authoritative).
+   */
+  syncPostInteraction: (interaction: PostInteraction) => void;
+
   // Utility actions
   clearError: (id: string) => void;
   resetStore: () => void;
@@ -220,6 +226,24 @@ export const useInteractionStore = create<InteractionStore>()(
         commentInteractions: new Map(),
         loadingStates: new Map(),
         errors: new Map(),
+
+        syncPostInteraction: (interaction: PostInteraction) => {
+          const { postId } = interaction;
+          if (get().loadingStates.get(postId)) return;
+          if (get().loadingStates.get(`share-${postId}`)) return;
+          const current = get().postInteractions.get(postId);
+          if (
+            current &&
+            current.likeCount === interaction.likeCount &&
+            current.commentCount === interaction.commentCount &&
+            current.shareCount === interaction.shareCount &&
+            current.isLiked === interaction.isLiked &&
+            current.isShared === interaction.isShared
+          ) {
+            return;
+          }
+          patchPost(postId, interaction);
+        },
 
         toggleLike: async (postId: string) => {
           const current =

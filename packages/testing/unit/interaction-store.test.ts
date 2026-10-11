@@ -202,3 +202,35 @@ describe('interactionStore mutations', () => {
     expect(state.errors.get('comment-post-1-root')?.code).toBe('UNAUTHORIZED');
   });
 });
+
+describe('interactionStore.syncPostInteraction', () => {
+  const server = {
+    postId: 'post-1',
+    likeCount: 3,
+    commentCount: 1,
+    shareCount: 0,
+    isLiked: true,
+    isShared: false,
+  };
+
+  test('applies server flags even when counts are unchanged', () => {
+    seedPost();
+    useInteractionStore.getState().syncPostInteraction({
+      ...server,
+      likeCount: 5,
+      commentCount: 2,
+      shareCount: 1,
+    });
+    const post = useInteractionStore.getState().postInteractions.get('post-1');
+    expect(post?.isLiked).toBe(true);
+  });
+
+  test('does not overwrite while a mutation is in flight', () => {
+    seedPost();
+    useInteractionStore.getState().setLoading('post-1', true);
+    useInteractionStore.getState().syncPostInteraction(server);
+    const post = useInteractionStore.getState().postInteractions.get('post-1');
+    expect(post?.likeCount).toBe(5);
+    expect(post?.isLiked).toBe(false);
+  });
+});

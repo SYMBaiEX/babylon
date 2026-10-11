@@ -276,11 +276,7 @@ export function BillingTab() {
   const [buyFundsOpen, setBuyFundsOpen] = useState(false);
 
   // Use the same hook as markets page to fetch fresh balance from API
-  const {
-    balance,
-    loading: balanceLoading,
-    refresh: refreshBalance,
-  } = useWalletBalance(user?.id);
+  const { balance, loading: balanceLoading } = useWalletBalance(user?.id);
 
   const fetchTransactions = useCallback(async () => {
     if (!user?.id) return;
@@ -342,10 +338,6 @@ export function BillingTab() {
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
-
-  const handleBuyPointsSuccess = async () => {
-    await Promise.all([refreshBalance(), fetchTransactions()]);
-  };
 
   return (
     <div className="space-y-6">
@@ -451,7 +443,6 @@ export function BillingTab() {
       <BuyPointsModal
         isOpen={buyFundsOpen}
         onClose={() => setBuyFundsOpen(false)}
-        onSuccess={handleBuyPointsSuccess}
       />
     </div>
   );
