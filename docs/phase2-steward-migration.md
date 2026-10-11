@@ -868,7 +868,7 @@ New component. Opens when `useAuth().login()` is called.
 
 ### Steps 15–16 — Removed social integration
 
-Farcaster has no active login, mini-app, sharing, or rewards integration. Existing database columns and migration/export tooling retain historical account data without enabling new connections.
+Farcaster has no active login, mini-app, sharing, or rewards integration. Its legacy profile and reward columns are removed by a forward database migration, and migration/export tooling no longer carries Farcaster account data. Deploy the application cleanup before applying `0001_remove_farcaster` so older application instances do not query removed columns.
 
 
 ### Step 17 — Telegram mini-app auth

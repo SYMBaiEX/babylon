@@ -26,7 +26,6 @@ interface UserData {
   invitePoints: number;
   referralCount: number;
   referredBy: string | null;
-  farcasterFid: string | null;
   twitterId: string | null;
   walletAddress: string | null;
 }
@@ -238,7 +237,6 @@ describe('Referral Points System', () => {
         invitePoints: 0,
         referralCount: 0,
         referredBy: 'referrer-1',
-        farcasterFid: null,
         twitterId: '123456789', // Linked Twitter
         walletAddress: null,
       };
@@ -256,7 +254,6 @@ describe('Referral Points System', () => {
         invitePoints: 0,
         referralCount: 0,
         referredBy: 'referrer-1',
-        farcasterFid: null,
         twitterId: null,
         walletAddress: '0x1234567890abcdef', // Linked Wallet
       };
@@ -274,7 +271,6 @@ describe('Referral Points System', () => {
         invitePoints: 0,
         referralCount: 0,
         referredBy: 'referrer-1',
-        farcasterFid: null,
         twitterId: null,
         walletAddress: null,
       };

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { db, eq, shareActions, users } from '@feed/db';
 import { generateSnowflakeId } from '@feed/shared';
+import { createStewardTestToken } from './helpers/steward-auth';
 
 const baseUrl =
   process.env.TEST_API_URL ||
@@ -19,6 +20,7 @@ describe('retired social integration', () => {
       '/api/frame/metadata',
       '/.well-known/farcaster.json',
       '/farcaster.json',
+      '/farcaster-hosted-template.json',
     ]) {
       const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
       expect(response.status, path).toBe(404);
@@ -40,12 +42,45 @@ describe('retired social integration', () => {
     expect(body).toHaveProperty('twitter');
     expect(body).not.toHaveProperty('farcaster');
   });
+  test('data exports retain supported account data without retired social fields', async () => {
+    const userId = await generateSnowflakeId();
+    await db.insert(users).values({
+      id: userId,
+      stewardId: `retired-social-${userId}`,
+      privyId: `did:privy:test-${userId}`,
+      username: `export-social-${userId}`,
+      hasTwitter: true,
+      twitterUsername: 'supported-account',
+      updatedAt: new Date(),
+    });
+    try {
+      const response = await fetch(`${baseUrl}/api/users/export-data`, {
+        headers: {
+          Authorization: `Bearer ${await createStewardTestToken(`retired-social-${userId}`)}`,
+        },
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.personal_information.id).toBe(userId);
+      expect(body.personal_information.twitterUsername).toBe(
+        'supported-account'
+      );
+      expect(
+        Object.keys(body.personal_information).some((key) =>
+          key.toLowerCase().includes('farcaster')
+        )
+      ).toBe(false);
+    } finally {
+      await db.delete(users).where(eq(users.id, userId));
+    }
+  });
   test('a historical share cannot be verified under a different platform', async () => {
     const userId = await generateSnowflakeId();
     const shareId = await generateSnowflakeId();
     const privyId = `did:privy:test-${userId}`;
     await db.insert(users).values({
       id: userId,
+      stewardId: `retired-social-${userId}`,
       privyId,
       username: `retired-social-${userId}`,
       updatedAt: new Date(),
@@ -63,7 +98,7 @@ describe('retired social integration', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer steward:test:${userId}`,
+            Authorization: `Bearer ${await createStewardTestToken(`retired-social-${userId}`)}`,
           },
           body: JSON.stringify({
             shareId,
