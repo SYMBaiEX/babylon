@@ -108,15 +108,25 @@ function isTestEnvironment(): boolean {
 /** Hard cap so misconfiguration cannot exhaust Postgres max_connections */
 const DATABASE_POOL_MAX_CAP = 500;
 
-function parsePositiveIntEnv(key: string): number | undefined {
+/**
+ * Strictly parse a positive integer env var (digits only; "60s" or "1e3"
+ * are rejected rather than partially parsed).
+ */
+export function parsePositiveIntEnv(key: string): number | undefined {
   const raw = process.env[key];
   if (raw === undefined || raw === '') return undefined;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) {
+  const n = /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN;
+  if (!Number.isSafeInteger(n) || n <= 0) {
     logger.warn(`Invalid ${key} value: "${raw}", using default`);
     return undefined;
   }
-  return Math.min(n, DATABASE_POOL_MAX_CAP);
+  return n;
+}
+
+/** Pool sizes are additionally capped; timeouts are not. */
+function parsePoolSizeEnv(key: string): number | undefined {
+  const n = parsePositiveIntEnv(key);
+  return n === undefined ? undefined : Math.min(n, DATABASE_POOL_MAX_CAP);
 }
 
 // ============================================================================
@@ -162,7 +172,7 @@ function getPostgresClientConfig(
 
   const envKey =
     role === 'primary' ? 'DATABASE_POOL_MAX' : 'DATABASE_READ_REPLICA_POOL_MAX';
-  const envMax = parsePositiveIntEnv(envKey);
+  const envMax = parsePoolSizeEnv(envKey);
 
   // Pool size lookup table for clarity (avoids nested ternaries)
   const POOL_DEFAULTS = {
