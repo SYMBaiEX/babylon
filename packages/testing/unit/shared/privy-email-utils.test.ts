@@ -138,7 +138,7 @@ describe('Privy Email Utilities', () => {
             address: 'verified@example.com',
             verified_at: Date.now(),
           } as PrivyEmailAccount,
-          { type: 'farcaster', fid: 12345 },
+          { type: 'twitter', username: 'testuser' },
           {
             type: 'email',
             address: 'another@example.com',
@@ -322,7 +322,7 @@ describe('Privy Email Utilities', () => {
       const user: PrivyUserWithEmails = {
         linkedAccounts: [
           { type: 'wallet', address: '0x123' },
-          { type: 'farcaster', fid: 12345 },
+          { type: 'twitter', username: 'testuser' },
           {
             type: 'email',
             address: 'hidden@elizalabs.ai',

@@ -188,14 +188,13 @@ describe('Referral Points Integration Tests', () => {
       const sameIpHash = 'test-ip-hash-12345';
       const now = new Date();
 
-      // Create referrer without unique identifiers (no privyId, wallet, farcaster, twitter)
+      // Create referrer without unique identifiers (no privyId, wallet, twitter)
       // This simulates a scenario where we can't distinguish users by identity
       const { userId: referrerId } = await createTestUser({
         registrationIpHash: sameIpHash,
         createdAt: now,
         privyId: null, // Remove unique identifier to test self-referral detection
         walletAddress: null,
-        farcasterFid: null,
         twitterId: null,
       });
 
@@ -207,7 +206,6 @@ describe('Referral Points Integration Tests', () => {
         createdAt: fiveMinutesLater,
         privyId: null, // Remove unique identifier to test self-referral detection
         walletAddress: null,
-        farcasterFid: null,
         twitterId: null,
       });
 
@@ -350,7 +348,6 @@ describe('Referral Points Integration Tests', () => {
       // Create referred user
       const { userId: referredUserId } = await createTestUser({
         referredBy: referrerId,
-        hasFarcaster: false,
         hasTwitter: false,
         walletAddress: null,
       });
@@ -413,12 +410,10 @@ describe('Referral Points Integration Tests', () => {
       );
     });
 
-    it('does not qualify a referral from a historical retired social account', async () => {
+    it('does not qualify a referral without a supported social account', async () => {
       const { userId: referrerId } = await createTestUser();
       const { userId } = await createTestUser({
         referredBy: referrerId,
-        hasFarcaster: true,
-        farcasterFid: 'historical-only',
         hasTwitter: false,
         walletAddress: null,
       });

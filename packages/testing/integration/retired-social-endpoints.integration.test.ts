@@ -19,6 +19,7 @@ describe('retired social integration', () => {
       '/api/frame/metadata',
       '/.well-known/farcaster.json',
       '/farcaster.json',
+      '/farcaster-hosted-template.json',
     ]) {
       const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
       expect(response.status, path).toBe(404);
@@ -39,6 +40,35 @@ describe('retired social integration', () => {
     const body = await response.json();
     expect(body).toHaveProperty('twitter');
     expect(body).not.toHaveProperty('farcaster');
+  });
+  test('data exports retain supported account data without retired social fields', async () => {
+    const userId = await generateSnowflakeId();
+    await db.insert(users).values({
+      id: userId,
+      privyId: `did:privy:test-${userId}`,
+      username: `export-social-${userId}`,
+      hasTwitter: true,
+      twitterUsername: 'supported-account',
+      updatedAt: new Date(),
+    });
+    try {
+      const response = await fetch(`${baseUrl}/api/users/export-data`, {
+        headers: { Authorization: `Bearer steward:test:${userId}` },
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.personal_information.id).toBe(userId);
+      expect(body.personal_information.twitterUsername).toBe(
+        'supported-account'
+      );
+      expect(
+        Object.keys(body.personal_information).some((key) =>
+          key.toLowerCase().includes('farcaster')
+        )
+      ).toBe(false);
+    } finally {
+      await db.delete(users).where(eq(users.id, userId));
+    }
   });
   test('a historical share cannot be verified under a different platform', async () => {
     const userId = await generateSnowflakeId();

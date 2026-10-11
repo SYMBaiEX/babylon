@@ -122,18 +122,10 @@ export const users = pgTable(
     profileSetupCompletedAt: timestamp('profileSetupCompletedAt', {
       mode: 'date',
     }),
-    farcasterUsername: text('farcasterUsername'),
-    hasFarcaster: boolean('hasFarcaster').notNull().default(false),
     hasTwitter: boolean('hasTwitter').notNull().default(false),
     hasDiscord: boolean('hasDiscord').notNull().default(false),
     hasTelegram: boolean('hasTelegram').notNull().default(false),
     nftTokenId: integer('nftTokenId').unique(),
-    pointsAwardedForFarcaster: boolean('pointsAwardedForFarcaster')
-      .notNull()
-      .default(false),
-    pointsAwardedForFarcasterFollow: boolean('pointsAwardedForFarcasterFollow')
-      .notNull()
-      .default(false),
     pointsAwardedForProfile: boolean('pointsAwardedForProfile')
       .notNull()
       .default(false),
@@ -183,17 +175,12 @@ export const users = pgTable(
     bannerDismissCount: integer('bannerDismissCount').notNull().default(0),
     bannerLastShown: timestamp('bannerLastShown', { mode: 'date' }),
     coverImageUrl: text('coverImageUrl'),
-    showFarcasterPublic: boolean('showFarcasterPublic').notNull().default(true),
     showTwitterPublic: boolean('showTwitterPublic').notNull().default(true),
     showWalletPublic: boolean('showWalletPublic').notNull().default(true),
     usernameChangedAt: timestamp('usernameChangedAt', { mode: 'date' }),
     bannedAt: timestamp('bannedAt', { mode: 'date' }),
     bannedBy: text('bannedBy'),
     bannedReason: text('bannedReason'),
-    farcasterDisplayName: text('farcasterDisplayName'),
-    farcasterFid: text('farcasterFid').unique(),
-    farcasterPfpUrl: text('farcasterPfpUrl'),
-    farcasterVerifiedAt: timestamp('farcasterVerifiedAt', { mode: 'date' }),
     isAdmin: boolean('isAdmin').notNull().default(false),
     isBanned: boolean('isBanned').notNull().default(false),
     isScammer: boolean('isScammer').notNull().default(false),
