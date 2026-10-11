@@ -170,8 +170,8 @@ export function LikeButton({
 
     const willBeLiked = !isLiked;
     if (targetType === 'post') {
-      await toggleLike(targetId);
-      // Track like action (client-side for instant feedback)
+      // Only report the change once the server committed it.
+      if (!(await toggleLike(targetId))) return;
       if (willBeLiked) {
         trackPostLike(targetId, true);
       }
@@ -197,8 +197,7 @@ export function LikeButton({
     if (isLiked) return;
 
     if (targetType === 'post') {
-      await toggleLike(targetId);
-      onLikeChange?.(true);
+      if (await toggleLike(targetId)) onLikeChange?.(true);
     } else {
       await toggleCommentLike(targetId);
     }

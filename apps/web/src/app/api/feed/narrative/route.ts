@@ -596,7 +596,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
 
       // Resolve marketId for question-backed stories so the frontend can render
-      // a live probability chart (PredictionSparkline) on each post card.
+      // market-linked UI on each post card.
       // Use the persisted market link; this fetches only
       // existing stories (not new markets which already have marketId set).
       const storyQuestionNumbers = stories

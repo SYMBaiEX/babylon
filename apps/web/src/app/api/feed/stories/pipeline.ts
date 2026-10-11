@@ -639,7 +639,7 @@ export async function buildStoriesFeed(): Promise<StoriesPipelineResult> {
     });
   }
 
-  // Resolve marketId for question-backed stories (enables PredictionSparkline)
+  // Resolve marketId for question-backed stories (enables market links on cards)
   const storyQuestionNumbers = stories
     .filter((s) => s.questionNumber !== null)
     .map((s) => s.questionNumber as number);
