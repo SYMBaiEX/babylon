@@ -1,8 +1,10 @@
 /**
  * Durable queue for perp (and future) trading fees when inline processing fails after retries.
  *
- * Rows are removed in the same Postgres transaction as `FeeService.processTradingFee`
- * so a crash after charging cannot leave a stale row that would double-charge on retry.
+ * Each row is claimed (DELETE … RETURNING) at the start of the same Postgres
+ * transaction that runs `FeeService.processTradingFee`, so concurrent drains
+ * cannot both charge a row and a crash after charging cannot leave a stale
+ * row that would double-charge on retry.
  */
 
 import type { TradingFeeOutboxPort } from '@feed/core/markets/shared';
@@ -78,7 +80,16 @@ export async function drainTradingFeeOutboxBatch(): Promise<{
     }
 
     try {
-      await withTransaction(async (tx: Transaction) => {
+      const claimed = await withTransaction(async (tx: Transaction) => {
+        // Claim the row first: the DELETE row-locks it, so a concurrent drain
+        // blocks here and then finds nothing to process once we commit (or
+        // gets the row back if we roll back). Never charge an unclaimed row.
+        const [claimedRow] = await tx
+          .delete(tradingFeeOutbox)
+          .where(eq(tradingFeeOutbox.id, row.id))
+          .returning({ id: tradingFeeOutbox.id });
+        if (!claimedRow) return false;
+
         await FeeService.processTradingFee(
           row.userId,
           row.tradeType as FeeType,
@@ -87,11 +98,9 @@ export async function drainTradingFeeOutboxBatch(): Promise<{
           row.marketId ?? undefined,
           tx
         );
-        await tx
-          .delete(tradingFeeOutbox)
-          .where(eq(tradingFeeOutbox.id, row.id));
+        return true;
       });
-      processed += 1;
+      if (claimed) processed += 1;
     } catch (error) {
       failed += 1;
       logger.error(

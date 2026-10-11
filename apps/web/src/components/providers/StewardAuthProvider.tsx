@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { getBrowserDevAuthSession } from '@/lib/auth/dev-auth';
 import { FeedStewardAuth } from '@/lib/auth/feed-steward-auth';
 import { createSessionCookieSync } from '@/lib/auth/session-cookie-sync';
 
@@ -139,11 +140,23 @@ export function StewardAuthProvider({
     };
   }, [stewardAuth]);
 
+  // The provider (not each useAuth consumer) owns the window-level token
+  // adapters used by apiFetch, so unmounting one consumer cannot clear them
+  // for the rest of the app.
   useEffect(() => {
-    (
-      window as Window & { __privyAccessToken?: string | null }
-    ).__privyAccessToken = session?.token ?? null;
+    window.__privyAccessToken = session?.token ?? null;
   }, [session]);
+
+  useEffect(() => {
+    window.__privyGetAccessToken = async () => {
+      const devSession = getBrowserDevAuthSession();
+      if (devSession) return devSession.accessToken;
+      return stewardAuth.getToken() ?? null;
+    };
+    return () => {
+      window.__privyGetAccessToken = undefined;
+    };
+  }, [stewardAuth]);
 
   const onLoginSuccess = useCallback(
     async (token: string, refreshToken?: string | null) => {
