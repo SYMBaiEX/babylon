@@ -7,6 +7,16 @@ if (environment !== 'staging' && environment !== 'production') {
   throw new Error('Usage: bun run build:cloudflare staging|production');
 }
 const app = resolve(import.meta.dir, '../apps/web');
+const buildEnvironment: Record<string, string> = JSON.parse(
+  process.env.CLOUDFLARE_BUILD_ENV || '{}'
+);
+for (const [name, value] of Object.entries(buildEnvironment)) {
+  if (!name.startsWith('NEXT_PUBLIC_') || typeof value !== 'string') {
+    throw new Error(
+      'Cloudflare build settings must be public string variables'
+    );
+  }
+}
 const result = spawnSync(
   'bun',
   [
@@ -21,6 +31,7 @@ const result = spawnSync(
     stdio: 'inherit',
     env: {
       ...process.env,
+      ...buildEnvironment,
       DEPLOYMENT_PLATFORM: 'cloudflare',
       DEPLOYMENT_ENV: environment,
       NEXT_PUBLIC_DEPLOYMENT_ENV: environment,

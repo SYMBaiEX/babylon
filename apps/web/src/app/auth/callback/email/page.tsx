@@ -47,7 +47,14 @@ export default function EmailCallbackPage() {
 
     stewardAuth
       .verifyEmailCallback(token, email)
-      .then((result) => onLoginSuccess(result.token, result.refreshToken))
+      .then((result) => {
+        if ('mfaRequired' in result) {
+          throw new Error(
+            'Additional verification is required. Enter the email code in the login dialog.'
+          );
+        }
+        return onLoginSuccess(result.token, result.refreshToken);
+      })
       .then(() => window.location.assign('/'))
       .catch((err: Error) => {
         setError(err.message);

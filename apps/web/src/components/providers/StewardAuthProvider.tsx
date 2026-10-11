@@ -13,8 +13,7 @@ import {
 
 // ── Singleton StewardAuth instance ───────────────────────────────────────────
 
-const STEWARD_TENANT_ID =
-  process.env.NEXT_PUBLIC_STEWARD_TENANT_ID ?? 'babylon';
+const STEWARD_TENANT_ID = process.env.NEXT_PUBLIC_STEWARD_TENANT_ID ?? 'feed';
 
 let _stewardAuthInstance: StewardAuth | null = null;
 
@@ -30,16 +29,6 @@ function getOrCreateStewardAuth(): StewardAuth {
     tenantId: STEWARD_TENANT_ID,
     // Persist session across page reloads
     storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
-    onSessionChange: (session) => {
-      // TODO: Phase 3 — rename __privyAccessToken to __accessToken once all
-      // consumers have migrated off the legacy Privy naming.
-      // Keep the window-level access token in sync for apiFetch
-      if (typeof window !== 'undefined') {
-        (
-          window as Window & { __privyAccessToken?: string | null }
-        ).__privyAccessToken = session?.token ?? null;
-      }
-    },
   });
   return _stewardAuthInstance;
 }
@@ -57,18 +46,21 @@ interface StewardAuthContextValue {
   ) => Promise<void>;
 }
 
-async function syncSessionCookie(token: string, refreshToken?: string | null) {
-  const res = await fetch('/api/auth/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ token, refreshToken }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Session cookie sync failed: ${res.status} ${body}`);
-  }
+let cookieUpdates: Promise<void> = Promise.resolve();
+function syncSessionCookie(token: string | null, refreshToken?: string | null) {
+  const update = async () => {
+    const res = await fetch('/api/auth/session', {
+      method: token ? 'POST' : 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: token ? JSON.stringify({ token, refreshToken }) : undefined,
+    });
+    if (!res.ok) throw new Error(`Session cookie sync failed: ${res.status}`);
+  };
+  // Preserve update order across SDK refresh, callback completion, and logout.
+  const result = cookieUpdates.then(update, update);
+  cookieUpdates = result;
+  return result;
 }
 
 const StewardAuthContext = createContext<StewardAuthContextValue | null>(null);
@@ -91,18 +83,51 @@ export function StewardAuthProvider({
   children: React.ReactNode;
 }) {
   const stewardAuth = useRef(getOrCreateStewardAuth()).current;
-  const [session, setSession] = useState<StewardSession | null>(() =>
-    stewardAuth.getSession()
-  );
-  const [isLoading, setIsLoading] = useState(false);
+  const [session, setSession] = useState<StewardSession | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Subscribe to session changes from the SDK
-    const unsubscribe = stewardAuth.onSessionChange((s) => {
-      setSession(s);
+    let active = true;
+    const synchronize = async (next: StewardSession | null) => {
+      if (!next) {
+        if (active) {
+          setSession(null);
+          setIsLoading(false);
+        }
+        await syncSessionCookie(null).catch(() => undefined);
+        return;
+      }
+      try {
+        await syncSessionCookie(next.token, stewardAuth.getRefreshToken());
+        if (active && stewardAuth.getSession()?.token === next.token) {
+          setSession(next);
+        }
+      } catch {
+        if (active && stewardAuth.getSession()?.token === next.token) {
+          stewardAuth.signOut();
+          setSession(null);
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    const unsubscribe = stewardAuth.onSessionChange((next) => {
+      void synchronize(next);
     });
-    return unsubscribe;
+    const restored = stewardAuth.getSession();
+    if (restored) void synchronize(restored);
+    else setIsLoading(false);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [stewardAuth]);
+
+  useEffect(() => {
+    (
+      window as Window & { __privyAccessToken?: string | null }
+    ).__privyAccessToken = session?.token ?? null;
+  }, [session]);
 
   const onLoginSuccess = useCallback(
     async (token: string, refreshToken?: string | null) => {

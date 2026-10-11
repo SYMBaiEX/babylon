@@ -406,6 +406,9 @@ as a repository variable. In each environment set:
   Configure Steward's allowed origins/redirects for the new environment domain.
   Preserve `NEXT_PUBLIC_STEWARD_TENANT_ID` as an environment variable and
   `STEWARD_PLATFORM_KEYS` in the runtime secret map for account provisioning.
+- `CLOUDFLARE_BUILD_ENV`: JSON string map containing only `NEXT_PUBLIC_*` settings.
+  This preserves environment-specific public provider IDs, contract addresses,
+  billing flags, and analytics settings. Canonical feed URLs override old app URLs.
 
 Repository secrets `SURPLUS_API_KEY`, `STAGING_DATABASE_URL`, and `PROD_DATABASE_URL`
 are merged into each deployment. The public PostHog key is
@@ -435,8 +438,29 @@ each with PostgreSQL 18 and Redis 8.2 services and persistent volumes. Daily and
 weekly volume backups are configured. The source databases are Neon PostgreSQL 17
 with no extensions beyond `plpgsql`; preserve them until verified restoration,
 schema reconciliation, and cutover finish. The private `feed-migration-backups` R2
-bucket holds migration snapshots. Database secrets must not switch to Railway
+bucket receives migration snapshots. Database secrets must not switch to Railway
 until the restored datasets and application connections pass validation.
+
+The temporary Railway jobs in `scripts/cloudflare/migration` stream read-only
+source dumps to private R2 using credentials restricted to one environment prefix.
+Restore jobs wait for the completion manifest, read back and verify the complete
+SHA-256, require an empty target, and restore in one transaction. They connect
+over Railway's private network with the target's pinned CA and save table counts
+and a restore receipt to R2. Remove these jobs and their temporary credentials
+after the final restore is accepted.
+
+The additive SQL in `scripts/cloudflare/sql` was tested against schema-only copies
+of both source databases. Staging needs 20 tables and eight trajectory columns;
+production needs two wallet-transfer tables and the coordinator message enum
+value. Apply these scripts once to the restored databases, then verify constraints,
+indexes, application behavior, and data. Existing extra tables and JSONB columns
+are retained; do not reset migration history or push a destructive schema diff.
+
+Authentication remains a cutover gate. Preserve the configured Steward tenant
+identity and verify credentials against the live provider. Register feed origins
+and callback URLs through an owner/admin session with recent MFA. The client
+uses one-time OAuth codes with PKCE, email codes, and explicit MFA challenges;
+verify real sign-in and cookie renewal before enabling deployment.
 
 Cloudflare connections require publicly trusted TLS certificates. Railway's
 default PostgreSQL certificate is self-signed, and its Redis template starts

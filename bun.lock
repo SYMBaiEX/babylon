@@ -241,7 +241,7 @@
         "@serwist/next": "9.5.7",
         "@simplewebauthn/browser": "^13.3.0",
         "@stripe/stripe-js": "^8.7.0",
-        "@stwd/sdk": "0.8.0",
+        "@stwd/sdk": "0.11.0",
         "@t3-oss/env-nextjs": "0.13.11",
         "@tanstack/react-query": "^5.90.8",
         "@telegram-apps/sdk-react": "^3.3.9",
@@ -2412,7 +2412,7 @@
 
     "@stripe/stripe-js": ["@stripe/stripe-js@8.11.0", "", {}, "sha512-3fVF4z3efsgwgyj64nFK+6F4/vMw0mUXD2TBbOfftJtKVNx4JNv3CSfe1fY4DCtCk0JFp8/YPNcRkzgV0HJ8cg=="],
 
-    "@stwd/sdk": ["@stwd/sdk@0.8.0", "", { "dependencies": { "bs58": "^6.0.0" } }, "sha512-pJHE5Od6MlJ6OH6o3PlDiDfz0tSJr0oeO20/dzr8nshDjIdW/w3F3KEwkzfkuGIkV2JGLjaK/OUfwiq8KJMieA=="],
+    "@stwd/sdk": ["@stwd/sdk@0.11.0", "", { "dependencies": { "bs58": "^6.0.0" } }, "sha512-v1EmbbdHEe/mcW2ftfZOlnEF7L7lZ6rkRRRsN9Cwv7yEUm9GRqgBsvYl5sQdfOSltlVgdGtHIzPY9LuQ5dTVMg=="],
 
     "@swagger-api/apidom-ast": ["@swagger-api/apidom-ast@1.10.0", "", { "dependencies": { "@babel/runtime-corejs3": "^7.26.10", "@swagger-api/apidom-error": "^1.10.0", "@types/ramda": "~0.30.0", "ramda": "~0.30.0", "ramda-adjunct": "^5.0.0", "unraw": "^3.0.0" } }, "sha512-K8LkkWqsrXT+i8UGIHZ4HOfQ+kEuMVf7JZnS7lgSPCSUeC25iP/nrsIMPmOtZ20cS40BSxp7PjF/umt4pfOKNg=="],
 
