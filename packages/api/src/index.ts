@@ -158,8 +158,6 @@ export {
 } from './linear';
 // Monitoring
 export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
-export * from './monitoring/monitored-cache';
-export * from './monitoring/monitored-storage';
 // Performance monitoring (moved from @feed/shared)
 export { performanceMonitor } from './monitoring/performance-monitor';
 // Profile utilities
