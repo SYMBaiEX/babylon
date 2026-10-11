@@ -9,8 +9,9 @@ import { swaggerDefinition } from './config';
 /**
  * Generate complete OpenAPI specification
  *
- * @description Generates the OpenAPI 3.0 specification for all API routes
- * with comprehensive documentation extracted from TSDoc comments in route files.
+ * @description Returns the hand-maintained OpenAPI 3.0 catalog of documented
+ * API routes. Nothing is extracted from route files: when a route's contract
+ * changes, its entry here must be updated by hand.
  *
  * @returns {object} Complete OpenAPI 3.0 specification
  *
