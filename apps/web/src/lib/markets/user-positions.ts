@@ -1,10 +1,10 @@
 import 'server-only';
 
 import { findUserByIdentifier } from '@feed/api';
+import { calculatePredictionPositionSnapshot } from '@feed/core/markets/prediction';
 import { asPublic, asUser, db, eq, users } from '@feed/db';
 import { FEE_CONFIG } from '@feed/engine/config/fees';
 import { toISO, toISOOrNull } from '@feed/shared';
-import { calculatePredictionPositionSnapshot } from '@/lib/wallet/predictionPositionSnapshot';
 import type {
   UserPerpPositionSnapshot,
   UserPositionsSnapshot,
@@ -285,11 +285,11 @@ export async function getUserPositionsSnapshot({
 
       const shares = Number(position.shares);
       const avgPrice = Number(position.avgPrice);
-      const sideKey = position.side ? 'yes' : 'no';
+      const side = position.side ? 'yes' : 'no';
       const snapshot = calculatePredictionPositionSnapshot({
         shares,
         avgPrice,
-        sideKey,
+        side,
         yesShares: Number(market.yesShares),
         noShares: Number(market.noShares),
         feeRate: FEE_CONFIG.TRADING_FEE_RATE,

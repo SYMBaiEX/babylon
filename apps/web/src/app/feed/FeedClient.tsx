@@ -482,7 +482,7 @@ export function FeedClient() {
         </div>
 
         {/* Widget sidebar - lazy loaded, desktop only */}
-        <WidgetSidebar showPositions />
+        <WidgetSidebar />
       </div>
     </PageContainer>
   );

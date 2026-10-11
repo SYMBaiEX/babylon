@@ -7,7 +7,7 @@ import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { getExplorerName, getExplorerTxUrl } from '@/lib/chain';
+import { getExplorer, getExplorerTxUrl } from '@/lib/chain';
 import { useAuthStore } from '@/stores/authStore';
 
 /** Number of transactions to show in collapsed view */
@@ -151,7 +151,7 @@ function FundingTransactionRow({ tx }: { tx: FundingTransaction }) {
             className="mt-1 inline-flex items-center gap-1 text-[#0066FF] text-xs hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            View on {getExplorerName()}
+            View on {getExplorer()?.name}
           </a>
         )}
       </div>

@@ -1,18 +1,17 @@
 import { describe, expect, it } from 'bun:test';
-import { calculatePredictionPositionSnapshot } from './predictionPositionSnapshot';
+import { calculatePredictionPositionSnapshot } from '@feed/core/markets/prediction';
 
 describe('calculatePredictionPositionSnapshot', () => {
   it('prices a resolved winning position at full payout', () => {
     const snapshot = calculatePredictionPositionSnapshot({
       shares: 12,
       avgPrice: 0.4,
-      sideKey: 'yes',
+      side: 'yes',
       yesShares: 520,
       noShares: 480,
       feeRate: 0,
       resolved: true,
       resolution: true,
-      onSellPreviewError: 'throw',
     });
 
     expect(snapshot.currentProbability).toBe(1);
@@ -25,13 +24,12 @@ describe('calculatePredictionPositionSnapshot', () => {
     const snapshot = calculatePredictionPositionSnapshot({
       shares: 8,
       avgPrice: 0.65,
-      sideKey: 'no',
+      side: 'no',
       yesShares: 520,
       noShares: 480,
       feeRate: 0,
       resolved: true,
       resolution: true,
-      onSellPreviewError: 'throw',
     });
 
     expect(snapshot.currentProbability).toBe(0);
