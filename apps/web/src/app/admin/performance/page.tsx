@@ -22,7 +22,8 @@ import {
 } from '@/components/ui/card';
 import { apiUrl } from '@/utils/api-url';
 
-const HealthLevelSchema = z.enum(['healthy', 'warning', 'critical']);
+/** 'unknown' = no observations (or no process metrics on this runtime). */
+const HealthLevelSchema = z.enum(['healthy', 'warning', 'critical', 'unknown']);
 type HealthLevel = z.infer<typeof HealthLevelSchema>;
 
 const NetworkStatsSchema = z.object({
@@ -54,7 +55,7 @@ const NetworkStatsSchema = z.object({
   }),
   health: z.object({
     database: HealthLevelSchema,
-    memory: z.union([HealthLevelSchema, z.literal('unavailable')]),
+    memory: HealthLevelSchema,
     overall: HealthLevelSchema,
   }),
 });
@@ -64,6 +65,7 @@ const HEALTH_BADGE_CLASS: Record<HealthLevel, string> = {
   healthy: 'bg-green-100 text-green-800',
   warning: 'bg-yellow-100 text-yellow-800',
   critical: 'bg-red-100 text-red-800',
+  unknown: 'bg-gray-100 text-gray-800',
 };
 
 const CARD_CLASS = 'rounded-lg border p-4';
@@ -197,13 +199,7 @@ export default function AdminPerformancePage() {
                 <CardTitle className="font-medium text-sm">Memory</CardTitle>
               </CardHeader>
               <CardContent className="flex items-center gap-2">
-                {stats.health.memory === 'unavailable' ? (
-                  <span className="text-muted-foreground text-sm">
-                    Unavailable on this runtime
-                  </span>
-                ) : (
-                  <HealthBadge level={stats.health.memory} />
-                )}
+                <HealthBadge level={stats.health.memory} />
                 {stats.server.memory && (
                   <span className="text-muted-foreground text-sm">
                     {stats.server.memory.heapUsed.toFixed(0)}MB /{' '}
