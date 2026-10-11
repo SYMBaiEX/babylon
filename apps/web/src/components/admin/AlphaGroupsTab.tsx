@@ -34,7 +34,8 @@ const TierStatsSchema = z.object({
   name: z.string(),
   current: z.number(),
   max: z.number(),
-  fillRate: z.number(),
+  // null when the tier has no capacity (no groups)
+  fillRate: z.number().nullable(),
 });
 
 /**
@@ -388,29 +389,35 @@ export function AlphaGroupsTab() {
                   <span className="font-bold text-2xl">{tier.current}</span>
                   <span className="text-sm opacity-70">/ {tier.max}</span>
                 </div>
-                <div className="mt-2 h-2 rounded-full bg-background/30">
-                  <div
-                    className={cn(
-                      'h-2 rounded-full',
-                      tier.fillRate < 0.75
-                        ? 'bg-green-500'
-                        : tier.fillRate < 0.9
-                          ? 'bg-yellow-500'
-                          : 'bg-red-500'
-                    )}
-                    style={{
-                      width: `${Math.min(100, tier.fillRate * 100)}%`,
-                    }}
-                  />
-                </div>
-                <p
-                  className={cn(
-                    'mt-1 text-sm',
-                    getFillRateColor(tier.fillRate)
-                  )}
-                >
-                  {formatPercent(tier.fillRate)} full
-                </p>
+                {tier.fillRate === null ? (
+                  <p className="mt-1 text-sm opacity-70">No capacity</p>
+                ) : (
+                  <>
+                    <div className="mt-2 h-2 rounded-full bg-background/30">
+                      <div
+                        className={cn(
+                          'h-2 rounded-full',
+                          tier.fillRate < 0.75
+                            ? 'bg-green-500'
+                            : tier.fillRate < 0.9
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
+                        )}
+                        style={{
+                          width: `${Math.min(100, tier.fillRate * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <p
+                      className={cn(
+                        'mt-1 text-sm',
+                        getFillRateColor(tier.fillRate)
+                      )}
+                    >
+                      {formatPercent(tier.fillRate)} full
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           ))}
