@@ -24,9 +24,15 @@ describe('cache-service memory pattern invalidation', () => {
 
     await invalidateCachePattern('123:*', { namespace: 'user' });
 
-    expect(await getCache('123:profile', { namespace: 'user' })).toBeNull();
-    expect(await getCache('1234:profile', { namespace: 'user' })).toBe('b');
-    expect(await getCache('9123:profile', { namespace: 'user' })).toBe('c');
+    expect(
+      await getCache<string>('123:profile', { namespace: 'user' })
+    ).toBeNull();
+    expect(await getCache<string>('1234:profile', { namespace: 'user' })).toBe(
+      'b'
+    );
+    expect(await getCache<string>('9123:profile', { namespace: 'user' })).toBe(
+      'c'
+    );
   });
 
   test('a wildcard is scoped to its namespace', async () => {
@@ -35,8 +41,8 @@ describe('cache-service memory pattern invalidation', () => {
 
     await invalidateCachePattern('*', { namespace: 'user' });
 
-    expect(await getCache('1', { namespace: 'user' })).toBeNull();
-    expect(await getCache('1', { namespace: 'post' })).toBe('post-1');
+    expect(await getCache<string>('1', { namespace: 'user' })).toBeNull();
+    expect(await getCache<string>('1', { namespace: 'post' })).toBe('post-1');
   });
 
   test('glob conversion escapes regex metacharacters', () => {
