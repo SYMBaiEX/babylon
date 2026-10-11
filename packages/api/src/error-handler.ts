@@ -7,7 +7,12 @@ import { logger, FeedAppError as SharedFeedAppError } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ApiError, FeedAppError, isAuthenticationError } from './errors';
+import {
+  ApiError,
+  FeedAppError,
+  isAuthenticationError,
+  RateLimitError,
+} from './errors';
 import type { JsonValue } from './types';
 
 const DatabaseErrorCtor = (
@@ -60,6 +65,48 @@ function serializeErrorCause(cause: unknown): Record<string, JsonValue> | null {
     return { message: String(cause) };
   }
   return { message: String(cause) };
+}
+
+const SENSITIVE_QUERY_PARAM_PATTERN =
+  /(token|secret|password|key|signature|code|session|auth)/i;
+
+/**
+ * URL for logs: query parameters that may carry credentials (e.g. the SSE
+ * realtime token, OAuth codes) are redacted.
+ */
+export function sanitizeUrlForLogging(rawUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return '[unparseable url]';
+  }
+  for (const key of Array.from(url.searchParams.keys())) {
+    if (SENSITIVE_QUERY_PARAM_PATTERN.test(key)) {
+      url.searchParams.set(key, '[REDACTED]');
+    }
+  }
+  return url.toString();
+}
+
+/** Suppress expected-noise logs (auth/validation failures) in unit tests. */
+function isTestEnvironment(): boolean {
+  return process.env.NODE_ENV === 'test';
+}
+
+/** Retry-After seconds for rate-limit errors from either error hierarchy. */
+function getRetryAfterSeconds(error: Error): number | undefined {
+  if (error instanceof RateLimitError && error.reset !== undefined) {
+    return error.reset;
+  }
+  const context =
+    error instanceof FeedAppError || error instanceof SharedFeedAppError
+      ? error.context
+      : undefined;
+  const retryAfter = context?.retryAfter;
+  return typeof retryAfter === 'number' && Number.isFinite(retryAfter)
+    ? retryAfter
+    : undefined;
 }
 
 const SENSITIVE_CONTEXT_KEY_PATTERN =
@@ -143,7 +190,7 @@ export function errorHandler(
 ): NextResponse {
   // Log the error with context
   const errorContext = {
-    url: request.url,
+    url: sanitizeUrlForLogging(request.url),
     method: request.method,
     headers: sanitizeHeaders(request.headers),
     timestamp: new Date().toISOString(),
@@ -162,7 +209,7 @@ export function errorHandler(
       normalized.name = 'NonErrorThrown';
       options.captureError(normalized, {
         request: {
-          url: request.url,
+          url: new URL(request.url).pathname,
           method: request.method,
           headers: sanitizeHeaders(request.headers),
         },
@@ -185,13 +232,9 @@ export function errorHandler(
 
   // Handle authentication errors early - these are expected and shouldn't be logged as errors
   if (isAuthenticationError(error)) {
-    // Skip logging for test tokens to reduce noise in test output
-    const authHeader = request.headers.get('authorization');
-    const isTestToken = authHeader?.includes('test-token');
-
-    // Log authentication failures at warn level (expected behavior for unauthenticated requests)
-    // But skip logging for test tokens
-    if (!isTestToken) {
+    // Log authentication failures at warn level (expected behavior for
+    // unauthenticated requests); skipped in the test environment.
+    if (!isTestEnvironment()) {
       logger.warn('Authentication failed', {
         error: error.message,
         ...errorContext,
@@ -208,13 +251,9 @@ export function errorHandler(
 
   // Handle validation errors early - these are expected client input issues
   if (error instanceof z.ZodError) {
-    // Skip logging for test tokens to reduce noise in test output
-    const authHeader = request.headers.get('authorization');
-    const isTestToken = authHeader?.includes('test-token');
-
-    // Log validation errors at warn level (expected behavior for invalid client input)
-    // But skip logging for test requests
-    if (!isTestToken) {
+    // Log validation errors at warn level (expected behavior for invalid
+    // client input); skipped in the test environment.
+    if (!isTestEnvironment()) {
       logger.warn('Validation error', {
         error: error.message,
         issues: error.issues.map((issue) => ({
@@ -346,7 +385,7 @@ export function errorHandler(
       error.isOperational &&
       error.statusCode < 500);
   const shouldCaptureInErrorTracking =
-    options?.captureError && error instanceof Error && !isOperational4xx;
+    options?.captureError && !isOperational4xx;
 
   if (shouldCaptureInErrorTracking && options.captureError) {
     const context: Record<string, JsonValue> = {
@@ -394,11 +433,13 @@ export function errorHandler(
       }
     }
 
+    const retryAfter =
+      error.statusCode === 429 ? getRetryAfterSeconds(error) : undefined;
     return NextResponse.json(errorData, {
       status: error.statusCode,
       headers:
-        error.code === 'RATE_LIMIT' && error.context?.retryAfter
-          ? { 'Retry-After': String(error.context.retryAfter) }
+        retryAfter !== undefined
+          ? { 'Retry-After': String(Math.max(1, Math.ceil(retryAfter))) }
           : undefined,
     });
   }
@@ -416,7 +457,15 @@ export function errorHandler(
       }
     }
 
-    return NextResponse.json(errorData, { status: error.statusCode });
+    const retryAfter =
+      error.statusCode === 429 ? getRetryAfterSeconds(error) : undefined;
+    return NextResponse.json(errorData, {
+      status: error.statusCode,
+      headers:
+        retryAfter !== undefined
+          ? { 'Retry-After': String(Math.max(1, Math.ceil(retryAfter))) }
+          : undefined,
+    });
   }
 
   // Handle database errors
@@ -424,49 +473,24 @@ export function errorHandler(
     return handleDatabaseError(error as Error & { code?: string });
   }
 
-  if (error instanceof Error) {
-    // Handle native JavaScript errors
-    if (error.name === 'SyntaxError') {
-      return NextResponse.json(
-        {
-          error: 'Invalid JSON in request body',
-        },
-        { status: 400 }
-      );
-    }
-
-    if (error.name === 'TypeError') {
-      return NextResponse.json(
-        {
-          error:
-            process.env.NODE_ENV === 'production'
-              ? 'An unexpected error occurred'
-              : error.message,
-        },
-        { status: 500 }
-      );
-    }
-
-    // Default Error handling
-    const errorData: Record<string, JsonValue> = {
-      error:
-        process.env.NODE_ENV === 'production'
-          ? 'An unexpected error occurred'
-          : error.message,
-    };
-
-    if (process.env.NODE_ENV === 'development' && error.stack) {
-      errorData.stack = error.stack;
-    }
-
-    return NextResponse.json(errorData, { status: 500 });
+  // Native errors (non-Error values returned early above)
+  if (error.name === 'SyntaxError') {
+    return NextResponse.json(
+      { error: 'Invalid JSON in request body' },
+      { status: 400 }
+    );
   }
 
-  // Handle any other unknown type
-  return NextResponse.json(
-    { error: 'An unexpected error occurred' },
-    { status: 500 }
-  );
+  const errorData: Record<string, JsonValue> = {
+    error:
+      process.env.NODE_ENV === 'production'
+        ? 'An unexpected error occurred'
+        : error.message,
+  };
+  if (process.env.NODE_ENV === 'development' && error.stack) {
+    errorData.stack = error.stack;
+  }
+  return NextResponse.json(errorData, { status: 500 });
 }
 
 /**
@@ -587,37 +611,6 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
     try {
       const response = await handler(req, context!);
       return response;
-    } catch (error) {
-      return errorHandler(error, req, resolveErrorHandlerOptions(options));
-    }
-  };
-}
-
-/**
- * Async wrapper for route handlers with error boundaries
- * Useful for handlers that need setup or teardown
- */
-export function asyncHandler<TContext extends RouteContext = RouteContext>(
-  setup?: () => Promise<void>,
-  handler?: (req: NextRequest, context?: TContext) => Promise<Response>,
-  teardown?: () => Promise<void>,
-  options?: ErrorHandlerOptions
-): (req: NextRequest, context?: TContext) => Promise<Response> {
-  return async (req: NextRequest, context?: TContext) => {
-    try {
-      if (setup) {
-        await setup();
-      }
-
-      if (!handler) {
-        throw new Error('Handler function is required');
-      }
-
-      const result = await handler(req, context);
-      if (teardown) {
-        await teardown();
-      }
-      return result;
     } catch (error) {
       return errorHandler(error, req, resolveErrorHandlerOptions(options));
     }

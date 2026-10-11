@@ -210,39 +210,21 @@ if (isBuildTime || isTestEnv) {
 }
 
 /**
- * Get the Redis client instance
+ * Check whether a Redis client exists.
  *
- * @description Returns the Redis client if available. May return null if
- * Redis is not configured or failed to initialize.
+ * @description True once a client has been created and connected at least
+ * once. It does not guarantee the connection is currently healthy (ioredis
+ * may be reconnecting); use ensureRedisReady() when readiness matters.
  *
- * @returns {RedisInstance | null} Redis client or null
- */
-export function getRedis(): RedisInstance | null {
-  return state().redisClient;
-}
-
-// Export for backwards compatibility
-export const redis = state().redisClient;
-
-/**
- * Check if Redis is available
- *
- * @description Determines if a Redis client has been successfully initialized
- * and is available for use. Returns false if Redis is not configured or failed
- * to initialize.
- *
- * @returns {boolean} True if Redis is available, false otherwise
+ * @returns {boolean} True if a Redis client exists
  */
 export function isRedisAvailable(): boolean {
   return state().redisClient !== null;
 }
 
 /**
- * Get the current Redis client (for dynamic access after initialization)
- *
- * @description Returns the current Redis client. Use this instead of the
- * exported `redis` constant when you need to access the client after
- * async initialization has completed.
+ * Get the current Redis client, or null when Redis is not configured or
+ * failed to initialize.
  */
 export function getRedisClient(): RedisInstance | null {
   return state().redisClient;
@@ -387,16 +369,32 @@ export async function safePoll(channel: string, count = 10): Promise<string[]> {
  * @returns {Promise<void>} Promise that resolves when connection is closed
  */
 export async function closeRedis(): Promise<void> {
-  if (state().isClosing) return;
-  state().isClosing = true;
+  const current = state();
+  if (current.isClosing) return;
+  current.isClosing = true;
 
-  const client = getRedisClient();
-  if (client) {
-    const status = client.status;
-    if (status === 'ready' || status === 'connect') {
-      await client.quit();
-      logger.info('Redis connection closed', undefined, 'Redis');
+  const client = current.redisClient;
+  current.redisClient = null;
+  syncGlobalState();
+  try {
+    if (client) {
+      const status = client.status;
+      if (status === 'ready' || status === 'connect') {
+        await client.quit();
+        logger.info('Redis connection closed', undefined, 'Redis');
+      } else {
+        client.disconnect(false);
+      }
     }
+  } catch (error) {
+    logger.warn(
+      'Redis quit failed; disconnecting',
+      { error: error instanceof Error ? error.message : String(error) },
+      'Redis'
+    );
+    client?.disconnect(false);
+  } finally {
+    current.isClosing = false;
   }
 }
 

@@ -107,7 +107,6 @@ export {
 } from './env';
 // Error Handler (Next.js specific)
 export {
-  asyncHandler,
   type ErrorHandlerOptions,
   errorHandler,
   errorResponse,
@@ -217,11 +216,9 @@ export { drainOutboxBatch, enqueueOutbox } from './realtime/outbox';
 export {
   closeRedis,
   ensureRedisReady,
-  getRedis,
   getRedisClient,
   isRedisAvailable,
   type RedisInstance,
-  redis,
   type StreamMessage,
   safePoll,
   safePublish,

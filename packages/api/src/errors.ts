@@ -185,6 +185,7 @@ export class ValidationError extends FeedAppError {
  * Rate Limit Error (429)
  */
 export class RateLimitError extends FeedAppError {
+  /** Seconds until the caller may retry (sent as the Retry-After header). */
   public readonly reset?: number;
 
   constructor(
