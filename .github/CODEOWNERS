@@ -54,5 +54,4 @@
 /apps/web/src/app/api/admin/ai-models/ @revlentless @odilitime @ElizaReview
 /apps/web/src/app/api/cron/training/ @revlentless @odilitime @ElizaReview
 /apps/web/src/app/api/cron/training-check/ @revlentless @odilitime @ElizaReview
-/apps/web/src/app/api/cron/_training/ @revlentless @odilitime @ElizaReview
 /apps/web/src/app/api/cron/weekly-dataset-upload/ @revlentless @odilitime @ElizaReview
