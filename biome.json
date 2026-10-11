@@ -24,9 +24,6 @@
       "!**/venv",
       "!**/*.md",
       "!**/*.mdx",
-      "!**/feed-platform-artchitecture",
-      "!**/feed-ai-trading-platform",
-      "!**/genesis.json",
       "!**/drizzle/migrations",
       "!packages/training/data/benchmarks/scenarios/**",
       "!packages/training/book/mermaid-init.js",
@@ -105,23 +102,9 @@
     },
     {
       "includes": [
-        "apps/web/src/lib/agents/plugins/**",
-        "apps/web/src/lib/training/**",
-        "apps/web/src/lib/benchmark/**",
-        "apps/web/src/lib/agents/examples/**",
-        "apps/web/src/lib/agents/autonomous/a2a-only/**",
-        "apps/web/src/a2a/**"
-      ],
-      "linter": {
-        "enabled": false
-      }
-    },
-    {
-      "includes": [
         "apps/web/sentry.*.config.ts",
         "apps/web/instrumentation*.ts",
         "apps/web/next.config.ts",
-        "packages/engine/src/prompts/complete-example.ts",
         "scripts/**",
         "apps/cli/**",
         "packages/testing/**",
@@ -140,21 +123,6 @@
         "rules": {
           "suspicious": {
             "noConsole": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["docs/scripts/**", "docs/app/**/*.jsx"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noImplicitAnyLet": "off",
-            "noAssignInExpressions": "off",
-            "noShadowRestrictedNames": "off"
-          },
-          "correctness": {
-            "useHookAtTopLevel": "off"
           }
         }
       }

@@ -8,7 +8,7 @@
     "packages/examples/*"
   ],
   "scripts": {
-    "postinstall": "bun run scripts/postinstall-install-python-deps.ts && bun run scripts/postinstall-agent-frameworks.ts",
+    "postinstall": "bun run scripts/postinstall-install-python-deps.ts",
     "agent-frameworks:bootstrap": "bun run scripts/postinstall-agent-frameworks.ts",
     "dev": "bun run scripts/pre-dev/pre-dev-local.ts && bun run scripts/dev-wrapper.ts",
     "dev:web": "turbo dev --filter=web",

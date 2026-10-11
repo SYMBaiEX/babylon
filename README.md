@@ -354,8 +354,9 @@ Bootstrap agent frameworks (run once):
 
 ```bash
 bun run agent-frameworks:bootstrap
-# or skip with: FEED_SKIP_AGENT_FRAMEWORKS_BOOTSTRAP=1
 ```
+
+This clones and builds the frameworks into `../external-sources`; it is not run by `bun install`.
 
 The **training harness** in `packages/examples/harness` wires agents against the game engine for evaluation. See `packages/training/SCAMBENCH_RUNBOOK.md` for detailed setup.
 
