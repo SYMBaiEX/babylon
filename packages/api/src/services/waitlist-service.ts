@@ -19,6 +19,7 @@ import {
   or,
   pointsTransactions,
   referrals,
+  sql,
   users,
 } from '@feed/db';
 import { generateSnowflakeId, logger, POINTS } from '@feed/shared';
@@ -445,130 +446,105 @@ export class WaitlistService {
   }
 
   /**
-   * Award bonus points for wallet connection
+   * Award the one-time bonus for a linked identity (wallet or email).
+   *
+   * The submitted value is never written to the account: it must equal the
+   * identity already linked by the authentication provider. Accepting
+   * arbitrary values let users claim other people's wallets (NFT gating
+   * trusts users.walletAddress) and admin-domain emails (admin roles are
+   * granted from users.email).
+   *
+   * The award flag is flipped with a conditional UPDATE in the same
+   * transaction as the ledger insert, so concurrent requests award once.
+   */
+  private static async awardLinkedIdentityBonus(params: {
+    userId: string;
+    kind: 'wallet' | 'email';
+    submitted: string;
+  }): Promise<boolean> {
+    const { userId, kind, submitted } = params;
+    const bonusAmount =
+      kind === 'wallet' ? POINTS.WALLET_CONNECT : POINTS.EMAIL_SUBMIT;
+    const awardedColumn =
+      kind === 'wallet'
+        ? users.pointsAwardedForWallet
+        : users.pointsAwardedForEmail;
+    const identityColumn =
+      kind === 'wallet' ? users.walletAddress : users.email;
+
+    return db.transaction(async (tx) => {
+      const conditions = [
+        eq(users.id, userId),
+        eq(awardedColumn, false),
+        sql`lower(${identityColumn}) = ${submitted.trim().toLowerCase()}`,
+      ];
+      if (kind === 'email') {
+        conditions.push(eq(users.isWaitlistActive, true));
+      }
+
+      const [updated] = await tx
+        .update(users)
+        .set({
+          ...(kind === 'wallet'
+            ? { pointsAwardedForWallet: true }
+            : { pointsAwardedForEmail: true }),
+          bonusPoints: sql`${users.bonusPoints} + ${bonusAmount}`,
+          reputationPoints: sql`${users.reputationPoints} + ${bonusAmount}`,
+        })
+        .where(and(...conditions))
+        .returning({ reputationPoints: users.reputationPoints });
+
+      if (!updated) {
+        return false;
+      }
+
+      await tx.insert(pointsTransactions).values({
+        id: await generateSnowflakeId(),
+        userId,
+        amount: bonusAmount,
+        pointsBefore: updated.reputationPoints - bonusAmount,
+        pointsAfter: updated.reputationPoints,
+        reason: kind === 'wallet' ? 'wallet_connect' : 'email_submit',
+      });
+
+      logger.info(
+        `Awarded ${kind} bonus to user ${userId}`,
+        { userId, bonusAmount },
+        'WaitlistService'
+      );
+      return true;
+    });
+  }
+
+  /**
+   * Award bonus points for the wallet linked to the account. Returns false if
+   * the submitted wallet is not the linked wallet or the bonus was awarded.
    */
   static async awardWalletBonus(
     userId: string,
     walletAddress: string
   ): Promise<boolean> {
-    const userResult = await db
-      .select({
-        pointsAwardedForWallet: users.pointsAwardedForWallet,
-        reputationPoints: users.reputationPoints,
-        bonusPoints: users.bonusPoints,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const user = userResult[0];
-
-    if (!user) {
-      return false;
-    }
-
-    // Don't award if already awarded
-    if (user.pointsAwardedForWallet) {
-      return false;
-    }
-
-    const bonusAmount = 300;
-    const newBonusPoints = user.bonusPoints + bonusAmount;
-    const newReputationPoints = user.reputationPoints + bonusAmount;
-
-    await db
-      .update(users)
-      .set({
-        walletAddress,
-        pointsAwardedForWallet: true,
-        bonusPoints: newBonusPoints,
-        reputationPoints: newReputationPoints,
-      })
-      .where(eq(users.id, userId));
-
-    // Create points transaction
-    await db.insert(pointsTransactions).values({
-      id: await generateSnowflakeId(),
+    return WaitlistService.awardLinkedIdentityBonus({
       userId,
-      amount: bonusAmount,
-      pointsBefore: user.reputationPoints,
-      pointsAfter: newReputationPoints,
-      reason: 'wallet_connect',
-      metadata: JSON.stringify({ walletAddress }),
+      kind: 'wallet',
+      submitted: walletAddress,
     });
-
-    logger.info(
-      `Awarded wallet bonus to user ${userId}`,
-      {
-        userId,
-        bonusAmount,
-      },
-      'WaitlistService'
-    );
-
-    return true;
   }
 
   /**
-   * Award bonus points for providing an email address (one-time bonus).
-   * Saves the email and sets pointsAwardedForEmail to prevent double-awarding.
+   * Award bonus points for the verified email linked to the account. Returns
+   * false if the submitted email is not the account email, the user is not
+   * on the waitlist, or the bonus was already awarded.
    */
   static async awardEmailBonus(
     userId: string,
     email: string
   ): Promise<boolean> {
-    const userResult = await db
-      .select({
-        isWaitlistActive: users.isWaitlistActive,
-        pointsAwardedForEmail: users.pointsAwardedForEmail,
-        reputationPoints: users.reputationPoints,
-        bonusPoints: users.bonusPoints,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const user = userResult[0];
-
-    if (!user || !user.isWaitlistActive) {
-      return false;
-    }
-
-    if (user.pointsAwardedForEmail) {
-      return false;
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const bonusAmount = POINTS.EMAIL_SUBMIT;
-    const newBonusPoints = user.bonusPoints + bonusAmount;
-    const newReputationPoints = user.reputationPoints + bonusAmount;
-
-    await db
-      .update(users)
-      .set({
-        email: normalizedEmail,
-        pointsAwardedForEmail: true,
-        bonusPoints: newBonusPoints,
-        reputationPoints: newReputationPoints,
-      })
-      .where(eq(users.id, userId));
-
-    await db.insert(pointsTransactions).values({
-      id: await generateSnowflakeId(),
+    return WaitlistService.awardLinkedIdentityBonus({
       userId,
-      amount: bonusAmount,
-      pointsBefore: user.reputationPoints,
-      pointsAfter: newReputationPoints,
-      reason: 'email_submit',
+      kind: 'email',
+      submitted: email,
     });
-
-    logger.info(
-      `Awarded email bonus to user ${userId}`,
-      { userId, bonusAmount },
-      'WaitlistService'
-    );
-
-    return true;
   }
 
   /**
