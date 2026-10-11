@@ -11,7 +11,7 @@ Deploy Feed RL training and benchmarks to [RunPod](https://runpod.io) cloud GPUs
 export RUNPOD_API_KEY="your-key"  # from https://runpod.io/console/user/settings
 
 # 2. Configure environment
-cp ../env.example .env
+cp ../.env.example .env
 # Edit .env with DATABASE_URL, WANDB_API_KEY, etc.
 
 # 3. Start training
@@ -176,7 +176,7 @@ python setup.py shell --gpu <type> --image <image> [options]
 
 ## Environment Configuration
 
-Uses the master [`../env.example`](../env.example). Key variables:
+Uses the master [`../.env.example`](../.env.example). Key variables:
 
 | Variable | Description |
 |----------|-------------|
@@ -208,7 +208,7 @@ cd packages/training/deploy/docker
 ./build.sh push-training -o yourorg -t latest
 
 # 2. Configure
-cp ../env.example .env
+cp ../.env.example .env
 # Edit .env with HF_TOKEN, WANDB_API_KEY, RUNPOD_API_KEY
 
 # 3. Deploy
@@ -308,8 +308,7 @@ python setup.py stop <pod-id>
 
 ## Related
 
-- [Master Environment Config](../env.example)
+- [Master Environment Config](../.env.example)
 - [Docker Images](../docker/README.md)
 - [Large GPU Runbook](../LARGE_GPU_RUNBOOK.md)
 - [Local Development](../local/README.md)
-- [Phala Cloud (TEE)](../phala/README.md)

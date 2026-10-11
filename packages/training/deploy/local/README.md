@@ -12,7 +12,7 @@ Run Feed RL training locally with Docker.
 
 ```bash
 # 1. Configure environment
-cp ../env.example ../.env
+cp ../.env.example ../.env
 # Edit .env with your DATABASE_URL
 
 # 2. Run training
@@ -166,6 +166,6 @@ With `--network host`, the container uses host networking.
 
 ## Related
 
-- [Environment Configuration](../env.example)
+- [Environment Configuration](../.env.example)
 - [Docker Images](../docker/README.md)
 

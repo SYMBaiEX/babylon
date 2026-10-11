@@ -6,7 +6,7 @@ This directory contains everything needed to deploy Feed RL training to various 
 
 ```bash
 # 1. Copy and configure environment
-cp env.example .env
+cp .env.example .env
 # Edit .env with your DATABASE_URL, etc.
 
 # 2. Build and push Docker images
@@ -22,7 +22,7 @@ cd ../local
 
 ```
 deploy/
-├── env.example       # Master environment config (copy to .env)
+├── .env.example       # Master environment config (copy to .env)
 ├── README.md         # This file
 ├── docker/           # Docker images
 │   ├── Dockerfile.base   # Base image with vLLM + FlashInfer
@@ -35,12 +35,8 @@ deploy/
 │   ├── run.sh            # Quick local training
 │   ├── benchmark.sh      # Run benchmarks in Docker
 │   └── README.md
-├── runpod/           # RunPod cloud deployment
-│   ├── setup.py          # CLI for RunPod pods
-│   └── README.md
-└── phala/            # Phala Cloud (TEE) deployment
-    ├── docker-compose.yml
-    ├── scripts/          # Attestation, secrets, deploy
+└── runpod/           # RunPod cloud deployment
+    ├── setup.py          # CLI for RunPod pods
     └── README.md
 ```
 
@@ -54,7 +50,7 @@ deploy/
 
 ## Environment Configuration
 
-All platforms use the same environment variables. See [`env.example`](./env.example) for the complete list.
+All platforms use the same environment variables. See [`.env.example`](./.env.example) for the complete list.
 
 **Required (choose one data source):**
 - `DATABASE_URL` - PostgreSQL with trajectory data (default)
@@ -182,4 +178,3 @@ The benchmark image uses vLLM to run inference on your trained model against fix
 - **[Docker](./docker/README.md)** - Building and configuring images
 - **[RunPod](./runpod/README.md)** - Cloud GPU training
 - **[Large GPU Runbook](./LARGE_GPU_RUNBOOK.md)** - Recommended large-machine configurations and ephemeral workflow
-- **[Phala Cloud](./phala/README.md)** - TEE-enabled privacy-preserving training

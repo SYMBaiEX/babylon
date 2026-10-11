@@ -106,7 +106,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "⚠ Environment file not found: $ENV_FILE"
     echo ""
     echo "Create one with:"
-    echo "  cp $DEPLOY_DIR/env.example $DEPLOY_DIR/.env"
+    echo "  cp $DEPLOY_DIR/.env.example $DEPLOY_DIR/.env"
     echo "  # Then edit .env with your DATABASE_URL, etc."
     exit 1
 fi
