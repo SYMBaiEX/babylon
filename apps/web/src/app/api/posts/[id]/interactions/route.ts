@@ -79,6 +79,7 @@
  */
 
 import {
+  addPrivateReadHeaders,
   addPublicReadHeaders,
   CACHE_KEYS,
   getCacheOrFetch,
@@ -92,6 +93,7 @@ import {
   count,
   db,
   eq,
+  isNull,
   posts,
   reactions,
   shares,
@@ -115,6 +117,15 @@ export const GET = withErrorHandling(
     context: { params: Promise<{ id: string }> }
   ) => {
     const { error, user, rateLimitInfo } = await publicRateLimit(request);
+    // isLiked/isShared are per-viewer: never let shared caches store them.
+    const applyReadHeaders = (res: ReturnType<typeof successResponse>) => {
+      if (user) {
+        if (rateLimitInfo) addPrivateReadHeaders(res, rateLimitInfo);
+        else res.headers.set('Cache-Control', 'private, no-store');
+      } else if (rateLimitInfo) {
+        addPublicReadHeaders(res, rateLimitInfo);
+      }
+    };
     if (error) return error;
 
     const { id: postId } = PostIdParamSchema.parse(await context.params);
@@ -189,7 +200,9 @@ export const GET = withErrorHandling(
           db
             .select({ count: count() })
             .from(comments)
-            .where(eq(comments.postId, postId)),
+            .where(
+              and(eq(comments.postId, postId), isNull(comments.deletedAt))
+            ),
           // Count shares
           db
             .select({ count: count() })
@@ -255,7 +268,7 @@ export const GET = withErrorHandling(
         isShared: false,
         fetchedAt: new Date().toISOString(),
       });
-      if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+      applyReadHeaders(res);
       return res;
     }
 
@@ -280,7 +293,7 @@ export const GET = withErrorHandling(
       // Include timestamp for cache invalidation
       fetchedAt: new Date().toISOString(),
     });
-    if (rateLimitInfo) addPublicReadHeaders(res, rateLimitInfo);
+    applyReadHeaders(res);
     return res;
   }
 );
