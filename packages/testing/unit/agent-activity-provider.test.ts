@@ -27,7 +27,12 @@ let mockHistory: Array<{
 
 mock.module('../../agents/src/communication/EventBus', () => ({
   getEventBus: () => ({
-    getHistory: (_pattern: string, _limit: number) => mockHistory,
+    getHistory: (
+      _pattern: string,
+      limit: number,
+      predicate?: (event: (typeof mockHistory)[number]) => boolean
+    ) =>
+      (predicate ? mockHistory.filter(predicate) : mockHistory).slice(-limit),
   }),
 }));
 
@@ -41,7 +46,8 @@ const { coordinatorAgentActivityProvider } = await import(
 
 const mockRuntime = {} as IAgentRuntime;
 const mockMessage = {} as Memory;
-const mockState = {} as State;
+const TEAM = 'team-chat-a';
+const mockState = { values: { teamChatId: TEAM }, data: {}, text: '' } as State;
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -63,6 +69,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'trader-bot',
           command: 'buy OPENAGI',
           response: 'Bought 100 shares',
@@ -91,6 +99,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'trader-bot',
           command: 'buy NONEXIST',
           response: 'Market not found',
@@ -115,6 +125,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentId: 'agent-xyz-123',
           command: 'check balance',
           response: 'Balance: $500',
@@ -139,6 +151,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           command: 'check',
           response: 'OK',
           success: true,
@@ -162,6 +176,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'A'.repeat(200),
           response: 'OK',
@@ -188,6 +204,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
           response: 'R'.repeat(500),
@@ -217,6 +235,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'bot',
           command: { action: 'buy' }, // Object, not string
           response: 'OK',
@@ -242,6 +262,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
           response: null, // Not a string
@@ -267,6 +289,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.custom.event',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           foo: 'bar',
           timestamp: '2025-06-15T10:30:00.000Z',
         },
@@ -288,6 +312,7 @@ describe('coordinatorAgentActivityProvider', () => {
     mockHistory = Array.from({ length: 15 }, (_, i) => ({
       type: 'agent.dispatch.result',
       data: {
+        teamChatId: TEAM,
         agentUsername: `bot-${i}`,
         command: `cmd-${i}`,
         response: `res-${i}`,
@@ -315,6 +340,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
           response: 'OK',
@@ -339,6 +366,8 @@ describe('coordinatorAgentActivityProvider', () => {
       {
         type: 'agent.dispatch.result',
         data: {
+          teamChatId: TEAM,
+          teamChatId: TEAM,
           agentUsername: 'bot',
           command: 'check',
           response: 'OK',
@@ -356,5 +385,49 @@ describe('coordinatorAgentActivityProvider', () => {
     );
 
     expect(result.text).toContain('✓'); // Defaults to success
+  });
+
+  test('returns nothing when the coordinator has no team chat scope', async () => {
+    mockHistory = [
+      {
+        type: 'agent.dispatch.result',
+        data: { teamChatId: TEAM, agentUsername: 'bot', command: 'x' },
+      },
+    ];
+    const result = await coordinatorAgentActivityProvider.get(
+      mockRuntime,
+      mockMessage,
+      { values: {}, data: {}, text: '' } as State
+    );
+    expect(result.text).toBe('');
+  });
+
+  test('never exposes another team or unscoped events, filtering before limit', async () => {
+    mockHistory = [
+      {
+        type: 'agent.dispatch.result',
+        data: { teamChatId: TEAM, agentUsername: 'mine', command: 'own-cmd' },
+      },
+      ...Array.from({ length: 30 }, (_, i) => ({
+        type: 'agent.dispatch.result',
+        data: {
+          teamChatId: 'team-chat-b',
+          agentUsername: `other-${i}`,
+          command: 'secret-cmd',
+        },
+      })),
+      {
+        type: 'agent.dispatch.result',
+        data: { agentUsername: 'legacy', command: 'legacy-cmd' },
+      },
+    ];
+    const result = await coordinatorAgentActivityProvider.get(
+      mockRuntime,
+      mockMessage,
+      mockState
+    );
+    expect(result.text).toContain('own-cmd');
+    expect(result.text).not.toContain('secret-cmd');
+    expect(result.text).not.toContain('legacy-cmd');
   });
 });
