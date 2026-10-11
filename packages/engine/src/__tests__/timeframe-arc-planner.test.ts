@@ -218,6 +218,52 @@ describe('TimeframeArcPlanner', () => {
       expect(plan.affiliatedOrgIds).toEqual(['org-1']);
     });
 
+    test('plans own their phase config and affiliation arrays', () => {
+      const affiliated = ['actor-1'];
+      const first = timeframeArcPlanner.planTimeframeArc(
+        'q-own-1',
+        'Test question',
+        '1d',
+        24 * 60 * 60 * 1000,
+        true,
+        mockActors,
+        mockOrganizations,
+        affiliated
+      );
+      const firstPhase = first.phaseOrder[0]!;
+      const originalRatio = first.phases[firstPhase]!.timeRatio;
+      first.phases[firstPhase]!.timeRatio = 0.99;
+      affiliated.push('actor-2');
+
+      const second = timeframeArcPlanner.planTimeframeArc(
+        'q-own-2',
+        'Test question',
+        '1d',
+        24 * 60 * 60 * 1000,
+        true,
+        mockActors,
+        mockOrganizations
+      );
+      expect(second.phases[firstPhase]!.timeRatio).toBe(originalRatio);
+      expect(first.affiliatedActorIds).toEqual(['actor-1']);
+    });
+
+    test('rejects non-positive or non-finite durations', () => {
+      for (const duration of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+        expect(() =>
+          timeframeArcPlanner.planTimeframeArc(
+            'q-bad',
+            'Test question',
+            '1d',
+            duration,
+            true,
+            mockActors,
+            mockOrganizations
+          )
+        ).toThrow(RangeError);
+      }
+    });
+
     test('should include outcome in plan', () => {
       const yesPlan = timeframeArcPlanner.planTimeframeArc(
         'q-yes',
