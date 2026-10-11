@@ -293,6 +293,7 @@ export {
   getSignalDirection,
 } from './services/narrative-state-service';
 export { sharedChatContextService } from './services/shared-chat-context-service';
+export { setGeneratedImageStorage } from './services/surplus-image-service';
 // Tier Configuration
 export {
   ALL_TIERS,

@@ -1,3 +1,4 @@
+import type { Buffer } from 'node:buffer';
 /**
  * Monitored Storage Service
  * Wraps storage operations with performance monitoring

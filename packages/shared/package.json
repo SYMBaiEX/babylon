@@ -10,7 +10,8 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "require": "./src/index.ts"
-    }
+    },
+    "./server/request-scope": "./src/server/request-scope.ts"
   },
   "scripts": {
     "lint": "biome lint .",

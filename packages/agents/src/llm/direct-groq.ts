@@ -12,7 +12,7 @@
 
 import { createGroq } from '@ai-sdk/groq';
 import type { IAgentRuntime } from '@elizaos/core';
-import { GROQ_MODELS } from '@feed/shared';
+import { GROQ_MODELS, getSurplusConfig } from '@feed/shared';
 import { generateText } from 'ai';
 import {
   ensureTrajectoryStep,
@@ -35,6 +35,8 @@ function getRuntimeSetting(
 }
 
 function resolveGroqBaseURL(runtime: IAgentRuntime | undefined): string {
+  const surplus = getSurplusConfig();
+  if (surplus) return surplus.baseURL;
   // When ElizaCloud is configured, route through its OpenAI-compatible proxy
   const elizacloudKey =
     getRuntimeSetting(runtime, 'ELIZACLOUD_API_KEY') ||
@@ -58,6 +60,8 @@ function resolveGroqModel(params: {
   modelSize?: 'small' | 'large';
   runtime?: IAgentRuntime;
 }): string {
+  const surplus = getSurplusConfig();
+  if (surplus) return surplus.model;
   const defaultSmall = process.env.GROQ_SMALL_MODEL || GROQ_MODELS.FREE.modelId;
   const defaultLarge = process.env.GROQ_LARGE_MODEL || GROQ_MODELS.PRO.modelId;
 
@@ -105,6 +109,7 @@ export async function callGroqDirect(params: {
 
   // Resolve API key: prefer GROQ_API_KEY, fall back to ELIZACLOUD_API_KEY
   const apiKey =
+    getSurplusConfig()?.apiKey ||
     getRuntimeSetting(params.runtime, 'GROQ_API_KEY') ||
     process.env.GROQ_API_KEY ||
     getRuntimeSetting(params.runtime, 'ELIZACLOUD_API_KEY') ||
@@ -118,7 +123,7 @@ export async function callGroqDirect(params: {
   const elizacloudKey =
     getRuntimeSetting(params.runtime, 'ELIZACLOUD_API_KEY') ||
     process.env.ELIZACLOUD_API_KEY;
-  const isElizaCloud = !!elizacloudKey;
+  const isElizaCloud = !getSurplusConfig() && !!elizacloudKey;
 
   const groq = createGroq({
     apiKey,

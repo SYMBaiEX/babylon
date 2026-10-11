@@ -15,6 +15,7 @@
  */
 
 import { logger } from '@feed/shared';
+import { requestResource } from '@feed/shared/server/request-scope';
 import type IORedis from 'ioredis';
 
 // Type for ioredis instance
@@ -37,14 +38,34 @@ const isRedisDisabled = process.env.FEED_DISABLE_REDIS === '1';
 
 // Use globalThis to persist across hot reloads in development
 // This prevents multiple Redis connections from being created
-let redisClient: RedisInstance | null = isDev
-  ? (globalThis.__redisClient ?? null)
-  : null;
-let isInitialized = isDev ? (globalThis.__redisInitialized ?? false) : false;
-let initializationPromise: Promise<void> | null = isDev
-  ? (globalThis.__redisInitPromise ?? null)
-  : null;
-let isClosing = false;
+interface RedisState {
+  redisClient: RedisInstance | null;
+  isInitialized: boolean;
+  initializationPromise: Promise<void> | null;
+  isClosing: boolean;
+}
+const sharedState: RedisState = {
+  redisClient: isDev ? (globalThis.__redisClient ?? null) : null,
+  isInitialized: isDev ? (globalThis.__redisInitialized ?? false) : false,
+  initializationPromise: isDev ? (globalThis.__redisInitPromise ?? null) : null,
+  isClosing: false,
+};
+function state(): RedisState {
+  return (
+    requestResource<RedisState>(
+      'redis',
+      () => ({
+        redisClient: null,
+        isInitialized: false,
+        initializationPromise: null,
+        isClosing: false,
+      }),
+      async (resource) => {
+        resource.redisClient?.disconnect(false);
+      }
+    ) ?? sharedState
+  );
+}
 
 // Default Redis URL for local development (Docker Compose uses port 6380)
 const DEFAULT_DEV_REDIS_URL = 'redis://localhost:6380';
@@ -52,9 +73,9 @@ const DEFAULT_DEV_REDIS_URL = 'redis://localhost:6380';
 // Sync state to globalThis in dev
 function syncGlobalState() {
   if (isDev) {
-    globalThis.__redisClient = redisClient;
-    globalThis.__redisInitialized = isInitialized;
-    globalThis.__redisInitPromise = initializationPromise;
+    globalThis.__redisClient = state().redisClient;
+    globalThis.__redisInitialized = state().isInitialized;
+    globalThis.__redisInitPromise = state().initializationPromise;
   }
 }
 
@@ -65,10 +86,10 @@ function syncGlobalState() {
  * This is called lazily to avoid bundling ioredis in edge runtime.
  */
 async function initializeRedis(): Promise<void> {
-  if (isInitialized || isBuildTime || isTestEnv) {
+  if (state().isInitialized || isBuildTime || isTestEnv) {
     return;
   }
-  isInitialized = true;
+  state().isInitialized = true;
   syncGlobalState();
 
   if (isRedisDisabled) {
@@ -119,7 +140,7 @@ async function initializeRedis(): Promise<void> {
   const IORedisModule = await import('ioredis');
   const IORedisClass = IORedisModule.default;
 
-  redisClient = new IORedisClass(redisUrl, {
+  const client = new IORedisClass(redisUrl, {
     maxRetriesPerRequest: 3,
     retryStrategy: (times) => {
       if (times > 3) {
@@ -134,29 +155,29 @@ async function initializeRedis(): Promise<void> {
     enableReadyCheck: true,
   });
 
-  redisClient.on('error', (error: Error) => {
+  state().redisClient = client;
+  client.on('error', (error: Error) => {
     logger.warn('Redis client error', { error: error.message }, 'Redis');
   });
 
   try {
-    await redisClient.connect();
+    await client.connect();
     syncGlobalState();
     logger.info('Redis client connected', undefined, 'Redis');
   } catch (error) {
     logger.warn(
       'Redis unavailable; continuing with in-memory fallback',
       {
-        redisUrl,
         error: error instanceof Error ? error.message : String(error),
       },
       'Redis'
     );
     try {
-      redisClient.disconnect(false);
+      client.disconnect(false);
     } catch {
       // Ignore cleanup failures when the connection never became ready.
     }
-    redisClient = null;
+    state().redisClient = null;
     syncGlobalState();
   }
 }
@@ -170,16 +191,19 @@ if (isBuildTime || isTestEnv) {
     undefined,
     'Redis'
   );
-} else if (!initializationPromise) {
+} else if (
+  process.env.DEPLOYMENT_PLATFORM !== 'cloudflare' &&
+  !state().initializationPromise
+) {
   // Always attempt initialization - store the promise so callers can await it
   // Only create a new promise if one doesn't already exist (from globalThis)
-  initializationPromise = initializeRedis().catch((error: unknown) => {
+  state().initializationPromise = initializeRedis().catch((error: unknown) => {
     logger.warn(
       'Redis initialization failed; continuing without Redis',
       { error: error instanceof Error ? error.message : String(error) },
       'Redis'
     );
-    redisClient = null;
+    state().redisClient = null;
     syncGlobalState();
   });
   syncGlobalState();
@@ -194,11 +218,11 @@ if (isBuildTime || isTestEnv) {
  * @returns {RedisInstance | null} Redis client or null
  */
 export function getRedis(): RedisInstance | null {
-  return redisClient;
+  return state().redisClient;
 }
 
 // Export for backwards compatibility
-export const redis = redisClient;
+export const redis = state().redisClient;
 
 /**
  * Check if Redis is available
@@ -210,7 +234,7 @@ export const redis = redisClient;
  * @returns {boolean} True if Redis is available, false otherwise
  */
 export function isRedisAvailable(): boolean {
-  return redisClient !== null;
+  return state().redisClient !== null;
 }
 
 /**
@@ -221,7 +245,7 @@ export function isRedisAvailable(): boolean {
  * async initialization has completed.
  */
 export function getRedisClient(): RedisInstance | null {
-  return redisClient;
+  return state().redisClient;
 }
 
 /**
@@ -235,13 +259,19 @@ export function getRedisClient(): RedisInstance | null {
  * @returns {Promise<RedisInstance | null>} Redis client or null
  */
 export async function ensureRedisReady(): Promise<RedisInstance | null> {
+  if (
+    process.env.DEPLOYMENT_PLATFORM === 'cloudflare' &&
+    !state().initializationPromise
+  ) {
+    state().initializationPromise = initializeRedis();
+  }
   // Wait for initialization if it's in progress
-  if (initializationPromise) {
-    await initializationPromise;
+  if (state().initializationPromise) {
+    await state().initializationPromise;
   }
 
   // Check if client is connected
-  const client = redisClient;
+  const client = state().redisClient;
   if (!client) {
     return null;
   }
@@ -357,8 +387,8 @@ export async function safePoll(channel: string, count = 10): Promise<string[]> {
  * @returns {Promise<void>} Promise that resolves when connection is closed
  */
 export async function closeRedis(): Promise<void> {
-  if (isClosing) return;
-  isClosing = true;
+  if (state().isClosing) return;
+  state().isClosing = true;
 
   const client = getRedisClient();
   if (client) {
@@ -371,7 +401,11 @@ export async function closeRedis(): Promise<void> {
 }
 
 // Cleanup on process exit (only if not build time)
-if (typeof process !== 'undefined' && !isBuildTime) {
+if (
+  typeof process !== 'undefined' &&
+  !isBuildTime &&
+  process.env.DEPLOYMENT_PLATFORM !== 'cloudflare'
+) {
   process.on('SIGINT', () => {
     void closeRedis();
   });

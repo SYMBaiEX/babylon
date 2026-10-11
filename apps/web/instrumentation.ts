@@ -30,6 +30,7 @@ export async function register() {
       ReputationService,
       createNotification,
       logDevCredentials,
+      getStorageClient,
     } = await import('@feed/api');
     const { createSentryApiRouteCapture } = await import(
       './src/lib/sentry/api-route-capture'
@@ -52,10 +53,31 @@ export async function register() {
       agentRegistry,
     });
 
+    const { setGeneratedImageStorage } = await import('@feed/engine');
+    setGeneratedImageStorage(async (url) => {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) throw new Error('Generated image download failed');
+      const contentType =
+        response.headers.get('content-type')?.split(';')[0] || '';
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(contentType))
+        throw new Error('Unsupported generated image type');
+      const image = await getStorageClient().uploadImage({
+        file: Buffer.from(await response.arrayBuffer()),
+        filename: `${crypto.randomUUID()}.${contentType.split('/')[1]}`,
+        folder: 'posts',
+        contentType,
+      });
+      return image.url;
+    });
+
     // Bootstrap NPC agents so they're registered for agent-tick processing
     // Note: Runs asynchronously and is non-critical; failures do not block server startup
     // Individual NPC failures are handled internally by npcBootstrapService
-    void npcBootstrapService.bootstrapAllNpcs();
+    if (process.env.DEPLOYMENT_PLATFORM !== 'cloudflare') {
+      void npcBootstrapService.bootstrapAllNpcs();
+    }
 
     // Initialize shared moderation services with web app implementations
     setReputationService({
@@ -93,7 +115,10 @@ export async function register() {
     const g = globalThis as typeof globalThis & {
       __lastUsedFlusherStarted?: boolean;
     };
-    if (!g.__lastUsedFlusherStarted) {
+    if (
+      process.env.DEPLOYMENT_PLATFORM !== 'cloudflare' &&
+      !g.__lastUsedFlusherStarted
+    ) {
       const { startLastUsedFlusher } = await import('@feed/api');
       startLastUsedFlusher();
       g.__lastUsedFlusherStarted = true;

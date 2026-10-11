@@ -160,3 +160,5 @@ export * from './dag-trace-bridge';
 // - Storage: import { getStorageClient } from '@feed/api'
 // - Monitoring: import { performanceMonitor } from '@feed/api'
 // - Rate limiting (user-level): import { checkRateLimit, RATE_LIMIT_CONFIGS } from '@feed/api'
+
+export { getSurplusConfig } from './utils/surplus';

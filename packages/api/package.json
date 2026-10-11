@@ -19,13 +19,13 @@
     "@aws-sdk/lib-storage": "^3.943.0",
     "@feed/agents": "workspace:*",
     "@feed/shared": "workspace:*",
-    "@vercel/blob": "2.3.2",
     "graphql": "16.13.2",
     "graphql-request": "7.4.0",
     "ioredis": "5.10.1",
     "jose": "6.2.2",
     "nanoid": "5.1.7",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@opennextjs/cloudflare": "1.20.10"
   },
   "peerDependencies": {
     "@feed/db": "workspace:*",

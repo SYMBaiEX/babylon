@@ -1,3 +1,4 @@
+import { runInBackground } from '@feed/shared/server/request-scope';
 /**
  * Admin Audit Logger
  *
@@ -55,7 +56,7 @@ export async function logAdminAction(
   );
 
   // Persist to database asynchronously (don't block on this)
-  void persistAuditLog(action, context);
+  runInBackground(persistAuditLog(action, context));
 }
 
 /**

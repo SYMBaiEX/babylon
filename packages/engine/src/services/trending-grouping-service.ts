@@ -1,3 +1,4 @@
+import { getSurplusConfig } from '@feed/shared';
 /**
  * Trending Grouping Service
  *
@@ -16,14 +17,20 @@ import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 const LLM_TIMEOUT_MS = 15000; // 15 seconds
 const LLM_MAX_RETRIES = 2;
 const GROUPING_MODEL =
+  getSurplusConfig()?.model ||
   process.env.TRENDING_GROUPING_MODEL ||
   (process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-5-nano');
 const SUMMARY_MODEL =
+  getSurplusConfig()?.model ||
   process.env.TRENDING_SUMMARY_MODEL ||
   (process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-5-nano');
 
 // Check if LLM is available
-const hasApiKey = !!(process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY);
+const hasApiKey = !!(
+  getSurplusConfig()?.apiKey ||
+  process.env.GROQ_API_KEY ||
+  process.env.OPENAI_API_KEY
+);
 const useGroq = !!process.env.GROQ_API_KEY;
 const groqBaseURL =
   process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
@@ -35,8 +42,13 @@ const suppressOptionalLlmWarnings = ['1', 'true', 'yes'].includes(
 let openai: OpenAI | null = null;
 if (hasApiKey) {
   openai = new OpenAI({
-    apiKey: process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY,
-    baseURL: useGroq ? groqBaseURL : 'https://api.openai.com/v1',
+    apiKey:
+      getSurplusConfig()?.apiKey ||
+      process.env.GROQ_API_KEY ||
+      process.env.OPENAI_API_KEY,
+    baseURL:
+      getSurplusConfig()?.baseURL ||
+      (useGroq ? groqBaseURL : 'https://api.openai.com/v1'),
     timeout: LLM_TIMEOUT_MS,
   });
 } else if (!suppressOptionalLlmWarnings) {

@@ -51,6 +51,8 @@ const SKIP_DIR_NAMES = new Set([
   '.vercel',
   '.next',
   '.output',
+  '.open-next',
+  '.wrangler',
   'dist',
   'build',
   'coverage',

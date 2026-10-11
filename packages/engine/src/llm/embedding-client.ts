@@ -10,10 +10,12 @@
  * can skip embedding-based checks without crashing the pipeline.
  */
 
-import { logger } from '@feed/shared';
+import { getSurplusConfig, logger } from '@feed/shared';
 import OpenAI from 'openai';
 
-const EMBEDDING_MODEL = 'text-embedding-3-small';
+const EMBEDDING_MODEL = process.env.SURPLUS_API_KEY
+  ? process.env.SURPLUS_EMBEDDING_MODEL
+  : 'text-embedding-3-small';
 const MAX_BATCH_SIZE = 100;
 
 let openaiClient: OpenAI | null = null;
@@ -28,6 +30,24 @@ function getClient(): OpenAI | null {
   if (initialized) return openaiClient;
   initialized = true;
 
+  const surplus = getSurplusConfig();
+  if (surplus) {
+    if (!EMBEDDING_MODEL) {
+      logger.warn(
+        'SURPLUS_EMBEDDING_MODEL is required for embedding quality checks',
+        undefined,
+        'EmbeddingClient'
+      );
+      return null;
+    }
+    openaiClient = new OpenAI({
+      apiKey: surplus.apiKey,
+      baseURL: surplus.baseURL,
+      timeout: 30_000,
+      maxRetries: 2,
+    });
+    return openaiClient;
+  }
   const elizacloudKey = process.env.ELIZACLOUD_API_KEY;
   if (elizacloudKey) {
     const base =
@@ -67,7 +87,7 @@ function getClient(): OpenAI | null {
  */
 export async function getEmbedding(text: string): Promise<number[] | null> {
   const client = getClient();
-  if (!client) return null;
+  if (!client || !EMBEDDING_MODEL) return null;
 
   const startTime = Date.now();
   try {
@@ -104,7 +124,7 @@ export async function getEmbeddings(
   texts: string[]
 ): Promise<(number[] | null)[]> {
   const client = getClient();
-  if (!client) return texts.map(() => null);
+  if (!client || !EMBEDDING_MODEL) return texts.map(() => null);
 
   if (texts.length === 0) return [];
 

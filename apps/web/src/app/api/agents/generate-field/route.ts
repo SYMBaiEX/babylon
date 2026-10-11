@@ -1,3 +1,4 @@
+import { getSurplusConfig } from '@feed/shared';
 /**
  * AI Field Generation API
  *
@@ -195,7 +196,11 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     'You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic. Always output your response in the required XML format.';
 
   // Validate API keys are configured before attempting generation
-  if (!process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  if (
+    !process.env.SURPLUS_API_KEY &&
+    !process.env.GROQ_API_KEY &&
+    !process.env.ANTHROPIC_API_KEY
+  ) {
     return NextResponse.json(
       {
         success: false,
@@ -221,14 +226,17 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
 
     try {
       // Use Groq openai/gpt-oss-120b if available, otherwise fall back to Claude
-      if (process.env.GROQ_API_KEY) {
+      if (getSurplusConfig() || process.env.GROQ_API_KEY) {
         const groq = createGroq({
-          apiKey: process.env.GROQ_API_KEY,
-          baseURL: 'https://api.groq.com/openai/v1',
+          apiKey: getSurplusConfig()?.apiKey || process.env.GROQ_API_KEY,
+          baseURL:
+            getSurplusConfig()?.baseURL || 'https://api.groq.com/openai/v1',
         });
 
         const result = await generateText({
-          model: groq.languageModel('openai/gpt-oss-120b'),
+          model: groq.languageModel(
+            getSurplusConfig()?.model || 'openai/gpt-oss-120b'
+          ),
           prompt,
           system: systemPrompt,
           temperature: isRetry ? 0.6 : 0.8, // Lower temperature on retry for more predictable output

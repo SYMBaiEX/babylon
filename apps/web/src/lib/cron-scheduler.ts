@@ -236,6 +236,13 @@ export async function triggerScheduledCrons(): Promise<{
  * Only enable on non-production or when explicitly enabled.
  */
 export function isInternalCronSchedulerEnabled(): boolean {
+  // Cloudflare has a dedicated scheduler; never duplicate its jobs in game-tick.
+  if (
+    process.env.DEPLOYMENT_PLATFORM === 'cloudflare' ||
+    process.env.ENABLE_INTERNAL_CRON_SCHEDULER === 'false'
+  )
+    return false;
+
   // Always enable if explicitly set
   if (process.env.ENABLE_INTERNAL_CRON_SCHEDULER === 'true') {
     return true;

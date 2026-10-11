@@ -149,6 +149,13 @@ const nextConfig: NextConfig = {
   },
   // Webpack configuration for backward compatibility
   webpack: (config, { isServer, webpack }) => {
+    if (process.env.DEPLOYMENT_PLATFORM === 'cloudflare') {
+      // Share the two supported tokenizer dictionaries across agent providers.
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'js-tiktoken$': path.resolve(process.cwd(), 'cloudflare-tokenizer.ts'),
+      };
+    }
     // Enable WebAssembly experiments for tiktoken
     config.experiments = {
       ...config.experiments,

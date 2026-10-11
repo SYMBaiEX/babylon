@@ -29,6 +29,8 @@ let posthogClient: PostHog | null = null;
  * library stays self-contained without a cross-package dependency.
  */
 function getServerEnvironment(): 'production' | 'staging' | 'development' {
+  if (process.env.DEPLOYMENT_ENV === 'staging') return 'staging';
+  if (process.env.DEPLOYMENT_ENV === 'production') return 'production';
   if (process.env.VERCEL_ENV === 'production') return 'production';
   if (process.env.VERCEL_ENV === 'preview') return 'staging';
   if (process.env.NODE_ENV === 'production') return 'production';

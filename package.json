@@ -14,11 +14,7 @@
     "dev:web": "turbo dev --filter=web",
     "dev:web:staging": "NODE_ENV=development bun --env-file=.env.staging.local run dev:web",
     "dev:web:production": "NODE_ENV=development bun --env-file=.env.production.local run dev:web",
-    "vercel:dev:web:staging": "bun run env:pull:staging && bun run dev:web:staging",
-    "vercel:dev:web:production": "bun run env:pull:production && bun run dev:web:production",
     "dev:next-only": "turbo dev:next-only --filter=web",
-    "env:pull:staging": "vercel env pull --yes .env.staging.local --environment=staging",
-    "env:pull:production": "vercel env pull --yes .env.production.local --environment=production",
     "env:audit": "bun run scripts/env-audit.ts",
     "env:audit:check": "bun run scripts/env-audit.ts --check --format=json",
     "env:validate": "bun run scripts/validate-env.ts",
@@ -95,7 +91,10 @@
     "steward:init": "bun run scripts/steward-init.ts",
     "steward:migrate": "bun run scripts/migrate-privy-to-steward.ts",
     "inspect:context": "bun run scripts/context-inspector.ts",
-    "find:duplicates": "bun run scripts/find-duplicates.ts"
+    "find:duplicates": "bun run scripts/find-duplicates.ts",
+    "build:cloudflare": "bun run scripts/build-cloudflare.ts",
+    "test:cloudflare": "bun test packages/testing/unit/cloudflare-*.test.ts",
+    "typecheck:cloudflare": "tsc -p workers/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.5",
@@ -131,6 +130,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.9",
+    "@cloudflare/workers-types": "5.20261010.1",
     "@fal-ai/client": "^1.9.5",
     "@intellectronica/ruler": "0.3.37",
     "@playwright/test": "1.58.2",
@@ -151,7 +151,8 @@
     "sharp": "^0.34.5",
     "tsx": "^4.21.0",
     "turbo": "2.8.21",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "4.149.0"
   },
   "lint-staged": {
     "*.{js,ts,cjs,mjs,jsx,tsx,json,jsonc}": [
@@ -211,5 +212,8 @@
     "core-js",
     "core-js-pure",
     "protobufjs"
-  ]
+  ],
+  "patchedDependencies": {
+    "postgres@3.4.8": "patches/postgres@3.4.8.patch"
+  }
 }

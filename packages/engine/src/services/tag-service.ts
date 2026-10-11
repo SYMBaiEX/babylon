@@ -1,3 +1,4 @@
+import { getSurplusConfig } from '@feed/shared';
 /**
  * Tag Service
  *
@@ -84,10 +85,15 @@ export interface TrendingTagWithTag {
 
 type OpenAIClient = OpenAI;
 
-const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
-const baseURL = process.env.GROQ_API_KEY
-  ? process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1'
-  : 'https://api.openai.com/v1';
+const apiKey =
+  getSurplusConfig()?.apiKey ||
+  process.env.GROQ_API_KEY ||
+  process.env.OPENAI_API_KEY;
+const baseURL =
+  getSurplusConfig()?.baseURL ||
+  (process.env.GROQ_API_KEY
+    ? process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1'
+    : 'https://api.openai.com/v1');
 const suppressOptionalLlmWarnings = ['1', 'true', 'yes'].includes(
   (process.env.FEED_SUPPRESS_OPTIONAL_LLM_WARNINGS || '').trim().toLowerCase()
 );
@@ -185,9 +191,9 @@ Return ONLY valid XML:
 
 If no good tags, return: <response><tags></tags></response>`;
 
-  const model = process.env.GROQ_API_KEY
-    ? 'llama-3.1-8b-instant'
-    : 'gpt-5-nano';
+  const model =
+    getSurplusConfig()?.model ||
+    (process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-5-nano');
 
   const response = await openai.chat.completions.create({
     model,

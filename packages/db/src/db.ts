@@ -5,6 +5,7 @@
  * other modules can import `db`/`Database` without importing `src/index.ts`.
  */
 
+import { requestResource } from '@feed/shared/server/request-scope';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -22,6 +23,7 @@ import {
 } from './json-storage';
 import { logger } from './logger';
 import * as schema from './schema';
+import { postgresTlsMode } from './tls';
 
 // ============================================================================
 // Types
@@ -36,7 +38,7 @@ export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 // Global state for database connections (serverless-safe)
 // Using a type assertion here is safe because we're extending globalThis
-const globalForDb = globalThis as typeof globalThis & {
+type ConnectionState = {
   postgresClient: ReturnType<typeof postgres> | undefined;
   drizzleDb: Database | undefined;
   db: DrizzleClient | undefined;
@@ -47,6 +49,39 @@ const globalForDb = globalThis as typeof globalThis & {
   primaryDbVersion: number | undefined;
   readReplicaDbVersion: number | undefined;
 };
+
+const sharedConnectionState = globalThis as typeof globalThis & ConnectionState;
+function connectionState(): ConnectionState {
+  const scoped = requestResource<ConnectionState>(
+    'database',
+    () => ({
+      postgresClient: undefined,
+      drizzleDb: undefined,
+      db: undefined,
+      readReplicaClient: undefined,
+      readReplicaDrizzle: undefined,
+      readReplicaDb: undefined,
+      primaryDbVersion: 0,
+      readReplicaDbVersion: 0,
+    }),
+    async (state) => {
+      await Promise.all([
+        state.postgresClient?.end({ timeout: 5 }),
+        state.readReplicaClient?.end({ timeout: 5 }),
+      ]);
+    }
+  );
+  return scoped ?? sharedConnectionState;
+}
+
+const globalForDb = new Proxy(sharedConnectionState, {
+  get(_target, property) {
+    return Reflect.get(connectionState(), property);
+  },
+  set(_target, property, value) {
+    return Reflect.set(connectionState(), property, value);
+  },
+});
 
 if (globalForDb.primaryDbVersion === undefined) {
   globalForDb.primaryDbVersion = 0;
@@ -112,30 +147,11 @@ function getPostgresClientConfig(
   const isTest = isTestEnvironment();
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Determine if this is a local database connection
-  const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
-
-  // Check if SSL is already specified in the URL (sslmode=require or ssl=true)
-  const hasExplicitSSL =
-    url.includes('sslmode=require') || url.includes('ssl=true');
-
-  // Check for cloud database providers that require SSL (Neon, Supabase, etc.)
-  const isCloudProvider =
-    url.includes('neon.tech') ||
-    url.includes('supabase.co') ||
-    url.includes('pooler.supabase') ||
-    url.includes('db.bit.io') ||
-    url.includes('.postgres.database.azure.com') ||
-    url.includes('.rds.amazonaws.com');
-
-  // SSL is required for:
-  // - URL explicitly specifies sslmode=require
-  // - Production with non-localhost connections
-  // - Any cloud database provider (even in development)
-  const sslMode: 'require' | false =
-    hasExplicitSSL || (!isLocalhost && (isProd || isCloudProvider))
-      ? 'require'
-      : false;
+  const sslMode = postgresTlsMode(
+    url,
+    isProd,
+    process.env.DEPLOYMENT_PLATFORM === 'cloudflare'
+  );
 
   // Node serves many concurrent requests in one process; without a bounded pool we'd get
   // one connection per in-flight query and exhaust Neon/Postgres limits. Pool caps connections
@@ -205,9 +221,6 @@ function getPostgresClientConfig(
 
   logger.debug(`[Drizzle] Creating ${role} postgres client`, {
     isProd,
-    isLocalhost,
-    isCloudProvider,
-    hasExplicitSSL,
     sslMode,
     isPooler,
     poolMax,
@@ -231,6 +244,12 @@ function getPostgresClientConfig(
 // ============================================================================
 
 function createPostgresClient(): ReturnType<typeof postgres> {
+  if (
+    process.env.DEPLOYMENT_PLATFORM === 'cloudflare' &&
+    !requestResource('database-request-check', () => ({}))
+  ) {
+    throw new Error('Cloudflare database access requires a request scope');
+  }
   const url = getConnectionUrl();
   return postgres(url, getPostgresClientConfig(url, 'primary'));
 }
@@ -1013,7 +1032,13 @@ function createReplicaDbProxy(): DrizzleClient {
  * await db.post.create({ data: { ... } });
  * ```
  */
-export const db: DrizzleClient = createModeAwareDbProxy();
+const sharedDbProxy = createModeAwareDbProxy();
+export const db: DrizzleClient = new Proxy(sharedDbProxy, {
+  get(target, property, receiver) {
+    const scoped = requestResource('database-proxy', createModeAwareDbProxy);
+    return Reflect.get(scoped ?? target, property, receiver);
+  },
+});
 
 /**
  * Explicit read-only client that always routes to read replica.

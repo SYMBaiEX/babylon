@@ -18,7 +18,10 @@ export async function relayCronToStaging(
   request: NextRequest | { url: string; headers: Headers },
   routeName: string
 ): Promise<RelayResult> {
-  if (process.env.REDIRECT_CRON_STAGING !== 'true') {
+  if (
+    process.env.DEPLOYMENT_PLATFORM === 'cloudflare' ||
+    process.env.REDIRECT_CRON_STAGING !== 'true'
+  ) {
     return { forwarded: false };
   }
 
