@@ -201,7 +201,7 @@ export function RepostButton({
         )}
       </button>
 
-      {/* Repost Modal - X/Farcaster Style */}
+      {/* Repost Modal - X Style */}
       {showConfirmation && (
         <>
           {/* Backdrop */}

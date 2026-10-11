@@ -13,14 +13,13 @@ import { apiUrl } from '@/utils/api-url';
 /**
  * Link social accounts modal component for connecting social accounts.
  *
- * Provides a modal interface for linking email, Twitter, and Farcaster
+ * Provides a modal interface for linking email, Twitter
  * accounts. Handles account-link callbacks and updates user profile with
  * linked account information. Awards reputation points for social linking.
  *
  * Features:
  * - Email linking via Privy
  * - Twitter OAuth linking
- * - Farcaster OAuth linking
  * - OAuth callback handling
  * - Points/reputation awards
  * - Loading states
@@ -68,14 +67,6 @@ export function LinkSocialAccountsModal({
     toast.info(
       'Email linking coming soon. Please sign in with your email directly.'
     );
-  };
-  const linkFarcaster = () => {
-    logger.info(
-      'Farcaster linking via SIWF — not yet implemented in UI',
-      {},
-      'LinkSocialAccountsModal'
-    );
-    toast.info('Farcaster linking coming soon.');
   };
 
   useEffect(() => {
@@ -142,12 +133,6 @@ export function LinkSocialAccountsModal({
     } finally {
       setUnlinkingTwitter(false);
     }
-  };
-
-  const handleFarcasterAuth = () => {
-    if (!user?.id) return;
-    setLinking('farcaster');
-    linkFarcaster();
   };
 
   const handleTelegramLink = () => {
@@ -348,76 +333,6 @@ export function LinkSocialAccountsModal({
                     <>
                       <Shield className="h-4 w-4" />
                       <span>Connect with X</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Farcaster */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <svg
-                className="h-5 w-5"
-                viewBox="0 0 1000 1000"
-                fill="currentColor"
-              >
-                <path d="M257.778 155.556H742.222V844.444H671.111V528.889H670.414C662.554 441.677 589.258 373.333 500 373.333C410.742 373.333 337.446 441.677 329.586 528.889H328.889V844.444H257.778V155.556Z" />
-                <path d="M128.889 253.333L157.778 351.111H182.222V844.444H128.889V253.333Z" />
-                <path d="M871.111 253.333L842.222 351.111H817.778V844.444H871.111V253.333Z" />
-              </svg>
-              <h3 className="font-semibold">Farcaster</h3>
-              {user?.hasFarcaster && (
-                <span className="ml-auto flex items-center gap-1 text-green-500 text-sm">
-                  <Check className="h-4 w-4" />
-                  Verified
-                </span>
-              )}
-            </div>
-
-            {user?.hasFarcaster ? (
-              <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
-                <Check className="h-4 w-4 text-green-500" />
-                <span className="font-medium text-sm">
-                  @{user.farcasterUsername}
-                </span>
-                <a
-                  href={`https://farcaster.xyz/${user.farcasterUsername}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-auto text-primary hover:text-primary/80"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-start gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
-                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-purple-500" />
-                  <p className="text-muted-foreground text-xs">
-                    Sign in with Farcaster to verify your account. A popup will
-                    open for authentication.
-                  </p>
-                </div>
-                <button
-                  onClick={handleFarcasterAuth}
-                  disabled={linking === 'farcaster'}
-                  className={cn(
-                    'w-full rounded-lg px-4 py-2 font-semibold transition-colors',
-                    'bg-[#8A63D2] text-white hover:bg-[#7952c4]',
-                    'disabled:cursor-not-allowed disabled:opacity-50',
-                    'flex items-center justify-center gap-2'
-                  )}
-                >
-                  {linking === 'farcaster' ? (
-                    <>
-                      <span>Connecting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="h-4 w-4" />
-                      <span>Sign in with Farcaster</span>
                     </>
                   )}
                 </button>

@@ -231,25 +231,6 @@ describe('Referral Points System', () => {
   });
 
   describe('checkAndQualifyReferral Logic', () => {
-    it('should qualify referral when user links Farcaster', () => {
-      const userWithFarcaster: UserData = {
-        id: 'user-1',
-        reputationPoints: 100,
-        invitePoints: 0,
-        referralCount: 0,
-        referredBy: 'referrer-1',
-        farcasterFid: '12345', // Linked Farcaster
-        twitterId: null,
-        walletAddress: null,
-      };
-
-      const isQualified =
-        userWithFarcaster.farcasterFid !== null ||
-        userWithFarcaster.twitterId !== null ||
-        userWithFarcaster.walletAddress !== null;
-      expect(isQualified).toBe(true);
-    });
-
     it('should qualify referral when user links Twitter', () => {
       const userWithTwitter: UserData = {
         id: 'user-1',
@@ -263,7 +244,6 @@ describe('Referral Points System', () => {
       };
 
       const isQualified =
-        userWithTwitter.farcasterFid !== null ||
         userWithTwitter.twitterId !== null ||
         userWithTwitter.walletAddress !== null;
       expect(isQualified).toBe(true);
@@ -282,7 +262,6 @@ describe('Referral Points System', () => {
       };
 
       const isQualified =
-        userWithWallet.farcasterFid !== null ||
         userWithWallet.twitterId !== null ||
         userWithWallet.walletAddress !== null;
       expect(isQualified).toBe(true);
@@ -301,7 +280,6 @@ describe('Referral Points System', () => {
       };
 
       const isQualified =
-        userWithoutSocial.farcasterFid !== null ||
         userWithoutSocial.twitterId !== null ||
         userWithoutSocial.walletAddress !== null;
       expect(isQualified).toBe(false);

@@ -42,7 +42,6 @@
     "test:integration:db-lazy": "bun test packages/testing/integration/db-lazy-connection.integration.test.ts",
     "test:ci": "bash scripts/ci/run-all-tests.sh",
     "test:e2e": "bun run build && rm -rf packages/testing/node_modules/@playwright packages/testing/node_modules/playwright && bunx playwright test --config packages/testing/playwright.config.ts",
-    "miniapp:deploy": "bash scripts/deploy-miniapp.sh",
     "db:generate": "bun run --cwd packages/db db:generate",
     "db:migrate": "bun run --cwd packages/db db:migrate",
     "db:push": "bun run --cwd packages/db db:push",

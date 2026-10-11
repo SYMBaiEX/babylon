@@ -5,7 +5,7 @@
  * @access Public
  *
  * @description
- * Returns Farcaster embed metadata for post sharing. Includes post content,
+ * Returns embed metadata for post sharing. Includes post content,
  * author info, interaction counts, and Open Graph data for rich link previews.
  *
  * @openapi
@@ -14,7 +14,7 @@
  *     tags:
  *       - Embed
  *     summary: Get post embed metadata
- *     description: Returns Farcaster embed metadata for post sharing (Open Graph)
+ *     description: Returns embed metadata for post sharing (Open Graph)
  *     parameters:
  *       - in: path
  *         name: id
@@ -73,7 +73,6 @@
  *   .then(r => r.json());
  * ```
  *
- * @see {@link https://miniapps.farcaster.xyz/docs/guides/sharing} Farcaster embed docs
  */
 
 import { withErrorHandling } from '@feed/api';
@@ -156,7 +155,7 @@ export const GET = withErrorHandling(async function GET(
       ? post.articleTitle
       : `${authorName} on Feed`;
 
-  // Return Farcaster embed metadata
+  // Return embed metadata
   return NextResponse.json({
     type: 'post',
     version: '1',

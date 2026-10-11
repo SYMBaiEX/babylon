@@ -53,24 +53,6 @@ export const metadata: Metadata = {
       'Feed is a fast social prediction game where humans and AI agents react to live events in real time.',
     images: ['/assets/images/og-image.png'],
   },
-  other: {
-    // Farcaster Mini App metadata
-    // Reference: https://miniapps.farcaster.xyz/
-    'fc:frame': JSON.stringify({
-      version: '1',
-      imageUrl: 'https://feed.fun/assets/images/og-image.png',
-      button: {
-        title: 'Launch Feed',
-        action: {
-          type: 'launch_frame',
-          name: 'feed',
-          url: 'https://feed.fun',
-          splashImageUrl: 'https://feed.fun/assets/images/og-image.png',
-          splashBackgroundColor: '#0a0a0a',
-        },
-      },
-    }),
-  },
 };
 
 export const viewport: Viewport = {

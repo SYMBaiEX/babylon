@@ -57,15 +57,6 @@ export async function generateMetadata({
       description: 'Trading narratives, sharing the upside',
       images: [ogImageUrl],
     },
-    other: {
-      // Farcaster Frame meta tags
-      'fc:frame': 'vNext',
-      'fc:frame:image': ogImageUrl,
-      'fc:frame:image:aspect_ratio': '1.91:1',
-      'fc:frame:button:1': 'View on Feed',
-      'fc:frame:button:1:action': 'link',
-      'fc:frame:button:1:target': `${appUrl}/markets`,
-    },
   };
 }
 

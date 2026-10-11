@@ -20,7 +20,6 @@ import { getBrowserDevAuthSession } from '@/lib/auth/dev-auth';
 import { hydrateChatCacheFromIndexedDB } from '@/lib/chat/hydrateChatCache';
 import { useAuthStore } from '@/stores/authStore';
 import { DiscordActivityProvider } from './DiscordActivityProvider';
-import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
 import { OnboardingProvider } from './OnboardingProvider';
@@ -114,33 +113,31 @@ export function Providers({
 
   const fullProviders = (
     <StewardAuthProvider>
-      <FarcasterMiniAppProvider>
-        <TelegramMiniAppProvider>
-          <DiscordActivityProvider>
-            <PostHogIdentifier />
-            <Suspense fallback={null}>
-              <ReferralCaptureProvider />
-            </Suspense>
-            <OnboardingProvider>
-              <SessionHeartbeatProvider>
-                <AutoDailyRewardProvider>
-                  <GameGuideProvider>
-                    <OutcomeNotificationProvider>
-                      <WidgetRefreshProvider>
-                        {mounted ? (
-                          <Fragment>{children}</Fragment>
-                        ) : (
-                          <div className="min-h-dvh bg-sidebar md:min-h-screen" />
-                        )}
-                      </WidgetRefreshProvider>
-                    </OutcomeNotificationProvider>
-                  </GameGuideProvider>
-                </AutoDailyRewardProvider>
-              </SessionHeartbeatProvider>
-            </OnboardingProvider>
-          </DiscordActivityProvider>
-        </TelegramMiniAppProvider>
-      </FarcasterMiniAppProvider>
+      <TelegramMiniAppProvider>
+        <DiscordActivityProvider>
+          <PostHogIdentifier />
+          <Suspense fallback={null}>
+            <ReferralCaptureProvider />
+          </Suspense>
+          <OnboardingProvider>
+            <SessionHeartbeatProvider>
+              <AutoDailyRewardProvider>
+                <GameGuideProvider>
+                  <OutcomeNotificationProvider>
+                    <WidgetRefreshProvider>
+                      {mounted ? (
+                        <Fragment>{children}</Fragment>
+                      ) : (
+                        <div className="min-h-dvh bg-sidebar md:min-h-screen" />
+                      )}
+                    </WidgetRefreshProvider>
+                  </OutcomeNotificationProvider>
+                </GameGuideProvider>
+              </AutoDailyRewardProvider>
+            </SessionHeartbeatProvider>
+          </OnboardingProvider>
+        </DiscordActivityProvider>
+      </TelegramMiniAppProvider>
     </StewardAuthProvider>
   );
 

@@ -43,8 +43,6 @@
  *                 type: string
  *               showTwitterPublic:
  *                 type: boolean
- *               showFarcasterPublic:
- *                 type: boolean
  *               showWalletPublic:
  *                 type: boolean
  *     responses:
@@ -152,7 +150,6 @@ export const POST = withErrorHandling(
       profileImageUrl,
       coverImageUrl,
       showTwitterPublic,
-      showFarcasterPublic,
       showWalletPublic,
     } = parsedBody;
 
@@ -244,7 +241,6 @@ export const POST = withErrorHandling(
         coverImageUrl: normalizedCoverImageUrl || null,
       }),
       ...(showTwitterPublic !== undefined && { showTwitterPublic }),
-      ...(showFarcasterPublic !== undefined && { showFarcasterPublic }),
       ...(showWalletPublic !== undefined && { showWalletPublic }),
       ...(isUsernameChanging && { usernameChangedAt: new Date() }),
       ...referralCodeUpdate,

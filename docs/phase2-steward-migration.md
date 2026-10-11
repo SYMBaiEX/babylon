@@ -29,9 +29,8 @@
 
 ## 1. Context & Why
 
-Feed currently uses [Privy](https://privy.io) for:
-- User authentication (email, Twitter, Farcaster, Discord, Telegram)
-- Farcaster mini-app auto-auth (`useLoginToMiniApp`)
+Feed previously used [Privy](https://privy.io) for:
+- User authentication (email, Twitter, Discord, Telegram)
 - Telegram mini-app auth
 - Social account linking (`useLinkAccount`)
 - JWT issuance and server-side verification
@@ -61,8 +60,6 @@ Steward ([steward.fi](https://steward.fi)) is an **agent wallet infrastructure**
 
 **What Steward does NOT have (requires custom work on top):**
 - Twitter/X OAuth — **requires Steward PR** (see §5a — has a specific bug with Twitter's no-email API that must be fixed)
-- Farcaster login — use `@farcaster/auth-client` directly (already installed in Feed)
-- Farcaster mini-app auth — use `@farcaster/miniapp-sdk`'s `quickAuth.getToken()` (already installed, verified working)
 - Telegram mini-app auth — use Telegram WebApp SDK + HMAC verification
 
 **SDK**: `@stwd/sdk@0.5.0` is published on npm. Exports `StewardAuth` class for frontend use. Verified: exports match Steward source at v0.5.0.
@@ -78,8 +75,6 @@ Steward ([steward.fi](https://steward.fi)) is an **agent wallet infrastructure**
 | Google OAuth | ✅ | ✅ | None — redirect flow verified |
 | Discord OAuth | ✅ | ✅ | None |
 | Twitter/X | ✅ | ❌ | Add to Steward **with no-email fix** (Steward PR §5a) |
-| Farcaster login | ✅ | ❌ | `@farcaster/auth-client` already installed; `createAppClient().verifySignInMessage()` |
-| Farcaster mini-app | ✅ `useLoginToMiniApp` | ❌ | `sdk.quickAuth.getToken()` verified in installed `@farcaster/miniapp-sdk@0.2.3` |
 | Telegram mini-app | ✅ | ❌ | Telegram WebApp SDK HMAC verify |
 | JWT issuance | ✅ | ✅ | None |
 | Token refresh | ✅ | ✅ | `POST /auth/refresh` (rotation) |
@@ -102,8 +97,6 @@ Steward ([steward.fi](https://steward.fi)) is an **agent wallet infrastructure**
 │  POST /api/auth/session  →  sets steward-token httpOnly cookie     │
 │    (token received via POST body, NOT URL param — see §6 step 10) │
 │                                                                    │
-│  POST /api/auth/farcaster       → SIWF verify → provision user    │
-│  POST /api/auth/farcaster-miniapp → quickAuth verify → same       │
 │  POST /api/auth/telegram-miniapp  → HMAC verify → same            │
 │                                                                    │
 │  auth-middleware  →  jwtVerify(STEWARD_JWT_SECRET, issuer:'steward')│
@@ -490,7 +483,6 @@ const basicAuth = Buffer.from(`${PRIVY_APP_ID}:${PRIVY_APP_SECRET}`).toString('b
 const allUsers: Array<{
   id: string; // did:privy:xxx
   email?: { address: string };
-  farcaster?: { fid: number; username: string };
   twitter?: { username: string };
   telegram?: { telegram_user_id: string; username: string };
 }> = [];
@@ -548,8 +540,6 @@ console.info(`\n✅ Steward seeding: ${seeded} created, ${existed} already exist
 // Phase C: write manifest of email-less users
 const emaillessManifest = withoutEmail.map(u => ({
   privyId: u.id,
-  farcasterFid: u.farcaster?.fid ?? null,
-  farcasterUsername: u.farcaster?.username ?? null,
   twitterUsername: u.twitter?.username ?? null,
   telegramId: u.telegram?.telegram_user_id ?? null,
   telegramUsername: u.telegram?.username ?? null,
@@ -865,7 +855,6 @@ Public API surface stays identical. Internal implementation changes:
 
 New component. Opens when `useAuth().login()` is called.
 
-**Verified packages**: `@farcaster/auth-kit@0.8.2` is already in `apps/web/package.json` (v0.8.1 specified). Peer deps are only `react >= 17` — no wagmi/viem conflict. `@farcaster/auth-client@0.7.1` is also already installed.
 
 **Button implementations:**
 
@@ -874,125 +863,13 @@ New component. Opens when `useAuth().login()` is called.
 - **Google**: redirect to `${STEWARD_API_URL}/auth/oauth/google/authorize?redirect_uri=${APP_URL}/auth/callback/google&tenant_id=feed`
 - **Discord**: same pattern
 - **Twitter**: same pattern (requires Steward PR to be merged first)
-- **Farcaster**: `<SignInButton>` from `@farcaster/auth-kit`; on success, data goes to `POST /api/auth/farcaster`
 
 ---
 
-### Step 15 — Farcaster regular login
+### Steps 15–16 — Removed social integration
 
-**`apps/web/src/app/api/auth/farcaster/route.ts`** (new):
+Farcaster has no active login, mini-app, sharing, or rewards integration. Existing database columns and migration/export tooling retain historical account data without enabling new connections.
 
-```ts
-import { createAppClient, viemConnector } from '@farcaster/auth-client';
-
-export async function POST(req: NextRequest) {
-  const { message, signature, nonce } = await req.json();
-
-  // Server-side verification using @farcaster/auth-client (already installed)
-  const appClient = createAppClient({
-    relay: 'https://relay.farcaster.xyz',
-    ethereum: viemConnector(),
-  });
-
-  const { data, success, fid } = await appClient.verifySignInMessage({
-    message,
-    signature,
-    nonce,
-    domain: new URL(process.env.NEXT_PUBLIC_APP_URL!).hostname,
-  });
-
-  if (!success) return NextResponse.json({ ok: false, error: 'Invalid Farcaster signature' }, { status: 401 });
-
-  // Look up existing Feed user by FID, then stewardId, then create
-  // Use ensureUserFromFarcaster() — create if needed, mint JWT
-  const { token, refreshToken } = await mintSessionForFarcasterUser(fid, data);
-  return NextResponse.json({ ok: true, token, refreshToken });
-}
-```
-
-`mintSessionForFarcasterUser()`: finds or creates Feed user by FID (social profile table), then creates a Steward user via `POST /platform/users` if one doesn't exist, gets back the `stewardId`, mints a JWT using `jose` `SignJWT` with `STEWARD_JWT_SECRET` in the same format Steward uses:
-
-```ts
-const token = await new SignJWT({ userId: stewardUserId, tenantId: 'feed', fid })
-  .setProtectedHeader({ alg: 'HS256' })
-  .setIssuer('steward')
-  .setIssuedAt()
-  .setExpirationTime('15m')
-  .sign(new TextEncoder().encode(process.env.STEWARD_JWT_SECRET!));
-```
-
-**CORRECTED from original plan**: The original said "Feed mints a JWT" without ensuring the `userId` exists in Steward's `users` table. Fixed: we call `POST /platform/users` first to ensure the Steward user record exists, THEN use the returned `userId` as the JWT's `userId` claim. This ensures `WHERE stewardId = payload.userId` succeeds in auth-middleware.
-
----
-
-### Step 16 — Farcaster mini-app auth
-
-**VERIFIED**: `quickAuth.getToken()` exists in `@farcaster/miniapp-sdk@0.2.3` (installed). It internally calls `miniAppHost.signIn()` which is the same as the current flow that calls `sdk.actions.signIn()`. The `quickAuth.getToken()` is the correct abstraction.
-
-**VERIFIED**: `quickAuth.getToken()` returns `{ token: string }` where the JWT payload has `{ sub: fid (number), address, iss, aud, exp, iat }`.
-
-**`apps/web/src/components/providers/FarcasterMiniAppProvider.tsx`**:
-
-Replace:
-```ts
-import { usePrivy } from '@privy-io/react-auth';
-import { useLoginToMiniApp } from '@privy-io/react-auth/farcaster';
-// ...
-const { initLoginToMiniApp, loginToMiniApp } = useLoginToMiniApp();
-const { nonce } = await initLoginToMiniApp();
-const result = await sdk.actions.signIn({ nonce });
-await loginToMiniApp({ message, signature });
-```
-
-With:
-```ts
-import { sdk } from '@farcaster/miniapp-sdk';
-// ...
-const { token } = await sdk.quickAuth.getToken();
-const res = await fetch('/api/auth/farcaster-miniapp', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token }),
-});
-const { sessionToken, refreshToken } = await res.json();
-await fetch('/api/auth/session', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token: sessionToken, refreshToken }),
-});
-```
-
-Also remove the `createWallet` useEffect entirely (embedded wallets removed in Phase 1).
-
-**`apps/web/src/app/api/auth/farcaster-miniapp/route.ts`** (new):
-
-```ts
-import { createClient } from '@farcaster/quick-auth';
-
-export async function POST(req: NextRequest) {
-  const { token } = await req.json();
-
-  // VERIFIED: createClient() has verifyJwt() method that fetches JWKS from
-  // https://auth.farcaster.xyz — requires network access (not a local verify).
-  // This is acceptable for a server-side API route.
-  const quickAuthClient = createClient(); // from @farcaster/quick-auth (already installed)
-  const payload = await quickAuthClient.verifyJwt({
-    token,
-    domain: new URL(process.env.NEXT_PUBLIC_APP_URL!).hostname,
-  });
-  // payload.sub = FID (number), payload.address = custody address
-
-  const fid = payload.sub; // number
-  const { sessionToken, refreshToken } = await mintSessionForFarcasterUser(fid, {});
-  return NextResponse.json({ ok: true, sessionToken, refreshToken });
-}
-```
-
-**CLARIFIED**: `verifyJwt` makes a network call to `https://auth.farcaster.xyz` to fetch the JWKS public key. This is a ~50-100ms network request on the server side, acceptable. The original plan didn't mention this — it's now documented.
-
-**CLARIFIED**: The `domain` parameter in `verifyJwt` must match the Farcaster app's registered domain. In dev: `localhost`. In prod: `feed.fun` (or whatever). Use `new URL(process.env.NEXT_PUBLIC_APP_URL!).hostname` to derive it.
-
----
 
 ### Step 17 — Telegram mini-app auth
 
@@ -1049,7 +926,6 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-`mintSessionForTelegramUser()`: same pattern as Farcaster — find/create Feed user by Telegram ID, ensure Steward user exists via `POST /platform/users`, mint JWT.
 
 ---
 
@@ -1060,7 +936,6 @@ export async function POST(req: NextRequest) {
 Remove `useLinkAccount` from `@privy-io/react-auth`. Replace per platform:
 
 - **Google/Discord/Twitter**: Redirect to Steward OAuth with extra `mode=link&feedUserId=${userId}` query params (Steward stores these in state; after OAuth completes, Feed callback calls `POST /api/users/[userId]/link-social`)
-- **Farcaster**: `<SignInButton>` from `@farcaster/auth-kit` in link mode; on success POST to `/api/auth/farcaster` → `/api/users/[userId]/link-social`
 - **Telegram**: Telegram Login Widget (script embed) with callback → `/api/auth/telegram-miniapp` → `/api/users/[userId]/link-social`
 
 The existing `POST /api/users/[userId]/link-social` route already supports non-wallet platforms. No changes needed to the route itself.
@@ -1085,7 +960,6 @@ All these files do `const { getAccessToken } = usePrivy()`. Change to `useAuth()
 
 ### Step 20 — Remove Privy packages, update deps
 
-**CORRECTED**: `@farcaster/auth-kit` and `@farcaster/auth-client` are already installed in `apps/web/package.json`. Do NOT re-add them. `@stwd/sdk` is new.
 
 ```bash
 # Remove
@@ -1126,8 +1000,7 @@ When Steward JWT arrives and `stewardId` not found in Feed:
 
 **Layer 3 — Runtime social bridge** (in custom auth API routes)
 
-When Farcaster/Twitter/Telegram user logs in through their respective custom API route:
-- Match by FID (Farcaster), Twitter username, or Telegram ID in `socialProfiles` table
+For Twitter and Telegram logins, match the existing account by the corresponding verified social identifier.
 - Set `stewardId` on match
 
 **Layer 4 — "Claim account" prompt** (for edge cases)
@@ -1141,7 +1014,6 @@ If user cannot be matched automatically:
 | Category | % (estimated) | Strategy |
 |---|---|---|
 | Has email in Privy | ~70% | Pre-seed + email bridge at login |
-| Farcaster-only | ~20% | Farcaster API route links by FID |
 | Twitter-only | ~7% | Twitter API route links by username |
 | Telegram-only | ~2% | Telegram API route links by Telegram ID |
 | True orphans (no linked data) | <1% | Claim account prompt |
@@ -1300,7 +1172,7 @@ TELEGRAM_BOT_TOKEN=
 | File | Change |
 |---|---|
 | `packages/api/src/auth-middleware.ts` | Replace Privy → jose `jwtVerify`, `steward-token` cookie, user lookup chain |
-| `packages/api/src/users/ensure-user.ts` | Add `ensureUserFromSteward()`, `mintSessionForFarcasterUser()`, `mintSessionForTelegramUser()` |
+| `packages/api/src/users/ensure-user.ts` | Add `ensureUserFromSteward()` and `mintSessionForTelegramUser()` |
 | `packages/api/src/users/user-lookup.ts` | Add `'stewardId'` kind |
 | `packages/api/src/dev-credentials.ts` | Update test DID prefix `did:privy:test-` → `steward:test:` |
 | `packages/shared/src/auth/privy-config.ts` | **DELETE** |
@@ -1313,7 +1185,6 @@ TELEGRAM_BOT_TOKEN=
 |---|---|
 | `apps/web/src/components/providers/StewardAuthProvider.tsx` | **NEW** |
 | `apps/web/src/components/providers/Providers.tsx` | Remove Privy, add Steward |
-| `apps/web/src/components/providers/FarcasterMiniAppProvider.tsx` | Remove Privy; use `quickAuth.getToken()` |
 | `apps/web/src/components/providers/OnboardingProvider.tsx` | Remove `usePrivy()` |
 
 **Frontend — hooks:**
@@ -1342,8 +1213,6 @@ TELEGRAM_BOT_TOKEN=
 | File | Change |
 |---|---|
 | `apps/web/src/app/api/auth/session/route.ts` | **NEW** — cookie bridge (POST/DELETE) |
-| `apps/web/src/app/api/auth/farcaster/route.ts` | **NEW** — SIWF exchange |
-| `apps/web/src/app/api/auth/farcaster-miniapp/route.ts` | **NEW** — quickAuth exchange |
 | `apps/web/src/app/api/auth/telegram-miniapp/route.ts` | **NEW** — HMAC verify |
 | `apps/web/src/app/auth/callback/email/page.tsx` | **NEW** — magic link callback |
 | `apps/web/src/app/auth/callback/[provider]/page.tsx` | **NEW** — OAuth callback (with URL sanitization) |
@@ -1387,8 +1256,6 @@ Phase E — Feed: Backend auth swap
 ├── 6. auth-middleware.ts: Steward JWT verification
 ├── 7. ensure-user.ts + user-lookup.ts
 ├── 8. /api/auth/session cookie bridge
-├── 9. /api/auth/farcaster route
-├── 10. /api/auth/farcaster-miniapp route
 ├── 11. /api/auth/telegram-miniapp route
 └── QG: integration tests pass ✅
 
@@ -1410,9 +1277,8 @@ Phase H — Feed: Login + callbacks
 └── QG: manually test each login method ✅
 
 Phase I — Feed: Mini-apps + linking
-├── 21. FarcasterMiniAppProvider.tsx (quickAuth.getToken())
 ├── 22. LinkSocialAccountsModal.tsx
-└── QG: test Farcaster + Telegram mini-app flows ✅
+└── QG: test Telegram mini-app flows
 
 Phase J — Feed: Cleanup
 ├── 23. bun remove @privy-io/react-auth @privy-io/server-auth @privy-io/node
@@ -1485,7 +1351,6 @@ bun run scripts/migrate-privy-to-steward.ts --dry-run | tail -20
 | 3 | Twitter/X required | **Decided**: Yes (Steward PR covers this) |
 | 4 | Email provider | **Decided**: Resend |
 | 5 | `STEWARD_MASTER_PASSWORD` rotation strategy | **Open**: document in runbook; rotation requires re-encrypting Steward vault |
-| 6 | Farcaster relay | **Decided**: default `relay.farcaster.xyz` |
 | 7 | ElizaCloud Steward prod URL | **Open**: needed before prod deploy |
 | 8 | Email-less user outreach | **Decided**: in-app claim-account prompt (Layer 4 bridge) |
 
@@ -1498,11 +1363,9 @@ The following issues were identified in the original plan and corrected above:
 | # | Original Issue | Fix Applied |
 |---|---|---|
 | 1 | Twitter OAuth returns no email — `provisionOAuthUser()` would crash | Steward PR must fix with synthetic `@id.steward.internal` email |
-| 2 | Custom Farcaster/Telegram JWTs referenced non-existent Steward `userId` | Routes now call `POST /platform/users` first, use returned `userId` |
+| 2 | Custom Telegram JWTs referenced non-existent Steward `userId` | Routes call `POST /platform/users` first and use the returned `userId` |
 | 3 | User migration via direct Postgres INSERT (impossible on prod) | Migration uses new `POST /platform/users` API endpoint instead |
 | 4 | `PRIVY_AUTH_FALLBACK=true` described as existing flag | Removed. Cookie name change (`privy-token` → `steward-token`) is the natural cutover. |
-| 5 | `@farcaster/auth-kit` listed as new dependency | Already installed. Only `@stwd/sdk @simplewebauthn/browser` are new. |
-| 6 | `quickAuth.verifyJwt` described as simple local verify | Documented as network call to Farcaster auth server (JWKS fetch) — acceptable |
 | 7 | Docker build context for sibling directory not addressed | Confirmed Docker supports `../steward` relative context; documented |
 | 8 | OAuth JWT token delivered and stored via URL query param | `window.history.replaceState()` called immediately in callback page |
 | 9 | `STEWARD_JWT_SECRET` vs `STEWARD_SESSION_SECRET` mismatch | Docker-compose sets both to same value; documented the difference |
@@ -1550,10 +1413,6 @@ Feed's `auth-middleware` verifies JWTs **locally** using `jose jwtVerify` + `STE
 
 **Already installed — do NOT add again:**
 ```
-@farcaster/auth-kit@0.8.1      # already in apps/web/package.json
-@farcaster/auth-client@0.7.0   # already in apps/web/package.json
-@farcaster/miniapp-sdk@0.2.1   # already in apps/web/package.json (includes quickAuth)
-@farcaster/quick-auth          # already pulled in as transitive dep
 jose                           # already used in Feed backend
 ```
 

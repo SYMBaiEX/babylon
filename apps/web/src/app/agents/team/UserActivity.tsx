@@ -87,7 +87,6 @@ function getReasonLabel(reason: string): string {
     referral_signup: 'Referral bonus',
     referral_qualified: 'Qualified referral bonus',
     profile_completion: 'Profile completion bonus',
-    farcaster_link: 'Linked Farcaster',
     twitter_link: 'Linked Twitter',
     discord_link: 'Linked Discord',
     wallet_connect: 'Connected wallet',

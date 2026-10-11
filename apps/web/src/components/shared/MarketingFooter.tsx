@@ -88,14 +88,6 @@ export function MarketingFooter({ className }: MarketingFooterProps) {
               >
                 X
               </a>
-              <a
-                href={EXTERNAL_LINKS.farcaster}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="touch-manipulation transition-colors duration-200 hover:text-primary"
-              >
-                Farcaster
-              </a>
             </nav>
           </div>
 

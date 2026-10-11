@@ -132,8 +132,6 @@ export class ReputationService {
         earnedPoints: users.earnedPoints,
         bonusPoints: users.bonusPoints,
         pointsAwardedForProfile: users.pointsAwardedForProfile,
-        pointsAwardedForFarcaster: users.pointsAwardedForFarcaster,
-        pointsAwardedForFarcasterFollow: users.pointsAwardedForFarcasterFollow,
         pointsAwardedForTwitter: users.pointsAwardedForTwitter,
         pointsAwardedForTwitterFollow: users.pointsAwardedForTwitterFollow,
         pointsAwardedForDiscord: users.pointsAwardedForDiscord,
@@ -175,8 +173,6 @@ export class ReputationService {
       invitePoints: number;
       bonusPoints: number;
       pointsAwardedForProfile: boolean;
-      pointsAwardedForFarcaster: boolean;
-      pointsAwardedForFarcasterFollow: boolean;
       pointsAwardedForTwitter: boolean;
       pointsAwardedForTwitterFollow: boolean;
       pointsAwardedForDiscord: boolean;
@@ -199,14 +195,6 @@ export class ReputationService {
       case 'profile_completion':
         updateData.bonusPoints = user.bonusPoints + amount;
         updateData.pointsAwardedForProfile = true;
-        break;
-      case 'farcaster_link':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForFarcaster = true;
-        break;
-      case 'farcaster_follow':
-        updateData.bonusPoints = user.bonusPoints + amount;
-        updateData.pointsAwardedForFarcasterFollow = true;
         break;
       case 'twitter_link':
         updateData.bonusPoints = user.bonusPoints + amount;
@@ -301,35 +289,6 @@ export class ReputationService {
       userId,
       POINTS.PROFILE_COMPLETION,
       'profile_completion'
-    );
-  }
-
-  /**
-   * Award reputation for Farcaster link.
-   */
-  static async awardFarcasterLink(
-    userId: string,
-    farcasterUsername?: string
-  ): Promise<AwardReputationResult> {
-    return ReputationService.awardReputation(
-      userId,
-      POINTS.FARCASTER_LINK,
-      'farcaster_link',
-      farcasterUsername ? { farcasterUsername } : undefined
-    );
-  }
-
-  /**
-   * Award reputation for Farcaster follow.
-   */
-  static async awardFarcasterFollow(
-    userId: string
-  ): Promise<AwardReputationResult> {
-    return ReputationService.awardReputation(
-      userId,
-      POINTS.FARCASTER_FOLLOW,
-      'farcaster_follow',
-      { action: 'follow_playfeed' }
     );
   }
 
@@ -507,7 +466,6 @@ export class ReputationService {
           createdAt: users.createdAt,
           walletAddress: users.walletAddress,
           privyId: users.privyId,
-          farcasterFid: users.farcasterFid,
           twitterId: users.twitterId,
         })
         .from(users)
@@ -519,7 +477,6 @@ export class ReputationService {
           createdAt: users.createdAt,
           walletAddress: users.walletAddress,
           privyId: users.privyId,
-          farcasterFid: users.farcasterFid,
           twitterId: users.twitterId,
         })
         .from(users)
@@ -547,20 +504,13 @@ export class ReputationService {
           referrer.privyId &&
           referredUser.privyId &&
           referrer.privyId !== referredUser.privyId;
-        const hasDifferentFarcaster =
-          referrer.farcasterFid &&
-          referredUser.farcasterFid &&
-          referrer.farcasterFid !== referredUser.farcasterFid;
         const hasDifferentTwitter =
           referrer.twitterId &&
           referredUser.twitterId &&
           referrer.twitterId !== referredUser.twitterId;
 
         const hasDifferentIdentifiers =
-          hasDifferentWallet ||
-          hasDifferentPrivyId ||
-          hasDifferentFarcaster ||
-          hasDifferentTwitter;
+          hasDifferentWallet || hasDifferentPrivyId || hasDifferentTwitter;
 
         // Only block if same IP AND no different identifiers AND within 15 minutes
         if (
@@ -615,7 +565,6 @@ export class ReputationService {
               timeDiffMs: timeDiff,
               hasDifferentWallet,
               hasDifferentPrivyId,
-              hasDifferentFarcaster,
               hasDifferentTwitter,
             },
             'ReputationService'
@@ -827,7 +776,6 @@ export class ReputationService {
     const userResult = await db
       .select({
         referredBy: users.referredBy,
-        hasFarcaster: users.hasFarcaster,
         hasTwitter: users.hasTwitter,
         walletAddress: users.walletAddress,
       })
@@ -842,8 +790,7 @@ export class ReputationService {
     }
 
     // Check if user has at least one social account linked
-    const hasSocialAccount =
-      user.hasFarcaster || user.hasTwitter || !!user.walletAddress;
+    const hasSocialAccount = user.hasTwitter || !!user.walletAddress;
     if (!hasSocialAccount) {
       return null;
     }
@@ -924,8 +871,6 @@ export class ReputationService {
   private static checkAlreadyAwarded(
     user: {
       pointsAwardedForProfile: boolean;
-      pointsAwardedForFarcaster: boolean;
-      pointsAwardedForFarcasterFollow: boolean;
       pointsAwardedForTwitter: boolean;
       pointsAwardedForTwitterFollow: boolean;
       pointsAwardedForDiscord: boolean;
@@ -940,10 +885,6 @@ export class ReputationService {
     switch (reason) {
       case 'profile_completion':
         return user.pointsAwardedForProfile;
-      case 'farcaster_link':
-        return user.pointsAwardedForFarcaster;
-      case 'farcaster_follow':
-        return user.pointsAwardedForFarcasterFollow;
       case 'twitter_link':
         return user.pointsAwardedForTwitter;
       case 'twitter_follow':

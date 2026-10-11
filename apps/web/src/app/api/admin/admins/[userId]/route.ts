@@ -165,7 +165,6 @@ export const POST = withErrorHandling(
         walletAddress: true,
         profileImageUrl: true,
         isAdmin: true,
-        hasFarcaster: true,
         hasTwitter: true,
         createdAt: true,
         updatedAt: true,

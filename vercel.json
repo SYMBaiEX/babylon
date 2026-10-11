@@ -134,7 +134,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "frame-src 'self' https://vercel.live https://farcaster.xyz https://oauth.telegram.org; frame-ancestors 'self' https://farcaster.xyz https://warpcast.com"
+          "value": "frame-src 'self' https://vercel.live https://oauth.telegram.org; frame-ancestors 'self'"
         },
         {
           "key": "X-Content-Type-Options",

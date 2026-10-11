@@ -37,8 +37,6 @@ export const EXTERNAL_LINKS = {
   discordInvite:
     process.env.NEXT_PUBLIC_DISCORD_INVITE_URL?.trim() ||
     'https://discord.gg/ukKRJtYQ7q',
-  farcasterProfile: 'https://warpcast.com/playfeed',
-  farcaster: 'https://farcaster.xyz',
   privacyPolicy: 'https://docs.feed.fun/legal/privacy-policy/',
   termsOfService: 'https://docs.feed.fun/legal/terms-of-service/',
 } as const;

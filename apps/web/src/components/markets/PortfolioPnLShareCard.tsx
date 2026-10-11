@@ -9,7 +9,7 @@ import type { User } from '@/stores/authStore';
  *
  * Generates a styled card image (1200x630) for sharing portfolio PnL
  * on social media. Includes user profile, portfolio metrics, and
- * PnL breakdown. Designed for Twitter/Farcaster OG images.
+ * PnL breakdown. Designed for Twitter OG images.
  *
  * Features:
  * - Shareable image generation
