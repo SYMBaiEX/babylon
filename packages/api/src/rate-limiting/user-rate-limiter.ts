@@ -141,6 +141,11 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 60000,
     actionType: 'generate_agent_profile',
   }, // 5 generations per minute
+  GENERATE_ONBOARDING_PROFILE: {
+    maxRequests: 5,
+    windowMs: 60000,
+    actionType: 'generate_onboarding_profile',
+  }, // 5 onboarding profile generations per minute (paid LLM call)
   GENERATE_AGENT_FIELD: {
     maxRequests: 10,
     windowMs: 60000,
