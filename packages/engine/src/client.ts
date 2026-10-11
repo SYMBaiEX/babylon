@@ -43,11 +43,8 @@ export {
 // Reputation calculations that are pure functions (no DB)
 // Import directly from the pnl-normalizer file to avoid pulling in server-side deps from the barrel export
 export {
-  calculateAverageROI,
   calculateConfidenceScore,
-  calculateSharpeRatio,
   calculateWinRate,
-  denormalizePnL,
   getTrustLevel,
   normalizePnL,
 } from './reputation/pnl-normalizer';

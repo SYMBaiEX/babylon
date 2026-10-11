@@ -252,7 +252,6 @@ export {
 export * from './rate-limiting';
 // Reputation Module
 export {
-  calculateAverageROI,
   calculateConfidenceScore,
   // Trade Feedback Calculator
   calculateEntryTimingScore,
@@ -261,11 +260,9 @@ export {
   // Reputation Calculation Service
   calculateReputationScore,
   calculateRiskScore,
-  calculateSharpeRatio,
   calculateTradeMetrics,
   calculateTradeScore,
   calculateWinRate,
-  denormalizePnL,
   type GameMetrics,
   generateBatchGameFeedback,
   generateGameCompletionFeedback,
