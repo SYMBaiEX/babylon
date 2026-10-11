@@ -462,6 +462,28 @@ describe('Daily Login - DailyLoginService Integration', () => {
     });
   });
 
+  describe('claimDailyReward - Concurrency', () => {
+    test('concurrent claims credit exactly once', async () => {
+      if (skipIfNoDb() || !serviceTestUserId) return;
+
+      await setUserStreak(serviceTestUserId, 0, null);
+      const before = await getUserStreak(serviceTestUserId);
+
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          DailyLoginService.claimDailyReward(serviceTestUserId!)
+        )
+      );
+      expect(results.filter((r) => r.success)).toHaveLength(1);
+
+      const after = await getUserStreak(serviceTestUserId);
+      expect(after!.totalDailyLogins).toBe(1);
+      expect(Number(after!.virtualBalance)).toBe(
+        Number(before!.virtualBalance) + POINTS.DAILY_LOGIN_DAY_1
+      );
+    });
+  });
+
   describe('claimDailyReward - Grace Period', () => {
     test('claim after 25h continues streak', async () => {
       if (skipIfNoDb() || !serviceTestUserId) return;
