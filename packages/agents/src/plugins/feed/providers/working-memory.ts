@@ -17,6 +17,7 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
+import { z } from 'zod';
 import { logger } from '../../../shared/logger';
 
 const WORKING_MEMORY_CATEGORY = 'agent_working_memory';
@@ -59,10 +60,40 @@ export interface AgentWorkingMemoryState {
   lastUpdated: string; // ISO
 }
 
+const memorySchema = z.object({
+  recentContacts: z.array(
+    z.object({
+      userId: z.string().min(1),
+      name: z.string(),
+      lastInteraction: z.string().datetime(),
+      context: z.string(),
+      channel: z.string(),
+    })
+  ),
+  gatheredFacts: z.array(
+    z.object({
+      fact: z.string(),
+      source: z.string(),
+      timestamp: z.string().datetime(),
+      usedInTrade: z.boolean(),
+    })
+  ),
+  activeThesis: z.string().nullable(),
+  recentTradeReasoning: z.array(
+    z.object({
+      marketId: z.string(),
+      side: z.string(),
+      reasoning: z.string(),
+      timestamp: z.string().datetime(),
+    })
+  ),
+  lastUpdated: z.string().datetime(),
+});
+
 type WorldFactsServiceShape = {
   getFactsByCategory: (
     category: string,
-    options?: { limit?: number }
+    options?: { limit?: number; key?: string }
   ) => Promise<Array<{ id: string; key: string; value: string }>>;
   upsertFact: (params: {
     category: string;
@@ -83,10 +114,10 @@ async function getWorldFactsService(): Promise<WorldFactsServiceShape> {
       return {
         getFactsByCategory: async (
           category: string,
-          options?: { limit?: number }
+          options?: { limit?: number; key?: string }
         ) => {
           // Use raw DB query since worldFactsService may not expose getFactsByCategory
-          const { db, worldFacts, eq, desc } = await import('@feed/db');
+          const { db, worldFacts, eq, desc, and } = await import('@feed/db');
           const rows = await db
             .select({
               id: worldFacts.id,
@@ -94,7 +125,12 @@ async function getWorldFactsService(): Promise<WorldFactsServiceShape> {
               value: worldFacts.value,
             })
             .from(worldFacts)
-            .where(eq(worldFacts.category, category))
+            .where(
+              and(
+                eq(worldFacts.category, category),
+                options?.key ? eq(worldFacts.key, options.key) : undefined
+              )
+            )
             .orderBy(desc(worldFacts.updatedAt))
             .limit(options?.limit ?? 10);
           return rows.map((r) => ({
@@ -179,13 +215,14 @@ export async function loadWorkingMemory(
   try {
     const svc = await getWorldFactsService();
     const rows = await svc.getFactsByCategory(WORKING_MEMORY_CATEGORY, {
-      limit: 50,
+      limit: 1,
+      key: getMemoryKey(agentId),
     });
     const key = getMemoryKey(agentId);
     const row = rows.find((r) => r.key === key);
-    if (!row?.value) return createEmptyMemory();
+    if (!row) return createEmptyMemory();
 
-    const parsed = JSON.parse(row.value) as Partial<AgentWorkingMemoryState>;
+    const parsed = memorySchema.parse(JSON.parse(row.value));
     const now = Date.now();
 
     // Prune expired contacts
@@ -212,7 +249,7 @@ export async function loadWorkingMemory(
       },
       'WorkingMemory'
     );
-    return createEmptyMemory();
+    throw error;
   }
 }
 
@@ -222,6 +259,7 @@ export async function saveWorkingMemory(
   memory: AgentWorkingMemoryState
 ): Promise<void> {
   try {
+    memorySchema.parse(memory);
     const svc = await getWorldFactsService();
     const updated: AgentWorkingMemoryState = {
       ...memory,
@@ -251,6 +289,7 @@ export async function saveWorkingMemory(
       },
       'WorkingMemory'
     );
+    throw error;
   }
 }
 
@@ -399,11 +438,7 @@ export const workingMemoryProvider: Provider = {
         error instanceof Error ? error.message : String(error),
         'WorkingMemoryProvider'
       );
-      return {
-        data: {},
-        values: { hasWorkingMemory: false },
-        text: '',
-      };
+      throw error;
     }
   },
 };

@@ -62,3 +62,62 @@ describe('renderPrompt optional variable cleanup', () => {
     expect(result).not.toContain('{{resolvedQuestionsContext}}');
   });
 });
+
+describe('required prompt context integrity', () => {
+  it('rejects omitted, null, empty and non-finite required values', () => {
+    for (const variables of [
+      {},
+      { name: null },
+      { name: ' ' },
+      { name: Number.NaN },
+    ]) {
+      expect(() =>
+        renderPrompt({ ...testPrompt, template: '{{name}}' }, variables)
+      ).toThrow();
+    }
+    expect(() =>
+      renderPrompt(
+        { ...testPrompt, template: '{{missing}}' },
+        {},
+        { allowEmpty: true }
+      )
+    ).toThrow('missing');
+  });
+
+  it('requires explicit core trading and conversation context even when empty is valid', () => {
+    for (const key of [
+      'marketTable',
+      'npcsList',
+      'validNpcIds',
+      'validTickers',
+      'currentPositions',
+      'conversationHistory',
+      'groupMembers',
+      'marketConditions',
+    ]) {
+      const prompt = { ...testPrompt, template: `{{${key}}}` };
+      expect(() => renderPrompt(prompt, {})).toThrow(key);
+      expect(() => renderPrompt(prompt, { [key]: null })).toThrow(key);
+      expect(renderPrompt(prompt, { [key]: '' })).toBe('');
+    }
+  });
+
+  it('preserves dollar sequences and template syntax in supplied content', () => {
+    const text = "$& $` $' $$ {{requiredVar}}";
+    expect(
+      renderPrompt(
+        { ...testPrompt, template: '{{name}} / {{requiredVar}}' },
+        { name: text, requiredVar: 'value' }
+      )
+    ).toBe(`${text} / value`);
+  });
+
+  it('preserves zero and false and ignores unrelated unused data', () => {
+    expect(
+      renderPrompt(
+        { ...testPrompt, template: '{{zero}} {{flag}}' },
+        { zero: 0, flag: false, unused: null }
+      )
+    ).toBe('0 false');
+  });
+});

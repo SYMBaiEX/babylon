@@ -510,7 +510,7 @@ export class SharedChatContextService {
         },
         'SharedChatContextService'
       );
-      return null;
+      throw error;
     }
   }
 

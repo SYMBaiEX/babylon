@@ -35,6 +35,7 @@ let globalTokenUsageCallback: TokenUsageCallback | null = null;
 
 // Global LLM call detail callback (can be set by DAG trace interceptor)
 import { getLLMCallCallback } from '../dag-trace/llm-interceptor';
+import type { LLMCallInput } from '../dag-trace/types';
 
 /**
  * Set the global token usage callback
@@ -143,6 +144,23 @@ export class FeedLLMClient {
     this.claudeKey = process.env.ANTHROPIC_API_KEY;
     this.openaiKey = apiKey || process.env.OPENAI_API_KEY;
 
+    // Surplus overrides every provider selection below, so a forced provider
+    // only needs its own credentials when Surplus is not configured.
+    if (forceProvider && !getSurplusConfig()) {
+      const available: Record<LLMProvider, string | undefined> = {
+        surplus: undefined,
+        elizacloud: elizaCloud?.apiKey,
+        groq: this.groqKey,
+        claude: this.claudeKey,
+        openai: this.openaiKey,
+      };
+      if (!available[forceProvider]) {
+        throw new Error(
+          `Required credentials missing for selected provider ${forceProvider}`
+        );
+      }
+    }
+
     // Timeout and retry configuration
     // For large batch operations (like NPC trading), we need longer timeouts
     // since Groq can take 30-60 seconds for complex prompts
@@ -153,7 +171,7 @@ export class FeedLLMClient {
     const timeoutMs = isTestEnv ? 120000 : 300000;
     // Let SDK handle initial retries for transient errors
     // We also do our own retries in generateJSON for more control
-    const sdkMaxRetries = 2;
+    const sdkMaxRetries = 0; // Retries below are explicit and each attempt is traced.
 
     // Force specific provider if requested
     const surplus = getSurplusConfig();
@@ -368,30 +386,83 @@ WORLD RULES:
       },
     ];
 
+    // Collect each API request, then publish its actual parsing outcome before
+    // returning or throwing. Continuations retain separate raw request records.
+    let attemptCalls: LLMCallInput[] = [];
+    const requestCompletion = async (
+      requestMessages: Array<{
+        role: 'system' | 'user' | 'assistant';
+        content: string;
+      }>
+    ) => {
+      const started = Date.now();
+      const metadata = {
+        provider: this.provider,
+        model,
+        promptType,
+        format,
+        temperature,
+        maxTokens,
+        systemPrompt: systemContent,
+        userPrompt: requestMessages
+          .filter((message) => message.role === 'user')
+          .map((message) => message.content)
+          .join('\n\n'),
+        messages: requestMessages,
+      };
+      const response = await this.client!.chat.completions.create({
+        model,
+        messages: requestMessages,
+        ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
+        temperature,
+        max_tokens: maxTokens,
+        ...(model.includes('qwen3')
+          ? { reasoning_effort: 'none' as const }
+          : {}),
+        ...(model.includes('gpt-5')
+          ? { reasoning_effort: 'minimal' as const }
+          : {}),
+      }).catch((error: Error) => {
+        attemptCalls.push({
+          ...metadata,
+          rawResponse: '',
+          parsedResponse: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          durationMs: Date.now() - started,
+          success: false,
+          error: error.message,
+        });
+        throw error;
+      });
+      const content = response.choices[0]?.message.content ?? '';
+      attemptCalls.push({
+        ...metadata,
+        rawResponse: content,
+        parsedResponse: null,
+        inputTokens: response.usage?.prompt_tokens ?? 0,
+        outputTokens: response.usage?.completion_tokens ?? 0,
+        totalTokens: response.usage?.total_tokens ?? 0,
+        durationMs: Date.now() - started,
+        success: Boolean(content.trim()),
+        ...(content.trim() ? {} : { error: 'LLM response missing content' }),
+      });
+      return response;
+    };
+
     let retryCount = 0;
     const maxRetries = 3;
     const initialDelayMs = 2000;
     let callStartTime = Date.now();
 
     while (true) {
+      attemptCalls = [];
+      let parsedResponse: JsonValue | null = null;
+      let outcomeError: string | undefined;
       try {
-        // Disable reasoning for models that support it to prevent thinking
-        // tokens from consuming output budget. Applies to:
-        // - qwen3 models (Groq): supports 'none'
-        // - GPT-5 series (OpenAI/ElizaCloud): supports 'minimal'
-        const isQwen3Model = model.includes('qwen3');
-        const isGpt5Model = model.includes('gpt-5');
-
         callStartTime = Date.now();
-        const response = await this.client!.chat.completions.create({
-          model,
-          messages,
-          ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
-          temperature,
-          max_tokens: maxTokens,
-          ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
-          ...(isGpt5Model ? { reasoning_effort: 'minimal' as const } : {}),
-        });
+        const response = await requestCompletion(messages);
         const callDurationMs = Date.now() - callStartTime;
 
         const firstChoice = first(response.choices);
@@ -403,9 +474,9 @@ WORLD RULES:
 
         // Extract token usage from response
         const usage = response.usage;
-        const inputTokens = usage?.prompt_tokens ?? 0;
-        const outputTokens = usage?.completion_tokens ?? 0;
-        const totalTokens = usage?.total_tokens ?? inputTokens + outputTokens;
+        let inputTokens = usage?.prompt_tokens ?? 0;
+        let outputTokens = usage?.completion_tokens ?? 0;
+        let totalTokens = usage?.total_tokens ?? inputTokens + outputTokens;
 
         // Log prompt and response for monitoring
         const fullInput = `System: ${systemContent}\n\nUser: ${prompt}`;
@@ -449,8 +520,7 @@ WORLD RULES:
               },
               {
                 role: 'user' as const,
-                content:
-                  'Continue from where you left off. Complete the remaining JSON array entries.',
+                content: `Continue exactly where you left off. Complete the remaining ${format.toUpperCase()} without repeating previous content.`,
               },
             ];
 
@@ -463,14 +533,10 @@ WORLD RULES:
             );
 
             const continuationResponse =
-              await this.client!.chat.completions.create({
-                model,
-                messages: continuationMessages,
-                ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
-                temperature,
-                max_tokens: maxTokens,
-                ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
-              });
+              await requestCompletion(continuationMessages);
+            inputTokens += continuationResponse.usage?.prompt_tokens ?? 0;
+            outputTokens += continuationResponse.usage?.completion_tokens ?? 0;
+            totalTokens += continuationResponse.usage?.total_tokens ?? 0;
 
             const contChoice = first(continuationResponse.choices);
             if (!contChoice || !contChoice.message.content) {
@@ -540,28 +606,7 @@ WORLD RULES:
             });
           }
 
-          // Report full LLM call details to DAG trace
-          const dagCallback = getLLMCallCallback();
-          if (dagCallback) {
-            dagCallback({
-              provider: this.provider,
-              model,
-              promptType,
-              format,
-              temperature,
-              maxTokens,
-              systemPrompt: systemContent,
-              userPrompt: prompt,
-              rawResponse: content,
-              parsedResponse: xmlResult.data,
-              inputTokens,
-              outputTokens,
-              totalTokens,
-              durationMs: callDurationMs,
-              success: true,
-            });
-          }
-
+          parsedResponse = xmlResult.data;
           return xmlResult.data as T;
         }
         // Use JSON parser
@@ -592,28 +637,7 @@ WORLD RULES:
               });
             }
 
-            // Report full LLM call details to DAG trace
-            const dagCb1 = getLLMCallCallback();
-            if (dagCb1) {
-              dagCb1({
-                provider: this.provider,
-                model,
-                promptType,
-                format,
-                temperature,
-                maxTokens,
-                systemPrompt: systemContent,
-                userPrompt: prompt,
-                rawResponse: content,
-                parsedResponse: parsed,
-                inputTokens,
-                outputTokens,
-                totalTokens,
-                durationMs: callDurationMs,
-                success: true,
-              });
-            }
-
+            parsedResponse = parsed;
             return parsed as T;
           }
           logger.error(
@@ -654,30 +678,10 @@ WORLD RULES:
           });
         }
 
-        // Report full LLM call details to DAG trace
-        const dagCb2 = getLLMCallCallback();
-        if (dagCb2) {
-          dagCb2({
-            provider: this.provider,
-            model,
-            promptType,
-            format,
-            temperature,
-            maxTokens,
-            systemPrompt: systemContent,
-            userPrompt: prompt,
-            rawResponse: content,
-            parsedResponse: parsed,
-            inputTokens,
-            outputTokens,
-            totalTokens,
-            durationMs: callDurationMs,
-            success: true,
-          });
-        }
-
+        parsedResponse = parsed;
         return parsed as T;
       } catch (error: unknown) {
+        outcomeError = error instanceof Error ? error.message : String(error);
         const err = error as {
           status?: number;
           message?: string;
@@ -791,9 +795,18 @@ WORLD RULES:
           globalTokenUsageCallback({
             provider: this.provider,
             model,
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
+            inputTokens: attemptCalls.reduce(
+              (sum, call) => sum + call.inputTokens,
+              0
+            ),
+            outputTokens: attemptCalls.reduce(
+              (sum, call) => sum + call.outputTokens,
+              0
+            ),
+            totalTokens: attemptCalls.reduce(
+              (sum, call) => sum + call.totalTokens,
+              0
+            ),
             promptType,
             durationMs: Date.now() - callStartTime,
             success: false,
@@ -803,6 +816,15 @@ WORLD RULES:
 
         // Re-throw if not a retryable error or retries exhausted
         throw error;
+      } finally {
+        for (const call of attemptCalls) {
+          getLLMCallCallback()?.({
+            ...call,
+            parsedResponse,
+            success: call.success && outcomeError === undefined,
+            ...(outcomeError === undefined ? {} : { error: outcomeError }),
+          });
+        }
       }
     }
   }

@@ -85,12 +85,14 @@ export function normalizeNpcGroupMessageResponse(
       return null;
     }
 
-    const xmlMatch = trimmed.match(/<message>([\s\S]*?)<\/message>/i);
+    const xmlMatch = trimmed.match(
+      /^<response>\s*<message>([\s\S]*?)<\/message>\s*<\/response>$/i
+    );
     if (xmlMatch?.[1]) {
       return { message: xmlMatch[1].trim() };
     }
 
-    return { message: trimmed };
+    return null;
   }
 
   if (
@@ -740,24 +742,24 @@ Return your response as XML:
           },
           {
             temperature: 0.9,
-            maxTokens: 100,
+            maxTokens: 512,
             promptType: 'npc_group_dynamic_message',
           }
         );
         response = normalizeNpcGroupMessageResponse(rawResponse);
       } catch (error) {
         logger.warn(
-          'LLM failed to generate group message, skipping',
+          'LLM failed to generate group message',
           {
             npcId: randomNpc.id,
             error: error instanceof Error ? error.message : String(error),
           },
           'NPCGroupDynamicsService'
         );
-        continue;
+        throw error;
       }
       if (!response?.message) {
-        continue;
+        throw new Error(`Missing generated group message for ${randomNpc.id}`);
       }
 
       // Process message: strip hashtags (never allowed) but keep emojis (allowed in private chats)
@@ -857,6 +859,7 @@ Return your response as XML:
           },
           'NPCGroupDynamicsService'
         );
+        throw error;
       }
 
       messagesPosted++;

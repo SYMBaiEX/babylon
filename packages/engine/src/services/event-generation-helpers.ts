@@ -396,8 +396,7 @@ export async function generateEvents(
           );
         }
       } catch (error) {
-        // Log the error but don't rethrow - the world event was already inserted,
-        // so we don't want article generation failures to abort the surrounding loop
+        // The event may already be persisted; still report required article failure.
         logger.error(
           'Failed to generate breaking article from world event',
           {
@@ -408,6 +407,7 @@ export async function generateEvents(
           },
           'EventGeneration'
         );
+        throw error;
       }
     }
   }
@@ -612,20 +612,8 @@ export async function generateArticlesForArcEvent(
   // Get actors for article context
   const actorsList = StaticDataRegistry.getTopActors(20);
 
-  // Get world facts context for article generation with graceful fallback
-  let worldFactsContext = '';
-  try {
-    worldFactsContext = await worldFactsService.generatePromptContext();
-  } catch (error) {
-    logger.warn(
-      'Failed to fetch world facts context for arc event articles - proceeding without',
-      {
-        arcEventId,
-        error: formatError(error),
-      },
-      'EventGeneration'
-    );
-  }
+  // Failed retrieval must not be confused with a world that has no facts.
+  const worldFactsContext = await worldFactsService.generatePromptContext();
 
   // Initialize article generator
   const articleGen = new ArticleGenerator(llmClient);
@@ -742,21 +730,14 @@ export async function generateArticlesForArcEvent(
           });
           break; // Exit loop immediately - no point trying more orgs if rate limited
         }
-        // Other persistence error
-        results.push({
-          status: 'rejected',
-          reason: new Error(persistResult.error || 'Unknown persistence error'),
-        });
-        continue;
+        throw new Error(
+          persistResult.error ||
+            'Article persistence failed without an error message'
+        );
       }
 
-      // Defensive guard: verify articleId exists after successful persistence
       if (!persistResult.articleId) {
-        results.push({
-          status: 'rejected',
-          reason: new Error('Missing articleId after successful persistence'),
-        });
-        continue;
+        throw new Error('Missing articleId after successful persistence');
       }
 
       const articleId = persistResult.articleId;
@@ -795,6 +776,7 @@ export async function generateArticlesForArcEvent(
         },
         'EventGeneration'
       );
+      throw error;
     }
   }
 

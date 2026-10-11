@@ -20,6 +20,7 @@ import {
   autonomousCoordinator,
   npcBootstrapService,
   releaseAgentLock,
+  withAgentExecutionLease,
 } from '@feed/agents';
 import {
   DistributedLockService,
@@ -469,11 +470,17 @@ export const POST = withErrorHandling(async function POST(_req: NextRequest) {
 
         // Execute autonomous tick with isNpc=true
         // This triggers NPC game context injection via the MultiStepExecutor
-        const tickResult = await autonomousCoordinator.executeAutonomousTick(
+        const tickResult = await withAgentExecutionLease(
           npc.id,
-          runtime,
-          true, // recordTrajectories - enabled for trajectory linking
-          true // isNpc = true (triggers NPC game context)
+          processId,
+          (signal) =>
+            autonomousCoordinator.executeAutonomousTick(
+              npc.id,
+              runtime,
+              true,
+              true,
+              signal
+            )
         );
 
         const actionCount =
@@ -486,7 +493,7 @@ export const POST = withErrorHandling(async function POST(_req: NextRequest) {
         totalActionsExecuted += actionCount;
 
         // Update activity state for organic behavior tracking
-        // Wrapped in try/catch so memory update failures don't fail the whole tick
+        // Activity state is required for the next scheduling decision.
         const didPost = tickResult.actionsExecuted.posts > 0;
         try {
           await npcMemoryService.updateActivityState(npc.id, {
@@ -506,6 +513,7 @@ export const POST = withErrorHandling(async function POST(_req: NextRequest) {
             },
             'NPCTick'
           );
+          throw activityError;
         }
 
         results.push({

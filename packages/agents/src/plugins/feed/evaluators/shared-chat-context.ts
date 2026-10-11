@@ -32,16 +32,13 @@ type SharedChatContextServiceShape = {
   ) => Promise<StoredSnapshot | null>;
 };
 
-const SHARED_CHAT_CONTEXT_SERVICE_PATH =
-  '../../../../../engine/src/services/shared-chat-context-service';
-
 let sharedChatContextServicePromise: Promise<SharedChatContextServiceShape> | null =
   null;
 
 async function getSharedChatContextService(): Promise<SharedChatContextServiceShape> {
   if (!sharedChatContextServicePromise) {
     sharedChatContextServicePromise = import(
-      SHARED_CHAT_CONTEXT_SERVICE_PATH
+      '../../../../../engine/src/services/shared-chat-context-service'
     ).then(
       (module) =>
         module.sharedChatContextService as SharedChatContextServiceShape

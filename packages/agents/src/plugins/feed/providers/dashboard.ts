@@ -12,27 +12,12 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../shared/logger';
-import type {
-  A2ABalanceResponse,
-  A2APositionsResponse,
-} from '../../../types/a2a-responses';
 import type { FeedRuntime } from '../types';
-
-// Type guards for A2A responses
-function isA2ABalanceResponse(data: object): data is A2ABalanceResponse {
-  return (
-    'balance' in data &&
-    typeof (data as A2ABalanceResponse).balance === 'number'
-  );
-}
-
-function isA2APositionsResponse(data: object): data is A2APositionsResponse {
-  return (
-    'marketPositions' in data &&
-    Array.isArray((data as A2APositionsResponse).marketPositions)
-  );
-}
+import {
+  balanceContextSchema,
+  positionsContextSchema,
+  requireContextArray,
+} from './context-contracts';
 
 /**
  * Provider: Comprehensive Dashboard
@@ -54,14 +39,9 @@ export const dashboardProvider: Provider = {
 
     // A2A is REQUIRED
     if (!feedRuntime.a2aClient?.isConnected()) {
-      logger.error(
-        'A2A client not connected - dashboard provider requires A2A protocol',
-        undefined,
-        runtime.agentId
+      throw new Error(
+        'A2A context unavailable: an active connection is required'
       );
-      return {
-        text: 'ERROR: A2A client not connected. Cannot load dashboard. Please ensure A2A server is running.',
-      };
     }
 
     // Fetch ALL dashboard data via A2A protocol
@@ -73,35 +53,14 @@ export const dashboardProvider: Provider = {
         feedRuntime.a2aClient.sendRequest('a2a.getPositions', {
           userId: agentUserId,
         }),
-        feedRuntime.a2aClient
-          .getPredictions({ status: 'active' })
-          .catch(() => ({ predictions: [] })),
-        feedRuntime.a2aClient
-          .getFeed({ limit: 5 })
-          .catch(() => ({ posts: [] })),
-        feedRuntime.a2aClient.getChats('all').catch(() => ({ chats: [] })),
-        feedRuntime.a2aClient
-          .getNotifications(5)
-          .catch(() => ({ notifications: [] })),
+        feedRuntime.a2aClient.getPredictions({ status: 'active' }),
+        feedRuntime.a2aClient.getFeed({ limit: 5 }),
+        feedRuntime.a2aClient.getChats('all'),
+        feedRuntime.a2aClient.getNotifications(5),
       ]);
 
-    // Validate response structures using type guards
-    if (
-      !balance ||
-      typeof balance !== 'object' ||
-      !isA2ABalanceResponse(balance)
-    ) {
-      throw new Error('Invalid balance data format from A2A client');
-    }
-    if (
-      !positions ||
-      typeof positions !== 'object' ||
-      !isA2APositionsResponse(positions)
-    ) {
-      throw new Error('Invalid positions data format from A2A client');
-    }
-    const balanceData = balance;
-    const positionsData = positions;
+    const balanceData = balanceContextSchema.parse(balance);
+    const positionsData = positionsContextSchema.parse(positions);
     const predictionsData = predictions as {
       predictions?: Array<{ id: string; question: string }>;
     };
@@ -111,6 +70,10 @@ export const dashboardProvider: Provider = {
       notifications?: Array<{ id: string; message: string }>;
     };
 
+    requireContextArray(predictionsData.predictions, 'predictions');
+    requireContextArray(feedData.posts, 'posts');
+    requireContextArray(chatsData.chats, 'chats');
+    requireContextArray(notificationsData.notifications, 'notifications');
     const totalPositions =
       (positionsData.marketPositions?.length || 0) +
       (positionsData.perpPositions?.length || 0);
@@ -130,10 +93,7 @@ Open Positions: ${totalPositions}
 Active Markets: ${activeMarkets}
 ${
   predictionsData.predictions && predictionsData.predictions.length > 0
-    ? `Recent: ${predictionsData.predictions
-        .slice(0, 3)
-        .map((p) => (p.question || 'Unknown').substring(0, 50))
-        .join(', ')}`
+    ? `Recent: ${predictionsData.predictions.map((p) => p.question).join(', ')}`
     : 'No active markets'
 }
 
@@ -141,7 +101,7 @@ ${
 Recent Posts: ${recentPosts}
 ${
   feedData.posts && feedData.posts.length > 0 && feedData.posts[0]?.content
-    ? `Latest: ${feedData.posts[0].content.substring(0, 100)}...`
+    ? `Latest: ${feedData.posts[0].content}...`
     : 'No recent posts'
 }
 
@@ -149,10 +109,7 @@ ${
 Active Chats: ${activeChats}
 ${
   chatsData.chats && chatsData.chats.length > 0
-    ? `Chats: ${chatsData.chats
-        .slice(0, 3)
-        .map((c) => c.name || c.id)
-        .join(', ')}`
+    ? `Chats: ${chatsData.chats.map((c) => c.name || c.id).join(', ')}`
     : 'No active chats'
 }
 
@@ -162,7 +119,7 @@ ${
   notificationsData.notifications &&
   notificationsData.notifications.length > 0 &&
   notificationsData.notifications[0]?.message
-    ? `Latest: ${notificationsData.notifications[0].message.substring(0, 80)}...`
+    ? `Latest: ${notificationsData.notifications[0].message}...`
     : 'No notifications'
 }
 

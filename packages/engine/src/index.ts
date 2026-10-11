@@ -171,6 +171,7 @@ export {
   setTokenUsageCallback,
   type TokenUsageCallback,
 } from './llm/openai-client';
+export { countTokensSync, getSafeContextLimit } from './llm/token-counter';
 export {
   type LLMGenerateJSONOptions,
   type LLMJsonClient,

@@ -1042,23 +1042,36 @@ const CHALLENGE_RESOLVERS: Record<string, WindowedResolver> = {
 
 /**
  * Check and potentially unlock achievements + advance challenges for a user.
- * This is the main entry point called from route handlers (fire-and-forget).
+ * Await with failOnError for request paths that require completed progress updates.
  */
 export async function checkProgress(
   userId: string,
-  event: AchievementEvent
+  event: AchievementEvent,
+  options: { failOnError?: boolean } = {}
 ): Promise<void> {
   const eventType = event.type as AchievementEventType;
   const relevantTrackingTypes = EVENT_TO_TRACKING_TYPES[eventType];
   if (!relevantTrackingTypes || relevantTrackingTypes.length === 0) return;
 
   try {
-    await Promise.all([
+    const results = await Promise.allSettled([
       checkAchievements(userId, relevantTrackingTypes),
-      checkChallenges(userId, event, relevantTrackingTypes),
+      checkChallenges(
+        userId,
+        event,
+        relevantTrackingTypes,
+        options.failOnError
+      ),
     ]);
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures.map((result) => result.reason),
+        'Achievement progress failed'
+      );
+    }
   } catch (error) {
-    // Log but don't rethrow — checkProgress is fire-and-forget
+    // Legacy background callers log; required request paths also reject.
     logger.error(
       'checkProgress failed',
       {
@@ -1069,6 +1082,7 @@ export async function checkProgress(
       },
       'AchievementService'
     );
+    if (options.failOnError) throw error;
   }
 }
 
@@ -1191,7 +1205,8 @@ async function unlockAchievement(
 async function checkChallenges(
   userId: string,
   _event: AchievementEvent,
-  relevantTrackingTypes: string[]
+  relevantTrackingTypes: string[],
+  failOnError = false
 ): Promise<void> {
   const now = new Date();
   const dailyIds = getActiveDailyChallengeIds(now);
@@ -1348,6 +1363,7 @@ async function checkChallenges(
         },
         'AchievementService'
       );
+      if (failOnError) throw error;
     }
   }
 }
