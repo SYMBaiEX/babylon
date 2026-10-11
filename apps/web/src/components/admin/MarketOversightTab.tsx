@@ -94,6 +94,15 @@ export function parseErrorText(text: string): string {
       if ('error' in parsed && typeof parsed.error === 'string') {
         return parsed.error;
       }
+      if (
+        'error' in parsed &&
+        parsed.error &&
+        typeof parsed.error === 'object' &&
+        'message' in parsed.error &&
+        typeof parsed.error.message === 'string'
+      ) {
+        return parsed.error.message;
+      }
       if ('message' in parsed && typeof parsed.message === 'string') {
         return parsed.message;
       }
