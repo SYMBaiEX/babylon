@@ -38,7 +38,9 @@ import {
   handleVerifyEscrowPayment,
 } from '@feed/a2a';
 import {
+  acceptGroupInvite,
   checkRateLimitAsync,
+  declineGroupInvite,
   logAdminModify,
   RATE_LIMIT_CONFIGS,
   RateLimitError,
@@ -50,14 +52,11 @@ import {
 } from '@feed/core/markets/prediction';
 import type { FeeProcessor, WalletPort } from '@feed/core/markets/shared';
 import {
-  and,
   db,
   eq,
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
-  groupMembers,
-  groups,
   hasBlocked,
   markets,
   perpMarketSnapshots,
@@ -73,7 +72,6 @@ import {
 } from '@feed/engine';
 import type { JsonValue, StringRecord } from '@feed/shared';
 import {
-  GROUP_CONFIG,
   generateSnowflakeId,
   getAPIBaseUrl,
   logger,
@@ -2345,162 +2343,29 @@ export async function executeGetGroupInvites(
 }
 
 /**
- * Execute accept_group_invite tool
- * Chat.groupId → Group.id relationship
- * Wrapped in transaction for atomicity
+ * Execute accept_group_invite tool (canonical acceptGroupInvite transition)
  */
 export async function executeAcceptGroupInvite(
   agent: AuthenticatedAgent,
   args: AcceptGroupInviteArgs
 ): Promise<AcceptGroupInviteResult> {
-  // Pre-transaction validation (read-only operations)
-  const invite = await db.groupInvite.findUnique({
-    where: { id: args.inviteId },
-  });
-  if (!invite || invite.invitedUserId !== agent.userId) {
-    throw new Error('Invite not found or access denied');
-  }
-
-  // Check invite status for idempotency
-  if (invite.status !== 'pending') {
-    throw new Error('This invite has already been processed');
-  }
-
-  // Check if agent is at the NPC group limit - use join to avoid N+1
-  const activeNpcGroups = await db
-    .select({ groupId: groupMembers.groupId })
-    .from(groupMembers)
-    .innerJoin(groups, eq(groupMembers.groupId, groups.id))
-    .where(
-      and(
-        eq(groupMembers.userId, agent.userId),
-        eq(groupMembers.isActive, true),
-        eq(groups.type, 'npc')
-      )
-    );
-
-  const npcGroupCount = activeNpcGroups.length;
-
-  if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
-    throw new Error(
-      `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`
-    );
-  }
-
-  // Check for existing membership (idempotency)
-  const existingMember = await db.groupMember.findFirst({
-    where: {
-      groupId: invite.groupId,
-      userId: agent.userId,
-    },
-  });
-
-  if (existingMember?.isActive) {
-    throw new Error('You are already a member of this group');
-  }
-
-  // Find the chat for this group (Chat.groupId → Group.id)
-  const groupChat = await db.chat.findFirst({
-    where: { groupId: invite.groupId },
-    select: { id: true },
-  });
-
-  // Wrap state-changing operations in a transaction for atomicity
-  return await db.$transaction(async (tx) => {
-    // Update invite status
-    await tx.groupInvite.update({
-      where: { id: args.inviteId },
-      data: {
-        status: 'accepted',
-        respondedAt: new Date(),
-      },
-    });
-
-    // Add to chat participants (handle existing inactive participant)
-    if (groupChat) {
-      const existingParticipant = await tx.chatParticipant.findFirst({
-        where: {
-          chatId: groupChat.id,
-          userId: agent.userId,
-        },
-      });
-
-      if (existingParticipant) {
-        if (!existingParticipant.isActive) {
-          await tx.chatParticipant.update({
-            where: { id: existingParticipant.id },
-            data: {
-              isActive: true,
-              joinedAt: new Date(),
-            },
-          });
-        }
-      } else {
-        await tx.chatParticipant.create({
-          data: {
-            id: await generateSnowflakeId(),
-            chatId: groupChat.id,
-            userId: agent.userId,
-            invitedBy: invite.invitedBy,
-          },
-        });
-      }
-    }
-
-    // Add to GroupMember (handle existing inactive member)
-    if (existingMember) {
-      await tx.groupMember.update({
-        where: { id: existingMember.id },
-        data: {
-          isActive: true,
-          role: 'member',
-          joinedAt: new Date(),
-          addedBy: invite.invitedBy,
-          kickedAt: null,
-          kickReason: null,
-        },
-      });
-    } else {
-      await tx.groupMember.create({
-        data: {
-          id: await generateSnowflakeId(),
-          groupId: invite.groupId,
-          userId: agent.userId,
-          role: 'member',
-          addedBy: invite.invitedBy,
-        },
-      });
-    }
-
-    return {
-      success: true,
-      chatId: groupChat?.id || invite.groupId,
-    };
-  });
+  const result = await acceptGroupInvite(agent.userId, args.inviteId);
+  return {
+    success: true,
+    // Wire compatibility: groups without a chat have historically reported
+    // the group ID here.
+    chatId: result.chatId ?? result.groupId,
+  };
 }
 
 /**
- * Execute decline_group_invite tool
+ * Execute decline_group_invite tool (canonical declineGroupInvite transition)
  */
 export async function executeDeclineGroupInvite(
   agent: AuthenticatedAgent,
   args: DeclineGroupInviteArgs
 ): Promise<DeclineGroupInviteResult> {
-  const invite = await db.groupInvite.findUnique({
-    where: { id: args.inviteId },
-  });
-  if (!invite || invite.invitedUserId !== agent.userId) {
-    throw new Error('Invite not found or access denied');
-  }
-
-  await db.groupInvite.update({
-    where: { id: args.inviteId },
-    data: {
-      status: 'declined',
-      respondedAt: new Date(),
-    },
-  });
-
+  await declineGroupInvite(agent.userId, args.inviteId);
   return { success: true };
 }
 

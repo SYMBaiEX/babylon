@@ -26,6 +26,7 @@ export * from './event-cache-service';
 export * from './feedback-service';
 // Generation Lock Service
 export * from './generation-lock-service';
+export * from './group-invite-service';
 export * from './leaderboard-types';
 export * from './market-reputation-service';
 export * from './model-pilot-inquiry-email-service';
