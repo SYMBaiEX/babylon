@@ -405,7 +405,7 @@ async function testAdapter(config: PipelineConfig): Promise<{
   const result = await runCommand(
     [
       'python3',
-      'scripts/test_trained_model.py',
+      'scripts/tools/test_trained_model.py',
       '--adapter-path',
       adapterPath,
       '--validate',

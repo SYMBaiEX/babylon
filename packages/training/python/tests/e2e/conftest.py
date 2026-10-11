@@ -28,7 +28,7 @@ import pytest
 from src.training.rewards import BehaviorMetrics
 
 FEED_ROOT = Path(__file__).resolve().parents[5]
-ENGINE_ROOT = FEED_ROOT / "packages" / "engine"
+SIM_ROOT = FEED_ROOT / "packages" / "sim"
 
 
 def _find_free_port() -> int:
@@ -60,7 +60,8 @@ def simulation_bridge_url() -> str:
     configured_url = os.getenv("SIMULATION_BRIDGE_URL")
     if configured_url:
         _wait_for_bridge(configured_url.rstrip("/"), None)
-        return configured_url.rstrip("/")
+        yield configured_url.rstrip("/")
+        return
 
     port = _find_free_port()
     url = f"http://127.0.0.1:{port}"
@@ -69,8 +70,8 @@ def simulation_bridge_url() -> str:
     env["SIMULATION_BRIDGE_PORT"] = str(port)
     env["SIMULATION_DATA_PATH"] = simulation_data_path
     process = subprocess.Popen(
-        ["bun", "run", "src/services/simulation-bridge-server.ts"],
-        cwd=ENGINE_ROOT,
+        ["bun", "run", "core/bridge/simulation-bridge-server.ts"],
+        cwd=SIM_ROOT,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

@@ -1567,9 +1567,7 @@ async def test_main_returns_failure_and_writes_report_on_pipeline_error(
 
 
 def test_run_pipeline_cli_prepare_only_real_smoke(tmp_path: Path) -> None:
-    venv_python = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
-    if not venv_python.exists():
-        pytest.skip("training venv is not available for real smoke execution")
+    venv_python = Path(sys.executable)
 
     export_dir = tmp_path / "export"
     export_dir.mkdir()
@@ -1619,9 +1617,7 @@ def test_run_pipeline_cli_prepare_only_real_smoke(tmp_path: Path) -> None:
 
 
 def test_run_pipeline_cli_failure_writes_failed_stage_report(tmp_path: Path) -> None:
-    venv_python = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
-    if not venv_python.exists():
-        pytest.skip("training venv is not available for real smoke execution")
+    venv_python = Path(sys.executable)
 
     export_dir = tmp_path / "bad-export"
     export_dir.mkdir()

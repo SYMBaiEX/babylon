@@ -25,7 +25,7 @@ pip install -r requirements.txt
 python scripts/run_training.py --steps 100
 
 # Or use the canonical project pipeline from the CLI
-cd /Users/shawwalters/feed-workspace/feed
+cd <repo-root>
 feed train pipeline --local-backend mlx --local-steps 100
 ```
 
@@ -34,15 +34,15 @@ feed train pipeline --local-backend mlx --local-steps 100
 The canonical scam-defense dataset/model release is built from the selection file
 at:
 
-`/Users/shawwalters/feed-workspace/Marketplace-of-Trust/runs/scam-defense/release_selection.json`
+`<workspace>/Marketplace-of-Trust/runs/scam-defense/release_selection.json`
 
 Use the consolidated builder:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python/scripts
-python3 build_scam_defense_release.py \
-  --selection /Users/shawwalters/feed-workspace/Marketplace-of-Trust/runs/scam-defense/release_selection.json \
-  --output-dir /Users/shawwalters/feed-workspace/feed/releases/scam-defense-v1 \
+cd packages/training/python
+python3 scripts/releases/build_scam_defense_release.py \
+  --selection <workspace>/Marketplace-of-Trust/runs/scam-defense/release_selection.json \
+  --output-dir releases/scam-defense-v1 \
   --clean
 ```
 
@@ -288,13 +288,13 @@ Benchmarks run automatically via GitHub Actions:
 Plan the hardware and context envelope before changing the scam-defense recipe:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training
+cd packages/training
 make qwen-capacity MODEL=9b CONTEXTS=128k,256k TRAINING_SEQ_LENGTH=8192
 ```
 
 The detailed planner notes live in:
 
-- `/Users/shawwalters/feed-workspace/feed/packages/training/QWEN_CAPACITY_RUNBOOK.md`
+- `packages/training/QWEN_CAPACITY_RUNBOOK.md`
 
 ### Local Training
 
@@ -383,7 +383,7 @@ Notes:
 - Full canonical Tinker runs now continue from the SFT state into a Tinker-native RL stage instead of forcing `--skip-rl`.
 - Served eval and ScamBench run against Tinker's OpenAI-compatible inference endpoint using the initial sampler checkpoint vs the final sampler checkpoint from the run.
 - `python scripts/run_tinker_training.py` remains available as a low-level standalone trainer, defaults to `Qwen/Qwen3.5-4B`, and normalizes stale dated Tinker model ids when the live catalog has moved forward.
-- See [deploy/TINKER_RUNBOOK.md](/Users/shawwalters/feed-workspace/feed/packages/training/deploy/TINKER_RUNBOOK.md) for the recommended remote-machine workflow.
+- See [deploy/TINKER_RUNBOOK.md](deploy/TINKER_RUNBOOK.md) for the recommended remote-machine workflow.
 - `python scripts/test_pipeline.py --local-export-dir <export-dir>` runs the current preflight checks against the canonical pipeline, dependency audit, rollback tooling, Nebius dry-run, optional alert webhook ping, and optional throughput-report validation.
 - Local smoke tests, dependency audits, rollback checks, and webhook alert tests are automated; live Tinker or Nebius runs plus target-H100/H200 throughput qualification are still separate production gates.
 

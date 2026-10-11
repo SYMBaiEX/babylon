@@ -18,13 +18,9 @@ def load_script_module(module_name: str, script_path: Path):
     return module
 
 
-_first_script = Path(__file__).resolve().parent.parent / "scripts" / "run_nebius_unified_matrix.py"
-if not _first_script.exists():
-    pytest.skip("script not found: run_nebius_unified_matrix.py", allow_module_level=True)
-
 nebius_script = load_script_module(
     "run_nebius_unified_matrix",
-    PYTHON_ROOT / "scripts" / "run_nebius_unified_matrix.py",
+    PYTHON_ROOT / "scripts" / "tools" / "run_nebius_unified_matrix.py",
 )
 
 
@@ -368,7 +364,7 @@ def test_run_nebius_matrix_cli_dry_run_outputs_resolved_plan():
     proc = subprocess.run(
         [
             sys.executable,
-            str(PYTHON_ROOT / "scripts" / "run_nebius_unified_matrix.py"),
+            str(PYTHON_ROOT / "scripts" / "tools" / "run_nebius_unified_matrix.py"),
             "--dry-run",
             "--project-id",
             "dry-run-project",

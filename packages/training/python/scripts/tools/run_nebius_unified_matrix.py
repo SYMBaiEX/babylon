@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-PYTHON_ROOT = Path(__file__).resolve().parents[1]
+PYTHON_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PYTHON_ROOT / "src" / "training"))
 
 from qwen_capacity import (
@@ -222,9 +222,7 @@ def variant_training_label(model_name_slug: str, variant_id: str) -> str:
 
 
 def variant_training_output_dir(workspace: str, model_name_slug: str, variant_id: str) -> str:
-    return (
-        f"{workspace}/feed/trained_models/{variant_training_label(model_name_slug, variant_id)}"
-    )
+    return f"{workspace}/feed/trained_models/{variant_training_label(model_name_slug, variant_id)}"
 
 
 def score_output_path(decisions_output_path: str) -> str:

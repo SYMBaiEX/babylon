@@ -12,13 +12,13 @@ This runbook is for Feed scam-defense work only.
 ## What This Repo Already Has
 
 - Feed runtime and training code:
-  `/Users/shawwalters/feed-workspace/feed`
+  the repository root
 - ScamBench benchmark package:
-  `/Users/shawwalters/feed-workspace/scambench`
+  `<workspace>/scambench`
 - External prompt-injection / jailbreak source mirrors:
-  `/Users/shawwalters/feed-workspace/external-sources`
+  `<workspace>/external-sources`
 - Paper and generated experiment summaries:
-  `/Users/shawwalters/feed-workspace/paper`
+  `<workspace>/paper`
 
 The important point is that Feed and ScamBench are already connected.
 This is not a blank-slate plan. The job is to make the existing data path
@@ -39,33 +39,31 @@ We need one defensible loop:
 ## Repo Map
 
 - Feed-native generation:
-  `/Users/shawwalters/feed-workspace/feed/packages/engine/examples/generate-training-data.ts`
+  `packages/engine/examples/generate-training-data.ts`
 - Feed trust corpus collection:
-  `/Users/shawwalters/feed-workspace/feed/scripts/collect-trust-experiment-corpus.ts`
+  `scripts/collect-trust-experiment-corpus.ts`
 - Feed trust trajectory export:
-  `/Users/shawwalters/feed-workspace/feed/scripts/export-trust-experiment-trajectories.ts`
+  `scripts/export-trust-experiment-trajectories.ts`
 - ScamBench scenario seeding into Feed chats:
-  `/Users/shawwalters/feed-workspace/feed/packages/engine/src/services/scambench-scenario-seeding-service.ts`
+  `packages/engine/src/services/scambench-scenario-seeding-service.ts`
 - Canonical external-data review and materialization:
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/review_hf_scam_datasets.py`
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/materialize_external_scam_data.py`
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/materialize_prompt_injection_sources.py`
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/materialize_clawbench_sources.py`
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/merge_materialized_scam_corpora.py`
+  `packages/training/python/scripts/data-prep/review_hf_scam_datasets.py`
+  `packages/training/python/scripts/data-prep/materialize_clawbench_sources.py`
+  `packages/training/python/scripts/data-prep/merge_materialized_scam_corpora.py`
 - Lightweight benchmark-only ETL / re-synthesis:
-  `/Users/shawwalters/feed-workspace/scambench/scripts/hf_etl.py`
-  `/Users/shawwalters/feed-workspace/scambench/scripts/resynthesize.py`
+  `<workspace>/scambench/scripts/hf_etl.py`
+  `<workspace>/scambench/scripts/resynthesize.py`
 - ScamBench catalog builder and scorer:
-  `/Users/shawwalters/feed-workspace/scambench/src/catalog.ts`
-  `/Users/shawwalters/feed-workspace/scambench/src/index.ts`
+  `<workspace>/scambench/src/catalog.ts`
+  `<workspace>/scambench/src/index.ts`
 - Feed export for local fine-tuning:
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/export_scam_defense_trajectories.py`
+  `packages/training/python/scripts/data-prep/export_scam_defense_trajectories.py`
 - Local training:
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/train_local.py`
+  `packages/training/python/scripts/train_local.py`
 - Local direct benchmarking:
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/run_scambench_local.py`
+  `packages/training/python/scripts/run_scambench_local.py`
 - Remote unified matrix:
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/run_nebius_unified_matrix.py`
+  `packages/training/python/scripts/tools/run_nebius_unified_matrix.py`
 
 ## Data Lanes
 
@@ -79,7 +77,7 @@ agent interaction traces.
 Primary entrypoints:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed
+cd <repo-root>
 bun run packages/engine/examples/generate-training-data.ts --causal --hours 2
 
 bun run scripts/collect-trust-experiment-corpus.ts
@@ -100,15 +98,11 @@ corpora, and real-world scenario text that must be normalized before training.
 Canonical Feed path:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
-python scripts/review_hf_scam_datasets.py
-python scripts/materialize_external_scam_data.py
-python scripts/materialize_prompt_injection_sources.py
-python scripts/materialize_clawbench_sources.py
-python scripts/merge_materialized_scam_corpora.py \
-  --input-dir /Users/shawwalters/feed-workspace/feed/training-data/external-scam-materialized/<timestamp> \
-  --input-dir /Users/shawwalters/feed-workspace/feed/training-data/prompt-injection-materialized/<timestamp> \
-  --input-dir /Users/shawwalters/feed-workspace/feed/training-data/clawbench-materialized/<timestamp>
+cd packages/training/python
+python scripts/data-prep/review_hf_scam_datasets.py
+python scripts/data-prep/materialize_clawbench_sources.py
+python scripts/data-prep/merge_materialized_scam_corpora.py \
+  --input-dir training-data/clawbench-materialized/<timestamp>
 ```
 
 This produces:
@@ -124,7 +118,7 @@ Use this when you want fast ScamBench scenario generation without committing the
 result to the canonical Feed materialization path yet.
 
 ```bash
-cd /Users/shawwalters/feed-workspace/scambench
+cd <workspace>/scambench
 python scripts/hf_etl.py download --output-dir ./hf-raw
 python scripts/resynthesize.py --input ./hf-raw --output ./hf-scenarios/all.json --seed 42
 ```
@@ -165,9 +159,9 @@ Use the merged threat bundle when you want the benchmark to reflect both
 Feed-native and external material.
 
 ```bash
-cd /Users/shawwalters/feed-workspace/scambench
+cd <workspace>/scambench
 bun run src/catalog.ts \
-  --external-scenarios /Users/shawwalters/feed-workspace/feed/training-data/merged-threat-materialized/<timestamp>/scambench_curated_scenarios.json \
+  --external-scenarios training-data/merged-threat-materialized/<timestamp>/scambench_curated_scenarios.json \
   --output ./generated/scenario-catalog-unified-merged.json
 ```
 
@@ -183,7 +177,7 @@ ScamBench is not only offline evaluation. It can also be replayed into Feed.
 
 Use:
 
-- `/Users/shawwalters/feed-workspace/feed/packages/engine/src/services/scambench-scenario-seeding-service.ts`
+- `packages/engine/src/services/scambench-scenario-seeding-service.ts`
 
 This is the bridge from:
 
@@ -205,10 +199,10 @@ The canonical export script now resolves ScamBench from this workspace layout
 and can combine Feed-native and external materialized data.
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
-python scripts/export_scam_defense_trajectories.py \
+cd packages/training/python
+python scripts/data-prep/export_scam_defense_trajectories.py \
   --include-external-materialized \
-  --external-materialized-dir /Users/shawwalters/feed-workspace/feed/training-data/merged-threat-materialized/<timestamp> \
+  --external-materialized-dir training-data/merged-threat-materialized/<timestamp> \
   --examples-per-trajectory 8 \
   --held-out-ratio 0.15 \
   --held-out-seed 42 \
@@ -252,23 +246,23 @@ Plan the Qwen capacity envelope before changing hardware, sequence length, or
 the base checkpoint:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training
+cd packages/training
 make qwen-capacity MODEL=9b CONTEXTS=128k,256k TRAINING_SEQ_LENGTH=8192
 ```
 
 For the planner internals and interpretation notes, use:
 
-- `/Users/shawwalters/feed-workspace/feed/packages/training/QWEN_CAPACITY_RUNBOOK.md`
+- `packages/training/QWEN_CAPACITY_RUNBOOK.md`
 
 Example MLX-style 9B run:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
+cd packages/training/python
 python scripts/train_local.py \
   --backend mlx \
   --model mlx-community/Qwen3.5-9B-MLX-4bit \
-  --source-dir /Users/shawwalters/feed-workspace/feed/training-data/scam-defense-export/<timestamp> \
-  --output /Users/shawwalters/feed-workspace/feed/trained_models/scam-defense-qwen35-9b \
+  --source-dir training-data/scam-defense-export/<timestamp> \
+  --output trained_models/scam-defense-qwen35-9b \
   --iters 20 \
   --batch-size 1 \
   --max-seq-length 512 \
@@ -279,12 +273,12 @@ python scripts/train_local.py \
 Example CUDA / Transformers run:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
+cd packages/training/python
 python scripts/train_local.py \
   --backend cuda \
   --model Qwen/Qwen3.5-4B \
-  --source-dir /Users/shawwalters/feed-workspace/feed/training-data/scam-defense-export/<timestamp> \
-  --output /Users/shawwalters/feed-workspace/feed/trained_models/scam-defense-qwen35-4b-qlora \
+  --source-dir training-data/scam-defense-export/<timestamp> \
+  --output trained_models/scam-defense-qwen35-4b-qlora \
   --auto-detect-held-out \
   --optimizer adamw \
   --quantization nf4 \
@@ -301,12 +295,12 @@ python scripts/train_local.py \
 Example canonical local pipeline run:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
+cd packages/training/python
 python scripts/run_pipeline.py \
   --mode train \
   --training-backend local \
   --trajectory-source local_export \
-  --source-dir /Users/shawwalters/feed-workspace/feed/training-data/scam-defense-export/<timestamp> \
+  --source-dir training-data/scam-defense-export/<timestamp> \
   --local-backend cuda \
   --local-model Qwen/Qwen3.5-4B \
   --local-quantization nf4 \
@@ -322,12 +316,12 @@ python scripts/run_pipeline.py \
 Use Nebius when 9B no longer fits comfortably on the local machine:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
-python scripts/run_nebius_unified_matrix.py \
+cd packages/training/python
+python scripts/tools/run_nebius_unified_matrix.py \
   --base-model Qwen/Qwen3.5-9B \
   --gpu-type h200 \
   --dry-run
-python scripts/run_nebius_unified_matrix.py \
+python scripts/tools/run_nebius_unified_matrix.py \
   --base-model Qwen/Qwen3.5-9B \
   --gpu-type h200
 ```
@@ -345,14 +339,14 @@ Current operational guidance:
 Use the direct local scorer for baseline vs trained Qwen comparisons:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
+cd packages/training/python
 python scripts/run_scambench_local.py \
   --backend cuda \
   --device cuda \
   --base-model Qwen/Qwen3.5-9B \
   --label baseline-qwen35-9b \
-  --output /Users/shawwalters/feed-workspace/scambench/results/local-eval/baseline-qwen35-9b-decisions.json \
-  --scenario-catalog /Users/shawwalters/feed-workspace/scambench/generated/scenario-catalog-unified-merged.json \
+  --output <workspace>/scambench/results/local-eval/baseline-qwen35-9b-decisions.json \
+  --scenario-catalog <workspace>/scambench/generated/scenario-catalog-unified-merged.json \
   --score
 ```
 
@@ -367,7 +361,7 @@ Repeat with the trained adapter or merged checkpoint and compare:
 
 Use:
 
-- `/Users/shawwalters/feed-workspace/scambench/targets/frontier-baselines.json`
+- `<workspace>/scambench/targets/frontier-baselines.json`
 
 That file already includes:
 
@@ -378,11 +372,11 @@ That file already includes:
 Run:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/scambench
+cd <workspace>/scambench
 bun run src/index.ts \
   --targets ./targets/frontier-baselines.json \
-  --target-repo /Users/shawwalters/feed-workspace/feed \
-  --external-scenarios /Users/shawwalters/feed-workspace/feed/training-data/merged-threat-materialized/<timestamp>/scambench_curated_scenarios.json \
+  --target-repo <workspace>/feed \
+  --external-scenarios training-data/merged-threat-materialized/<timestamp>/scambench_curated_scenarios.json \
   --output-dir ./results/frontier-baselines
 ```
 
@@ -404,23 +398,23 @@ Status:
 Local code:
 
 - bridge client:
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/src/training/hermes_bridge.py`
+  `packages/training/python/src/training/hermes_bridge.py`
 - local ScamBench runner:
-  `/Users/shawwalters/feed-workspace/feed/packages/training/python/scripts/run_hermes_scambench_local.py`
+  `packages/training/python/scripts/run_hermes_scambench_local.py`
 - harness:
-  `/Users/shawwalters/feed-workspace/scambench/harnesses/hermes_harness.py`
+  `<workspace>/scambench/harnesses/hermes_harness.py`
 
 Run:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/python
+cd packages/training/python
 python scripts/run_hermes_scambench_local.py \
   --model mlx-community/Qwen3.5-4B-MLX-4bit \
   --base-url http://127.0.0.1:8099/v1 \
   --label hermes-qwen35-4b \
-  --output /Users/shawwalters/feed-workspace/scambench/results/hermes/hermes-qwen35-4b-decisions.json \
-  --score-output-dir /Users/shawwalters/feed-workspace/scambench/results/hermes/score \
-  --target-repo /Users/shawwalters/feed-workspace/feed
+  --output <workspace>/scambench/results/hermes/hermes-qwen35-4b-decisions.json \
+  --score-output-dir <workspace>/scambench/results/hermes/score \
+  --target-repo <workspace>/feed
 ```
 
 Research-backed note:
@@ -438,7 +432,7 @@ Status:
 Local code:
 
 - provisional harness:
-  `/Users/shawwalters/feed-workspace/scambench/harnesses/openclaw_harness.py`
+  `<workspace>/scambench/harnesses/openclaw_harness.py`
 
 What the adapter should do next:
 
@@ -459,7 +453,7 @@ Status:
 Local code:
 
 - harness:
-  `/Users/shawwalters/feed-workspace/scambench/harnesses/elizaos_harness.py`
+  `<workspace>/scambench/harnesses/elizaos_harness.py`
 
 What the adapter should do next:
 
@@ -486,7 +480,7 @@ Reason:
 ## Current Gaps That Matter
 
 - some older docs and scripts assumed `benchmarks/scambench`; this workspace
-  uses `/Users/shawwalters/feed-workspace/scambench`
+  uses `<workspace>/scambench`
 - the 9B path should become the default paper path, but some matrix tooling is
   still named around 4B runs
 - OpenClaw needs a real adapter, not a guessed REST shim

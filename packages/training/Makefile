@@ -380,7 +380,7 @@ tinker-pipeline: venv
 				--output $(OUTPUT) \
 				--tinker-steps $(STEPS) \
 				--rl-steps $(RL_STEPS) \
-				$(if $(filter huggingface,$(TRAJECTORY_SOURCE)),--trajectory-source huggingface --hf-dataset $(HF_DATASET) --hf-split $(HF_SPLIT),); \
+				$(if $(filter huggingface,$(TRAJECTORY_SOURCE)),--trajectory-source huggingface --hf-dataset $(HF_DATASET) --hf-split $(HF_SPLIT),) && \
 		echo "$(GREEN)✓ Tinker pipeline finished$(RESET)"
 
 #---------------------------------------------------------------------------
@@ -474,7 +474,7 @@ train: db-up db-migrate
 
 bridge-server:
 	@echo "$(CYAN)Starting TypeScript simulation bridge server...$(RESET)"
-	cd ../engine && bun run src/services/simulation-bridge-server.ts
+	cd ../sim && bun run core/bridge/simulation-bridge-server.ts
 
 train-online: db-up db-migrate
 	@echo "$(CYAN)Starting online training (requires bridge-server running)$(RESET)"

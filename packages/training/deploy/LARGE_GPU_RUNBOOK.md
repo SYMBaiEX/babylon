@@ -46,7 +46,7 @@ Those can be better infrastructure choices, but they are not integrated into thi
 ## Build And Push The Image
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/deploy/docker
+cd packages/training/deploy/docker
 ./build.sh all -o yourorg -t latest
 ```
 
@@ -59,7 +59,7 @@ This is the recommended flow when you want to run the canonical pipeline manuall
 ### Best-value box
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/deploy/runpod
+cd packages/training/deploy/runpod
 python setup.py shell \
   --gpu a100 \
   --gpus 2 \
@@ -70,7 +70,7 @@ python setup.py shell \
 ### Simplest single-box H200
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/deploy/runpod
+cd packages/training/deploy/runpod
 python setup.py shell \
   --gpu h200 \
   --image yourorg/feed-training:latest \
@@ -80,7 +80,7 @@ python setup.py shell \
 ### Balanced large box
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/deploy/runpod
+cd packages/training/deploy/runpod
 python setup.py shell \
   --gpu h100 \
   --gpus 2 \
@@ -163,7 +163,7 @@ If you ran the RL-only path, also copy:
 When the artifacts are copied out and the run is complete:
 
 ```bash
-cd /Users/shawwalters/feed-workspace/feed/packages/training/deploy/runpod
+cd packages/training/deploy/runpod
 python setup.py list
 python setup.py stop <pod-id>
 ```

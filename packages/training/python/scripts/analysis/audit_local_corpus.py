@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.data_bridge.reader import (
     IGNORED_EXPORT_FILES,
@@ -30,7 +30,7 @@ from src.data_bridge.reader import (
     discover_local_export_files,
 )
 
-HF_EXPORT_SCRIPT = Path(__file__).resolve().parent / "hf" / "trajectories_to_hf_dataset.py"
+HF_EXPORT_SCRIPT = Path(__file__).resolve().parents[1] / "hf" / "trajectories_to_hf_dataset.py"
 
 TRUST_RELEVANT_ACTIONS = {
     "DM",

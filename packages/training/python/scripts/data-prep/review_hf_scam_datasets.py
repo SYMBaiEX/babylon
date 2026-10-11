@@ -522,7 +522,7 @@ def main() -> int:
         Path(args.output_dir).resolve()
         if args.output_dir
         else (
-            Path(__file__).resolve().parents[4]
+            Path(__file__).resolve().parents[5]
             / "training-data"
             / "external-scam-datasets"
             / timestamp

@@ -22,13 +22,9 @@ def load_script_module(module_name: str, script_path: Path):
     return module
 
 
-_first_script = Path(__file__).resolve().parent.parent / "scripts" / "build_scam_defense_release.py"
-if not _first_script.exists():
-    pytest.skip("script not found: build_scam_defense_release.py", allow_module_level=True)
-
 release_script = load_script_module(
     "build_scam_defense_release",
-    PYTHON_ROOT / "scripts" / "build_scam_defense_release.py",
+    PYTHON_ROOT / "scripts" / "releases" / "build_scam_defense_release.py",
 )
 
 
@@ -395,7 +391,7 @@ def test_build_release_cli_logs_missing_selection(tmp_path: Path):
     proc = subprocess.run(
         [
             sys.executable,
-            str(PYTHON_ROOT / "scripts" / "build_scam_defense_release.py"),
+            str(PYTHON_ROOT / "scripts" / "releases" / "build_scam_defense_release.py"),
             "--selection",
             str(tmp_path / "missing-selection.json"),
             "--output-dir",

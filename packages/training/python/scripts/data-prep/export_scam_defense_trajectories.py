@@ -24,8 +24,11 @@ from pathlib import Path
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+# Sibling helpers live next to this file; shared helpers (scam_defense_exchange)
+# live in the parent scripts/ directory.
+for _import_root in (SCRIPT_DIR, SCRIPT_DIR.parent):
+    if str(_import_root) not in sys.path:
+        sys.path.insert(0, str(_import_root))
 
 from scam_defense_exchange import (
     NATURAL_MESSAGE_SYSTEM_PROMPT,
@@ -56,7 +59,7 @@ TRADING_SYSTEM_PROMPT = " ".join(
     ]
 )
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[5]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[6]
 
 
 def resolve_scambench_root(workspace_root: Path) -> Path:
@@ -75,13 +78,13 @@ DEFAULT_CATALOG_PATH = SCAMBENCH_ROOT / "generated" / "scenario-catalog.json"
 GENERATED_CATALOG_PATH = SCAMBENCH_ROOT / "generated" / "scenario-catalog-generated.json"
 FALLBACK_CATALOG_PATH = SCAMBENCH_ROOT / "generated" / "scenario-catalog-difraud-merged.json"
 DEFAULT_EXTERNAL_MATERIALIZED_ROOT = (
-    Path(__file__).resolve().parents[4] / "training-data" / "merged-threat-materialized"
+    Path(__file__).resolve().parents[5] / "training-data" / "merged-threat-materialized"
 )
 FALLBACK_EXTERNAL_MATERIALIZED_ROOT = (
-    Path(__file__).resolve().parents[4] / "training-data" / "external-scam-materialized"
+    Path(__file__).resolve().parents[5] / "training-data" / "external-scam-materialized"
 )
 DEFAULT_SYNTHETIC_TRAINING_ROOT = (
-    Path(__file__).resolve().parents[4] / "training-data" / "synthetic-conversations"
+    Path(__file__).resolve().parents[5] / "training-data" / "synthetic-conversations"
 )
 CATALOG_SOURCE_FILES = [
     SCAMBENCH_ROOT / "src" / "catalog.ts",
@@ -182,6 +185,12 @@ def ensure_scambench_catalog(catalog_path: Path) -> Path:
         return FALLBACK_CATALOG_PATH
 
     # Try to regenerate the base catalog
+    catalog_source = SCAMBENCH_ROOT / "src" / "catalog.ts"
+    if not catalog_source.exists():
+        raise FileNotFoundError(
+            f"ScamBench catalog not found at {catalog_path} and no ScamBench checkout "
+            f"is available to generate it (expected {catalog_source})."
+        )
     catalog_path.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
@@ -1490,7 +1499,7 @@ def main() -> int:
 
     timestamp = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
     default_dir = (
-        Path(__file__).resolve().parents[4] / "training-data" / "scam-defense-export" / timestamp
+        Path(__file__).resolve().parents[5] / "training-data" / "scam-defense-export" / timestamp
     )
     output_dir = Path(args.output_dir).resolve() if args.output_dir else default_dir
     external_materialized_dir = None

@@ -43,11 +43,11 @@ def _find_ancestor_with_child(start: Path, child: str) -> Path:
     raise RuntimeError(f"Could not locate ancestor containing {child!r} from {start}")
 
 
-def _find_workspace_root(start: Path) -> Path:
+def _find_workspace_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
         if (candidate / "scambench").exists() or (candidate / "benchmarks" / "scambench").exists():
             return candidate
-    raise RuntimeError(f"Could not locate workspace root containing ScamBench from {start}")
+    return None
 
 
 def _resolve_scambench_root(workspace_root: Path) -> Path:
@@ -63,7 +63,10 @@ def _resolve_scambench_root(workspace_root: Path) -> Path:
 
 PYTHON_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = _find_ancestor_with_child(SCRIPT_DIR, "packages/training")
-WORKSPACE_ROOT = _find_workspace_root(SCRIPT_DIR)
+# ScamBench is an optional sibling checkout. Stages that need it
+# check SCAMBENCH_ROOT.exists() and report a clear error, while --help, prepare-only
+# and skip-scambench runs must not require it.
+WORKSPACE_ROOT = _find_workspace_root(SCRIPT_DIR) or REPO_ROOT.parent
 SCAMBENCH_ROOT = _resolve_scambench_root(WORKSPACE_ROOT)
 LOCAL_SCAMBENCH_SCRIPT = SCRIPT_DIR / "run_scambench_local.py"
 
@@ -931,9 +934,12 @@ class CanonicalPipeline:
             "model": self.model_name,
             "components": {},
         }
-        workspace_root = _find_workspace_root(SCRIPT_DIR)
-        for component in ("feed", "scambench", "datasets"):
-            comp_dir = workspace_root / component
+        component_dirs = {
+            "feed": REPO_ROOT,
+            "scambench": SCAMBENCH_ROOT,
+            "datasets": WORKSPACE_ROOT / "datasets",
+        }
+        for component, comp_dir in component_dirs.items():
             if not comp_dir.exists():
                 continue
             try:

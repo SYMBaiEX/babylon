@@ -23,8 +23,11 @@ import pandas as pd
 import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+# Sibling helpers live next to this file; shared helpers (scam_defense_exchange)
+# live in the parent scripts/ directory.
+for _import_root in (SCRIPT_DIR, SCRIPT_DIR.parent):
+    if str(_import_root) not in sys.path:
+        sys.path.insert(0, str(_import_root))
 
 from scam_defense_exchange import (
     DECISION_JSON_SYSTEM_PROMPT,
@@ -34,11 +37,11 @@ from scam_defense_exchange import (
     build_user_prompt as build_exchange_user_prompt,
 )
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[5]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[6]
 DATASETS_ROOT = WORKSPACE_ROOT / "datasets"
 REGISTRY_PATH = DATASETS_ROOT / "manifests" / "source_registry.json"
 OUTPUT_ROOT = (
-    Path(__file__).resolve().parents[4] / "training-data" / "retained-security-materialized"
+    Path(__file__).resolve().parents[5] / "training-data" / "retained-security-materialized"
 )
 SYSTEM_PROMPT = DECISION_JSON_SYSTEM_PROMPT
 LOGGER = logging.getLogger(__name__)
