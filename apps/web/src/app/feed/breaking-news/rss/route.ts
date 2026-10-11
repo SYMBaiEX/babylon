@@ -9,10 +9,10 @@
 import { publicRateLimit } from '@feed/api';
 import type { NextRequest } from 'next/server';
 import { GET as getBreakingNews } from '@/app/api/feed/widgets/breaking-news/route';
+import { loadAnonymousJson } from '@/lib/http/in-process';
 import {
   buildRssXml,
   getRssCacheHeaders,
-  loadAnonymousJson,
   type RssChannel,
   type RssItem,
 } from '@/lib/rss';

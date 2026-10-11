@@ -6,8 +6,6 @@
  * means consistent escaping, dates, and cache headers across all RSS endpoints.
  */
 
-import { NextRequest } from 'next/server';
-
 export interface RssChannel {
   title: string;
   link: string;
@@ -97,21 +95,4 @@ export function getRssCacheHeaders(): Record<string, string> {
   return {
     'Cache-Control': `public, max-age=${RSS_CACHE_MAX_AGE_SECONDS}, s-maxage=${RSS_CACHE_MAX_AGE_SECONDS}`,
   };
-}
-
-/**
- * Load a public JSON API in-process for an RSS route.
- *
- * RSS responses are publicly cached, so the source is always invoked as an
- * anonymous request: no cookies or auth headers from the RSS reader are
- * forwarded, and no HTTP loopback to a (possibly spoofed) forwarded host is
- * made. Returns null when the source responds with a non-OK status.
- */
-export async function loadAnonymousJson<T>(
-  handler: (request: NextRequest) => Promise<Response>,
-  url: URL
-): Promise<T | null> {
-  const response = await handler(new NextRequest(url));
-  if (!response.ok) return null;
-  return (await response.json()) as T;
 }
