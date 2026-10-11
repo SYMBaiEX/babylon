@@ -164,9 +164,9 @@ describe('TimeframeArcPlanner', () => {
         mockOrganizations
       );
 
-      // Intraday markets: max=1 deceiver, limited by available contrarian actors
-      expect(intradayPlan.deceivers.length).toBeGreaterThanOrEqual(0);
-      expect(intradayPlan.deceivers.length).toBeLessThanOrEqual(1);
+      // Intraday markets: max=1 deceiver; the only eligible (contrarian)
+      // actor must be selected
+      expect(intradayPlan.deceivers).toEqual(['actor-1']);
     });
 
     test('should select up to 2 deceivers for daily timeframes', () => {
@@ -180,9 +180,8 @@ describe('TimeframeArcPlanner', () => {
         mockOrganizations
       );
 
-      // Daily markets: max=2 deceivers, limited by available contrarian actors
-      expect(dailyPlan.deceivers.length).toBeGreaterThanOrEqual(0);
-      expect(dailyPlan.deceivers.length).toBeLessThanOrEqual(2);
+      // Daily markets: max=2 deceivers, limited by the one contrarian actor
+      expect(dailyPlan.deceivers).toEqual(['actor-1']);
     });
 
     test('should select up to 2 deceivers for weekly timeframes', () => {
@@ -196,9 +195,8 @@ describe('TimeframeArcPlanner', () => {
         mockOrganizations
       );
 
-      // Weekly markets: max=2 deceivers, limited by available contrarian actors
-      expect(weeklyPlan.deceivers.length).toBeGreaterThanOrEqual(0);
-      expect(weeklyPlan.deceivers.length).toBeLessThanOrEqual(2);
+      // Weekly markets: max=2 deceivers, limited by the one contrarian actor
+      expect(weeklyPlan.deceivers).toEqual(['actor-1']);
     });
 
     test('should preserve affiliated actor and org IDs', () => {
