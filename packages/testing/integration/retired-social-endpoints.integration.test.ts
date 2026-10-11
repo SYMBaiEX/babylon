@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { db, eq, shareActions, users } from '@feed/db';
 import { generateSnowflakeId } from '@feed/shared';
+import { createStewardTestToken } from './helpers/steward-auth';
 
 const baseUrl =
   process.env.TEST_API_URL ||
@@ -45,6 +46,7 @@ describe('retired social integration', () => {
     const userId = await generateSnowflakeId();
     await db.insert(users).values({
       id: userId,
+      stewardId: `retired-social-${userId}`,
       privyId: `did:privy:test-${userId}`,
       username: `export-social-${userId}`,
       hasTwitter: true,
@@ -53,7 +55,9 @@ describe('retired social integration', () => {
     });
     try {
       const response = await fetch(`${baseUrl}/api/users/export-data`, {
-        headers: { Authorization: `Bearer steward:test:${userId}` },
+        headers: {
+          Authorization: `Bearer ${await createStewardTestToken(`retired-social-${userId}`)}`,
+        },
       });
       expect(response.status).toBe(200);
       const body = await response.json();
@@ -76,6 +80,7 @@ describe('retired social integration', () => {
     const privyId = `did:privy:test-${userId}`;
     await db.insert(users).values({
       id: userId,
+      stewardId: `retired-social-${userId}`,
       privyId,
       username: `retired-social-${userId}`,
       updatedAt: new Date(),
@@ -93,7 +98,7 @@ describe('retired social integration', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer steward:test:${userId}`,
+            Authorization: `Bearer ${await createStewardTestToken(`retired-social-${userId}`)}`,
           },
           body: JSON.stringify({
             shareId,
