@@ -314,7 +314,6 @@ export interface RateLimitProvider {
     userId: string,
     config: RateLimitConfig
   ): Promise<UserRateLimitResult>;
-  checkRateLimit(userId: string, config: RateLimitConfig): UserRateLimitResult;
   resetRateLimit(userId: string, actionType: string): Promise<void>;
   clearAllRateLimits(): Promise<void>;
   getRateLimitStatus(
@@ -393,10 +392,6 @@ class InMemoryRateLimitProvider implements RateLimitProvider {
     return checkRateLimitMemory(userId, config);
   }
 
-  checkRateLimit(userId: string, config: RateLimitConfig): UserRateLimitResult {
-    return checkRateLimitMemory(userId, config);
-  }
-
   async resetRateLimit(userId: string, actionType: string): Promise<void> {
     memoryFallbackStore.delete(`${userId}:${actionType}`);
     logger.info(
@@ -446,11 +441,16 @@ export function setRateLimitProvider(next: RateLimitProvider): void {
   provider = next;
 }
 
+/**
+ * Synchronous, process-local rate limit check. It never consults the
+ * configured (distributed) provider; use checkRateLimitAsync for limits that
+ * must hold across instances.
+ */
 export function checkRateLimit(
   userId: string,
   config: RateLimitConfig
 ): UserRateLimitResult {
-  return provider.checkRateLimit(userId, config);
+  return checkRateLimitMemory(userId, config);
 }
 
 export function checkRateLimitAsync(

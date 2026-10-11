@@ -1,7 +1,6 @@
 import {
   DistributedLockService as ApiDistributedLockService,
   broadcastToChannel as apiBroadcastToChannel,
-  checkRateLimit as apiCheckRateLimit,
   checkRateLimitAsync as apiCheckRateLimitAsync,
   clearAllRateLimits as apiClearAllRateLimits,
   getRateLimitStatus as apiGetRateLimitStatus,
@@ -57,7 +56,6 @@ export function ensureEngineServices(): void {
   setDistributedLockProvider(provider);
 
   const rateLimitProvider: RateLimitProvider = {
-    checkRateLimit: (userId, config) => apiCheckRateLimit(userId, config),
     checkRateLimitAsync: (userId, config) =>
       apiCheckRateLimitAsync(userId, config),
     clearAllRateLimits: () => apiClearAllRateLimits(),

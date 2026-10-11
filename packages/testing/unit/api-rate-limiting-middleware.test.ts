@@ -95,7 +95,7 @@ describe('API rate-limiting middleware', () => {
     const content = 'Repeat me';
 
     expect(
-      checkRateLimitAndDuplicates(
+      await checkRateLimitAndDuplicates(
         userId,
         content,
         RATE_LIMIT_CONFIGS.CREATE_POST,
@@ -103,7 +103,7 @@ describe('API rate-limiting middleware', () => {
       )
     ).toBeNull();
 
-    const duplicateResponse = checkRateLimitAndDuplicates(
+    const duplicateResponse = await checkRateLimitAndDuplicates(
       userId,
       content,
       RATE_LIMIT_CONFIGS.CREATE_POST,
@@ -125,7 +125,7 @@ describe('API rate-limiting middleware', () => {
       index += 1
     ) {
       expect(
-        checkRateLimitAndDuplicates(
+        await checkRateLimitAndDuplicates(
           userId,
           null,
           RATE_LIMIT_CONFIGS.CREATE_POST
@@ -133,7 +133,7 @@ describe('API rate-limiting middleware', () => {
       ).toBeNull();
     }
 
-    const limitedResponse = checkRateLimitAndDuplicates(
+    const limitedResponse = await checkRateLimitAndDuplicates(
       userId,
       null,
       RATE_LIMIT_CONFIGS.CREATE_POST

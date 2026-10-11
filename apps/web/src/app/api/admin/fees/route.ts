@@ -112,7 +112,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const admin = await requireAdmin(request);
 
   // Apply rate limiting to prevent abuse of expensive stats queries
-  const rateLimitResult = applyRateLimit(
+  const rateLimitResult = await applyRateLimit(
     admin.userId,
     RATE_LIMIT_CONFIGS.ADMIN_STATS
   );

@@ -59,7 +59,7 @@ export const POST = withErrorHandling(
     const admin = await requireAdmin(request);
 
     // Rate limit admin actions to prevent abuse
-    const rateLimitResponse = checkRateLimitAndDuplicates(
+    const rateLimitResponse = await checkRateLimitAndDuplicates(
       admin.userId,
       null,
       RATE_LIMIT_CONFIGS.ADMIN_ACTION

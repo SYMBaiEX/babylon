@@ -162,15 +162,9 @@ export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
 export { performanceMonitor } from './monitoring/performance-monitor';
 // Profile utilities
 export {
-  type BackendSignedUpdateParams,
-  type BackendSignedUpdateResult,
   checkProfileUpdateRateLimit,
   getProfileUpdateHistory,
-  isBackendSigningEnabled,
   logProfileUpdate,
-  type ProfileMetadata,
-  updateProfileBackendSigned,
-  verifyBackendSignedUpdate,
 } from './profile';
 // Query Parameter Utilities
 export {
@@ -187,7 +181,6 @@ export {
   applyDuplicateDetection,
   applyRateLimit,
   checkDuplicate,
-  checkRateLimit,
   checkRateLimitAndDuplicates,
   checkRateLimitAsync,
   cleanupDuplicates,

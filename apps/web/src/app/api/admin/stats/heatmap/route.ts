@@ -54,7 +54,7 @@ interface CalendarDataPoint {
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const admin = await requirePermission(request, 'view_stats');
 
-  const rateLimitResult = applyRateLimit(
+  const rateLimitResult = await applyRateLimit(
     admin.userId,
     RATE_LIMIT_CONFIGS.ADMIN_STATS
   );

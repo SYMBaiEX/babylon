@@ -1361,7 +1361,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     displayName: fallbackDisplayName,
   });
   const canonicalUserId = canonicalUser.id;
-  const rateLimitResponse = checkRateLimitAndDuplicates(
+  const rateLimitResponse = await checkRateLimitAndDuplicates(
     canonicalUserId,
     normalizedContent,
     RATE_LIMIT_CONFIGS.CREATE_POST,

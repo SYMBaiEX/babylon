@@ -165,7 +165,7 @@ export const POST = withErrorHandling(
     const user = await authenticate(request);
     const { id: postId } = PostIdParamSchema.parse(await context.params);
 
-    const rateLimitError = checkRateLimitAndDuplicates(
+    const rateLimitError = await checkRateLimitAndDuplicates(
       user.userId,
       null,
       RATE_LIMIT_CONFIGS.SHARE_POST

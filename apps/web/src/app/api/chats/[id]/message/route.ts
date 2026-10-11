@@ -149,7 +149,7 @@ export const POST = withErrorHandling(
     const { content, replyToMessageId } = ChatMessageCreateSchema.parse(body);
 
     // 3. Apply rate limiting and duplicate detection
-    const rateLimitError = checkRateLimitAndDuplicates(
+    const rateLimitError = await checkRateLimitAndDuplicates(
       user.userId,
       content,
       RATE_LIMIT_CONFIGS.SEND_MESSAGE,

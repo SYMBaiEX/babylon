@@ -167,7 +167,7 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   // Apply rate limiting - 10 field generations per minute
-  const rateLimitError = checkRateLimitAndDuplicates(
+  const rateLimitError = await checkRateLimitAndDuplicates(
     user.userId,
     null, // No duplicate detection for field generation
     RATE_LIMIT_CONFIGS.GENERATE_AGENT_FIELD
