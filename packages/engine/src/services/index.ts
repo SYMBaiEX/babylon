@@ -32,7 +32,6 @@ export * from './jsonb-validators';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
 export * from './narrative-event-processor';
-export * from './npc-follow-bootstrap';
 export * from './npc-group-chat-onboarding-service';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
@@ -135,7 +134,6 @@ export {
 } from './game-context-cache';
 export * from './group-chat-invite-notifier';
 export * from './market-context-service';
-export * from './market-impact-service';
 export * from './npc-wallet-adapter';
 export * from './realtime-broadcaster';
 export * from './rss-feed-service';
