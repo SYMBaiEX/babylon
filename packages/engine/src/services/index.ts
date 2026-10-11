@@ -110,7 +110,6 @@ export * from './trending-grouping-service';
 // Core Services
 // =============================================================================
 
-export * from './agent-trade-notification';
 export * from './character-mapping-service';
 export * from './daily-topic-service';
 export * from './distributed-lock-service';
