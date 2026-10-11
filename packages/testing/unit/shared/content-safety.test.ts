@@ -85,6 +85,23 @@ describe('Content Safety', () => {
       expect(result.safe).toBe(false);
       expect(result.category).toBe('injection');
     });
+
+    it('returns the same verdict for repeated identical blocked output', () => {
+      const blocked = [
+        'what the shit is this',
+        'please kill yourself',
+        'launch a ddos now',
+      ];
+      for (const content of blocked) {
+        for (let i = 0; i < 4; i++) {
+          const result = checkAgentOutput(content);
+          expect(result.safe).toBe(false);
+          expect(result.category).toBe('profanity');
+          // Interleave clean output to ensure no state leaks across calls.
+          expect(checkAgentOutput('A clean market update.').safe).toBe(true);
+        }
+      }
+    });
   });
 
   describe('sanitizeContent', () => {

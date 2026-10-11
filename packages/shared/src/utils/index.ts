@@ -16,7 +16,6 @@ export * from './decimal-converter';
 export * from './format';
 export * from './json-parser';
 export * from './logger';
-export * from './name-replacement';
 export * from './oasf-skill-mapper';
 export * from './post-utils';
 export * from './profile';
