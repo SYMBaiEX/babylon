@@ -21,7 +21,6 @@ export {
   type LockOptions,
 } from './distributed-lock-service';
 // Event Cache Service (Redis-backed event lookup)
-export * from './event-cache-service';
 // Feedback Service
 export * from './feedback-service';
 // Generation Lock Service
