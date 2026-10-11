@@ -12,20 +12,15 @@ import {
 import { getBrowserDevAuthSession } from '@/lib/auth/dev-auth';
 import { FeedStewardAuth } from '@/lib/auth/feed-steward-auth';
 import { createSessionCookieSync } from '@/lib/auth/session-cookie-sync';
+import { getStewardApiUrl, STEWARD_TENANT_ID } from '@/lib/auth/steward-config';
 
 // ── Singleton StewardAuth instance ───────────────────────────────────────────
-
-const STEWARD_TENANT_ID = process.env.NEXT_PUBLIC_STEWARD_TENANT_ID ?? 'feed';
 
 let _stewardAuthInstance: FeedStewardAuth | null = null;
 
 function getOrCreateStewardAuth(): FeedStewardAuth {
   if (_stewardAuthInstance) return _stewardAuthInstance;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_STEWARD_API_URL ??
-    (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-      ? 'https://auth.elizacloud.ai'
-      : 'http://localhost:3200');
+  const baseUrl = getStewardApiUrl();
   _stewardAuthInstance = new FeedStewardAuth({
     baseUrl,
     tenantId: STEWARD_TENANT_ID,
