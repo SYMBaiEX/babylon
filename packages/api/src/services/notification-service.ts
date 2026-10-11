@@ -434,13 +434,6 @@ export async function notifyReplyToComment(
     return;
   }
 
-  // Use commentId to create notification context
-  const notificationContext = {
-    commentId,
-    replyCommentId,
-    postId,
-  };
-
   const result = await db
     .select({
       displayName: users.displayName,
@@ -455,15 +448,18 @@ export async function notifyReplyToComment(
     replyAuthor?.displayName || replyAuthor?.username || 'Someone';
   const message = `${userName} replied to your comment`;
 
-  // Use notificationContext when creating the notification
+  // Each reply is its own event: key on the reply comment so a second reply
+  // to the same parent is not suppressed by the time-window dedupe, while a
+  // retried notification for the same reply is.
   await createNotification({
     userId: commentAuthorId,
     type: 'reply',
     actorId: replyAuthorId,
-    postId: notificationContext.postId,
-    commentId: notificationContext.commentId,
+    postId,
+    commentId,
     title: 'New Reply',
     message,
+    dedupeKey: `reply:${replyCommentId}`,
   });
 }
 
@@ -646,9 +642,9 @@ export async function notifyGroupChatInvite(
   const inviterName = inviter?.displayName || inviter?.username || 'Someone';
   const message = `${inviterName} invited you to "${chatName}"`;
 
-  // Create notification with groupId and inviteId for proper linking
-  await db.insert(notifications).values({
-    id: await generateSnowflakeId(),
+  // createNotification applies user-existence and block checks, cache
+  // invalidation and email preferences (a direct insert skipped them all).
+  await createNotification({
     userId,
     type: 'group_invite',
     actorId: inviterId,
@@ -656,6 +652,7 @@ export async function notifyGroupChatInvite(
     message,
     groupId: groupId ?? undefined,
     inviteId,
+    ...(inviteId && { dedupeKey: `group_invite:${inviteId}` }),
   });
 }
 
