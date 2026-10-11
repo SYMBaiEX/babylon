@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { FeedStewardAuth } from '@/lib/auth/feed-steward-auth';
+import { createSessionCookieSync } from '@/lib/auth/session-cookie-sync';
 
 // ── Singleton StewardAuth instance ───────────────────────────────────────────
 
@@ -46,22 +47,7 @@ interface StewardAuthContextValue {
   ) => Promise<void>;
 }
 
-let cookieUpdates: Promise<void> = Promise.resolve();
-function syncSessionCookie(token: string | null, refreshToken?: string | null) {
-  const update = async () => {
-    const res = await fetch('/api/auth/session', {
-      method: token ? 'POST' : 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: token ? JSON.stringify({ token, refreshToken }) : undefined,
-    });
-    if (!res.ok) throw new Error(`Session cookie sync failed: ${res.status}`);
-  };
-  // Preserve update order across SDK refresh, callback completion, and logout.
-  const result = cookieUpdates.then(update, update);
-  cookieUpdates = result;
-  return result;
-}
+const syncSessionCookie = createSessionCookieSync();
 
 const StewardAuthContext = createContext<StewardAuthContextValue | null>(null);
 
@@ -98,12 +84,26 @@ export function StewardAuthProvider({
         return;
       }
       try {
-        await syncSessionCookie(next.token, stewardAuth.getRefreshToken());
-        if (active && stewardAuth.getSession()?.token === next.token) {
+        await syncSessionCookie(
+          next.token,
+          stewardAuth.getRefreshToken(),
+          () =>
+            !stewardAuth.isLoginPending &&
+            stewardAuth.getSession()?.token === next.token
+        );
+        if (
+          active &&
+          !stewardAuth.isLoginPending &&
+          stewardAuth.getSession()?.token === next.token
+        ) {
           setSession(next);
         }
       } catch {
-        if (active && stewardAuth.getSession()?.token === next.token) {
+        if (
+          active &&
+          !stewardAuth.isLoginPending &&
+          stewardAuth.getSession()?.token === next.token
+        ) {
           stewardAuth.signOut();
           setSession(null);
         }
@@ -147,25 +147,14 @@ export function StewardAuthProvider({
 
   const onLoginSuccess = useCallback(
     async (token: string, refreshToken?: string | null) => {
-      const revision = stewardAuth.cancelPendingRefresh();
       setIsLoading(true);
       try {
-        // Sync the token to the server-side httpOnly cookie before publishing a
-        // local authenticated state. If this fails, clear any SDK-stored token so
-        // callers do not redirect into an apparently authenticated UI without
-        // httpOnly cookies.
-        await syncSessionCookie(token, refreshToken);
-
-        if (revision !== stewardAuth.sessionRevision) {
-          throw new Error('Login was superseded by another session change');
-        }
-        setSession(stewardAuth.acceptSession(token, refreshToken));
-      } catch (err) {
-        if (revision === stewardAuth.sessionRevision) {
-          stewardAuth.signOut();
-          setSession(null);
-        }
-        throw err;
+        const next = await stewardAuth.completeLogin(
+          token,
+          refreshToken,
+          syncSessionCookie
+        );
+        if (stewardAuth.getSession()?.token === next?.token) setSession(next);
       } finally {
         setIsLoading(false);
       }

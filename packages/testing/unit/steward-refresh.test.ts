@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 import { FeedStewardAuth } from '../../../apps/web/src/lib/auth/feed-steward-auth';
+import { createSessionCookieSync } from '../../../apps/web/src/lib/auth/session-cookie-sync';
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -113,5 +114,77 @@ describe('Steward refresh lifecycle', () => {
     const auth = setup();
     auth.acceptSession(token('other'));
     expect(auth.getRefreshToken()).toBeNull();
+  });
+  test('blocks focus, timer and getToken refresh while account-switch cookie sync is pending', async () => {
+    const auth = setup(1);
+    const oldToken = auth.getSession()!.token;
+    const refreshRequest = mock(async () => success());
+    globalThis.fetch = Object.assign(refreshRequest, {
+      preconnect: originalFetch.preconnect,
+    });
+    let releaseCookie!: (response: Response) => void;
+    const cookieResponse = new Promise<Response>((resolve) => {
+      releaseCookie = resolve;
+    });
+    const cookieWrites: string[] = [];
+    const syncCookie = createSessionCookieSync(async (_url, init) => {
+      const body = JSON.parse(String(init.body)) as { token: string };
+      cookieWrites.push(body.token);
+      return cookieResponse;
+    });
+    const newToken = token('other');
+    const login = auth.completeLogin(newToken, 'other-refresh', syncCookie);
+    await Promise.resolve();
+    expect(auth.isLoginPending).toBe(true);
+    expect(auth.getSession()?.userId).toBe('user');
+    // These are the same entry points used by focus/timer and SDK consumers.
+    await auth.refreshSession();
+    await auth.refreshSession();
+    auth.getToken();
+    expect(refreshRequest).not.toHaveBeenCalled();
+    // A listener's obsolete update queued behind the new login must not write.
+    const obsoleteCookie = syncCookie(
+      oldToken,
+      'refresh-old',
+      () => !auth.isLoginPending && auth.getSession()?.token === oldToken
+    );
+    releaseCookie(Response.json({ ok: true }));
+    expect((await login)?.userId).toBe('other');
+    await obsoleteCookie;
+    expect(cookieWrites).toEqual([newToken]);
+    expect(auth.getRefreshToken()).toBe('other-refresh');
+    expect(auth.isLoginPending).toBe(false);
+  });
+
+  test('logout during delayed login cookie sync prevents local login publication', async () => {
+    const auth = setup();
+    let release!: () => void;
+    const cookie = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const login = auth.completeLogin(
+      token('other'),
+      'other-refresh',
+      () => cookie
+    );
+    const rejected = login.catch((error: Error) => error);
+    auth.signOut();
+    release();
+    expect(await rejected).toBeInstanceOf(Error);
+    expect(auth.getSession()).toBeNull();
+    expect(auth.getRefreshToken()).toBeNull();
+  });
+
+  test('failed login cookie sync clears local credentials', async () => {
+    const auth = setup();
+    const syncCookie = createSessionCookieSync(async () =>
+      Response.json({}, { status: 503 })
+    );
+    await expect(
+      auth.completeLogin(token('other'), 'other-refresh', syncCookie)
+    ).rejects.toThrow('503');
+    expect(auth.getSession()).toBeNull();
+    expect(auth.getRefreshToken()).toBeNull();
+    expect(auth.isLoginPending).toBe(false);
   });
 });

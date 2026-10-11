@@ -63,7 +63,7 @@ describe('retired social integration', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${privyId}`,
+            Authorization: `Bearer steward:test:${userId}`,
           },
           body: JSON.stringify({
             shareId,
@@ -74,7 +74,7 @@ describe('retired social integration', () => {
       );
       expect(response.status).toBe(400);
       expect(JSON.stringify(await response.json())).toContain(
-        'SHARE_PLATFORM_MISMATCH'
+        'Share platform does not match the verification platform'
       );
       const [stored] = await db
         .select()

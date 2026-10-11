@@ -28,6 +28,7 @@ export class FeedStewardAuth extends StewardAuth {
     (session: StewardSession | null) => void
   >();
   private refreshGeneration = 0;
+  private loginRevision: number | null = null;
   private refreshInFlight: Promise<StewardSession | null> | null = null;
 
   constructor(config: StewardAuthConfig) {
@@ -70,12 +71,14 @@ export class FeedStewardAuth extends StewardAuth {
   }
 
   override signOut() {
+    this.loginRevision = null;
     this.cancelPendingRefresh();
     super.signOut();
   }
 
   /** Import callback tokens through one owned storage contract. */
   acceptSession(token: string, refreshToken?: string | null) {
+    this.loginRevision = null;
     this.cancelPendingRefresh();
     this.sessionStorage.setItem(TOKEN_KEY, token);
     if (refreshToken) this.sessionStorage.setItem(REFRESH_KEY, refreshToken);
@@ -83,7 +86,37 @@ export class FeedStewardAuth extends StewardAuth {
     return this.getSession();
   }
 
+  get isLoginPending() {
+    return this.loginRevision !== null;
+  }
+
+  async completeLogin(
+    token: string,
+    refreshToken: string | null | undefined,
+    syncCookie: (
+      token: string,
+      refreshToken: string | null | undefined,
+      isCurrent: () => boolean
+    ) => Promise<void>
+  ): Promise<StewardSession | null> {
+    const revision = this.cancelPendingRefresh();
+    this.loginRevision = revision;
+    const isCurrent = () => revision === this.refreshGeneration;
+    try {
+      await syncCookie(token, refreshToken, isCurrent);
+      if (!isCurrent())
+        throw new Error('Login was superseded by another session change');
+      return this.acceptSession(token, refreshToken);
+    } catch (error) {
+      if (isCurrent()) this.signOut();
+      throw error;
+    } finally {
+      if (this.loginRevision === revision) this.loginRevision = null;
+    }
+  }
+
   override refreshSession(): Promise<StewardSession | null> {
+    if (this.isLoginPending) return Promise.resolve(null);
     if (this.refreshInFlight) return this.refreshInFlight;
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) return Promise.resolve(null);
