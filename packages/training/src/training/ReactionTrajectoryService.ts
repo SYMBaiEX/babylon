@@ -10,16 +10,8 @@
  * 3. Export for training with calculated rewards
  */
 
-import {
-  and,
-  db,
-  eq,
-  gte,
-  isNull,
-  lte,
-  reactionTrajectories,
-} from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import { and, db, eq, gte, isNull, lte, reactionTrajectories } from '@feed/db';
+import { generateSnowflakeId, logger } from '@feed/shared';
 
 export interface ReactionDecision {
   eventId: string;

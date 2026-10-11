@@ -4,17 +4,17 @@
  * Handles agents creating posts autonomously
  */
 
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
-import { agentTrades, db, desc, eq, posts } from '@babylon/db';
+import type { IAgentRuntime } from '@elizaos/core';
+import { parseKeyValueXml } from '@elizaos/core';
+import { countTokensSync, truncateToTokenLimitSync } from '@feed/api';
+import { agentTrades, db, desc, eq, posts } from '@feed/db';
 import {
   characterMappingService,
   formatRandomContext,
   generateRandomMarketContext,
   generateWorldContext,
-} from '@babylon/engine';
-import { getTimeAgo } from '@babylon/shared';
-import type { IAgentRuntime } from '@elizaos/core';
-import { parseKeyValueXml } from '@elizaos/core';
+} from '@feed/engine';
+import { getTimeAgo } from '@feed/shared';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
@@ -79,7 +79,7 @@ export class AutonomousPostingService {
     let npcDomains = '';
     let npcPostExamples = '';
     try {
-      const { StaticDataRegistry } = await import('@babylon/engine');
+      const { StaticDataRegistry } = await import('@feed/engine');
       const actor = StaticDataRegistry.getActor(agentUserId);
       if (actor) {
         npcVoice = actor.voice || '';

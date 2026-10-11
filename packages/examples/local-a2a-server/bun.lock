@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@babylon/local-a2a-server",
+      "name": "@feed/local-a2a-server",
       "dependencies": {
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",

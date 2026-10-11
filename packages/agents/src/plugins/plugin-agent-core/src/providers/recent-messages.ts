@@ -1,7 +1,7 @@
 /**
  * Recent Messages Provider
  *
- * Provides conversation history from Babylon's database.
+ * Provides conversation history from Feed's database.
  *
  * In team chat mode: Queries the `messages` table filtered to only
  * messages that target this specific agent (via targetIds) and the agent's responses.
@@ -9,6 +9,13 @@
  * In regular DM mode: Queries the `agentMessages` table (legacy behavior).
  */
 
+import type {
+  IAgentRuntime,
+  Memory,
+  Provider,
+  ProviderResult,
+  State,
+} from '@elizaos/core';
 import {
   and,
   db,
@@ -17,14 +24,7 @@ import {
   messages as messagesTable,
   or,
   sql,
-} from '@babylon/db';
-import type {
-  IAgentRuntime,
-  Memory,
-  Provider,
-  ProviderResult,
-  State,
-} from '@elizaos/core';
+} from '@feed/db';
 
 /**
  * Format timestamp to relative time string

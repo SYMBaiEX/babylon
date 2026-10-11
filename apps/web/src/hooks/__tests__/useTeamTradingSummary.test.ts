@@ -1,5 +1,63 @@
 import { describe, expect, it } from 'bun:test';
 import { buildTeamTradingSummary } from '@/lib/agents/team-trading-summary';
+import type {
+  UserPerpPositionSnapshot,
+  UserPredictionPositionSnapshot,
+} from '@/lib/markets/user-positions-types';
+
+const PREDICTION_POSITION: UserPredictionPositionSnapshot = {
+  id: 'prediction-1',
+  marketId: 'market-1',
+  question: 'Will the market resolve yes?',
+  side: 'YES',
+  shares: 10,
+  avgPrice: 0.5,
+  currentPrice: 0.5,
+  currentProbability: 0.5,
+  currentValue: 5,
+  costBasis: 5,
+  unrealizedPnL: 0,
+  resolved: false,
+  resolution: null,
+  closesAt: null,
+  status: '',
+  createdAt: null,
+  outcome: null,
+  pnl: null,
+  resolvedAt: null,
+  isAgentPosition: false,
+  agentId: null,
+  agentName: null,
+};
+const PERP_POSITION: UserPerpPositionSnapshot = {
+  id: 'perp-1',
+  ticker: 'BTC',
+  side: 'long',
+  entryPrice: 100,
+  currentPrice: 100,
+  size: 100,
+  leverage: 1,
+  unrealizedPnL: 0,
+  unrealizedPnLPercent: 0,
+  liquidationPrice: 0,
+  fundingPaid: 0,
+  realizedPnL: 0,
+  openedAt: '2026-02-28T00:00:00.000Z',
+  closedAt: null,
+  isAgentPosition: false,
+  agentId: null,
+  agentName: null,
+};
+const EMPTY_PERPETUALS = {
+  stats: { totalPositions: 0, totalPnL: 0, totalFunding: 0 },
+  total: 0,
+  hasMore: false,
+};
+const EMPTY_PREDICTIONS = {
+  stats: { totalPositions: 0 },
+  total: 0,
+  hasMore: false,
+};
 
 const BASE_INPUT = {
   ownerId: 'owner-1',
@@ -14,7 +72,7 @@ const BASE_INPUT = {
       lifetimePnL: 0,
     },
   ],
-} as const;
+};
 
 describe('buildTeamTradingSummary', () => {
   it('excludes closed prediction positions (resolved: true) from unrealized PnL and open count', () => {
@@ -31,10 +89,13 @@ describe('buildTeamTradingSummary', () => {
         },
       ],
       positions: {
-        perpetuals: { positions: [] },
+        timestamp: '2026-02-28T00:00:00.000Z',
+        perpetuals: { ...EMPTY_PERPETUALS, positions: [] },
         predictions: {
+          ...EMPTY_PREDICTIONS,
           positions: [
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 539.39,
@@ -43,7 +104,6 @@ describe('buildTeamTradingSummary', () => {
             },
           ],
         },
-        timestamp: '2026-02-28T00:00:00.000Z',
       },
     });
 
@@ -71,10 +131,13 @@ describe('buildTeamTradingSummary', () => {
         },
       ],
       positions: {
-        perpetuals: { positions: [] },
+        timestamp: '2026-02-28T00:00:00.000Z',
+        perpetuals: { ...EMPTY_PERPETUALS, positions: [] },
         predictions: {
+          ...EMPTY_PREDICTIONS,
           positions: [
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 50,
@@ -83,7 +146,6 @@ describe('buildTeamTradingSummary', () => {
             },
           ],
         },
-        timestamp: '2026-02-28T00:00:00.000Z',
       },
     });
 
@@ -101,10 +163,13 @@ describe('buildTeamTradingSummary', () => {
     const summary = buildTeamTradingSummary({
       ...BASE_INPUT,
       positions: {
-        perpetuals: { positions: [] },
+        timestamp: '2026-02-28T00:00:00.000Z',
+        perpetuals: { ...EMPTY_PERPETUALS, positions: [] },
         predictions: {
+          ...EMPTY_PREDICTIONS,
           positions: [
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 100,
@@ -112,6 +177,7 @@ describe('buildTeamTradingSummary', () => {
               status: 'closed',
             },
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 75,
@@ -130,14 +196,17 @@ describe('buildTeamTradingSummary', () => {
     expect(summary.totals.openPositions).toBe(0);
   });
 
-  it('excludes prediction positions with missing status (conservative default)', () => {
+  it('excludes prediction positions with an empty status (conservative default)', () => {
     const summary = buildTeamTradingSummary({
       ...BASE_INPUT,
       positions: {
-        perpetuals: { positions: [] },
+        timestamp: '2026-02-28T00:00:00.000Z',
+        perpetuals: { ...EMPTY_PERPETUALS, positions: [] },
         predictions: {
+          ...EMPTY_PREDICTIONS,
           positions: [
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 200,
@@ -159,10 +228,13 @@ describe('buildTeamTradingSummary', () => {
     const summary = buildTeamTradingSummary({
       ...BASE_INPUT,
       positions: {
-        perpetuals: { positions: [] },
+        timestamp: '2026-02-28T00:00:00.000Z',
+        perpetuals: { ...EMPTY_PERPETUALS, positions: [] },
         predictions: {
+          ...EMPTY_PREDICTIONS,
           positions: [
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: false,
               unrealizedPnL: 30,
               resolved: false,
@@ -184,9 +256,12 @@ describe('buildTeamTradingSummary', () => {
     const summary = buildTeamTradingSummary({
       ...BASE_INPUT,
       positions: {
+        timestamp: '2026-02-28T00:00:00.000Z',
         perpetuals: {
+          ...EMPTY_PERPETUALS,
           positions: [
             {
+              ...PERP_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 40,
@@ -194,8 +269,10 @@ describe('buildTeamTradingSummary', () => {
           ],
         },
         predictions: {
+          ...EMPTY_PREDICTIONS,
           positions: [
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 60,
@@ -203,6 +280,7 @@ describe('buildTeamTradingSummary', () => {
               status: 'active',
             },
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 999,
@@ -235,16 +313,20 @@ describe('buildTeamTradingSummary', () => {
         },
       ],
       positions: {
-        perpetuals: { positions: [] },
+        timestamp: '2026-02-28T00:00:00.000Z',
+        perpetuals: { ...EMPTY_PERPETUALS, positions: [] },
         predictions: {
+          ...EMPTY_PREDICTIONS,
           positions: [
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: false,
               unrealizedPnL: 15,
               resolved: false,
               status: 'active',
             },
             {
+              ...PREDICTION_POSITION,
               isAgentPosition: true,
               agentId: 'agent-1',
               unrealizedPnL: 25,

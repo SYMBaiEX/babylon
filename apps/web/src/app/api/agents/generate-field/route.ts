@@ -97,15 +97,15 @@
 
 import { createGroq } from '@ai-sdk/groq';
 import Anthropic from '@anthropic-ai/sdk';
+import { parseKeyValueXml } from '@elizaos/core';
 import {
   authenticateUser,
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
   withErrorHandling,
-} from '@babylon/api';
-import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
-import { logger } from '@babylon/shared';
-import { parseKeyValueXml } from '@elizaos/core';
+} from '@feed/api';
+import { isPromptLoggingEnabled, logPrompt } from '@feed/engine';
+import { logger } from '@feed/shared';
 import { generateText } from 'ai';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

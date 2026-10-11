@@ -11,18 +11,26 @@
  */
 
 import {
+  type ActionResult,
+  composePromptFromState,
+  type Memory,
+  ModelType,
+  parseKeyValueXml,
+  type State,
+} from '@elizaos/core';
+import {
   agentRuntimeManager,
   agentService,
   notifyTeamChatMessage,
   teamChatService,
-} from '@babylon/agents';
+} from '@feed/agents';
 import {
   authenticateUser,
   broadcastChatMessage,
   checkProgress,
   withErrorHandling,
-} from '@babylon/api';
-import { db, eq, messages, userAgentConfigs, users } from '@babylon/db';
+} from '@feed/api';
+import { db, eq, messages, userAgentConfigs, users } from '@feed/db';
 import {
   checkUserInput,
   GROQ_MODELS,
@@ -31,15 +39,7 @@ import {
   type MessageMetadata,
   type MessageTag,
   toISO,
-} from '@babylon/shared';
-import {
-  type ActionResult,
-  composePromptFromState,
-  type Memory,
-  ModelType,
-  parseKeyValueXml,
-  type State,
-} from '@elizaos/core';
+} from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
@@ -379,7 +379,7 @@ export const POST = withErrorHandling(
 
         // Compose state with providers
         // Use strict filtering (3rd param = true) to ONLY run the specified providers
-        // This prevents all Babylon A2A providers from running unnecessarily
+        // This prevents all Feed A2A providers from running unnecessarily
         // Include TEAM_MEMBERS provider when in team chat mode
         const providers = isTeamChatMode
           ? [

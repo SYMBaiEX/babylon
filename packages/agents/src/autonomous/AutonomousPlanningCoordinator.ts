@@ -5,8 +5,9 @@
  * Considers goals, constraints, and opportunities to generate comprehensive action plans.
  */
 
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
-import type { JsonValue } from '@babylon/db';
+import type { IAgentRuntime } from '@elizaos/core';
+import { countTokensSync, truncateToTokenLimitSync } from '@feed/api';
+import type { JsonValue } from '@feed/db';
 import {
   agentLogs,
   and,
@@ -19,9 +20,8 @@ import {
   perpPositions,
   positions,
   users,
-} from '@babylon/db';
-import { StaticDataRegistry, type StaticOrganization } from '@babylon/engine';
-import type { IAgentRuntime } from '@elizaos/core';
+} from '@feed/db';
+import { StaticDataRegistry, type StaticOrganization } from '@feed/engine';
 import { sql } from 'drizzle-orm';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';

@@ -8,6 +8,7 @@
  * This eliminates double LLM calls and makes execution faster.
  */
 
+import type { IAgentRuntime } from '@elizaos/core';
 import {
   actorState,
   agentLogs,
@@ -20,16 +21,15 @@ import {
   npcTrades,
   questions,
   users,
-} from '@babylon/db';
+} from '@feed/db';
 import {
   generateWorldContext,
   StaticDataRegistry,
   WalletService,
-} from '@babylon/engine';
-import type { JsonValue } from '@babylon/shared';
-import type { IAgentRuntime } from '@elizaos/core';
+} from '@feed/engine';
+import type { JsonValue } from '@feed/shared';
 import { callAgentLLM } from '../llm/agent-llm';
-import { getNpcGameContext } from '../plugins/babylon/providers/npc-game-context';
+import { getNpcGameContext } from '../plugins/feed/providers/npc-game-context';
 import { ensureTrajectoryStep } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { agentService } from '../services/AgentService';
 import { getAgentConfig, getAutonomousFeatures } from '../shared/agent-config';
@@ -313,18 +313,17 @@ export class MultiStepExecutor {
     // Get agent config (may be null for NPCs)
     const config = await getAgentConfig(agentUserId);
     const baseSystemPrompt =
-      config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.';
+      config?.systemPrompt ?? 'You are an autonomous trading agent on Feed.';
 
     // Determine enabled features - NPCs use per-character autonomy flags if available
     // For USER_CONTROLLED agents: trading defaults to true, others default to false
     let enabledFeatures: string[] = [];
     if (isNpc) {
-      // Read per-character autonomy flags from PackActor babylon metadata
+      // Read per-character autonomy flags from PackActor feed metadata
       const autonomy = (runtime.character as unknown as Record<string, unknown>)
-        ?.babylon
+        ?.feed
         ? (
-            (runtime.character as unknown as Record<string, unknown>)
-              .babylon as {
+            (runtime.character as unknown as Record<string, unknown>).feed as {
               autonomy?: {
                 trading: boolean;
                 posting: boolean;

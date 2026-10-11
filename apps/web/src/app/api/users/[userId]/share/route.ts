@@ -107,13 +107,9 @@ import {
   requireUserByIdentifier,
   successResponse,
   withErrorHandling,
-} from '@babylon/api';
-import { and, db, desc, eq, shareActions } from '@babylon/db';
-import {
-  generateSnowflakeId,
-  logger,
-  UserIdParamSchema,
-} from '@babylon/shared';
+} from '@feed/api';
+import { and, db, desc, eq, shareActions } from '@feed/db';
+import { generateSnowflakeId, logger, UserIdParamSchema } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 

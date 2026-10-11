@@ -6,8 +6,8 @@
  * that style; otherwise text-to-image with a detailed style prompt.
  */
 
-import { logger } from '@babylon/shared';
 import { fal } from '@fal-ai/client';
+import { logger } from '@feed/shared';
 import { formatError } from '../utils/error-utils';
 import {
   initFalClient,
