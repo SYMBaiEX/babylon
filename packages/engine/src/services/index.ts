@@ -17,7 +17,6 @@ export * from './actor-context-builder';
 export * from './alpha-group-invite-service';
 export * from './arc-context-service';
 export * from './capital-allocation-service';
-export * from './event-reaction-service';
 export * from './following-mechanics';
 export * from './game-onboarding-service';
 // Group Chat Service
