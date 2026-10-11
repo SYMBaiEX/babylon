@@ -59,16 +59,16 @@ const BASE_REQUIRED_RULES: ValidationRule[] = [
     keys: ['DATABASE_URL'],
   },
   {
-    id: 'privy-app-id',
-    description: 'Privy application identifier',
+    id: 'steward-api-url',
+    description: 'Steward public API URL',
     kind: 'oneOf',
-    keys: ['NEXT_PUBLIC_PRIVY_APP_ID', 'PRIVY_APP_ID'],
+    keys: ['NEXT_PUBLIC_STEWARD_API_URL'],
   },
   {
-    id: 'privy-app-secret',
-    description: 'Privy backend secret',
+    id: 'steward-backend',
+    description: 'Steward server authentication',
     kind: 'allOf',
-    keys: ['PRIVY_APP_SECRET'],
+    keys: ['STEWARD_API_URL', 'STEWARD_JWT_SECRET', 'STEWARD_TENANT_API_KEY'],
   },
   {
     id: 'cron-secret',
@@ -80,7 +80,13 @@ const BASE_REQUIRED_RULES: ValidationRule[] = [
     id: 'llm-provider-key',
     description: 'At least one LLM provider API key',
     kind: 'oneOf',
-    keys: ['GROQ_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'],
+    keys: [
+      'SURPLUS_API_KEY',
+      'ELIZACLOUD_API_KEY',
+      'GROQ_API_KEY',
+      'OPENAI_API_KEY',
+      'ANTHROPIC_API_KEY',
+    ],
   },
 ];
 

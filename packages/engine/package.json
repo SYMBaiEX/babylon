@@ -20,7 +20,8 @@
       "types": "./src/config/fees.ts",
       "import": "./src/config/fees.ts",
       "require": "./src/config/fees.ts"
-    }
+    },
+    "./embedding": "./src/llm/embedding-client.ts"
   },
   "scripts": {
     "lint": "biome lint .",

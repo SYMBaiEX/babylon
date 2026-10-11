@@ -6,7 +6,7 @@
 
 import OpenAI from 'openai';
 import 'dotenv/config';
-import { logger } from '@babylon/shared';
+import { getSurplusConfig, logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 import type { LLMCallTokenUsage } from '../types/token-stats';
 import { first } from '../utils/array-utils';
@@ -19,7 +19,7 @@ import {
 import type { LLMJsonSchema as JSONSchema } from './types';
 import { parseXML } from './xml-parser';
 
-type LLMProvider = 'elizacloud' | 'groq' | 'claude' | 'openai';
+type LLMProvider = 'surplus' | 'elizacloud' | 'groq' | 'claude' | 'openai';
 type LLMDisabledContext = 'default' | 'gameTick';
 
 /**
@@ -156,7 +156,16 @@ export class BabylonLLMClient {
     const sdkMaxRetries = 2;
 
     // Force specific provider if requested
-    if (forceProvider === 'elizacloud' && elizaCloud) {
+    const surplus = getSurplusConfig();
+    if (surplus) {
+      this.client = new OpenAI({
+        apiKey: surplus.apiKey,
+        baseURL: surplus.baseURL,
+        timeout: timeoutMs,
+        maxRetries: sdkMaxRetries,
+      });
+      this.provider = 'surplus';
+    } else if (forceProvider === 'elizacloud' && elizaCloud) {
       logger.info('Using ElizaCloud (forced)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
         apiKey: elizaCloud.apiKey,
@@ -302,13 +311,19 @@ export class BabylonLLMClient {
     const defaultModel = this.getDefaultModel();
 
     const {
-      model = defaultModel,
+      model: requestedModel = defaultModel,
       temperature = 0.7,
-      maxTokens = 32000,
+      maxTokens: requestedMaxTokens = 32000,
       format = 'xml',
       promptType = 'unknown',
       promptTemplate,
     } = options;
+    const model =
+      this.provider === 'surplus' ? this.getDefaultModel() : requestedModel;
+    const maxTokens =
+      this.provider === 'surplus'
+        ? Math.min(requestedMaxTokens, 16384)
+        : requestedMaxTokens;
 
     // OpenAI can enforce JSON mode, but we default to XML for robustness
     const useJsonFormat =
@@ -878,6 +893,8 @@ WORLD RULES:
    */
   private getDefaultModel(): string {
     switch (this.provider) {
+      case 'surplus':
+        return getSurplusConfig()?.model || 'gpt-4o-mini';
       case 'groq':
         return resolveGroqDefaultModel();
       case 'claude':

@@ -1,3 +1,5 @@
+import { getEmbedding } from '@babylon/engine/embedding';
+import { getSurplusConfig } from '@babylon/shared';
 /**
  * Groq Plugin for Babylon Agents
  *
@@ -45,6 +47,7 @@ function getStringSetting(
  */
 function getBaseURL(runtime: IAgentRuntime): string {
   return (
+    getSurplusConfig()?.baseURL ||
     getStringSetting(runtime, 'GROQ_BASE_URL') ||
     process.env.GROQ_BASE_URL ||
     'https://api.groq.com/openai/v1'
@@ -55,6 +58,8 @@ function resolveGroqRuntimeModel(
   runtime: IAgentRuntime,
   size: 'small' | 'large'
 ): string {
+  const surplus = getSurplusConfig();
+  if (surplus) return surplus.model;
   const defaultSmall = GROQ_MODELS.FREE.modelId;
   const defaultLarge = GROQ_MODELS.PRO.modelId;
 
@@ -75,9 +80,10 @@ function resolveGroqRuntimeModel(
  */
 function findModelName(model: ModelTypeName): TiktokenModel {
   const name =
-    model === ModelType.TEXT_SMALL
+    getSurplusConfig()?.model ||
+    (model === ModelType.TEXT_SMALL
       ? GROQ_MODELS.FREE.modelId
-      : GROQ_MODELS.PRO.modelId;
+      : GROQ_MODELS.PRO.modelId);
   return name as TiktokenModel;
 }
 
@@ -260,11 +266,18 @@ export const groqPlugin: Plugin = {
     GROQ_LARGE_MODEL: GROQ_MODELS.PRO.modelId,
   },
   async init() {
-    if (!process.env.GROQ_API_KEY) {
-      throw Error('Missing GROQ_API_KEY in environment variables');
+    if (!getSurplusConfig() && !process.env.GROQ_API_KEY) {
+      throw Error('SURPLUS_API_KEY or GROQ_API_KEY is required');
     }
   },
   models: {
+    [ModelType.TEXT_EMBEDDING]: async (_runtime, params) => {
+      const text = typeof params === 'string' ? params : params?.text;
+      if (!text) throw new Error('Embedding input must not be empty');
+      const embedding = await getEmbedding(text);
+      if (!embedding) throw new Error('Embedding provider is unavailable');
+      return embedding;
+    },
     [ModelType.TEXT_TOKENIZER_ENCODE]: async (
       _runtime,
       { prompt, modelType = ModelType.TEXT_LARGE }: TokenizeTextParams
@@ -290,7 +303,10 @@ export const groqPlugin: Plugin = {
     ) => {
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        apiKey:
+          getSurplusConfig()?.apiKey ||
+          getStringSetting(runtime, 'GROQ_API_KEY') ||
+          '',
         fetch: runtime.fetch ?? undefined,
         baseURL,
       });
@@ -329,7 +345,10 @@ export const groqPlugin: Plugin = {
       }: GenerateTextParams
     ) => {
       const baseURL = getBaseURL(runtime);
-      const apiKey = getStringSetting(runtime, 'GROQ_API_KEY') ?? '';
+      const apiKey =
+        getSurplusConfig()?.apiKey ||
+        getStringSetting(runtime, 'GROQ_API_KEY') ||
+        '';
 
       const groq = createGroq({
         apiKey,
@@ -374,7 +393,10 @@ export const groqPlugin: Plugin = {
     ) => {
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        apiKey:
+          getSurplusConfig()?.apiKey ||
+          getStringSetting(runtime, 'GROQ_API_KEY') ||
+          '',
         fetch: runtime.fetch ?? undefined,
         baseURL,
       });
@@ -391,7 +413,10 @@ export const groqPlugin: Plugin = {
     ) => {
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        apiKey:
+          getSurplusConfig()?.apiKey ||
+          getStringSetting(runtime, 'GROQ_API_KEY') ||
+          '',
         fetch: runtime.fetch ?? undefined,
         baseURL,
       });

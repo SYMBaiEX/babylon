@@ -17,6 +17,8 @@ export type DeploymentEnvironment = 'production' | 'staging' | 'development';
  * @returns The current deployment environment
  */
 export function getDeploymentEnvironment(): DeploymentEnvironment {
+  if (process.env.DEPLOYMENT_ENV === 'staging') return 'staging';
+  if (process.env.DEPLOYMENT_ENV === 'production') return 'production';
   if (process.env.VERCEL_ENV === 'production') return 'production';
   if (process.env.VERCEL_ENV === 'preview') return 'staging';
   if (process.env.NODE_ENV === 'production') return 'production';

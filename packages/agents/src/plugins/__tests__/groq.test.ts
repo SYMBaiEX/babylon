@@ -18,7 +18,12 @@ mock.module('ai', () => ({
   generateText: mockGenerateText,
 }));
 
+mock.module('@babylon/engine/embedding', () => ({
+  getEmbedding: mock(async () => [0.1, 0.2]),
+}));
+
 mock.module('@babylon/shared', () => ({
+  getSurplusConfig: () => null,
   GROQ_MODELS: {
     FREE: { modelId: 'groq-small-model' },
     PRO: { modelId: 'groq-large-model' },
@@ -27,6 +32,7 @@ mock.module('@babylon/shared', () => ({
 
 mock.module('@elizaos/core', () => ({
   ModelType: {
+    TEXT_EMBEDDING: 'text_embedding',
     OBJECT_LARGE: 'object_large',
     OBJECT_SMALL: 'object_small',
     TEXT_LARGE: 'text_large',
@@ -34,13 +40,6 @@ mock.module('@elizaos/core', () => ({
     TEXT_TOKENIZER_DECODE: 'text_tokenizer_decode',
     TEXT_TOKENIZER_ENCODE: 'text_tokenizer_encode',
   },
-}));
-
-mock.module('js-tiktoken', () => ({
-  encodingForModel: mock(() => ({
-    decode: mock(() => ''),
-    encode: mock(() => []),
-  })),
 }));
 
 mock.module('../../shared/logger', () => ({

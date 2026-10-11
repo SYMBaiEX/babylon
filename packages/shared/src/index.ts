@@ -159,3 +159,5 @@ export * from './dag-trace-bridge';
 // - Storage: import { getStorageClient } from '@babylon/api'
 // - Monitoring: import { performanceMonitor } from '@babylon/api'
 // - Rate limiting (user-level): import { checkRateLimit, RATE_LIMIT_CONFIGS } from '@babylon/api'
+
+export { getSurplusConfig } from './utils/surplus';

@@ -1,5 +1,6 @@
 import {
   drainOutboxBatch,
+  flushLastUsedUpdates,
   requireCronAuth,
   successResponse,
   withErrorHandling,
@@ -14,6 +15,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Security: Verify cron authorization
   requireCronAuth(request, { jobName: 'RealtimeDrain' });
 
+  if (process.env.DEPLOYMENT_PLATFORM === 'cloudflare') {
+    await flushLastUsedUpdates();
+  }
   const result = await drainOutboxBatch();
   logger.info('Realtime outbox drain completed', result, 'Realtime');
   return successResponse({

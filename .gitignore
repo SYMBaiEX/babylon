@@ -178,3 +178,8 @@ packages/training/python/*.logpackages/training/python/shared_model_checkpoints/
 # Model checkpoints
 packages/training/python/shared_model_checkpoints/
 output/
+
+# Cloudflare build output and local credentials
+.open-next/
+.wrangler/
+.dev.vars*

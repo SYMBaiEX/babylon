@@ -108,11 +108,12 @@ export function verifyAgentCredentials(
   const configuredAgentId =
     process.env.BABYLON_AGENT_ID ??
     (!isProduction ? DEFAULT_TEST_AGENT_ID : undefined);
-  const configuredAgentSecret = process.env.CRON_SECRET;
+  const configuredAgentSecret =
+    process.env.AGENT_SECRET || process.env.CRON_SECRET;
 
   if (!configuredAgentSecret) {
     logger.error(
-      'CRON_SECRET not configured in environment',
+      'AGENT_SECRET or CRON_SECRET not configured in environment',
       undefined,
       'AgentAuth'
     );

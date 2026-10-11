@@ -1,10 +1,8 @@
-import { Analytics } from '@vercel/analytics/react';
 import { Suspense } from 'react';
 import { Toaster } from 'sonner';
 import { AchievementToastListener } from '@/components/achievements';
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
-import { GatedSpeedInsights } from '@/components/observability/GatedSpeedInsights';
 import { Providers } from '@/components/providers/Providers';
 import { BottomNav } from '@/components/shared/BottomNav';
 import { MobileHeader } from '@/components/shared/MobileHeader';
@@ -57,8 +55,6 @@ export function FullAppShellClient({
           <FeedAuthBanner />
         </Suspense>
       </div>
-      <Analytics />
-      <GatedSpeedInsights />
     </Providers>
   );
 }

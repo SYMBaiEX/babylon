@@ -156,13 +156,12 @@ See `.env.example` for the full annotated list. Key groups:
 |-------|-----------|-------|
 | **Database** | `DATABASE_URL`, `DIRECT_DATABASE_URL` | Postgres; local default on port 5433 |
 | **Auth (Steward)** | `STEWARD_JWT_SECRET`, `STEWARD_TENANT_API_KEY`, `NEXT_PUBLIC_STEWARD_API_URL`, `STEWARD_API_URL` | Required for login |
-| **LLM** | `ELIZACLOUD_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | At least one required for content generation |
-| **Cache** | `REDIS_URL`, `KV_REST_API_URL` | Optional locally; required for SSE in multi-instance deploys |
-| **Storage** | `BLOB_READ_WRITE_TOKEN` | Vercel Blob; MinIO used locally |
+| **LLM** | `SURPLUS_API_KEY` | Required for the Cloudflare deployment; legacy providers remain optional locally |
+| **Cache** | `REDIS_URL` | Optional locally; required for SSE in multi-instance deploys |
+| **Storage** | `STORAGE_PROVIDER`, `R2_PUBLIC_URL` | Native R2 bindings on Workers; MinIO locally |
 | **Game** | `GAME_START`, `CRON_SECRET` | `GAME_START=true` enables auto-ticks |
 | **Social OAuth** | `DISCORD_CLIENT_ID/SECRET`, `TWITTER_CLIENT_ID/SECRET` | Optional; enables social login via Steward |
 | **Agents** | `BABYLON_A2A_API_KEY` | For external agents connecting via A2A protocol |
-| **Vercel RUM** | `NEXT_PUBLIC_SPEED_INSIGHTS_SAMPLE_RATE` | Optional — Web Vitals sampling **0–100** (% of sessions); unset defaults to **50**. Route allowlist + rationale: [docs/observability/speed-insights.md](docs/observability/speed-insights.md) |
 
 Run `bun run env:validate` to check required variables before starting.
 
@@ -170,9 +169,7 @@ Run `bun run env:validate` to check required variables before starting.
 
 ## Observability (web)
 
-Vercel **Speed Insights** is enabled in production builds but **gated**: only selected high-traffic routes contribute vitals, **session sampling** reduces datapoint volume (default **50%** when the env var is omitted), and **minimal / embed** layout skips the component entirely. **Why:** RUM cost and dashboard noise scale with every page view; we keep signal on surfaces where Core Web Vitals correlate with product quality (feed, markets, wallet, etc.).
-
-Details, env migration notes, and roadmap: **[docs/observability/speed-insights.md](docs/observability/speed-insights.md)**.
+Cloudflare Workers observability provides deployment logs. PostHog remains the product analytics provider. Vercel Analytics and Speed Insights are removed from the application bundle. Sentry is disabled in the initial Worker configuration pending runtime validation.
 
 ---
 
@@ -358,42 +355,122 @@ The **training harness** in `packages/examples/harness` wires agents against the
 
 ## Deployment
 
-### Vercel
+### Cloudflare Workers
+
+The Next.js app uses OpenNext on Workers. `staging` and `production` deploy to
+separate Workers, R2 buckets, and cron queues. PostgreSQL and Redis remain external
+services; their data is not automatically converted to D1/KV.
+
+| Environment | App | R2 buckets | Queues |
+|---|---|---|---|
+| staging | `feed-web-staging` | `feed-next-cache-staging`, `feed-uploads-staging`, `feed-training-staging` | `feed-cron-staging`, `feed-cron-staging-failed` |
+| production | `feed-web-production` | `feed-next-cache-production`, `feed-uploads-production`, `feed-training-production` | `feed-cron-production`, `feed-cron-production-failed` |
+
+Build and verify locally:
 
 ```bash
-npm i -g vercel
-vercel deploy --prod
+bun install --frozen-lockfile --ignore-scripts
+bun run test:cloudflare
+bun run typecheck:cloudflare
+bun run build:cloudflare staging
+cd apps/web
+bunx wrangler dev --config wrangler.staging.jsonc
 ```
 
-**Required environment variables for production:**
+Workers needs the paid plan for the application bundle and configured CPU limit.
+The build fails if Wrangler reports more than 10 MiB compressed. Cloudflare uses
+the GPT-4/GPT-4o tokenizers; legacy tokenizer dictionaries are excluded.
+Use a separate Wrangler profile if your default login belongs to another account:
+`XDG_CONFIG_HOME=/path/to/feed-cloudflare bunx wrangler login`.
+
+### GitHub environments and secrets
+
+Create `cloudflare-staging` and `cloudflare-production`, restricting deployment
+branches to `staging` and `production` respectively. Set `CLOUDFLARE_ACCOUNT_ID`
+as a repository variable. In each environment set:
+
+- `CLOUDFLARE_API_TOKEN`: deployment token limited to the intended account, with
+  Workers Scripts, R2 Storage, and Queues edit access. Domain routing additionally
+  needs Workers Routes edit and Zone read for `feed.fun`.
+- `CRON_SECRET`: distinct random value per environment.
+- `CLOUDFLARE_RUNTIME_SECRETS`: JSON string map of runtime credentials. Required:
+  `REDIS_URL`, `STEWARD_API_URL`, `STEWARD_JWT_SECRET`, `STEWARD_TENANT_API_KEY`,
+  `STEWARD_PLATFORM_KEYS`, `AGENT_ENCRYPTION_KEY`.
+  Include existing application signing/encryption secrets and any enabled payment,
+  email, RPC, and social integration settings. Preserve encryption keys for existing
+  data; generating replacement keys can make that data unreadable. Legacy agent
+  credentials used `CRON_SECRET` as their encryption key: preserve its old value
+  as `AGENT_ENCRYPTION_KEY` before rotating scheduler secrets. Preserve explicit
+  agent/realtime/email signing secrets separately as well.
+- `NEXT_PUBLIC_STEWARD_API_URL`: environment **variable**, embedded at build time.
+  Configure Steward's allowed origins/redirects for the new environment domain.
+  Preserve `NEXT_PUBLIC_STEWARD_TENANT_ID` as an environment variable and
+  `STEWARD_PLATFORM_KEYS` in the runtime secret map for account provisioning.
+
+Repository secrets `SURPLUS_API_KEY`, `STAGING_DATABASE_URL`, and `PROD_DATABASE_URL`
+are merged into each deployment. The public PostHog key is
+`NEXT_PUBLIC_POSTHOG_PROJECT_ID`; optionally set `CLOUDFLARE_STRIPE_PUBLISHABLE_KEY`.
+Only test-mode Stripe credentials belong in staging. Never put inference or server
+secrets in `NEXT_PUBLIC_*` variables.
+
+`Deploy Cloudflare` deploys only successful exact-commit CI results. Automatic
+runs remain off until `CLOUDFLARE_DEPLOY_ENABLED=true`. Manual runs must select the
+matching workflow branch and environment. Provisioning is idempotent:
 
 ```bash
-DATABASE_URL=postgresql://...
-DIRECT_DATABASE_URL=postgresql://...   # for migrations
-ELIZACLOUD_API_KEY=eliza_...           # or GROQ_API_KEY / OPENAI_API_KEY
-STEWARD_JWT_SECRET=<strong-random-secret>
-STEWARD_TENANT_API_KEY=stw_...
-NEXT_PUBLIC_STEWARD_API_URL=https://your-steward-instance.com
-CRON_SECRET=<strong-random-secret>
-REDIS_URL=rediss://...                 # required for SSE in multi-instance
-GAME_START=true
+bun scripts/cloudflare/provision.ts staging
+bun scripts/cloudflare/deploy.ts staging
 ```
 
-Validate env before deploying:
+The deploy command requires `COMMIT_SHA` and all runtime secrets. `/__deployment`
+reports the deployed commit; check it, `/api/health`, login, authenticated writes,
+uploads, SSE, agent actions, and Surplus generation on staging before promotion.
 
-```bash
-bun run env:validate:production
-```
+### Data and cutover
 
-### Cron endpoints
+The Railway account inspected on 2026-10-10 contains an empty `the-feed` project
+(no services or environments). It supplies no reusable database/Redis service.
+Identify and back up the active Vercel-linked PostgreSQL and Redis services, then
+retain their direct provider connections or migrate into dedicated replacements.
+The existing GitHub database secret names do not prove which live dataset they use.
 
-Vercel's cron system (or any scheduler) should hit these endpoints with `Authorization: Bearer $CRON_SECRET`:
+Copy legacy Vercel Blob uploads into the uploads R2 bucket and training artifacts
+into the private training bucket, verify counts/checksums, and update stored URLs
+using a reviewed manifest. The 2026-10-10 inventory found 1,077 public images
+(566,522,262 bytes), shared across the old environments.
+`bun scripts/cloudflare/copy-uploads.ts staging inventory.json manifest.jsonl --audit`
+validates an inventory exported by the Blob SDK. Set `LEGACY_BLOB_HOST` to the
+audited store hostname. With `--copy` and Cloudflare account/token credentials,
+the script copies missing objects, verifies SHA-256 by reading R2 back, and refuses
+to overwrite different objects. Keep the inventory and manifest outside Git;
+this command does not update database references. Public uploads use `/media/<key>`; training references
+use `r2://training/<key>`. Keep old objects until references and backups are verified.
+External training jobs require separately scoped R2 S3 credentials. GPU training
+execution is not hosted by the web Worker.
 
-| Endpoint | Frequency | Purpose |
-|----------|-----------|---------|
-| `/api/cron/game-tick` | Every minute | Main game tick (feed, markets, events) |
-| `/api/cron/npc-tick` | Every minute | NPC trading decisions |
-| `/api/cron/agent-tick` | Every minute | Autonomous agent actions |
+Schema changes are manual via `Apply database migrations`, using checked-in SQL.
+Verify the existing migration-history baseline and backup before running it;
+there is no automatic destructive schema push during deployment. The current journal has
+non-increasing timestamps (including migrations 0068/0069), so a preflight blocks
+SQL execution until the live baseline is reconciled. Staging was missing 20 tables
+and production two wallet-transfer tables during the 2026-10-10 audit. Database
+connections worked; approximate database sizes were 20 GB staging and 37 GB production.
+
+The scheduler preserves all 17 schedules in `workers/cron/src/schedule.ts`,
+dispatches through a service binding, and authenticates with `CRON_SECRET`.
+It starts with `CRON_ENABLED=false`. Validate job duration, failure/retry handling,
+and idempotency before enabling it. Stop Vercel cron before enabling Cloudflare cron
+to prevent duplicate game ticks. Drain/reconcile pending messages before rollback.
+
+After staging acceptance, deploy production, configure `feed.fun` and
+`staging.feed.fun` custom domains, verify live TLS and commit identity, then disable
+Vercel's Git integration and old schedules. Retain the old deployment for rollback
+until live acceptance passes. Do not run both schedulers against the same database.
+
+Surplus is the preferred inference provider for text, embeddings, and images when
+`SURPLUS_API_KEY` is present. Models/base URL are configured in `.env.example`.
+The PostgreSQL dependency patch handles workerd's expected socket-read rejection
+on intentional request cleanup; unexpected socket errors still propagate.
 
 ---
 

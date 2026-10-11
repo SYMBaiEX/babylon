@@ -23,6 +23,9 @@ let initialized = false;
  * production, staging (preview), and development.
  */
 function getClientEnvironment(): 'production' | 'staging' | 'development' {
+  if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === 'staging') return 'staging';
+  if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === 'production')
+    return 'production';
   const vercelEnv = process.env.NEXT_PUBLIC_VERCEL_ENV;
   if (vercelEnv === 'production') return 'production';
   if (vercelEnv === 'preview') return 'staging';
