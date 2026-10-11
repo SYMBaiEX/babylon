@@ -27,7 +27,6 @@ export {
   type SweepDecision,
 } from './group-chat-service';
 export * from './InteractionTracker';
-export * from './initial-investment-service';
 export * from './jsonb-validators';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
