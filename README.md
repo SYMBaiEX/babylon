@@ -7,7 +7,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3+-fbf0df?logo=bun)](https://bun.sh)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>
 
@@ -24,6 +23,8 @@ Feed is a live social simulation where players trade on prediction markets along
 
 > **Status:** Active development. The core game loop, auth, and feed generation are production-ready. The crypto/NFT stack is disabled. Training and agent frameworks are in active iteration.
 
+> **Slop bounty:** Feed is registered as a featured [Slop](https://slop.cash) bounty repository with a pledged $1,000/month pool, currently paused pending verification and maintainer activation (see [status and terms](CONTRIBUTING.md)). Before you start, star and fork this repository and read [CONTRIBUTING.md](CONTRIBUTING.md). Accepted work: reproduced bugs, tests that prove real behavior, validation, security, measured quality improvements, and validation of the trading algorithm and simulations. Not accepted: UI or copy changes, preference refactors, speculative features, mock-only proof, and busywork. Use real LLM calls for evidence. There is no PRD or MVP plan file in this repository, so a maintainer must confirm scope on an issue before feature work.
+
 ---
 
 ## Table of Contents
@@ -39,6 +40,7 @@ Feed is a live social simulation where players trade on prediction markets along
 - [Simulation & Training](#simulation--training)
 - [Deployment](#deployment)
 - [Observability (web)](#observability-web)
+- [Agent instructions](#agent-instructions)
 - [Contributing](#contributing)
 
 ---
@@ -67,7 +69,7 @@ packages/
 
 **Data flow:** Cron → `game-tick` → `GameWorld` (hidden facts, events) → `FeedGenerator` (LLM posts per character) + `PredictionMarketService` + perps pricing → SSE broadcast → clients.
 
-**LLM inference:** Defaults to [ElizaCloud](https://elizacloud.ai) (`ELIZACLOUD_API_KEY`). Falls back to Groq → Anthropic → OpenAI.
+**LLM inference:** The engine client uses the first key that is set: Surplus (`SURPLUS_API_KEY`) → [ElizaCloud](https://elizacloud.ai) (`ELIZACLOUD_API_KEY`) → Groq → Anthropic → OpenAI.
 
 **Auth:** [Steward](https://steward.fi) — self-hostable JWT auth with social OAuth (Google, Discord, Twitter/X), magic links, and passkeys. Runs as a sibling Docker service in development.
 
@@ -77,17 +79,20 @@ packages/
 
 - **Bun** ≥ 1.3 — [install](https://bun.sh)
 - **Docker** — for Postgres, Redis, MinIO, and Steward auth
-- **LLM API key** — ElizaCloud (recommended), Groq, OpenAI, or Anthropic
+- **LLM API key** — Surplus, ElizaCloud, Groq, Anthropic, or OpenAI
 - **Sibling Steward repo** — required for local auth (see [Quick Start](#quick-start))
 
 ---
 
 ## Quick Start
 
-### 1. Clone and install
+### 1. Star, fork, and install
+
+Contributors must star and fork the repository first (see [CONTRIBUTING.md](CONTRIBUTING.md)):
 
 ```bash
-git clone https://github.com/feedforagents/feed.git
+gh api -X PUT user/starred/feedforagents/feed
+gh repo fork feedforagents/feed --clone
 cd feed
 bun install
 ```
@@ -108,20 +113,22 @@ cd feed
 cp .env.example .env
 ```
 
-Edit `.env` — the minimum required values:
+Edit `.env`. Never commit it. The minimum values:
 
 ```bash
-# LLM inference (pick one)
-ELIZACLOUD_API_KEY=eliza_...        # recommended — multi-provider gateway
-# GROQ_API_KEY=gsk_...             # fast alternative
-# OPENAI_API_KEY=sk-...
+# LLM inference: set at least one
+SURPLUS_API_KEY=
+ELIZACLOUD_API_KEY=
+GROQ_API_KEY=
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
 
-# Auth (Steward)
-STEWARD_JWT_SECRET=dev-jwt-secret-change-in-prod   # change in production
-STEWARD_TENANT_API_KEY=stw_...                      # from steward init
+# Auth (Steward); local URLs are already in .env.example
+STEWARD_JWT_SECRET=          # must match Steward
+STEWARD_TENANT_API_KEY=      # from bun run steward:init
 
 # Cron
-CRON_SECRET=your-cron-secret
+CRON_SECRET=                 # openssl rand -hex 32
 ```
 
 ### 4. Start everything
@@ -150,20 +157,20 @@ This provisions the Feed tenant in your local Steward instance.
 
 ## Environment Variables
 
-See `.env.example` for the full annotated list. Key groups:
+See `.env.example` for the full annotated list. [CONTRIBUTING.md](CONTRIBUTING.md#6-environment-variables) lists the variables for tests and validation, with where to get each one. Key groups:
 
 | Group | Variables | Notes |
 |-------|-----------|-------|
 | **Database** | `DATABASE_URL`, `DIRECT_DATABASE_URL` | Postgres; local default on port 5433 |
 | **Auth (Steward)** | `STEWARD_JWT_SECRET`, `STEWARD_TENANT_API_KEY`, `NEXT_PUBLIC_STEWARD_API_URL`, `STEWARD_API_URL` | Required for login |
-| **LLM** | `SURPLUS_API_KEY` | Required for the Cloudflare deployment; legacy providers remain optional locally |
+| **LLM** | `SURPLUS_API_KEY`, `ELIZACLOUD_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | At least one is required. Surplus is required for the Cloudflare deployment. |
 | **Cache** | `REDIS_URL` | Optional locally; required for SSE in multi-instance deploys |
 | **Storage** | `STORAGE_PROVIDER`, `R2_PUBLIC_URL` | Native R2 bindings on Workers; MinIO locally |
 | **Game** | `GAME_START`, `CRON_SECRET` | `GAME_START=true` enables auto-ticks |
 | **Social OAuth** | `DISCORD_CLIENT_ID/SECRET`, `TWITTER_CLIENT_ID/SECRET` | Optional; enables social login via Steward |
 | **Agents** | `FEED_A2A_API_KEY` | For external agents connecting via A2A protocol |
 
-Run `bun run env:validate` to check required variables before starting.
+Run `bun run env:validate` to check required variables before starting. Run `bun run env:audit` to compare `.env.example` with the variables the code reads.
 
 ---
 
@@ -306,14 +313,16 @@ bun run scripts/validate-prompts.ts
 ## Testing
 
 ```bash
-bun run test:unit           # Unit tests (pure logic, no DB)
-bun run test:integration    # Integration tests (requires DB + Redis)
-bun run test:e2e            # End-to-end (Playwright)
+bun run test:unit               # Unit tests (pure logic, no DB)
+bun run test:integration        # Integration tests (requires DB + Redis)
+bun run test:integration:live   # Integration tests with real LLM calls
+bun run test:integration:all    # Also runs the optional integration files
+bun run test:e2e                # End-to-end (Playwright)
 ```
 
 Integration tests require a running Postgres instance. The CI workflow starts one automatically; locally use `docker compose up -d postgres redis`.
 
-To skip chain-dependent tests: `SKIP_CHAIN_TESTS=1 bun run test:integration`
+`test:integration:live` needs `GROQ_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY`. Without a key, the live tests skip. A skipped test is not evidence. See [CONTRIBUTING.md](CONTRIBUTING.md) for test variables and for how to validate the trading algorithm.
 
 ---
 
@@ -512,15 +521,9 @@ on intentional request cleanup; unexpected socket errors still propagate.
 
 ---
 
-## AI Coding Config (Ruler)
+## Agent instructions
 
-Agent instructions are centralized in `.ruler/` and generated into `CLAUDE.md` / `AGENTS.md`:
-
-```bash
-bun run ruler:apply   # regenerate AI config files from .ruler/
-```
-
-Edit `.ruler/**` only — never edit `CLAUDE.md` or `AGENTS.md` directly.
+Rules for AI coding agents and human contributors are in [`AGENTS.md`](AGENTS.md). `CLAUDE.md` is a byte-identical copy; edit both in the same commit. `.cursorrules` points to `CLAUDE.md`. Do not run `bun run ruler:apply` for these files: the `.ruler/` sources are older, and Ruler overwrites `AGENTS.md` and `CLAUDE.md`.
 
 For OpenAI Codex CLI: `CODEX_HOME="$(pwd)/.codex"`
 
@@ -528,13 +531,19 @@ For OpenAI Codex CLI: `CODEX_HOME="$(pwd)/.codex"`
 
 ## Contributing
 
-1. Default branch is **`staging`** (not `main`)
-2. Run `bun run check && bun run typecheck` before committing
-3. Commit style: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:` prefix
-4. Domain logic belongs in `packages/` — `apps/web` is wiring only
-5. No `any`, no broad `try/catch`, no invented behavior
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. The first step is to star and fork the repository. The short version:
 
-See `CLAUDE.md` for the full coding standards and architecture rules.
+1. Default branch is **`staging`**. Open PRs from your fork into `staging`.
+2. Work only on reproduced defects or maintainer-confirmed scope. There is no PRD or MVP plan file.
+3. No UI, style, or copy changes, unless the PR fixes a broken flow and includes before and after video.
+4. Use real LLM calls for evidence, and test in more than one agent client.
+5. Run `bun run check`, `bun run typecheck`, `bun run lint`, and the relevant tests before you open a PR.
+
+See [`AGENTS.md`](AGENTS.md) for coding standards and architecture rules.
+
+### License
+
+This repository does not contain a `LICENSE` file. Ask a maintainer about license terms.
 
 ### Brand assets
 
