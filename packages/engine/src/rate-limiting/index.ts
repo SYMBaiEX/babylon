@@ -304,16 +304,6 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 60000,
     actionType: 'public_balance_fetch_anonymous',
   },
-  PUBLIC_NFT_IMAGE: {
-    maxRequests: 60,
-    windowMs: 60000,
-    actionType: 'public_nft_image',
-  },
-  PUBLIC_NFT_IMAGE_ANONYMOUS: {
-    maxRequests: 10,
-    windowMs: 60000,
-    actionType: 'public_nft_image_anonymous',
-  },
 
   // Default fallback
   DEFAULT: { maxRequests: 30, windowMs: 60000, actionType: 'default' },

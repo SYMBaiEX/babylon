@@ -9,8 +9,7 @@ import type { Address } from 'viem';
 import { base, baseSepolia, hardhat, mainnet, sepolia } from 'viem/chains';
 import configData from './public-config.json';
 
-// Re-export viem chain objects for NFT services (chains.ts was removed in Phase 1).
-// TODO: Remove these exports once NFT code is fully deleted in a future phase.
+// Re-export supported chain definitions.
 export { base, baseSepolia, hardhat, mainnet, sepolia };
 
 // =============================================================================
@@ -25,7 +24,6 @@ export interface CoreContractAddresses {
 export interface EthereumContractAddresses {
   identityRegistry: Address;
   reputationSystem: Address;
-  nft: Address;
 }
 
 export interface NetworkConfig {
@@ -84,7 +82,7 @@ export function getCurrentChainId(): number {
   return 31337;
 }
 
-/** Numeric chain ID for the current environment. Used by NFT services. */
+/** Numeric chain ID for the current environment. */
 export const CHAIN_ID = getCurrentChainId();
 
 function getCurrentNetwork(): NetworkConfig | EthereumNetworkConfig {
@@ -113,9 +111,10 @@ export function getRpcUrlForChainId(chainId: number): string {
 export function getCurrentContractAddresses():
   | CoreContractAddresses
   | EthereumContractAddresses {
-  const contracts = getCurrentNetwork().contracts;
+  const network = getCurrentNetwork();
+  const contracts = network.contracts;
 
-  if ('nft' in contracts) {
+  if (network.chainId === mainnet.id) {
     return contracts;
   }
 

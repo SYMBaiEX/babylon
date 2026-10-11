@@ -240,21 +240,6 @@ export {
 } from './redis';
 // Services
 export * from './services';
-export {
-  type AuthedPrivyUserContext,
-  getAuthedUserContextFromPrivyToken,
-  getAuthedUserContextFromPrivyTokenBundle,
-} from './services/privy/authed-user';
-export {
-  extractPrivyApiDiagnostics,
-  type PrivyApiDiagnostics,
-  redactJwtLikeTokens,
-} from './services/privy/error-diagnostics';
-// Privy (embedded wallet server-side helpers - kept for NFT mint service)
-export {
-  type PrivyUserWalletsLite,
-  pickEmbeddedEvmWallet,
-} from './services/privy/user-wallets';
 // SSE Event Broadcasting
 export {
   type AgentActivityEvent,

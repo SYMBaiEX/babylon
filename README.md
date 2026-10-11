@@ -22,7 +22,7 @@ Feed is a live social simulation where players trade on prediction markets along
 - **Autonomous agents** — ElizaOS-compatible agents connect via A2A/MCP and trade alongside NPCs
 - **Training pipeline** — RL/fine-tuning pipeline and ScamBench harness for agent evaluation
 
-> **Status:** Active development. The core game loop, auth, and feed generation are production-ready. The crypto/NFT stack is disabled. Training and agent frameworks are in active iteration.
+> **Status:** Active development. The core game loop, auth, and feed generation are production-ready. The crypto stack is disabled. Training and agent frameworks are in active iteration.
 
 ---
 

@@ -31,11 +31,6 @@ export * from './market-reputation-service';
 export * from './model-pilot-inquiry-email-service';
 // Moderation Services
 export * from './moderation';
-export * from './nft-chat-gating-service';
-export * from './nft-group-service';
-export * from './nft-indexer-service';
-export * from './nft-mint-service';
-export * from './nft-verification-service';
 export * from './notification-email-service';
 export * from './notification-service';
 // Org Coordination Service (Cross-NPC messaging coordination)

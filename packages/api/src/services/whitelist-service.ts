@@ -8,7 +8,6 @@ import {
   inArray,
   isNull,
   lt,
-  nftSnapshot,
   or,
   sql,
   users,
@@ -475,23 +474,13 @@ export async function autoWhitelistCurrentTopN(): Promise<{
     };
   }
 
-  // No need to whitelist users who already have permanent snapshot access (Top 100 end-of-2025).
-  // This keeps the whitelist focused on "reached top N at any time" users.
-  const snapshotRows = await db
-    .select({ userId: nftSnapshot.userId })
-    .from(nftSnapshot)
-    .where(inArray(nftSnapshot.userId, userIds));
-  const snapshotSet = new Set(snapshotRows.map((r) => r.userId));
-
   const existing = await db
     .select({ userId: whitelist.userId, revokedAt: whitelist.revokedAt })
     .from(whitelist)
     .where(inArray(whitelist.userId, userIds));
 
   const existingMap = new Map(existing.map((e) => [e.userId, e.revokedAt]));
-  const toInsert = userIds.filter(
-    (id) => !snapshotSet.has(id) && !existingMap.has(id)
-  );
+  const toInsert = userIds.filter((id) => !existingMap.has(id));
 
   const skippedExisting = existing.length;
   const skippedRevoked = existing.filter((e) => e.revokedAt !== null).length;

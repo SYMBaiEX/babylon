@@ -22,12 +22,11 @@ export const walletTransferLog = pgTable(
     fromAddress: text('fromAddress').notNull(),
     toAddress: text('toAddress').notNull(),
     tokenAddress: text('tokenAddress'), // null for native ETH
-    tokenId: text('tokenId'), // for NFT transfers
     amount: text('amount').notNull(), // raw value in wei/units
     txHash: text('txHash'),
     chainId: integer('chainId').notNull(),
     status: text('status').notNull(), // 'pending' | 'confirmed' | 'failed'
-    type: text('type').notNull(), // 'native' | 'erc20' | 'erc721'
+    type: text('type').notNull(), // 'native' | 'erc20'
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     confirmedAt: timestamp('confirmedAt', { mode: 'date' }),
     usdValueAtTime: decimal('usdValueAtTime', { precision: 18, scale: 2 }),

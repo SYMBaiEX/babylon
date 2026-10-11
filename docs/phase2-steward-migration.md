@@ -871,6 +871,8 @@ New component. Opens when `useAuth().login()` is called.
 Farcaster has no active login, mini-app, sharing, or rewards integration. Its legacy profile and reward columns are removed by a forward database migration, and migration/export tooling no longer carries Farcaster account data. Deploy the application cleanup before applying `0001_remove_farcaster` so older application instances do not query removed columns.
 
 
+The collectible NFT gallery, minting, holdings, and token-gated chat integration have also been removed. Deploy the application cleanup before applying `0002_remove_collectible_nfts`. This migration deletes collectible ownership, claim, collection, and snapshot data and removes chat gate fields; existing chats and memberships remain. ERC-8004 agent identity is separate and remains in place.
+
 ### Step 17 — Telegram mini-app auth
 
 **`apps/web/src/components/providers/TelegramMiniAppProvider.tsx`**:
@@ -942,7 +944,7 @@ The existing `POST /api/users/[userId]/link-social` route already supports non-w
 
 ---
 
-### Step 19 — Mechanical sweep: `getAccessToken` callers (9 files)
+### Step 19 — Mechanical sweep: `getAccessToken` callers (8 files)
 
 All these files do `const { getAccessToken } = usePrivy()`. Change to `useAuth()`:
 
@@ -952,9 +954,8 @@ All these files do `const { getAccessToken } = usePrivy()`. Change to `useAuth()
 4. `apps/web/src/hooks/useToggleReaction.ts`
 5. `apps/web/src/hooks/useQueuedOutcomes.ts`
 6. `apps/web/src/components/points/BuyPointsModal.tsx`
-7. `apps/web/src/components/chats/NftVerificationBanner.tsx`
-8. `apps/web/src/components/settings/SecurityTab.tsx`
-9. `apps/web/src/components/providers/OnboardingProvider.tsx` (also uses `const { user: privyUser } = usePrivy()` — replace with Feed user from `useAuth()`)
+7. `apps/web/src/components/settings/SecurityTab.tsx`
+8. `apps/web/src/components/providers/OnboardingProvider.tsx` (also uses `const { user: privyUser } = usePrivy()` — replace with Feed user from `useAuth()`)
 
 ---
 
@@ -1205,7 +1206,6 @@ TELEGRAM_BOT_TOKEN=
 | `apps/web/src/components/auth/LoginModal.tsx` | **NEW** |
 | `apps/web/src/components/profile/LinkSocialAccountsModal.tsx` | Remove `useLinkAccount` |
 | `apps/web/src/components/points/BuyPointsModal.tsx` | `getAccessToken` from `useAuth` |
-| `apps/web/src/components/chats/NftVerificationBanner.tsx` | `getAccessToken` from `useAuth` |
 | `apps/web/src/components/settings/SecurityTab.tsx` | Remove `usePrivy/useWallets` |
 
 **Frontend — pages & API routes:**

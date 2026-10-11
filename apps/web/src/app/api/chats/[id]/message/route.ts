@@ -100,25 +100,13 @@ import {
   checkProgress,
   checkRateLimitAndDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
-  NFTVerificationService,
   notifyDMMessage,
   notifyGroupChatMessage,
   RATE_LIMIT_CONFIGS,
   successResponse,
   withErrorHandling,
 } from '@feed/api';
-import { requireNftChatAccess } from '@feed/api/services/nft-chat-gating-service';
-import {
-  and,
-  asUser,
-  chatParticipants,
-  db,
-  eq,
-  groupMembers,
-  hasBlocked,
-  messages,
-  users,
-} from '@feed/db';
+import { and, asUser, db, eq, hasBlocked, messages, users } from '@feed/db';
 import {
   GroupChatService,
   MessageQualityChecker,
@@ -338,78 +326,6 @@ export const POST = withErrorHandling(
             'chat',
             'write'
           );
-        }
-
-        await requireNftChatAccess(user, chatId);
-
-        // Verify NFT ownership for NFT-gated chats (cached)
-        if (chat.nftGated && chat.requiredNftContractAddress) {
-          const [userData] = await db
-            .select({ walletAddress: users.walletAddress })
-            .from(users)
-            .where(eq(users.id, user.userId))
-            .limit(1);
-
-          const verification = await NFTVerificationService.verifyChatAccess(
-            userData?.walletAddress ?? null,
-            chat.requiredNftContractAddress,
-            chat.requiredNftTokenId ?? null,
-            chat.requiredNftChainId ?? undefined
-          );
-
-          if (!verification.canAccess) {
-            // Remove user from chat since they no longer have NFT access
-            // Wrap in transaction for consistency
-            await db.transaction(async (tx) => {
-              if (chat.groupId) {
-                await tx
-                  .update(groupMembers)
-                  .set({
-                    isActive: false,
-                    kickedAt: new Date(),
-                    kickReason: 'Lost NFT access',
-                  })
-                  .where(
-                    and(
-                      eq(groupMembers.groupId, chat.groupId),
-                      eq(groupMembers.userId, user.userId),
-                      eq(groupMembers.isActive, true)
-                    )
-                  );
-              }
-
-              await tx
-                .delete(chatParticipants)
-                .where(
-                  and(
-                    eq(chatParticipants.chatId, chatId),
-                    eq(chatParticipants.userId, user.userId)
-                  )
-                );
-            });
-
-            // Invalidate NFT cache for this user/contract combination
-            if (userData?.walletAddress && chat.requiredNftContractAddress) {
-              await NFTVerificationService.invalidateOwnershipCache(
-                userData.walletAddress,
-                chat.requiredNftContractAddress,
-                chat.requiredNftChainId ?? undefined
-              ).catch((error) => {
-                logger.warn(
-                  'Failed to invalidate NFT cache after removal',
-                  { error, chatId, userId: user.userId },
-                  'POST /api/chats/[id]/message'
-                );
-              });
-            }
-
-            throw new AuthorizationError(
-              verification.reason ||
-                'You must own the required NFT to send messages in this chat. You have been removed from this chat.',
-              'chat',
-              'write'
-            );
-          }
         }
       }
     }

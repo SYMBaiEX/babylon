@@ -147,7 +147,6 @@ mock.module('@feed/db', () => ({
   llmCallLogs: {},
   markets: {},
   messages: { id: 'messages' },
-  nftOwnership: {},
   npcTrades: {},
   perpPositions: {},
   positions: {},

@@ -9,7 +9,6 @@
           "/post/*",
           "/agents/*",
           "/markets/*",
-          "/nft/*",
           "/feed",
           "/u/*",
           "/actors/*",

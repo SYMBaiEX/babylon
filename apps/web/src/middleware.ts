@@ -173,23 +173,6 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // NFT features are disabled — block both API routes and page routes.
-  if (
-    pathname.startsWith('/api/nft') ||
-    pathname.startsWith('/api/wallet/nfts') ||
-    pathname === '/nft' ||
-    pathname.startsWith('/nft/')
-  ) {
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'NFT features are currently disabled.' },
-        { status: 503 }
-      );
-    }
-    // Redirect page routes to home
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
   // Skip CORS handling for agent routes - handled in next.config.ts headers() with wildcard
   // Agent routes use Bearer token auth (not cookies), so they can use wildcard CORS
   if (isAgentApiRequest(pathname)) {

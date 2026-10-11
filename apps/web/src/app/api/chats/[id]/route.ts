@@ -59,7 +59,6 @@ import {
   successResponse,
   withErrorHandling,
 } from '@feed/api';
-import { requireNftChatAccess } from '@feed/api/services/nft-chat-gating-service';
 import {
   and,
   asc,
@@ -78,12 +77,7 @@ import {
   users,
 } from '@feed/db';
 import { StaticDataRegistry } from '@feed/engine';
-import {
-  ChatQuerySchema,
-  getChainName,
-  getCurrentChainId,
-  logger,
-} from '@feed/shared';
+import { ChatQuerySchema, logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { CHAT_PAGE_SIZE } from '@/lib/constants';
 
@@ -177,8 +171,6 @@ export const GET = withErrorHandling(
           'read'
         );
       }
-
-      await requireNftChatAccess(authUser, chatId);
     }
 
     // Get chat with messages
@@ -508,12 +500,6 @@ export const GET = withErrorHandling(
       createdAt: Date;
       updatedAt: Date;
       otherUser: typeof otherUser;
-      nftRequirement?: {
-        contractAddress: string;
-        tokenId: number | null;
-        chainId: number;
-        chainName: string;
-      };
     } = {
       id: chat.id,
       name: displayName || chat.name,
@@ -522,16 +508,6 @@ export const GET = withErrorHandling(
       updatedAt: chat.updatedAt,
       otherUser: otherUser,
     };
-
-    if (chat.nftGated && chat.requiredNftContractAddress) {
-      const chainId = chat.requiredNftChainId ?? getCurrentChainId();
-      chatResponse.nftRequirement = {
-        contractAddress: chat.requiredNftContractAddress,
-        tokenId: chat.requiredNftTokenId,
-        chainId,
-        chainName: getChainName(chainId),
-      };
-    }
 
     return successResponse({
       chat: chatResponse,

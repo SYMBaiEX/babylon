@@ -15,7 +15,6 @@ const whitelistConfigTable = {
   id: 'id',
   leaderboardRankThreshold: 'leaderboardRankThreshold',
 };
-const nftSnapshotTable = { userId: 'userId' };
 const usersTable = {
   id: 'id',
   reputationPoints: 'reputationPoints',
@@ -30,7 +29,6 @@ let mockWhitelistConfigRow: { leaderboardRankThreshold: number | null } | null =
     leaderboardRankThreshold: 100,
   };
 let mockTopUsers: Array<{ id: string }> = [];
-let mockSnapshotRows: Array<{ userId: string }> = [];
 let mockExistingRows: Array<{ userId: string; revokedAt: Date | null }> = [];
 let mockInsertedRows: Array<{ userId: string }> = [];
 
@@ -44,12 +42,6 @@ const mockDbSelect = mock((fields?: unknown) => ({
               mockWhitelistConfigRow ? [mockWhitelistConfigRow] : []
             ),
         }),
-      };
-    }
-
-    if (table === nftSnapshotTable) {
-      return {
-        where: () => Promise.resolve(mockSnapshotRows),
       };
     }
 
@@ -108,7 +100,6 @@ mock.module('@feed/db', () => ({
   users: usersTable,
   whitelist: whitelistTable,
   whitelistConfig: whitelistConfigTable,
-  nftSnapshot: nftSnapshotTable,
 }));
 
 mock.module('@feed/engine', () => ({
@@ -150,7 +141,6 @@ describe('autoWhitelistCurrentTopN', () => {
 
     mockWhitelistConfigRow = { leaderboardRankThreshold: 100 };
     mockTopUsers = [{ id: 'user-1' }, { id: 'user-2' }];
-    mockSnapshotRows = [];
     mockExistingRows = [];
     mockInsertedRows = [{ userId: 'user-1' }, { userId: 'user-2' }];
   });

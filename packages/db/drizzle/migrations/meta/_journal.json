@@ -15,6 +15,13 @@
       "when": 1791754582384,
       "tag": "0001_remove_farcaster",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791756357957,
+      "tag": "0002_remove_collectible_nfts",
+      "breakpoints": true
     }
   ]
 }

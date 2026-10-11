@@ -108,7 +108,6 @@ mock.module('@feed/db', () => ({
   balanceTransactions: {},
   follows: {},
   generationLocks: {},
-  nftOwnership: {},
   positions: {},
   referrals: {},
   users: { id: 'id' },
@@ -128,7 +127,6 @@ mock.module('@feed/db', () => ({
     revokedAt: 'revokedAt',
   },
   whitelistConfig: {},
-  nftSnapshot: { userId: 'userId' },
 }));
 
 mock.module('@feed/engine', () => ({
