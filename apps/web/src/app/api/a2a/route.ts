@@ -72,6 +72,7 @@
  *                   type: string
  */
 
+import { parseJsonRpcEnvelope } from '@/lib/a2a/jsonrpc-guard';
 import {
   DefaultExecutionEventBusManager,
   DefaultRequestHandler,
@@ -137,6 +138,11 @@ export const POST = withErrorHandling(async function POST(
       { status: 400 }
     );
   }
+
+  // Validate the envelope before reading from it: null, primitive or array
+  // bodies (and non-object params) get a JSON-RPC error instead of a 500.
+  const envelopeCheck = parseJsonRpcEnvelope(body);
+  if (envelopeCheck.errorResponse) return envelopeCheck.errorResponse;
 
   logger.info('Official A2A request', {
     method: body.method,
