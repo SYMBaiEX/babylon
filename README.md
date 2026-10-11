@@ -189,7 +189,6 @@ Cloudflare Workers observability provides deployment logs. PostHog remains the p
 | `apps/web` | Primary Next.js app — UI, API routes, SSE, Steward auth wiring |
 | `apps/cli` | `feed` CLI — db migrations, game control, agent management |
 | `apps/mobile` | Capacitor mobile shell |
-| `apps/dag-visualizer` | Visual DAG explorer for game-tick data flow (port 4000) |
 
 ### Packages
 
