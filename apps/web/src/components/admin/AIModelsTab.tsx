@@ -21,11 +21,12 @@ interface ModelInfo {
  */
 interface AIModelsData {
   providers: {
+    surplus: boolean;
     groq: boolean;
     claude: boolean;
     openai: boolean;
   };
-  activeProvider: 'groq' | 'claude' | 'openai';
+  activeProvider: 'surplus' | 'groq' | 'claude' | 'openai';
   recommendedModels: ModelInfo[];
 }
 
@@ -124,6 +125,8 @@ export function AIModelsTab() {
 
   const getProviderName = (provider: string) => {
     switch (provider) {
+      case 'surplus':
+        return 'Surplus Intelligence';
       case 'groq':
         return 'Groq';
       case 'claude':

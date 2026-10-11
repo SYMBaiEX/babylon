@@ -455,6 +455,8 @@ non-increasing timestamps (including migrations 0068/0069), so a preflight block
 SQL execution until the live baseline is reconciled. Staging was missing 20 tables
 and production two wallet-transfer tables during the 2026-10-10 audit. Database
 connections worked; approximate database sizes were 20 GB staging and 37 GB production.
+Staging also lacked eight trajectory columns; production had no missing columns
+on existing tables, but type/nullability differences still need review.
 
 The scheduler preserves all 17 schedules in `workers/cron/src/schedule.ts`,
 dispatches through a service binding, and authenticates with `CRON_SECRET`.

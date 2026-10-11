@@ -197,36 +197,6 @@ jobs:
           CI: true
           LLM_TIMEOUT_MS: '30000'
 
-      - name: Run Integration Tests
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          echo "🧪 Running integration tests..."
-          bun test packages/testing/integration/ \
-            --preload ./packages/testing/integration/preload.ts \
-            --timeout 30000 \
-            2>&1 | tee /tmp/integration-results.log
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo ""
-          echo "📊 Integration test summary:"
-          grep -cE "^\(pass\)" /tmp/integration-results.log | xargs -I{} echo "  Passed: {}"
-          grep -cE "^\(fail\)" /tmp/integration-results.log | xargs -I{} echo "  Failed: {}"
-          grep -cE "^\(skip\)" /tmp/integration-results.log | xargs -I{} echo "  Skipped: {}"
-          tail -5 /tmp/integration-results.log
-          exit "$EXIT_CODE"
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          TEST_API_URL: http://localhost:3000
-          PLAYWRIGHT_BASE_URL: http://localhost:3000
-          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || secrets.NEXT_PUBLIC_PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
-          PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
-          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || secrets.PRIVY_APP_ID || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'cl_ci_fork_dummy') || '' }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET || 'test-cron-secret' }}
-          NODE_ENV: test
-          CI: true
-          LLM_TIMEOUT_MS: '30000'
-
       - name: Run Chroma E2E Tests
         if: ${{ env.HAS_CHROMA_SECRETS == 'true' }}
         run: cd tools/chroma && bunx playwright test --config=playwright.config.ts --reporter=list,json
@@ -272,3 +242,17 @@ jobs:
           else
             echo "ℹ️  No production server log file found."
           fi
+
+  ci-tests:
+    name: CI - Tests
+    needs: [quality-gate, test-all]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report the status required by branch protection
+        env:
+          QUALITY_RESULT: ${{ needs.quality-gate.result }}
+          TEST_RESULT: ${{ needs.test-all.result }}
+        run: |
+          test "$QUALITY_RESULT" = success
+          test "$TEST_RESULT" = success

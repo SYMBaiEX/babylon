@@ -1,3 +1,4 @@
+import { getSurplusConfig } from '@babylon/shared';
 /**
  * Agent LLM Provider
  *
@@ -38,7 +39,12 @@ import { buildReasoningTraceMetadata } from './reasoning-trace';
 /**
  * Supported LLM provider types for agent inference
  */
-export type AgentLLMProvider = 'huggingface' | 'phala' | 'ollama' | 'groq';
+export type AgentLLMProvider =
+  | 'surplus'
+  | 'huggingface'
+  | 'phala'
+  | 'ollama'
+  | 'groq';
 
 /**
  * Determines the configured LLM provider from environment variables
@@ -47,6 +53,7 @@ export type AgentLLMProvider = 'huggingface' | 'phala' | 'ollama' | 'groq';
  * @internal
  */
 function getConfiguredProvider(): AgentLLMProvider {
+  if (getSurplusConfig()) return 'surplus';
   const provider = process.env.AGENT_LLM_PROVIDER?.toLowerCase();
   if (provider === 'huggingface' || provider === 'hf') return 'huggingface';
   if (provider === 'phala') return 'phala';
@@ -429,6 +436,7 @@ export async function callAgentLLM(params: AgentLLMParams): Promise<string> {
     case 'ollama':
       return callOllamaLocal(params);
 
+    case 'surplus':
     case 'groq':
     default:
       return callGroqDirect({
@@ -469,6 +477,17 @@ export async function getAgentLLMStatus(): Promise<{
 }> {
   const provider = getConfiguredProvider();
   const details: Record<string, string | boolean> = {};
+
+  const surplus = getSurplusConfig();
+  if (provider === 'surplus' && surplus) {
+    return {
+      provider,
+      configured: true,
+      available: true,
+      model: surplus.model,
+      details: { hasApiKey: true, endpoint: surplus.baseURL },
+    };
+  }
 
   let configured = false;
   let available = false;
