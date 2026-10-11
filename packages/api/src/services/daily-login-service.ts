@@ -140,7 +140,10 @@ export function buildClaimResult(
   };
 }
 
-export function getClaimStatus(lastClaim: Date | null): ClaimStatus {
+export function getClaimStatus(
+  lastClaim: Date | null,
+  now: number = Date.now()
+): ClaimStatus {
   if (!lastClaim) {
     return {
       canClaim: true,
@@ -151,7 +154,7 @@ export function getClaimStatus(lastClaim: Date | null): ClaimStatus {
   }
 
   // Clamp to 0 to handle clock skew (lastClaim in the future)
-  const elapsed = Math.max(0, Date.now() - lastClaim.getTime());
+  const elapsed = Math.max(0, now - lastClaim.getTime());
   const { MIN_CLAIM_INTERVAL_MS, GRACE_PERIOD_MS } = DAILY_LOGIN;
 
   if (elapsed < MIN_CLAIM_INTERVAL_MS) {
