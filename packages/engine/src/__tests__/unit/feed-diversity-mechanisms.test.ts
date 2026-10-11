@@ -182,9 +182,15 @@ describe('createDiscourseActionDeck', () => {
     expect(result).toEqual([]);
   });
 
-  test('returns empty array for negative slots', () => {
-    const result = createDiscourseActionDeck(-5, 0.3, Math.random);
-    expect(result).toEqual([]);
+  test('rejects invalid slot counts and ratios', () => {
+    expect(() => createDiscourseActionDeck(-5, 0.3, Math.random)).toThrow();
+    expect(() => createDiscourseActionDeck(2.5, 0.3, Math.random)).toThrow();
+    expect(() =>
+      createDiscourseActionDeck(Number.POSITIVE_INFINITY, 0.3, Math.random)
+    ).toThrow();
+    expect(() =>
+      createDiscourseActionDeck(4, Number.NaN, Math.random)
+    ).toThrow();
   });
 
   test('creates correct ratio of quotes to replies', () => {
