@@ -489,9 +489,8 @@ The `scripts/` directory contains standalone utilities for training operations:
 | `generate-benchmark-scenarios.ts` | Regenerate fixed benchmark scenario files |
 | `train-and-test.ts` | Full pipeline: train model + game test |
 | `run-full-pipeline.ts` | Complete training workflow orchestration |
-| `run-baseline-comparison.ts` | Head-to-head benchmark: random vs trained |
+| `run-baseline-comparison.ts` | Head-to-head: random baseline vs momentum heuristic |
 | `real-archetype-benchmark.ts` | Benchmark using real agent data |
-| `json-mode-benchmark.ts` | Benchmark without database dependency |
 | `test-model-in-game.ts` | Test trained model in simulation |
 | `test-trained-model.ts` | Validate trained model from DB or path |
 | `test-scoring.ts` | Debug LLM-as-judge scoring |
