@@ -105,8 +105,8 @@ function createBaseInput(): BuildSystemStatusInput {
     },
     environment: {
       nodeEnv: 'test',
-      vercelEnv: 'preview',
-      region: 'cdg1',
+      deploymentEnv: 'staging',
+      platform: 'cloudflare',
     },
   };
 }
@@ -185,7 +185,7 @@ describe('system-status-service', () => {
     const message = formatSystemStatusDiscordMessage(snapshot);
 
     expect(message).toContain('Feed CRITICAL system alert');
-    expect(message).toContain('Environment: preview');
+    expect(message).toContain('Environment: staging');
     expect(message).toContain('Server Memory: 96% heap used');
   });
 });

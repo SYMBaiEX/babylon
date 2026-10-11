@@ -76,8 +76,6 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
-// Vercel function configuration
-export const maxDuration = 300; // 5 minutes max - reduced from 800s to prevent long lock holds
 export const dynamic = 'force-dynamic';
 
 /**

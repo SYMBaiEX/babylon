@@ -26,8 +26,6 @@ import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 120;
-
 const BUNDLED_REFERENCE = join(
   process.cwd(),
   'public/assets/user-pfps/pfp-001.png'

@@ -128,7 +128,9 @@ async function diagnose() {
   console.log('   4. The deployed code is different from local code');
   console.log('');
   console.log('   📋 NEXT STEPS:');
-  console.log('   1. Check Vercel/deployment logs for agent-tick executions');
+  console.log(
+    '   1. Check Cloudflare Worker/deployment logs for agent-tick executions'
+  );
   console.log('   2. Look for errors in production logs');
   console.log('   3. Verify GROQ_API_KEY is set in production');
   console.log('   4. Check if trading was intentionally disabled in prod');

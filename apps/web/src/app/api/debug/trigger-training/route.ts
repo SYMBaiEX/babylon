@@ -52,7 +52,6 @@ import { logger } from '@feed/shared';
 import { requireAdmin, withErrorHandling } from '@feed/api';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Security: ALWAYS require ADMIN authentication

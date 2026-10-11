@@ -9,7 +9,6 @@ export function postgresTlsMode(
   const ssl = url.searchParams.get('sslmode') ?? url.searchParams.get('ssl');
   const explicitTls = !!ssl && !['disable', 'false', '0'].includes(ssl);
   const managedHost = [
-    'neon.tech',
     'supabase.co',
     'db.bit.io',
     'postgres.database.azure.com',

@@ -456,7 +456,8 @@ process.env.FEED_DAG_TRACE = 'true';
 process.env.DEBUG_SAVE_PROMPTS = 'true';
 process.env.GAME_START ??= 'true';
 process.env.NODE_ENV ??= 'development';
-process.env.VERCEL_ENV ??= 'production';
+process.env.DEPLOYMENT_ENV ??= 'production';
+process.env.ENABLE_INTERNAL_CRON_SCHEDULER ??= 'false';
 process.env.REDIRECT_CRON_STAGING = 'false';
 process.env.NPC_TRADE_PROBABILITY = npcTradeProbability.toString();
 

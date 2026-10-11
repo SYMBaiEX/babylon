@@ -2,7 +2,7 @@
  * Prompt Loader Utility
  *
  * Simplified TypeScript-based prompt system for rendering prompts with
- * variable substitution. No bundling required - works natively in Vercel
+ * variable substitution. No bundling required - works natively in serverless runtimes
  * serverless environments.
  */
 

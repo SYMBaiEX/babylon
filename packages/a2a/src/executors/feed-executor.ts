@@ -366,7 +366,7 @@ export class FeedAgentExecutor implements AgentExecutor {
 
   /**
    * Execute operation directly without A2A HTTP protocol
-   * Used for server-side internal calls to bypass Vercel serverless HTTP limitations
+   * Used for server-side internal calls to bypass serverless HTTP self-call limitations
    *
    * @param operation - The operation name (e.g., 'portfolio.get_balance')
    * @param params - Operation parameters

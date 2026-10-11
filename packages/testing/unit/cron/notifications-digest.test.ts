@@ -15,9 +15,9 @@ const _actualFeedApi = await import('@feed/api');
 mock.module('@feed/api', () => ({
   ..._actualFeedApi,
   getDeploymentEnvironment: () =>
-    process.env.VERCEL_ENV === 'production'
+    process.env.DEPLOYMENT_ENV === 'production'
       ? 'production'
-      : process.env.VERCEL_ENV === 'preview'
+      : process.env.DEPLOYMENT_ENV === 'staging'
         ? 'staging'
         : 'development',
   recordCronExecution: mockRecordCronExecution,
@@ -54,11 +54,11 @@ describe('notifications-digest cron fan-out', () => {
       hadContent: candidate.id === 'a' || candidate.id === 'b',
     }));
     delete process.env.SHARED_DATABASE_WITH_STAGING;
-    delete process.env.VERCEL_ENV;
+    delete process.env.DEPLOYMENT_ENV;
   });
 
   test('partitions local production execution when relay fan-out is active', async () => {
-    process.env.VERCEL_ENV = 'production';
+    process.env.DEPLOYMENT_ENV = 'production';
     mockRelayCronToStaging.mockResolvedValue({
       forwarded: true,
       status: 200,
@@ -99,7 +99,7 @@ describe('notifications-digest cron fan-out', () => {
   });
 
   test('partitions relayed staging execution using the relay header', async () => {
-    process.env.VERCEL_ENV = 'preview';
+    process.env.DEPLOYMENT_ENV = 'staging';
     mockRelayCronToStaging.mockResolvedValue({ forwarded: false });
     mockListDigestCandidates.mockResolvedValue([
       {

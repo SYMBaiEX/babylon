@@ -15,7 +15,6 @@ import {
 } from '@/lib/services/notification-digest-service';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
 
 /**
  * Determines whether this environment should process a given user.

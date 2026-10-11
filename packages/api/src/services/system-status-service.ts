@@ -78,8 +78,8 @@ interface SystemTableInfo {
 
 interface SystemEnvironmentInfo {
   nodeEnv: string | null;
-  vercelEnv: string | null;
-  region: string | null;
+  deploymentEnv: string | null;
+  platform: string | null;
 }
 
 interface SystemPerformanceMetrics {
@@ -844,8 +844,8 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
       },
       environment: {
         nodeEnv: process.env.NODE_ENV ?? null,
-        vercelEnv: process.env.VERCEL_ENV ?? null,
-        region: process.env.VERCEL_REGION ?? null,
+        deploymentEnv: process.env.DEPLOYMENT_ENV ?? null,
+        platform: process.env.DEPLOYMENT_PLATFORM ?? null,
       },
     });
   }
@@ -1036,8 +1036,8 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
     },
     environment: {
       nodeEnv: process.env.NODE_ENV ?? null,
-      vercelEnv: process.env.VERCEL_ENV ?? null,
-      region: process.env.VERCEL_REGION ?? null,
+      deploymentEnv: process.env.DEPLOYMENT_ENV ?? null,
+      platform: process.env.DEPLOYMENT_PLATFORM ?? null,
     },
   });
 }
@@ -1055,7 +1055,7 @@ function getAlertFingerprint(snapshot: SystemStatusSnapshot): string {
     .update(
       JSON.stringify({
         environment:
-          snapshot.environment.vercelEnv ?? snapshot.environment.nodeEnv,
+          snapshot.environment.deploymentEnv ?? snapshot.environment.nodeEnv,
         status: snapshot.status,
         criticalIssues: snapshot.criticalIssues,
       })
@@ -1127,9 +1127,11 @@ export function formatSystemStatusDiscordMessage(
   snapshot: SystemStatusSnapshot
 ): string {
   const environment =
-    snapshot.environment.vercelEnv ?? snapshot.environment.nodeEnv ?? 'unknown';
-  const region = snapshot.environment.region
-    ? `\nRegion: ${snapshot.environment.region}`
+    snapshot.environment.deploymentEnv ??
+    snapshot.environment.nodeEnv ??
+    'unknown';
+  const platform = snapshot.environment.platform
+    ? `\nPlatform: ${snapshot.environment.platform}`
     : '';
   const issueLines =
     snapshot.criticalIssues.length > 0
@@ -1144,7 +1146,7 @@ export function formatSystemStatusDiscordMessage(
 
   return [
     `Feed ${snapshot.status.toUpperCase()} system alert`,
-    `Environment: ${environment}${region}`,
+    `Environment: ${environment}${platform}`,
     `Critical subsystems: ${snapshot.summary.criticalCount}/${snapshot.summary.total}`,
     issueLines.length > 0 ? issueLines : '- No issue details available',
   ].join('\n');

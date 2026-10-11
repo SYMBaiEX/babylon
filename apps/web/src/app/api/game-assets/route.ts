@@ -6,8 +6,8 @@
  *
  * @description
  * Returns game assets including group chats, actors, and other game-related
- * data needed for client-side game initialization. Designed for Vercel
- * serverless deployment where file system access is limited.
+ * data needed for client-side game initialization. Designed for Cloudflare
+ * Workers deployment where file system access is unavailable.
  *
  * @openapi
  * /api/game-assets:

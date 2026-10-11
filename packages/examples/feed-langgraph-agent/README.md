@@ -4,7 +4,7 @@ Production-ready autonomous trading agent built with **LangGraph** and **HTTP A2
 
 ## Features
 
-- 🌐 **HTTP A2A Protocol** - Recommended mode (works with Vercel/serverless)
+- 🌐 **HTTP A2A Protocol** - Recommended mode (works with serverless/Workers deployments)
 - 🧠 **LangGraph ReAct Agent** - Reasoning and action loop with Groq LLM
 - 💾 **Persistent Memory** - Conversation and action history
 - 🔄 **Autonomous Loop** - Continuous decision making

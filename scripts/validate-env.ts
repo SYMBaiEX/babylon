@@ -201,10 +201,8 @@ export function deriveProfile(
   if (deploymentEnv === 'mainnet') return 'production';
   if (deploymentEnv === 'testnet') return 'staging';
   if (deploymentEnv === 'localnet') return 'local';
-
-  const vercelEnv = env.VERCEL_ENV?.toLowerCase().trim();
-  if (vercelEnv === 'production') return 'production';
-  if (vercelEnv === 'preview') return 'staging';
+  if (deploymentEnv === 'production') return 'production';
+  if (deploymentEnv === 'staging') return 'staging';
 
   const nodeEnv = env.NODE_ENV?.toLowerCase().trim();
   if (nodeEnv === 'production') return 'production';

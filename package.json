@@ -107,7 +107,6 @@
     "@feed/shared": "workspace:*",
     "@feed/testing": "workspace:*",
     "@feed/training": "workspace:*",
-    "@neondatabase/serverless": "^1.0.2",
     "@tailwindcss/postcss": "4.1.17",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.44.7",

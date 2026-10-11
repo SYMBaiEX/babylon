@@ -71,9 +71,6 @@ import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-// Vercel function configuration
-export const maxDuration = 300; // 5 minutes max
-
 export const POST = withErrorHandling(async (request: NextRequest) => {
   // Security: Verify cron authorization (fail-closed in production)
   requireCronAuth(request, { jobName: 'WorldFactsCron' });
@@ -202,21 +199,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 });
 
-// GET endpoint for Vercel Cron (some cron services use GET)
+// GET endpoint for the Cloudflare cron Worker (dispatches GET requests)
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Security: Verify cron authorization (allows Vercel Cron user-agent)
-  if (
-    !verifyCronAuth(request, {
-      jobName: 'WorldFactsCron',
-      allowVercelCronUserAgent: true,
-    })
-  ) {
+  // Security: Verify cron authorization (CRON_SECRET bearer token)
+  if (!verifyCronAuth(request, { jobName: 'WorldFactsCron' })) {
     logger.warn('Unauthorized GET request to cron endpoint', undefined, 'Cron');
     return NextResponse.json(
-      {
-        error:
-          'Use POST for cron execution. This endpoint is triggered by Vercel Cron',
-      },
+      { error: 'Unauthorized cron request' },
       { status: 401 }
     );
   }

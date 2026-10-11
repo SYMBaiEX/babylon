@@ -6,7 +6,7 @@
  *
  * @description
  * Proxies NFT images from IPFS gateways to avoid CORS issues and provide
- * reliable, fast delivery via Vercel CDN. Includes in-memory caching,
+ * reliable, fast delivery via the CDN. Includes in-memory caching,
  * multi-gateway fallback, and distributed rate limiting.
  */
 
@@ -54,7 +54,7 @@ const COLLECTION_SIZE = Number(process.env.NFT_COLLECTION_SIZE) || 100;
  * Memory considerations:
  * - Each entry contains an ArrayBuffer (typically 50KB-500KB for images)
  * - At MAX_CACHE_SIZE=100 entries, worst case memory is ~50MB
- * - Acceptable for Vercel serverless functions (1GB limit)
+ * - Acceptable within serverless/Worker memory limits
  */
 const MAX_CACHE_SIZE = 100;
 
@@ -77,7 +77,7 @@ const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
  * Note: In serverless environments, each instance maintains a separate cache.
  * This means cache hits are not shared across instances, but this is acceptable
  * because:
- * 1. Vercel CDN provides the primary caching layer (immutable headers)
+ * 1. The CDN provides the primary caching layer (immutable headers)
  * 2. This cache only reduces IPFS gateway calls for warm instances
  * 3. Images are immutable, so inconsistency between instances is not an issue
  */
@@ -248,7 +248,6 @@ export const GET = withErrorHandling(async function GET(
         'Content-Type': cached.contentType,
         'Cache-Control': 'public, max-age=31536000, immutable',
         'CDN-Cache-Control': 'public, max-age=31536000',
-        'Vercel-CDN-Cache-Control': 'public, max-age=31536000',
         'X-Cache': 'HIT',
       },
     });
@@ -301,7 +300,6 @@ export const GET = withErrorHandling(async function GET(
         'Content-Type': result.contentType,
         'Cache-Control': 'public, max-age=31536000, immutable',
         'CDN-Cache-Control': 'public, max-age=31536000',
-        'Vercel-CDN-Cache-Control': 'public, max-age=31536000',
         'X-Cache': 'MISS',
       },
     });

@@ -10,7 +10,6 @@ import { drainTradingFeeOutboxBatch } from '@/lib/services/trading-fee-outbox';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 120;
 
 const handler = async (request: NextRequest) => {
   const startTime = new Date();

@@ -99,8 +99,6 @@ interface GameState {
   currentDay: number | null;
 }
 
-// Vercel function configuration
-export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
 
 // ============================================================================
@@ -115,7 +113,7 @@ const DEFAULT_SCENARIO_ID = 1;
 
 /**
  * Default time budget for tick execution in milliseconds.
- * Vercel cron has a 5-minute timeout; we use 4 minutes to leave buffer.
+ * Kept under the 5-minute cron interval budget; 4 minutes leaves buffer.
  */
 const DEFAULT_TICK_BUDGET_MS = 240000;
 
@@ -1207,7 +1205,7 @@ export const POST = withErrorHandling(async function POST(_req: NextRequest) {
       subMarketMetrics,
     });
 
-    // Emit structured log for metrics aggregation (Vercel/Datadog integration)
+    // Emit structured log for metrics aggregation (log drain / Datadog integration)
     logger.info(
       'sub_market_metrics',
       {
