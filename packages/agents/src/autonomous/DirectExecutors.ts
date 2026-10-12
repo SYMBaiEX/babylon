@@ -1696,16 +1696,26 @@ export async function executeDirectMessage(
     };
   }
 
-  // Verify chat exists (if provided directly)
+  // A provided chat must exist AND the agent must be an active participant;
+  // otherwise an agent could post into any chat by ID.
   if (providedChatId) {
-    const [chat] = await db
-      .select({ id: chats.id })
-      .from(chats)
-      .where(eq(chats.id, chatId))
+    const [membership] = await db
+      .select({ chatId: chatParticipants.chatId })
+      .from(chatParticipants)
+      .where(
+        and(
+          eq(chatParticipants.chatId, chatId),
+          eq(chatParticipants.userId, agentUserId),
+          eq(chatParticipants.isActive, true)
+        )
+      )
       .limit(1);
 
-    if (!chat) {
-      return { success: false, error: `Chat not found: ${chatId}` };
+    if (!membership) {
+      return {
+        success: false,
+        error: `Chat not found or agent is not a member: ${chatId}`,
+      };
     }
   }
 
