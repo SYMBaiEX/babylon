@@ -1,4 +1,8 @@
-import type { ExecutionContext, R2Bucket } from '@cloudflare/workers-types';
+import type {
+  ExecutionContext,
+  Hyperdrive,
+  R2Bucket,
+} from '@cloudflare/workers-types';
 import { withRequestResources } from '@feed/shared/server/request-scope';
 import { ensureRedisReady } from '../../packages/api/src/redis/client';
 // OpenNext generates this module during build.
@@ -7,12 +11,16 @@ import handler from './.open-next/worker.js';
 
 interface FeedCloudflareEnv {
   UPLOADS: R2Bucket;
+  /** Pooled, TLS-verified route to Railway PostgreSQL. */
+  HYPERDRIVE: Hyperdrive;
   DEPLOYMENT_ENV: string;
   COMMIT_SHA?: string;
 }
 
 export default {
   async fetch(request: Request, env: FeedCloudflareEnv, ctx: ExecutionContext) {
+    // packages/db reads DATABASE_URL; the binding's local endpoint is the only database route.
+    process.env.DATABASE_URL = env.HYPERDRIVE.connectionString;
     const url = new URL(request.url);
     if (url.pathname === '/__deployment') {
       return Response.json(

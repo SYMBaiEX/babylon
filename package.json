@@ -198,7 +198,6 @@
     "parse-duration": "2.1.5",
     "qs": "6.15.0",
     "cookie": "1.1.1",
-    "path-to-regexp": "0.1.13",
     "ws": "8.20.0"
   },
   "trustedDependencies": [

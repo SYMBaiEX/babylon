@@ -33,7 +33,12 @@ jobs:
         env:
           DATABASE_URL: ${{ inputs.environment == 'production' && secrets.PROD_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
           DIRECT_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.PROD_DIRECT_DATABASE_URL || secrets.STAGING_DIRECT_DATABASE_URL }}
+          # Railway's per-service CA; the pg driver verifies the chain via
+          # `?uselibpqcompat=true&sslmode=verify-ca&sslrootcert=$RUNNER_TEMP/database-ca.pem`.
+          DATABASE_CA_CERT: ${{ secrets.DATABASE_CA_CERT }}
         run: |
           test -n "$DATABASE_URL"
           test -n "$DIRECT_DATABASE_URL"
-          bun run db:migrate
+          test -n "$DATABASE_CA_CERT"
+          printf '%s\n' "$DATABASE_CA_CERT" > "$RUNNER_TEMP/database-ca.pem"
+          DIRECT_DATABASE_URL="${DIRECT_DATABASE_URL//\$RUNNER_TEMP/$RUNNER_TEMP}" bun run db:migrate
