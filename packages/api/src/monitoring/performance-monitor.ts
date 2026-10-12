@@ -84,6 +84,17 @@ function average(samples: number[]): number {
     : 0;
 }
 
+/**
+ * Workers expose `process.cpuUsage`/`memoryUsage` under nodejs_compat but throw
+ * ERR_METHOD_NOT_IMPLEMENTED; there is no per-process resource data to sample.
+ */
+function hasProcessMetrics(): boolean {
+  return (
+    typeof process !== 'undefined' &&
+    process.env.DEPLOYMENT_PLATFORM !== 'cloudflare'
+  );
+}
+
 export class PerformanceMonitor {
   private snapshots: PerformanceSnapshot[] = [];
   private readonly MAX_SNAPSHOTS = 1000;
@@ -99,10 +110,7 @@ export class PerformanceMonitor {
   }
 
   private readCpu(): { usageMicros: number; atMs: number } | null {
-    if (
-      typeof process === 'undefined' ||
-      typeof process.cpuUsage !== 'function'
-    ) {
+    if (!hasProcessMetrics() || typeof process.cpuUsage !== 'function') {
       return null;
     }
     const usage = process.cpuUsage();
@@ -261,10 +269,9 @@ export class PerformanceMonitor {
   computeSnapshot(): PerformanceSnapshot {
     // Check if process methods are available (not available in browser environments)
     const hasMemoryUsage =
-      typeof process !== 'undefined' &&
-      typeof process.memoryUsage === 'function';
+      hasProcessMetrics() && typeof process.memoryUsage === 'function';
     const hasUptime =
-      typeof process !== 'undefined' && typeof process.uptime === 'function';
+      hasProcessMetrics() && typeof process.uptime === 'function';
 
     const memUsage = hasMemoryUsage
       ? process.memoryUsage()
