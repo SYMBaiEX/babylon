@@ -196,6 +196,14 @@ const nextConfig: NextConfig = {
         ...config.resolve.alias,
         'js-tiktoken$': path.resolve(process.cwd(), 'cloudflare-tokenizer.ts'),
       };
+      if (isServer) {
+        config.module.rules.push({
+          test: /@elizaos[\\/]core[\\/]dist[\\/]node[\\/]index\.node\.js$/,
+          use: [
+            path.resolve(process.cwd(), 'webpack-elizaos-process-loader.cjs'),
+          ],
+        });
+      }
     }
     // Enable WebAssembly experiments for tiktoken
     config.experiments = {
