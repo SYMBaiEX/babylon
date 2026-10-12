@@ -1,13 +1,14 @@
+import { withErrorHandling } from '@feed/api';
 import { NextResponse } from 'next/server';
 
 /**
  * JSON 404 for unknown /api/* paths (instead of the HTML not-found page).
- * The handler cannot throw, so no error wrapper is needed. OPTIONS is also a
- * 404 here; CORS preflight for /api/* is answered in middleware first.
+ * OPTIONS is also a 404 here; CORS preflight for /api/* is answered in
+ * middleware first. Wrapped like every other route export (repo invariant).
  */
-function notFoundResponse(): NextResponse {
-  return NextResponse.json({ error: 'Not found' }, { status: 404 });
-}
+const notFoundResponse = withErrorHandling(async () =>
+  NextResponse.json({ error: 'Not found' }, { status: 404 })
+);
 
 export const GET = notFoundResponse;
 export const POST = notFoundResponse;
