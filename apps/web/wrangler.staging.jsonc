@@ -15,6 +15,12 @@
       "service": "feed-web-staging"
     }
   ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "e379cb0027b449588ee8eee7250ceffa"
+    }
+  ],
   "r2_buckets": [
     {
       "binding": "NEXT_INC_CACHE_R2_BUCKET",

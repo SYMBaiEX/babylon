@@ -24,8 +24,12 @@ for (const [name, value] of Object.entries(runtime)) {
     );
   }
 }
+// The Worker derives DATABASE_URL from its Hyperdrive binding on every request.
+if (runtime.DATABASE_URL || process.env.DATABASE_URL)
+  throw new Error(
+    'DATABASE_URL must not be a Worker secret; configure the HYPERDRIVE binding'
+  );
 for (const name of [
-  'DATABASE_URL',
   'CRON_SECRET',
   'SURPLUS_API_KEY',
   'STEWARD_JWT_SECRET',
@@ -42,8 +46,6 @@ if (!runtime.REDIS_URL)
   throw new Error(
     'REDIS_URL is required for distributed caching and realtime delivery'
   );
-if (!/^postgres(ql)?:$/.test(new URL(runtime.DATABASE_URL!).protocol))
-  throw new Error('DATABASE_URL must be PostgreSQL');
 if (new URL(runtime.STEWARD_API_URL!).protocol !== 'https:')
   throw new Error('STEWARD_API_URL must use HTTPS');
 const sha = process.env.COMMIT_SHA;

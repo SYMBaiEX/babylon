@@ -125,7 +125,6 @@ jobs:
         run: bun scripts/cloudflare/provision.ts "$TARGET"
       - name: Deploy app and disabled scheduler
         env:
-          DATABASE_URL: ${{ needs.select.outputs.environment == 'production' && secrets.PROD_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SURPLUS_API_KEY: ${{ secrets.SURPLUS_API_KEY }}
         run: bun scripts/cloudflare/deploy.ts "$TARGET"
