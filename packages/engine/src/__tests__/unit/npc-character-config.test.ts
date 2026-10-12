@@ -173,17 +173,24 @@ describe('NPC Character Config', () => {
       expect(templates).toEqual([]);
     });
 
-    it('should shuffle templates (non-deterministic order)', () => {
-      // Run multiple times and check we sometimes get different orders
-      const results = new Set<string>();
-      for (let i = 0; i < 10; i++) {
-        const templates = getTemplatePosts('trump-terminal', 3);
-        results.add(templates.join('|'));
-      }
+    it('orders templates by the injected RNG', () => {
+      const all = getTemplatePosts('trump-terminal', 100, () => 0.999);
+      expect(all.length).toBeGreaterThan(1);
 
-      // With shuffling, we should get at least 2 different orderings
-      // (This could theoretically fail but is very unlikely)
-      expect(results.size).toBeGreaterThanOrEqual(1);
+      // Same RNG sequence -> same order
+      const seq = () => {
+        let i = 0;
+        const values = [0.1, 0.7, 0.3, 0.9, 0.5];
+        return () => values[i++ % values.length]!;
+      };
+      expect(getTemplatePosts('trump-terminal', 3, seq())).toEqual(
+        getTemplatePosts('trump-terminal', 3, seq())
+      );
+
+      // Different RNG -> different order of the full set
+      const reversed = getTemplatePosts('trump-terminal', 100, () => 0);
+      expect(reversed).not.toEqual(all);
+      expect([...reversed].sort()).toEqual([...all].sort());
     });
   });
 

@@ -22,7 +22,15 @@ export {
   loadOrganizationById,
 } from './actors-loader';
 // State Store Adapters
-export { DbStateStore, InMemoryStateStore } from './adapters';
+export { InMemoryStateStore } from './adapters';
+// Game state store contract (offline simulation)
+export type {
+  ActiveMarket,
+  ActiveQuestion,
+  GameActor,
+  GameOrganization,
+  GameStateStore,
+} from './adapters/game-state-store';
 // Alpha Group Configuration
 export {
   ALPHA_GROUP_CONFIG,
@@ -123,18 +131,6 @@ export {
   type ReputationChange,
   type SimulatedAgent,
 } from './GameSimulator';
-// Game Tick (canonical tick executor)
-export {
-  type ActiveMarket,
-  type ActiveQuestion,
-  type GameActor,
-  type GameOrganization,
-  type GameStateStore,
-  GameTick,
-  type TickConfig,
-  type TickResult,
-  type TickServices,
-} from './GameTick';
 // Game World
 export {
   type CausalEventContext,
@@ -253,13 +249,11 @@ export * from './rate-limiting';
 // Reputation Module
 export {
   calculateConfidenceScore,
-  // Trade Feedback Calculator
-  calculateEntryTimingScore,
-  calculateExitTimingScore,
   calculateGameScore,
   // Reputation Calculation Service
   calculateReputationScore,
   calculateRiskScore,
+  calculateSharpeRatio,
   calculateTradeMetrics,
   calculateTradeScore,
   calculateWinRate,
@@ -269,7 +263,6 @@ export {
   generateTradeCompletionFeedback,
   getReputationBreakdown,
   getReputationLeaderboard,
-  getTradeFeedbackSummary,
   getTrustLevel,
   // PNL Normalization utilities
   normalizePnL,

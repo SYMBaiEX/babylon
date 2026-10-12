@@ -20,7 +20,7 @@ describe('Token Stats Types', () => {
     expect(TOKEN_COST_PER_MILLION['openai/gpt-oss-120b']).toBeDefined();
     expect(TOKEN_COST_PER_MILLION['claude-sonnet-4-5']).toBeDefined();
     expect(TOKEN_COST_PER_MILLION['gpt-5.1']).toBeDefined();
-    expect(TOKEN_COST_PER_MILLION.default).toBeDefined();
+    expect(TOKEN_COST_PER_MILLION.default).toBeUndefined();
   });
 
   test('calculateEstimatedCost calculates correctly', () => {
@@ -35,16 +35,24 @@ describe('Token Stats Types', () => {
     expect(result.totalCostUSD).toBeCloseTo(0.45, 2);
   });
 
-  test('calculateEstimatedCost uses default for unknown models', () => {
+  test('calculateEstimatedCost reports unknown models as unpriced', () => {
     const result = calculateEstimatedCost(
       'unknown-model',
       1_000_000,
       1_000_000
     );
 
-    expect(result.inputCostUSD).toBeCloseTo(1.0, 2); // default $1.00 per 1M
-    expect(result.outputCostUSD).toBeCloseTo(3.0, 2); // default $3.00 per 1M
-    expect(result.totalCostUSD).toBeCloseTo(4.0, 2);
+    expect(result.pricingKnown).toBe(false);
+    expect(result.totalCostUSD).toBe(0);
+    expect(calculateEstimatedCost('constructor', 1, 1).pricingKnown).toBe(
+      false
+    );
+  });
+
+  test('calculateEstimatedCost marks known models as priced', () => {
+    expect(
+      calculateEstimatedCost('openai/gpt-oss-120b', 1, 1).pricingKnown
+    ).toBe(true);
   });
 });
 

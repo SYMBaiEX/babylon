@@ -196,44 +196,45 @@ describe('Content Pacing', () => {
       expect(result).toBeLessThanOrEqual(1);
     });
 
-    it('averages to the hourly target instead of one post every tick', () => {
+    it('expected posts per hour matches the target (not one per tick)', () => {
       const ticksPerHour = 60;
-      const perTick = CONTENT_PACING.targetPostsPerHour / ticksPerHour;
-      // Deterministic RNG sweeping [0, 1) uniformly across one hour of ticks
+      const target = CONTENT_PACING.targetPostsPerHour / ticksPerHour;
+      // Deterministic RNG sweep over [0, 1): the share of draws below the
+      // fractional target gives the exact Bernoulli expectation.
+      const steps = 1000;
       let total = 0;
-      for (let tick = 0; tick < ticksPerHour; tick++) {
-        total += calculatePostsForTick(
-          1000,
-          ticksPerHour,
-          () => tick / ticksPerHour
-        );
+      for (let i = 0; i < steps; i++) {
+        total += calculatePostsForTick(1000, ticksPerHour, () => i / steps);
       }
-      expect(total).toBe(
-        Math.round(
-          Math.min(perTick, CONTENT_PACING.maxPostsPerTick) * ticksPerHour
-        )
-      );
+      const expectedPerTick = Math.min(target, CONTENT_PACING.maxPostsPerTick);
+      expect(total / steps).toBeCloseTo(expectedPerTick, 2);
     });
 
-    it('generates the fractional post only when the draw falls below it', () => {
-      const perTick = CONTENT_PACING.targetPostsPerHour / 60;
-      const whole = Math.floor(perTick);
-      expect(calculatePostsForTick(1000, 60, () => 0)).toBe(
-        Math.min(
-          whole + (perTick > whole ? 1 : 0),
-          CONTENT_PACING.maxPostsPerTick
-        )
-      );
+    it('fractional boundary: draw just below/above the fraction', () => {
+      const target = CONTENT_PACING.targetPostsPerHour / 60;
+      const whole = Math.floor(target);
+      const fraction = target - whole;
+      if (fraction > 0) {
+        expect(calculatePostsForTick(1000, 60, () => 0)).toBe(
+          Math.min(whole + 1, CONTENT_PACING.maxPostsPerTick)
+        );
+      }
       expect(calculatePostsForTick(1000, 60, () => 0.999999)).toBe(
         Math.min(whole, CONTENT_PACING.maxPostsPerTick)
       );
     });
 
-    it('should scale with different tick rates', () => {
-      // Fewer ticks per hour = more posts per tick
-      const fast = calculatePostsForTick(10, 60, () => 0.5); // 1-minute ticks
-      const slow = calculatePostsForTick(10, 6, () => 0.5); // 10-minute ticks
+    it('rejects invalid inputs', () => {
+      expect(() => calculatePostsForTick(-1)).toThrow();
+      expect(() => calculatePostsForTick(1.5)).toThrow();
+      expect(() => calculatePostsForTick(5, 0)).toThrow();
+      expect(() => calculatePostsForTick(5, Number.NaN)).toThrow();
+    });
 
+    it('should scale with different tick rates', () => {
+      // Fewer ticks per hour = more posts per tick (same draw)
+      const fast = calculatePostsForTick(10, 60, () => 0.5);
+      const slow = calculatePostsForTick(10, 6, () => 0.5);
       expect(slow).toBeGreaterThanOrEqual(fast);
     });
   });

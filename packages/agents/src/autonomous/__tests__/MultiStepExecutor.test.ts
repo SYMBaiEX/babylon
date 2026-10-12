@@ -338,6 +338,46 @@ describe('normalizeSocialDecisionParameters', () => {
       content: 'hello',
     });
   });
+  test('rejects a parent comment that belongs to a different post', () => {
+    expect(
+      normalizeSocialDecisionParameters(
+        'COMMENT',
+        { postId: 'post-2', parentCommentId: 'comment-1', content: 'hi' },
+        context as never,
+        'agent-1'
+      )
+    ).toEqual({ content: 'hi' });
+  });
+
+  test('keeps a well-formed explicit id that is outside the rendered context', () => {
+    expect(
+      normalizeSocialDecisionParameters(
+        'FOLLOW',
+        { userId: '1234567890123456789' },
+        context as never,
+        'agent-1'
+      )
+    ).toEqual({ userId: '1234567890123456789' });
+  });
+
+  test('never repairs free text or out-of-range ordinals into a target', () => {
+    expect(
+      normalizeSocialDecisionParameters(
+        'DM',
+        { recipientId: 'the user who posted 2', content: 'x' },
+        context as never,
+        'agent-1'
+      )
+    ).toEqual({ content: 'x' });
+    expect(
+      normalizeSocialDecisionParameters(
+        'LIKE',
+        { postId: '#7' },
+        context as never,
+        'agent-1'
+      )
+    ).toEqual({});
+  });
 });
 
 describe('extractFirstJsonObject', () => {

@@ -9,6 +9,7 @@ import {
   SIMULATION_AGENT_NAMES,
   SIMULATION_COMPANIES,
 } from '../config/simulation';
+import { SeededRandom } from '../utils/entropy';
 import type {
   ActiveMarket,
   ActiveQuestion,
@@ -22,8 +23,7 @@ import type {
   QuestionInput,
   TradeInput,
   TradeResult,
-} from '../GameTick';
-import { SeededRandom } from '../utils/entropy';
+} from './game-state-store';
 
 export interface SimulationConfig {
   numPredictionMarkets?: number;
