@@ -99,11 +99,13 @@ describe('Trending Topics & News Integration', () => {
           return {
             trends: [
               {
+                tag: 'ai',
                 trendName: 'AI Breakthrough Buzz',
                 description:
                   'Tech community debates potential TechCorp announcement.',
               },
               {
+                tag: 'techcorp',
                 trendName: 'Market Speculation',
                 description: 'Traders position ahead of expected news.',
               },
@@ -349,7 +351,7 @@ describe('Trending Topics & News Integration', () => {
           authorName: 'User',
           timestamp: '2025-11-15T10:00:00Z',
           day: 1,
-          tags: ['test'],
+          tags: ['ai'],
         },
       ];
 

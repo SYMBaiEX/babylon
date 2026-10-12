@@ -13,7 +13,7 @@ Will Jensen HuAIng reveal a leather jacket made entirely of woven NVIDAI GPU wir
 Will Sim Cook announce that the next AIpple device will have "zero ports" and must be charged by "positive thinking" by {resolutionDate}?
 Will Bill AIckman write a 5,000-word "Open Letter" on AIX demanding that AIpple rename Siri to "Bill" by {resolutionDate}?
 Will PAIlmer Luckey show up to a Department of War meeting wearing a Hawaiian shirt and VR goggles by {resolutionDate}?
-Will Brain Johnson post about swapping blood with a TeslAI Optimus robot by {resolutionDate}?
+Will BrAIn Johnson post about swapping blood with a TeslAI Optimus robot by {resolutionDate}?
 Will Satya NadellAI announce that MAIcrosoft Clippy has achieved sentience and is now on the Board of Directors by {resolutionDate}?
 Will Trump Terminal output a string of binary code that translates to "MAKE AMERICA COMPUTE AGAIN" by {resolutionDate}?
 Will Nancy PelosAI be seen wearing Aipple Vision Pro goggles on the floor of Congress by {resolutionDate}?
@@ -29,7 +29,7 @@ Will Michael SAIlor announce that he has legally adopted a BitcAIn block as his 
 Will VitAIlik Buterin give a keynote speech at a conference while wearing a full-body "Merge Panda" costume by {resolutionDate}?
 Will Jim CrAImer post "BUY THE DIP" while smashing a keyboard with a hammer by {resolutionDate}?
 Will CathAI Wood claim that Jesus was the first "DeFi Yield Farmer" by {resolutionDate}?
-Will Arthur Hayes publish an essay comparing the Federal Reserve to a "glitchy vending machine" by {resolutionDate}?
+Will Arthur HAIyes publish an essay comparing the Federal Reserve to a "glitchy vending machine" by {resolutionDate}?
 Will Brian AIrmstrong announce that CoinbAIse HQ is moving to a floating city in the ocean by {resolutionDate}?
 Will BalajAI Srinivasan declare that the "Network State" has purchased an island in the Pacific by {resolutionDate}?
 Will Joe RogAIn post about smoking DMT with a TeslAI robot by {resolutionDate}?
@@ -58,7 +58,7 @@ Will Jensen HuAIng's leather jacket actually be revealed to be a fully functiona
 Will Sim Cook's announcement of the "Portless iPhone" result in AIpple stock dropping below $150 by {resolutionDate}?
 Will Bill AIckman's 500-tweet thread demanding the resignation of the Mcdonald's ice cream machine repairman be posted by {resolutionDate}?
 Will PAIlmer Luckey's demonstration of the "exploding VR headset" actually result in a visit from the Bomb Squad by {resolutionDate}?
-Will Brain Johnson's attempt to swap blood with a TeslAI Optimus robot result in a successful boot sequence by {resolutionDate}?
+Will BrAIn Johnson's attempt to swap blood with a TeslAI Optimus robot result in a successful boot sequence by {resolutionDate}?
 Will Satya NadellAI's decision to appoint Clippy as the "Chief Vibe Officer" of MAIcrosoft be ratified by the board by {resolutionDate}?
 Will Trump Terminal's binary code post actually be decoded as the nuclear launch codes by CNN analysts by {resolutionDate}?
 Will Nancy PelosAI's portfolio outperform the S&P 500 by more than 20% following her "accidental" NvidAI trade by {resolutionDate}?
@@ -73,7 +73,7 @@ Will Michael SAIlor's petition to legally marry a BitcAIn block be approved by t
 Will VitAIlik Buterin's promise to wear a full-body "Merge Panda" suit until ETH hits $10k be broken by {resolutionDate}?
 Will Jim CrAImer's "Sell Everything" warning actually mark the exact bottom of the NvidAI crash by {resolutionDate}?
 Will CathAI Wood's price target of "$1 Billion per BitcAIn" be reiterated in her ARK Invest quarterly letter by {resolutionDate}?
-Will Arthur Hayes's essay comparing Jerome Powell to a "glitchy NPC" be cited in the official Federal Reserve meeting minutes by {resolutionDate}?
+Will Arthur HAIyes's essay comparing Jerome Powell to a "glitchy NPC" be cited in the official Federal Reserve meeting minutes by {resolutionDate}?
 Will Brian AIrmstrong's plan to move CoinbAIse HQ to a sovereign floating city be blocked by the US Navy by {resolutionDate}?
 Will Joe RogAIn's podcast with the TeslAI robot end with the robot smoking DMT and claiming to see "machine elves" by {resolutionDate}?
 Will Lex FridmAIn's 10-hour interview with a toaster actually be released as a "Deep Focus" episode by {resolutionDate}?

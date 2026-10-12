@@ -388,16 +388,14 @@ describe('daily-topic-service', () => {
       expect(candidates[0]?.topicKey).toBeDefined();
     });
 
-    test('returns empty array when no primary topic available', async () => {
-      // Mock ensureTopicForDate to return null
-      // With no RSS rows and no stored topics, ensureTopicForDate returns a fallback
-      // So we test that it at least returns something
+    test('returns only the default fallback topic when no headlines exist', async () => {
       const candidates = await dailyTopicService.getTopicCandidatesForDate(
         new Date('2026-03-06T12:00:00.000Z')
       );
 
-      // Even with no RSS, ensureTopicForDate returns a fallback "general" topic
-      expect(candidates.length).toBeGreaterThanOrEqual(1);
+      // With no RSS rows and no stored topics, ensureTopicForDate persists the
+      // "general" default and there are no additional candidates.
+      expect(candidates.map((c) => c.topicKey)).toEqual(['general']);
     });
 
     test('excludes primary from additional candidates', async () => {
