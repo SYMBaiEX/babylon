@@ -18,7 +18,7 @@
   ],
   "vars": {
     "APP_ORIGIN": "https://staging.feed.fun",
-    "CRON_ENABLED": "false"
+    "CRON_ENABLED": "true"
   },
   "queues": {
     "producers": [

@@ -123,7 +123,7 @@ jobs:
       - run: bun run build:cloudflare "$TARGET"
       - name: Ensure isolated Cloudflare resources exist
         run: bun scripts/cloudflare/provision.ts "$TARGET"
-      - name: Deploy app and disabled scheduler
+      - name: Deploy app and scheduler
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SURPLUS_API_KEY: ${{ secrets.SURPLUS_API_KEY }}
