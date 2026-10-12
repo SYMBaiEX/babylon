@@ -5,14 +5,13 @@ import { useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   fetchPortfolioBreakdownSnapshot,
-  isAbortError,
   usePortfolioBreakdown,
   usePortfolioBreakdownPolling,
 } from '@/stores/portfolioBreakdownStore';
 
 // Re-export for components that import from this hook
 export type { PortfolioBreakdownSnapshot } from '@feed/engine/client';
-export { fetchPortfolioBreakdownSnapshot, isAbortError };
+export { fetchPortfolioBreakdownSnapshot };
 
 /**
  * Return type for the usePortfolioPnL hook.

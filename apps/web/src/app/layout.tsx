@@ -58,9 +58,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  // Disable viewport scaling and overscroll for better pull-to-refresh control
+  // Pinch-zoom stays enabled for accessibility (WCAG 1.4.4).
   interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: 'white' },

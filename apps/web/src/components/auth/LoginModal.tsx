@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
+import { getStewardApiUrl, STEWARD_TENANT_ID } from '@/lib/auth/steward-config';
 import {
   type StewardLoginResult,
   stewardExchangeSchema,
@@ -35,15 +36,6 @@ interface LoginModalProps {
   title?: string;
   message?: string;
 }
-
-function getStewardApiUrl(): string {
-  if (typeof window === 'undefined') {
-    return process.env.NEXT_PUBLIC_STEWARD_API_URL ?? 'http://localhost:3200';
-  }
-  return process.env.NEXT_PUBLIC_STEWARD_API_URL ?? 'http://localhost:3200';
-}
-
-const STEWARD_TENANT_ID = process.env.NEXT_PUBLIC_STEWARD_TENANT_ID ?? 'feed';
 
 export function LoginModal({
   isOpen,

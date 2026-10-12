@@ -11,6 +11,17 @@ export interface UserDisplayFields {
   walletAddress?: string | null;
 }
 
+/** First candidate that is non-empty after trimming (blank values are skipped). */
+function firstNonBlank(
+  candidates: ReadonlyArray<string | null | undefined>
+): string | null {
+  for (const candidate of candidates) {
+    const trimmed = candidate?.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
 /**
  * Resolve a display name from user-like object with consistent fallback order.
  * @param user - Object with displayName, username, email, etc.
@@ -21,14 +32,15 @@ export function getUserDisplayName(
   fallback = 'User'
 ): string {
   if (!user) return fallback;
-  const name =
-    user.displayName ??
-    user.username ??
-    user.email ??
-    user.twitterUsername ??
-    user.walletAddress ??
-    '';
-  return name.toString().trim() || fallback;
+  return (
+    firstNonBlank([
+      user.displayName,
+      user.username,
+      user.email,
+      user.twitterUsername,
+      user.walletAddress,
+    ]) ?? fallback
+  );
 }
 
 /**
@@ -43,8 +55,8 @@ export function getUserHandle(
   fallback = ''
 ): string {
   if (!user) return fallback;
-  const handle =
-    user.username ?? user.twitterUsername ?? user.walletAddress ?? '';
-  const s = handle.toString().trim();
-  return s || fallback;
+  return (
+    firstNonBlank([user.username, user.twitterUsername, user.walletAddress]) ??
+    fallback
+  );
 }

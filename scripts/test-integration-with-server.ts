@@ -84,13 +84,10 @@ function isProcessAlive(pid: number): boolean {
 
 async function supportsTestPrivyDidAuth(baseUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(`${baseUrl}/api/waitlist/bonus/email`, {
-      method: 'POST',
+    const response = await fetch(`${baseUrl}/api/waitlist/position`, {
       headers: {
-        'Content-Type': 'application/json',
         Authorization: 'Bearer did:privy:test-123456789012345',
       },
-      body: JSON.stringify({ email: 'probe@example.com' }),
       signal: AbortSignal.timeout(10_000),
     });
 

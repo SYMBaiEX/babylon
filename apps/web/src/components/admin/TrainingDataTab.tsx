@@ -10,8 +10,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { getAuthToken } from '@/lib/auth';
-import { apiUrl } from '@/utils/api-url';
+import { apiFetch } from '@/utils/api-fetch';
 
 /**
  * Training data statistics structure for training data tab.
@@ -75,28 +74,21 @@ export function TrainingDataTab() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) {
-      setLoading(false);
-      toast.error('Not authenticated');
-      return;
-    }
-
-    const response = await fetch(apiUrl('/api/admin/training-data'), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      setLoading(false);
+    try {
+      const response = await apiFetch('/api/admin/training-data');
+      if (!response.ok) {
+        // Do not keep showing data after an auth/permission failure.
+        if (response.status === 401 || response.status === 403) setData(null);
+        toast.error('Failed to load training data');
+        return;
+      }
+      const result = await response.json();
+      setData(result.data);
+    } catch {
       toast.error('Failed to load training data');
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const result = await response.json();
-    setData(result.data);
-    setLoading(false);
   }, []);
 
   useEffect(() => {

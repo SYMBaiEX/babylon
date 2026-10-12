@@ -131,11 +131,7 @@ import {
   shares,
   users,
 } from '@feed/db';
-import {
-  NPCInteractionTracker,
-  parsePostId,
-  StaticDataRegistry,
-} from '@feed/engine';
+import { NPCInteractionTracker, StaticDataRegistry } from '@feed/engine';
 import {
   generateSnowflakeId,
   isPureRepost,
@@ -204,10 +200,19 @@ export const POST = withErrorHandling(
       .where(eq(posts.id, postId))
       .limit(1);
 
+    // Unknown or not-yet-published posts cannot be shared (and are never
+    // created from the ID).
+    if (!post || post.timestamp > now) {
+      throw new NotFoundError('Post', postId);
+    }
+    if (post.deletedAt) {
+      throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
+    }
+
     let shareTargetPostId = postId;
     let shareTargetPost = post;
 
-    if (post && isPureRepost(post)) {
+    if (isPureRepost(post)) {
       shareTargetPostId = post.originalPostId;
       const [resolvedPost] = await db
         .select({
@@ -229,49 +234,20 @@ export const POST = withErrorHandling(
       shareTargetPost = resolvedPost;
     }
 
-    if (shareTargetPost && shareTargetPost.timestamp > now) {
+    if (shareTargetPost.timestamp > now) {
       throw new NotFoundError('Post', shareTargetPostId);
     }
 
-    if (shareTargetPost) {
-      const [isBlocked, hasBlockedMe] = await Promise.all([
-        hasBlocked(shareTargetPost.authorId, canonicalUserId),
-        hasBlocked(canonicalUserId, shareTargetPost.authorId),
-      ]);
+    const [isBlocked, hasBlockedMe] = await Promise.all([
+      hasBlocked(shareTargetPost.authorId, canonicalUserId),
+      hasBlocked(canonicalUserId, shareTargetPost.authorId),
+    ]);
 
-      if (isBlocked || hasBlockedMe) {
-        throw new BusinessLogicError('Cannot share this post', 'BLOCKED_USER');
-      }
+    if (isBlocked || hasBlockedMe) {
+      throw new BusinessLogicError('Cannot share this post', 'BLOCKED_USER');
     }
 
-    if (!post) {
-      const parseResult = parsePostId(postId);
-
-      if (!parseResult.success) {
-        throw new BusinessLogicError(
-          'Invalid post ID format',
-          'INVALID_POST_ID_FORMAT'
-        );
-      }
-
-      const { gameId, authorId, timestamp } = parseResult.metadata;
-
-      const [existingPost] = await db
-        .select({ id: posts.id })
-        .from(posts)
-        .where(eq(posts.id, postId))
-        .limit(1);
-
-      if (!existingPost) {
-        await db.insert(posts).values({
-          id: postId,
-          content: '[Game-generated post]',
-          authorId,
-          gameId,
-          timestamp,
-        });
-      }
-    } else if (shareTargetPost?.deletedAt) {
+    if (shareTargetPost.deletedAt) {
       throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
     }
 
@@ -291,7 +267,7 @@ export const POST = withErrorHandling(
     }
 
     // Backfill safety: legacy shares may still point at repost IDs
-    if (post && isPureRepost(post) && shareTargetPostId !== postId) {
+    if (isPureRepost(post) && shareTargetPostId !== postId) {
       const [existingRepostShare] = await db
         .select({ id: shares.id })
         .from(shares)

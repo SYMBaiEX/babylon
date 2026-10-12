@@ -1,35 +1,28 @@
 'use client';
 
 import type { OnboardingProfilePayload } from '@feed/shared';
-import {
-  isValidOnboardingUsername,
-  logger,
-  POINTS,
-  sanitizeOnboardingUsername,
-} from '@feed/shared';
-// Phase 2: Privy replaced by Steward — no more usePrivy or useIdentityToken
+import { logger, POINTS } from '@feed/shared';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImportedProfileData } from '@/components/onboarding/UserOnboardingFlow';
 import { UserSignupOnboardingContextProvider } from '@/components/onboarding/user-signup-onboarding-context';
 import { useAuth } from '@/hooks/useAuth';
 import { useSignupTracking } from '@/hooks/usePostHog';
+import { safeReturnTo } from '@/lib/auth/safe-return-to';
 import {
   hasCompletedGameGuide,
   markGameGuideCompletedLocal,
 } from '@/lib/game-guide-completion';
 import { useAuthStore } from '@/stores/authStore';
 import { apiFetch } from '@/utils/api-fetch';
-
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
 function getSafeReturnTo(): string {
   if (typeof window === 'undefined') return '/feed';
-  const raw = new URLSearchParams(window.location.search).get('returnTo');
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
-    return '/feed';
-  }
-  return raw;
+  return safeReturnTo(
+    new URLSearchParams(window.location.search).get('returnTo'),
+    '/feed'
+  );
 }
 
 /**
@@ -53,11 +46,6 @@ export function OnboardingProvider({
     logout,
   } = useAuth();
 
-  // Phase 2: isSocialLogin derived from the Feed user record (populated at login)
-  const isSocialLogin = useMemo(() => {
-    return !!user?.hasTwitter;
-  }, [user]);
-
   const { setUser, setNeedsOnboarding } = useAuthStore();
   const { trackSignupStarted, trackSignupCompleted, trackOnboardingStep } =
     useSignupTracking();
@@ -66,15 +54,8 @@ export function OnboardingProvider({
   const [guideSubmitting, setGuideSubmitting] = useState(false);
   const guideCompleteInFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const [_submittedProfile, setSubmittedProfile] =
-    useState<OnboardingProfilePayload | null>(null);
   const [importedProfileData, setImportedProfileData] =
     useState<ImportedProfileData | null>(null);
-  const [_hasProgressedPastSocialImport, setHasProgressedPastSocialImport] =
-    useState(false);
-  const socialAutoSubmitRef = useRef(false);
-  const [socialAutoSubmitAttempted, setSocialAutoSubmitAttempted] =
-    useState(false);
 
   const [isReadyToShow, setIsReadyToShow] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -275,7 +256,6 @@ export function OnboardingProvider({
         setNeedsOnboarding(false);
 
         clearReferralCode();
-        setSubmittedProfile(payload);
         trackOnboardingStep('profile', true);
         trackSignupCompleted(data.user?.id ?? '', {
           hasReferrer: Boolean(referralCode),
@@ -297,92 +277,16 @@ export function OnboardingProvider({
     ]
   );
 
+  // Imported social data and errors belong to one account: reset on logout
+  // and on account switch. Social sign-ups are never auto-submitted — the
+  // imported profile only pre-fills the form, and the user must accept the
+  // Terms and Privacy Policy explicitly.
+  const onboardingOwnerId = authenticated ? (user?.id ?? null) : null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset whenever the owning account changes
   useEffect(() => {
-    if (!authenticated) {
-      setSubmittedProfile(null);
-      setError(null);
-      setImportedProfileData(null);
-      setHasProgressedPastSocialImport(false);
-      socialAutoSubmitRef.current = false;
-      setSocialAutoSubmitAttempted(false);
-      return;
-    }
-
-    if (loadingProfile) {
-      return;
-    }
-
-    if (needsOnboarding) {
-      if (
-        isSocialLogin &&
-        importedProfileData &&
-        !socialAutoSubmitRef.current &&
-        !socialAutoSubmitAttempted
-      ) {
-        setSocialAutoSubmitAttempted(true);
-        socialAutoSubmitRef.current = true;
-        logger.info(
-          'Social login user - auto-submitting profile',
-          {
-            platform: importedProfileData.platform,
-            username: importedProfileData.username,
-          },
-          'OnboardingProvider'
-        );
-        const sanitizedUsername = sanitizeOnboardingUsername(
-          importedProfileData.username
-        );
-        if (!isValidOnboardingUsername(sanitizedUsername)) {
-          logger.warn(
-            'Social username not valid after sanitization, falling back to manual onboarding',
-            {
-              raw: importedProfileData.username,
-              sanitized: sanitizedUsername,
-            },
-            'OnboardingProvider'
-          );
-          socialAutoSubmitRef.current = false;
-          return;
-        }
-        const autoProfile: OnboardingProfilePayload = {
-          username: sanitizedUsername,
-          displayName: importedProfileData.displayName,
-          bio: '',
-          profileImageUrl: importedProfileData.profileImageUrl ?? undefined,
-          coverImageUrl: undefined,
-          importedFrom: importedProfileData.platform,
-          twitterId: importedProfileData.twitterId ?? null,
-          twitterUsername:
-            importedProfileData.platform === 'twitter'
-              ? importedProfileData.username
-              : null,
-          tosAccepted: true,
-          privacyPolicyAccepted: true,
-        };
-        handleProfileSubmit(autoProfile).catch((submitError: Error) => {
-          logger.error(
-            'Social login auto-submit failed',
-            {
-              error: submitError.message,
-              platform: importedProfileData.platform,
-            },
-            'OnboardingProvider'
-          );
-          setError(submitError.message);
-          socialAutoSubmitRef.current = false;
-        });
-        return;
-      }
-    }
-  }, [
-    authenticated,
-    loadingProfile,
-    needsOnboarding,
-    isSocialLogin,
-    importedProfileData,
-    handleProfileSubmit,
-    socialAutoSubmitAttempted,
-  ]);
+    setError(null);
+    setImportedProfileData(null);
+  }, [onboardingOwnerId]);
 
   // Phase 2: Auto-import social profile from Feed user record
   // by the Twitter auth routes before this effect runs.
@@ -408,7 +312,6 @@ export function OnboardingProvider({
       );
 
       setImportedProfileData(profileData);
-      setHasProgressedPastSocialImport(true);
     }
   }, [
     authenticated,
@@ -427,7 +330,9 @@ export function OnboardingProvider({
 
     if (socialImport && dataParam) {
       try {
-        const parsed = JSON.parse(decodeURIComponent(dataParam)) as unknown;
+        // URLSearchParams already decoded the value; decoding again corrupts
+        // text containing '%'.
+        const parsed = JSON.parse(dataParam) as unknown;
 
         if (
           typeof parsed !== 'object' ||
@@ -455,7 +360,6 @@ export function OnboardingProvider({
         );
 
         setImportedProfileData(profileData);
-        setHasProgressedPastSocialImport(true);
       } catch (parseError) {
         logger.warn(
           'Failed to parse social profile data from URL',

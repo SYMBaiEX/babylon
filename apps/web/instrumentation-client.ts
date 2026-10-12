@@ -135,7 +135,12 @@ if (!sentryDisabled) {
           // If NEXT_PUBLIC_API_URL is configured, we allow that origin as well.
           /\/api\//,
           ...(process.env.NEXT_PUBLIC_API_URL
-            ? [new RegExp(process.env.NEXT_PUBLIC_API_URL)]
+            ? [
+                // Match the configured origin literally (escape regex chars).
+                new RegExp(
+                  `^${process.env.NEXT_PUBLIC_API_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
+                ),
+              ]
             : []),
         ],
         networkCaptureBodies: false,

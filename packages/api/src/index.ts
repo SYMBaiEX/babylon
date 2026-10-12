@@ -175,6 +175,7 @@ export {
 } from './query-params';
 // Rate Limiting
 export {
+  addPrivateReadHeaders,
   addPublicReadHeaders,
   addRateLimitHeaders,
   applyDuplicateDetection,

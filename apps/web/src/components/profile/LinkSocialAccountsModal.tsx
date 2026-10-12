@@ -1,11 +1,10 @@
 'use client';
 
-import { cn, logger } from '@feed/shared';
+import { cn } from '@feed/shared';
 import { Check, ExternalLink, Mail, Shield, X as XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useTelegramMiniApp } from '@/components/providers/TelegramMiniAppProvider';
-import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 import { apiUrl } from '@/utils/api-url';
@@ -18,7 +17,7 @@ import { apiUrl } from '@/utils/api-url';
  * linked account information. Awards reputation points for social linking.
  *
  * Features:
- * - Email linking via Privy
+ * - Shows the account email (verified only when the server says so)
  * - Twitter OAuth linking
  * - OAuth callback handling
  * - Points/reputation awards
@@ -47,27 +46,15 @@ export function LinkSocialAccountsModal({
   onClose,
 }: LinkSocialAccountsModalProps) {
   const { user, setUser } = useAuthStore();
-  const { refresh: _refresh } = useAuth();
   const { isMiniApp, linkAccount: linkTelegramSeamless } = useTelegramMiniApp();
   const [linking, setLinking] = useState<string | null>(null);
   const [confirmUnlinkTwitter, setConfirmUnlinkTwitter] = useState(false);
   const [unlinkingTwitter, setUnlinkingTwitter] = useState(false);
 
-  // Phase 2: Email comes from Feed user record (set by Steward at login)
-  const privyEmail = user?.email ?? null;
-
-  // Phase 2: Social linking flows are handled via OAuth/SIWF redirects
-  // These stubs maintain API compatibility while Steward linking is implemented
-  const linkEmail = () => {
-    logger.info(
-      'Email linking via Steward — not yet implemented in UI',
-      {},
-      'LinkSocialAccountsModal'
-    );
-    toast.info(
-      'Email linking coming soon. Please sign in with your email directly.'
-    );
-  };
+  // Email comes from the Feed user record (set by Steward at login). Only
+  // show it as verified when the server says so.
+  const accountEmail = user?.email ?? null;
+  const isEmailVerified = Boolean(accountEmail && user?.emailVerified);
 
   useEffect(() => {
     if (isOpen) return;
@@ -77,12 +64,6 @@ export function LinkSocialAccountsModal({
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const handleEmailLink = () => {
-    if (!user?.id) return;
-    setLinking('email');
-    linkEmail();
-  };
 
   const handleTwitterOAuth = async () => {
     if (!user?.id) return;
@@ -184,47 +165,40 @@ export function LinkSocialAccountsModal({
             <div className="flex items-center gap-2">
               <Mail className="h-5 w-5" />
               <h3 className="font-semibold">Email</h3>
-              {privyEmail && (
-                <span className="ml-auto flex items-center gap-1 text-green-500 text-sm">
-                  <Check className="h-4 w-4" />
-                  Verified
+              {accountEmail && (
+                <span
+                  className={cn(
+                    'ml-auto flex items-center gap-1 text-sm',
+                    isEmailVerified ? 'text-green-500' : 'text-muted-foreground'
+                  )}
+                >
+                  {isEmailVerified && <Check className="h-4 w-4" />}
+                  {isEmailVerified ? 'Verified' : 'Unverified'}
                 </span>
               )}
             </div>
 
-            {privyEmail ? (
-              <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
-                <Check className="h-4 w-4 text-green-500" />
-                <span className="font-medium text-sm">{privyEmail}</span>
+            {accountEmail ? (
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border p-3',
+                  isEmailVerified
+                    ? 'border-green-500/20 bg-green-500/10'
+                    : 'border-border bg-muted/30'
+                )}
+              >
+                {isEmailVerified && (
+                  <Check className="h-4 w-4 text-green-500" />
+                )}
+                <span className="font-medium text-sm">{accountEmail}</span>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="flex items-start gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
-                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-                  <p className="text-muted-foreground text-xs">
-                    Link a verified email in Privy to enable notification emails
-                    and account recovery.
-                  </p>
-                </div>
-                <button
-                  onClick={handleEmailLink}
-                  disabled={linking === 'email'}
-                  className={cn(
-                    'w-full rounded-lg px-4 py-2 font-semibold transition-colors',
-                    'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                    'disabled:cursor-not-allowed disabled:opacity-50',
-                    'flex items-center justify-center gap-2'
-                  )}
-                >
-                  {linking === 'email' ? (
-                    <span>Opening Privy...</span>
-                  ) : (
-                    <>
-                      <Mail className="h-4 w-4" />
-                      <span>Link my email to Privy</span>
-                    </>
-                  )}
-                </button>
+              <div className="flex items-start gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
+                <Shield className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                <p className="text-muted-foreground text-xs">
+                  Sign in with your email to attach it to your account and
+                  enable notification emails.
+                </p>
               </div>
             )}
           </div>
@@ -381,7 +355,7 @@ export function LinkSocialAccountsModal({
                   <p className="text-muted-foreground text-xs">
                     {isMiniApp
                       ? 'Link your Telegram account to earn points and unlock rewards.'
-                      : 'Open Feed in Telegram to seamlessly link your account, or connect via Privy.'}
+                      : 'Open Feed in Telegram to seamlessly link your account.'}
                   </p>
                 </div>
                 <button

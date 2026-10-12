@@ -19,7 +19,6 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { GameFeedbackModal } from '@/components/feedback/GameFeedbackModal';
 import { Avatar } from '@/components/shared/Avatar';
 import { FeedIcon } from '@/components/shared/icons/FeedIcon';
 import { HouseIcon } from '@/components/shared/icons/HouseIcon';
@@ -53,7 +52,6 @@ function MobileHeaderContent() {
     total: number;
   } | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const pathname = usePathname();
   const { totalUnread: unreadMessages } = useUnreadMessages();
   const { unreadCount: unreadNotifications } = useUnreadNotifications();
@@ -453,12 +451,6 @@ function MobileHeaderContent() {
           </div>
         </>
       )}
-
-      {/* Feedback Modal */}
-      <GameFeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-      />
     </>
   );
 }

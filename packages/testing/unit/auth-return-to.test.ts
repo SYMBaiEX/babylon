@@ -24,3 +24,12 @@ describe('OAuth return destination', () => {
     }
   });
 });
+
+describe('safeReturnTo fallback', () => {
+  test('uses the provided fallback for unsafe values', () => {
+    expect(safeReturnTo('//evil.example', '/feed')).toBe('/feed');
+    expect(safeReturnTo('/\\evil.example', '/feed')).toBe('/feed');
+    expect(safeReturnTo(null, '/feed')).toBe('/feed');
+    expect(safeReturnTo('/markets/1', '/feed')).toBe('/markets/1');
+  });
+});

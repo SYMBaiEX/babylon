@@ -15,7 +15,7 @@ import {
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { apiUrl } from '@/utils/api-url';
+import { apiFetch } from '@/utils/api-fetch';
 
 /**
  * Fee statistics schema for validation.
@@ -111,15 +111,22 @@ export function FeesTab() {
 
   const fetchStats = useCallback(() => {
     startRefresh(async () => {
-      const response = await fetch(apiUrl('/api/admin/fees'));
-      if (!response.ok) {
-        throw new Error(`Failed to fetch fee statistics: ${response.status}`);
+      try {
+        const response = await apiFetch('/api/admin/fees');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch fee statistics: ${response.status}`);
+        }
+        const validated = FeeStatsSchema.parse(await response.json());
+        setStats(validated);
+        setError(null);
+      } catch (err) {
+        // Network, HTTP and schema failures all reach the error UI.
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch fee statistics'
+        );
+      } finally {
+        setLoading(false);
       }
-      const data = await response.json();
-      const validated = FeeStatsSchema.parse(data);
-      setStats(validated);
-      setError(null);
-      setLoading(false);
     });
   }, []);
 

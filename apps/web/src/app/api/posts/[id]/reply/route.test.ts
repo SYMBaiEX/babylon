@@ -10,6 +10,7 @@ mock.module('@feed/api', () => ({
   authenticate: mockAuthenticate,
   BusinessLogicError: class BusinessLogicError extends Error {},
   ensureUserForAuth: mock(),
+  NotFoundError: class NotFoundError extends Error {},
   successResponse: (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status }),
   withErrorHandling: (

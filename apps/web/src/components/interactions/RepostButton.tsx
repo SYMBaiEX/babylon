@@ -4,6 +4,7 @@ import type { FeedPost, RepostButtonProps } from '@feed/shared';
 import { cn } from '@feed/shared';
 import { Repeat2, X } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -111,10 +112,16 @@ export function RepostButton({
     setTimeout(() => setIsAnimating(false), 300);
 
     const response = await toggleShare(postId, commentToSend);
+    if (!response) {
+      // The store already rolled back the optimistic count; keep the draft
+      // so a failed quote can be retried.
+      toast.error(willBeShared ? 'Failed to repost' : 'Failed to undo repost');
+      return;
+    }
     onShareChange?.(willBeShared);
 
     // If this is a quote post and we got repost data back, add it optimistically to the feed
-    if (response && response.repostPost && isQuote) {
+    if (response.repostPost && isQuote) {
       const repostData = response.repostPost;
       const optimisticPost: FeedPost = {
         id: repostData.id,

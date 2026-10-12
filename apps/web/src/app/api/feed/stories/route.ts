@@ -1,13 +1,16 @@
 import {
+  addPrivateReadHeaders,
   addPublicReadHeaders,
   getCacheOrFetch,
   publicRateLimit,
   successResponse,
   withErrorHandling,
 } from '@feed/api';
-import { toISO } from '@feed/shared';
-
 import type { NextRequest } from 'next/server';
+import {
+  filterStoriesForViewer,
+  loadViewerExcludedAuthorIds,
+} from '../_lib/viewer-moderation';
 import { decodeCursor, encodeCursor, findCursorIndex } from '../feed-cursor';
 import {
   buildStoriesFeed,
@@ -54,12 +57,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // into subsequent users' responses. Anonymous requests skip the clone since
   // enrichment is never applied.
   const needsEnrichment = userId && fullResult.postIds.length > 0;
-  const stories = needsEnrichment
+  const enrichedStories = needsEnrichment
     ? structuredClone(fullResult.stories)
     : fullResult.stories;
   if (needsEnrichment) {
-    await enrichStoriesForUser(stories, fullResult.postIds, userId);
+    await enrichStoriesForUser(enrichedStories, fullResult.postIds, userId);
   }
+  // The snapshot is shared by all viewers: apply this viewer's block/mute
+  // policy before paging.
+  const stories = userId
+    ? filterStoriesForViewer(
+        enrichedStories,
+        await loadViewerExcludedAuthorIds(userId)
+      )
+    : enrichedStories;
 
   const decoded = cursorParam ? decodeCursor(cursorParam) : null;
   const startIndex = decoded ? findCursorIndex(stories, decoded) : offset;
@@ -87,13 +98,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (rateLimitInfo) {
     if (userId) {
-      response.headers.set('Cache-Control', 'private, no-store');
-      response.headers.set('X-RateLimit-Limit', rateLimitInfo.limit.toString());
-      response.headers.set(
-        'X-RateLimit-Remaining',
-        rateLimitInfo.remaining.toString()
-      );
-      response.headers.set('X-RateLimit-Reset', toISO(rateLimitInfo.resetAt));
+      addPrivateReadHeaders(response, rateLimitInfo);
     } else {
       addPublicReadHeaders(response, rateLimitInfo);
     }

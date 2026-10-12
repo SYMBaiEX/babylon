@@ -95,10 +95,11 @@ export const Response = memo(
 
     const handleClick = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLElement;
+        // The click may land on an element nested inside the link.
+        const target = (e.target as HTMLElement).closest('a');
 
         // Check if clicked element is a link with our special protocol
-        if (target.tagName === 'A') {
+        if (target && e.currentTarget.contains(target)) {
           const href = target.getAttribute('href');
           if (href?.startsWith('feed://')) {
             e.preventDefault();
@@ -114,15 +115,18 @@ export const Response = memo(
                 onTagClick(tag);
               } else {
                 // Default: navigate to profile
-                router.push(`/profile/${value}`);
+                router.push(`/profile/${encodeURIComponent(value)}`);
               }
             } else if (type === 'cashtag') {
               const tag = `$${value}`;
               if (onTagClick) {
                 onTagClick(tag);
               } else {
-                // Default: navigate to token page
-                router.push(`/tokens/${value}`);
+                // Default: the perp market for the ticker (there is no
+                // /tokens route).
+                router.push(
+                  `/markets/perps/${encodeURIComponent(value.toUpperCase())}`
+                );
               }
             }
           }
@@ -186,11 +190,9 @@ export const Response = memo(
         </Streamdown>
       </div>
     );
-  },
-  (prevProps, nextProps) =>
-    prevProps.children === nextProps.children &&
-    prevProps.onTagClick === nextProps.onTagClick &&
-    prevProps.validMentions === nextProps.validMentions
+  }
+  // Default shallow comparison: a custom comparator that ignored className
+  // and the forwarded Streamdown props froze style/config changes.
 );
 
 Response.displayName = 'Response';
