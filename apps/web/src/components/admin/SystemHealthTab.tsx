@@ -496,7 +496,11 @@ export function SystemHealthTab() {
         <MetricCard
           icon={HardDrive}
           label="Heap usage"
-          value={`${data.performance.memory.usagePercent}%`}
+          value={
+            data.performance.memory
+              ? `${data.performance.memory.usagePercent}%`
+              : 'n/a'
+          }
           subValue={`${data.realtime.outboxPending} pending realtime events`}
         />
         <MetricCard

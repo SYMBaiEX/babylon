@@ -170,13 +170,32 @@ describe('system-status-service', () => {
     );
   });
 
+  test('omits the memory subsystem where per-process metrics do not exist', () => {
+    const snapshot = buildSystemStatusSnapshot({
+      ...createBaseInput(),
+      performance: {
+        ...createBaseInput().performance,
+        memory: null,
+        server: {
+          ...createBaseInput().performance.server,
+          uptimeSeconds: null,
+          uptimeFormatted: null,
+        },
+      },
+    });
+
+    expect(snapshot.subsystems.map((s) => s.key)).not.toContain('memory');
+  });
+
   test('formats discord alerts with environment and issue context', () => {
+    const baseMemory = createBaseInput().performance.memory;
+    if (!baseMemory) throw new Error('base input must include memory metrics');
     const snapshot = buildSystemStatusSnapshot({
       ...createBaseInput(),
       performance: {
         ...createBaseInput().performance,
         memory: {
-          ...createBaseInput().performance.memory,
+          ...baseMemory,
           usagePercent: 96,
           status: 'critical',
         },

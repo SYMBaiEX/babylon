@@ -93,6 +93,7 @@ interface SystemPerformanceMetrics {
     p99DurationMs: number;
     status: SystemStatusLevel;
   };
+  /** null on Cloudflare Workers, which have no per-process memory metrics. */
   memory: {
     heapUsedMB: number;
     heapTotalMB: number;
@@ -100,10 +101,10 @@ interface SystemPerformanceMetrics {
     rssMB: number;
     usagePercent: number;
     status: SystemStatusLevel;
-  };
+  } | null;
   server: {
-    uptimeSeconds: number;
-    uptimeFormatted: string;
+    uptimeSeconds: number | null;
+    uptimeFormatted: string | null;
     env: string | null;
     pid: number;
   };
@@ -574,20 +575,23 @@ function getQuerySubsystem(
 
 function getMemorySubsystem(
   input: BuildSystemStatusInput
-): SystemStatusSubsystem {
+): SystemStatusSubsystem[] {
   const memory = input.performance.memory;
+  if (!memory) return [];
 
-  return {
-    key: 'memory',
-    label: 'Server Memory',
-    status: memory.status,
-    summary: `${formatPercent(memory.usagePercent)} heap used`,
-    details: `${round(memory.heapUsedMB)}MB / ${round(memory.heapTotalMB)}MB heap · RSS ${round(memory.rssMB)}MB.`,
-    metric: {
-      label: 'Uptime',
-      value: input.performance.server.uptimeFormatted,
+  return [
+    {
+      key: 'memory',
+      label: 'Server Memory',
+      status: memory.status,
+      summary: `${formatPercent(memory.usagePercent)} heap used`,
+      details: `${round(memory.heapUsedMB)}MB / ${round(memory.heapTotalMB)}MB heap · RSS ${round(memory.rssMB)}MB.`,
+      metric: {
+        label: 'Uptime',
+        value: input.performance.server.uptimeFormatted ?? 'n/a',
+      },
     },
-  };
+  ];
 }
 
 export function buildSystemStatusSnapshot(
@@ -669,7 +673,7 @@ export function buildSystemStatusSnapshot(
       },
     },
     getQuerySubsystem(input),
-    getMemorySubsystem(input),
+    ...getMemorySubsystem(input),
   ];
 
   const criticalIssues = subsystems
@@ -779,9 +783,14 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
     queryStats.totalQueries > 0
       ? (queryStats.slowQueries / queryStats.totalQueries) * 100
       : 0;
-  const memUsage = process.memoryUsage();
+  // Workers expose these methods under nodejs_compat but they throw there.
+  const hasProcessMetrics = process.env.DEPLOYMENT_PLATFORM !== 'cloudflare';
+  const memUsage = hasProcessMetrics ? process.memoryUsage() : null;
   const memoryUsagePercent =
-    memUsage.heapTotal > 0 ? (memUsage.heapUsed / memUsage.heapTotal) * 100 : 0;
+    memUsage && memUsage.heapTotal > 0
+      ? (memUsage.heapUsed / memUsage.heapTotal) * 100
+      : 0;
+  const uptimeSeconds = hasProcessMetrics ? process.uptime() : null;
 
   const performance: SystemPerformanceMetrics = {
     query: {
@@ -793,17 +802,20 @@ export async function getSystemStatusSnapshot(): Promise<SystemStatusSnapshot> {
       p99DurationMs: round(queryStats.p99Duration),
       status: getQueryStatus(slowRate),
     },
-    memory: {
-      heapUsedMB: round(memUsage.heapUsed / 1024 / 1024),
-      heapTotalMB: round(memUsage.heapTotal / 1024 / 1024),
-      externalMB: round(memUsage.external / 1024 / 1024),
-      rssMB: round(memUsage.rss / 1024 / 1024),
-      usagePercent: round(memoryUsagePercent),
-      status: getMemoryStatus(memoryUsagePercent),
-    },
+    memory: memUsage
+      ? {
+          heapUsedMB: round(memUsage.heapUsed / 1024 / 1024),
+          heapTotalMB: round(memUsage.heapTotal / 1024 / 1024),
+          externalMB: round(memUsage.external / 1024 / 1024),
+          rssMB: round(memUsage.rss / 1024 / 1024),
+          usagePercent: round(memoryUsagePercent),
+          status: getMemoryStatus(memoryUsagePercent),
+        }
+      : null,
     server: {
-      uptimeSeconds: Math.floor(process.uptime()),
-      uptimeFormatted: formatDuration(process.uptime()),
+      uptimeSeconds: uptimeSeconds === null ? null : Math.floor(uptimeSeconds),
+      uptimeFormatted:
+        uptimeSeconds === null ? null : formatDuration(uptimeSeconds),
       env: process.env.NODE_ENV ?? null,
       pid: process.pid,
     },
