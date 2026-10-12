@@ -112,11 +112,10 @@ describe('Error Classes', () => {
   });
 
   describe('RateLimitError', () => {
-    it('creates error with reset time', () => {
-      const resetTime = Date.now() + 60000;
-      const error = new RateLimitError('Too many requests', resetTime);
+    it('creates error with retry-after seconds', () => {
+      const error = new RateLimitError('Too many requests', 30);
       expect(error.statusCode).toBe(429);
-      expect(error.reset).toBe(resetTime);
+      expect(error.reset).toBe(30);
     });
   });
 

@@ -56,7 +56,6 @@ export {
   authenticate,
   authenticateUser,
   authenticateWithDbUser,
-  getPrivyClient,
   isAuthenticationError,
   optionalAuth,
   optionalAuthFromHeaders,
@@ -108,7 +107,6 @@ export {
 } from './env';
 // Error Handler (Next.js specific)
 export {
-  asyncHandler,
   type ErrorHandlerOptions,
   errorHandler,
   errorResponse,
@@ -159,21 +157,13 @@ export {
 } from './linear';
 // Monitoring
 export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
-export * from './monitoring/monitored-cache';
-export * from './monitoring/monitored-storage';
 // Performance monitoring (moved from @feed/shared)
 export { performanceMonitor } from './monitoring/performance-monitor';
 // Profile utilities
 export {
-  type BackendSignedUpdateParams,
-  type BackendSignedUpdateResult,
   checkProfileUpdateRateLimit,
   getProfileUpdateHistory,
-  isBackendSigningEnabled,
   logProfileUpdate,
-  type ProfileMetadata,
-  updateProfileBackendSigned,
-  verifyBackendSignedUpdate,
 } from './profile';
 // Query Parameter Utilities
 export {
@@ -190,7 +180,6 @@ export {
   applyDuplicateDetection,
   applyRateLimit,
   checkDuplicate,
-  checkRateLimit,
   checkRateLimitAndDuplicates,
   checkRateLimitAsync,
   cleanupDuplicates,
@@ -227,11 +216,9 @@ export { drainOutboxBatch, enqueueOutbox } from './realtime/outbox';
 export {
   closeRedis,
   ensureRedisReady,
-  getRedis,
   getRedisClient,
   isRedisAvailable,
   type RedisInstance,
-  redis,
   type StreamMessage,
   safePoll,
   safePublish,

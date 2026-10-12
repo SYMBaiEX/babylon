@@ -39,7 +39,6 @@ export type {
   QuestionOutcome,
   RelationshipType,
   Scenario,
-  SeedActorsDatabase,
   SelectedActor,
   StockPrice,
   WorldEvent,

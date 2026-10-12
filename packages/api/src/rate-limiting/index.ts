@@ -34,7 +34,6 @@ export {
 // Rate limiting (moved from @feed/shared)
 // Redis-backed for production serverless, with in-memory fallback
 export {
-  checkRateLimit,
   checkRateLimitAsync,
   cleanupMemoryRateLimits,
   clearAllRateLimits,

@@ -98,6 +98,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     bonusAmount: awarded ? POINTS.EMAIL_SUBMIT : 0,
     message: awarded
       ? 'Email bonus awarded'
-      : 'Email bonus already awarded or user not found',
+      : 'Email bonus already awarded, or the email is not the verified email on your account',
   });
 });

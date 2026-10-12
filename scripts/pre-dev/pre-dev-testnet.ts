@@ -186,11 +186,11 @@ if (!isConnected) {
     undefined,
     'Script'
   );
-  await $`bunx drizzle-kit push --config=drizzle.config.ts`
+  await $`bunx drizzle-kit push --config=drizzle.config.cjs`
     .cwd('packages/db')
     .quiet()
     .catch(async () => {
-      await $`bunx drizzle-kit push --force --config=drizzle.config.ts`
+      await $`bunx drizzle-kit push --force --config=drizzle.config.cjs`
         .cwd('packages/db')
         .quiet();
     });
@@ -208,11 +208,11 @@ const actorCountResult = await db
       errorMessage.includes('relation')
     ) {
       console.info('Running database migrations...', undefined, 'Script');
-      await $`bunx drizzle-kit push --config=drizzle.config.ts`
+      await $`bunx drizzle-kit push --config=drizzle.config.cjs`
         .cwd('packages/db')
         .quiet()
         .catch(async () => {
-          await $`bunx drizzle-kit push --force --config=drizzle.config.ts`
+          await $`bunx drizzle-kit push --force --config=drizzle.config.cjs`
             .cwd('packages/db')
             .quiet();
         });

@@ -18,14 +18,19 @@ import type {
   ExecutionEventBus,
   RequestContext,
 } from '@a2a-js/sdk/server';
-import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from '@feed/api';
+import {
+  acceptGroupInvite,
+  checkRateLimitAsync,
+  declineGroupInvite,
+  RATE_LIMIT_CONFIGS,
+} from '@feed/api';
 import { PerpDbAdapter, PerpMarketService } from '@feed/core/markets/perps';
 import {
   PredictionDbAdapter,
   PredictionMarketService,
 } from '@feed/core/markets/prediction';
 import type { WalletPort } from '@feed/core/markets/shared';
-import { db, getRawDrizzle } from '@feed/db';
+import { asUser, db, getRawDrizzle, sql } from '@feed/db';
 import { perpMarketSnapshots } from '@feed/db/schema';
 import {
   createPerpPriceImpactPort,
@@ -39,6 +44,7 @@ import {
   generateSnowflakeId,
   getAPIBaseUrl,
   logger,
+  UpdateUserSchema,
 } from '@feed/shared';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -48,7 +54,7 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '../handlers/escrow-handlers';
-import { X402Manager } from '../payments/x402-manager';
+import { getSharedX402Manager } from '../payments/shared-manager';
 import type { JsonRpcRequest } from '../types/a2a';
 import {
   type OffsetPaginationParams,
@@ -294,6 +300,11 @@ function requireContextAccountId(
   return userId;
 }
 
+/** Matches CreatePostSchema / ContentValidator post limit. */
+const MAX_POST_CONTENT_LENGTH = 5000;
+/** Matches CreateCommentSchema (shared validation). */
+const MAX_COMMENT_LENGTH = 2000;
+
 export class FeedAgentExecutor implements AgentExecutor {
   /**
    * Check rate limit and throw if exceeded.
@@ -324,12 +335,25 @@ export class FeedAgentExecutor implements AgentExecutor {
    * @returns Sanitized content string
    * @throws Error if content fails validation
    */
-  private validateUserContent(content: unknown, context: string): string {
-    // Step 1: Structural validation (type, empty check, length limit)
+  private validateUserContent(
+    content: unknown,
+    context: string,
+    maxLength = MAX_POST_CONTENT_LENGTH
+  ): string {
+    // Step 1: Structural validation (type, non-empty, absolute length limit)
     ContentValidator.validatePostContent(content, context);
 
-    // Step 2: Sanitize (remove null bytes, control characters)
-    const sanitized = ContentValidator.sanitizeContent(content);
+    // Step 2: Sanitize (remove null bytes, control characters) and validate
+    // the sanitized value, so control-only input cannot become empty content.
+    const sanitized = ContentValidator.sanitizeContent(content).trim();
+    if (sanitized.length === 0) {
+      throw new Error(`${context}: content cannot be empty`);
+    }
+    if (sanitized.length > maxLength) {
+      throw new Error(
+        `${context}: content exceeds maximum length (${maxLength} chars)`
+      );
+    }
 
     // Step 3: Safety check (profanity, injection, spam)
     const safetyCheck = checkUserInput(sanitized);
@@ -721,6 +745,7 @@ export class FeedAgentExecutor implements AgentExecutor {
   private async getFeed(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 100);
     const posts = await db.post.findMany({
+      where: { deletedAt: null },
       take: limit,
       orderBy: { timestamp: 'desc' },
       select: {
@@ -972,7 +997,11 @@ export class FeedAgentExecutor implements AgentExecutor {
   ): Promise<ExecutorOperationResult> {
     const postId = String(params.postId ?? '');
     // Validate and sanitize content (checks type, length, profanity, injection)
-    const content = this.validateUserContent(params.content, 'Comment');
+    const content = this.validateUserContent(
+      params.content,
+      'Comment',
+      MAX_COMMENT_LENGTH
+    );
 
     if (!postId) throw new Error('postId is required');
 
@@ -1206,19 +1235,36 @@ export class FeedAgentExecutor implements AgentExecutor {
   ): Promise<ExecutorOperationResult> {
     const userId = requireContextAccountId({}, context);
 
-    const updateData: Record<string, string | null> = {};
+    // Same validation as the HTTP profile update route.
+    const parsed = UpdateUserSchema.pick({
+      displayName: true,
+      bio: true,
+      username: true,
+      profileImageUrl: true,
+    }).safeParse({
+      displayName: params.displayName,
+      bio: params.bio,
+      username: params.username,
+      profileImageUrl: params.profileImageUrl,
+    });
+    if (!parsed.success) {
+      throw new Error(
+        `Invalid profile update: ${parsed.error.issues[0]?.message ?? 'invalid input'}`
+      );
+    }
 
-    if (typeof params.displayName === 'string') {
-      updateData.displayName = params.displayName.trim() || null;
+    const updateData: Record<string, string | null> = {};
+    if (parsed.data.displayName !== undefined) {
+      updateData.displayName = parsed.data.displayName || null;
     }
-    if (typeof params.bio === 'string') {
-      updateData.bio = params.bio.trim() || null;
+    if (parsed.data.bio !== undefined) {
+      updateData.bio = parsed.data.bio || null;
     }
-    if (typeof params.username === 'string') {
-      updateData.username = params.username.trim() || null;
+    if (parsed.data.username !== undefined) {
+      updateData.username = parsed.data.username;
     }
-    if (typeof params.profileImageUrl === 'string') {
-      updateData.profileImageUrl = params.profileImageUrl.trim() || null;
+    if (parsed.data.profileImageUrl !== undefined) {
+      updateData.profileImageUrl = parsed.data.profileImageUrl || null;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -2097,15 +2143,41 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     if (!chatId) throw new Error('chatId is required');
 
-    // Update participant to mark as inactive
-    const updated = await db.chatParticipant.updateMany({
-      where: { chatId, userId, isActive: true },
-      data: { isActive: false },
-    });
+    // Leave the chat and, for group chats, the group membership too (same
+    // rules as DELETE /api/chats/[id]/participants/me), atomically.
+    await asUser(userId, async (tx) => {
+      const updated = await tx.chatParticipant.updateMany({
+        where: { chatId, userId, isActive: true },
+        data: { isActive: false },
+      });
+      if (updated.count === 0) {
+        throw new Error('Chat not found or already left');
+      }
 
-    if (updated.count === 0) {
-      throw new Error('Chat not found or already left');
-    }
+      const chat = await tx.chat.findUnique({
+        where: { id: chatId },
+        select: { groupId: true },
+      });
+      if (!chat?.groupId) return;
+
+      const membership = await tx.groupMember.findFirst({
+        where: { groupId: chat.groupId, userId, isActive: true },
+      });
+      if (!membership) return;
+      if (membership.role === 'owner') {
+        throw new Error(
+          'Group owners cannot leave. Transfer ownership or delete the group.'
+        );
+      }
+      await tx.groupMember.update({
+        where: { id: membership.id },
+        data: {
+          isActive: false,
+          kickedAt: new Date(),
+          kickReason: 'User left',
+        },
+      });
+    });
 
     return { success: true, message: 'Left chat' };
   }
@@ -2237,53 +2309,7 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     if (!inviteId) throw new Error('inviteId is required');
 
-    // Find and validate invite
-    const invite = await db.groupInvite.findFirst({
-      where: { id: inviteId, invitedUserId: userId, status: 'pending' },
-    });
-
-    if (!invite) {
-      throw new Error('Invite not found or already processed');
-    }
-
-    // Generate IDs before transaction to ensure they're ready
-    const groupMemberId = await generateSnowflakeId();
-    const chatParticipantId = await generateSnowflakeId();
-
-    // Perform all operations atomically in a transaction
-    await db.$transaction(async (tx) => {
-      // Update invite status
-      await tx.groupInvite.update({
-        where: { id: inviteId },
-        data: { status: 'accepted', respondedAt: new Date() },
-      });
-
-      // Add user to group
-      await tx.groupMember.create({
-        data: {
-          id: groupMemberId,
-          groupId: invite.groupId,
-          userId,
-          role: 'member',
-        },
-      });
-
-      // Check for group chat within transaction
-      const chat = await tx.chat.findFirst({
-        where: { groupId: invite.groupId },
-      });
-
-      // Add user to group chat if it exists
-      if (chat) {
-        await tx.chatParticipant.create({
-          data: {
-            id: chatParticipantId,
-            chatId: chat.id,
-            userId,
-          },
-        });
-      }
-    });
+    await acceptGroupInvite(userId, inviteId);
 
     return { success: true, message: 'Group invite accepted' };
   }
@@ -2297,20 +2323,7 @@ export class FeedAgentExecutor implements AgentExecutor {
 
     if (!inviteId) throw new Error('inviteId is required');
 
-    // Find and validate invite
-    const invite = await db.groupInvite.findFirst({
-      where: { id: inviteId, invitedUserId: userId, status: 'pending' },
-    });
-
-    if (!invite) {
-      throw new Error('Invite not found or already processed');
-    }
-
-    // Update invite status
-    await db.groupInvite.update({
-      where: { id: inviteId },
-      data: { status: 'declined', respondedAt: new Date() },
-    });
+    await declineGroupInvite(userId, inviteId);
 
     return { success: true, message: 'Group invite declined' };
   }
@@ -3596,29 +3609,22 @@ export class FeedAgentExecutor implements AgentExecutor {
     const marketId = String(params.marketId ?? '');
     if (!marketId) throw new Error('marketId is required');
 
-    const baseUrl = getAPIBaseUrl();
-    const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      DEFAULT_FETCH_TIMEOUT_MS
-    );
-
+    // getAPIBaseUrl() already ends in /api.
+    const url = `${getAPIBaseUrl()}/markets/predictions/${encodeURIComponent(marketId)}`;
+    // The timeout covers reading the body as well as receiving headers.
+    const signal = AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS);
     try {
-      const response = await fetch(
-        `${baseUrl}/api/markets/predictions/${encodeURIComponent(marketId)}`,
-        { signal: controller.signal }
-      );
-      clearTimeout(timer);
-
+      const response = await fetch(url, { signal });
       if (!response.ok) {
         throw new Error(`Failed to get market data: ${response.statusText}`);
       }
-
       const data = await response.json();
       return { market: data };
     } catch (error) {
-      clearTimeout(timer);
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (
+        error instanceof Error &&
+        (error.name === 'TimeoutError' || error.name === 'AbortError')
+      ) {
         throw new Error(
           `Request to get market data timed out after ${DEFAULT_FETCH_TIMEOUT_MS}ms`
         );
@@ -3657,52 +3663,33 @@ export class FeedAgentExecutor implements AgentExecutor {
       };
     }
 
-    // Try perpetual market using database query
-    try {
-      const drizzle = getRawDrizzle();
-      const perps = await drizzle
-        .select({
-          ticker: perpMarketSnapshots.ticker,
-          currentPrice: perpMarketSnapshots.currentPrice,
-          change24h: perpMarketSnapshots.change24h,
-        })
-        .from(perpMarketSnapshots)
-        .limit(100);
+    // Perpetual market: look the ticker up directly (case-insensitive)
+    // instead of scanning an arbitrary first page of snapshots.
+    const [perp] = await getRawDrizzle()
+      .select({
+        ticker: perpMarketSnapshots.ticker,
+        currentPrice: perpMarketSnapshots.currentPrice,
+        change24h: perpMarketSnapshots.change24h,
+      })
+      .from(perpMarketSnapshots)
+      .where(
+        sql`upper(${perpMarketSnapshots.ticker}) = ${marketId.toUpperCase()}`
+      )
+      .limit(1);
 
-      const perp = perps.find(
-        (p) => p.ticker.toUpperCase() === marketId.toUpperCase()
-      );
-
-      if (perp) {
-        return {
-          marketId: perp.ticker,
-          type: 'perpetual',
-          prices: {
-            current: perp.currentPrice,
-            change24h: perp.change24h ?? 0,
-          },
-          timestamp: new Date().toISOString(),
-        };
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to query perpMarketSnapshots for marketId',
-        { error, marketId },
-        'A2A'
-      );
-      throw error;
+    if (perp) {
+      return {
+        marketId: perp.ticker,
+        type: 'perpetual',
+        prices: {
+          current: perp.currentPrice,
+          change24h: perp.change24h ?? 0,
+        },
+        timestamp: new Date().toISOString(),
+      };
     }
 
     throw new Error(`Market not found: ${marketId}`);
-  }
-
-  /**
-   * Get or create the X402 payment manager instance
-   */
-  private getX402Manager(): X402Manager {
-    const rpcUrl =
-      process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org';
-    return new X402Manager({ rpcUrl });
   }
 
   /**
@@ -3735,15 +3722,23 @@ export class FeedAgentExecutor implements AgentExecutor {
       | Record<string, string | number | boolean | null>
       | undefined;
 
-    const x402 = this.getX402Manager();
+    // The payer is the user's linked wallet: verification binds the on-chain
+    // sender to the request's `from`.
+    const payer = await db.user.findUnique({
+      where: { id: userId },
+      select: { walletAddress: true },
+    });
+    if (!payer?.walletAddress) {
+      throw new Error('A linked wallet is required to create payment requests');
+    }
 
-    // Create payment request via X402Manager
+    const x402 = await getSharedX402Manager();
     const paymentRequest = await x402.createPaymentRequest(
-      userId,
+      payer.walletAddress,
       to,
       amount,
       service,
-      metadata
+      { ...metadata, userId }
     );
 
     logger.info(
@@ -3788,11 +3783,12 @@ export class FeedAgentExecutor implements AgentExecutor {
       throw new Error('txHash must be a valid 66-character hex string (0x...)');
     }
 
-    const x402 = this.getX402Manager();
+    const x402 = await getSharedX402Manager();
+    const userId = requireContextAccountId({}, context);
 
-    // Get the pending payment request first
+    // Get the pending payment request first; only its creator may redeem it.
     const pendingRequest = await x402.getPaymentRequest(requestId);
-    if (!pendingRequest) {
+    if (!pendingRequest || pendingRequest.metadata?.userId !== userId) {
       logger.warn('Payment request not found', { requestId, txHash }, 'A2A');
       return {
         success: false,

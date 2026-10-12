@@ -28,7 +28,7 @@
     "db:pull": "drizzle-kit pull --config=drizzle.config.cjs",
     "db:studio": "drizzle-kit studio --config=drizzle.config.cjs",
     "db:check": "drizzle-kit check --config=drizzle.config.cjs",
-    "db:sync-migrations": "tsx scripts/sync-migrations.ts"
+    "db:sync-migrations": "bun scripts/sync-migrations.ts"
   },
   "dependencies": {
     "@feed/shared": "workspace:*",

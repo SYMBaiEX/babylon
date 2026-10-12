@@ -282,32 +282,29 @@ describe('addToWhitelist → group assignment', () => {
       return Promise.resolve([{ id: capturedNanoid }]);
     });
 
-    // Simulate slow side-effects (500ms each)
-    mockAssignDefaultGroups.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(
-            () =>
-              resolve({
-                success: true,
-                groupsAssigned: 3,
-                assignments: [],
-                errors: [],
-              }),
-            500
-          )
-        )
+    // Side effect stays pending until released: addToWhitelist must resolve
+    // without waiting for it (no wall-clock assertion).
+    let release: () => void = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mockAssignDefaultGroups.mockImplementation(() =>
+      pending.then(() => ({
+        success: true,
+        groupsAssigned: 3,
+        assignments: [],
+        errors: [],
+      }))
     );
 
-    const startTime = Date.now();
     const result = await addToWhitelist({
       userId: 'user-slow',
       source: 'admin_manual',
     });
-    const elapsed = Date.now() - startTime;
 
-    // addToWhitelist should return immediately (fire-and-forget for both)
     expect(result.alreadyExists).toBe(false);
-    expect(elapsed).toBeLessThan(200);
+    expect(mockAssignDefaultGroups).toHaveBeenCalledTimes(1);
+    release();
+    await pending;
   });
 });

@@ -135,7 +135,7 @@ export const POST = withErrorHandling(
     const user = await authenticate(request);
 
     // Apply rate limiting (no duplicate detection needed)
-    const rateLimitError = checkRateLimitAndDuplicates(
+    const rateLimitError = await checkRateLimitAndDuplicates(
       user.userId,
       null,
       RATE_LIMIT_CONFIGS.FOLLOW_USER
@@ -357,7 +357,7 @@ export const DELETE = withErrorHandling(
     const user = await authenticate(request);
 
     // Apply rate limiting (no duplicate detection needed)
-    const rateLimitError = checkRateLimitAndDuplicates(
+    const rateLimitError = await checkRateLimitAndDuplicates(
       user.userId,
       null,
       RATE_LIMIT_CONFIGS.UNFOLLOW_USER

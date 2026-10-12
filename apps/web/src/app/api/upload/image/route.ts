@@ -141,7 +141,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
   // Apply rate limiting (no duplicate detection for uploads)
-  const rateLimitError = checkRateLimitAndDuplicates(
+  const rateLimitError = await checkRateLimitAndDuplicates(
     authUser.userId,
     null,
     RATE_LIMIT_CONFIGS.UPLOAD_IMAGE

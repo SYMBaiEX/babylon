@@ -192,4 +192,35 @@ describe('Token Counter Utilities', () => {
       expect(MODEL_TOKEN_LIMITS['mixtral-8x7b-32768']).toBeDefined();
     });
   });
+
+  describe('budget edge cases', () => {
+    it('rejects negative or fractional budgets', () => {
+      expect(() => truncateToTokenLimitSync('abcdef', -1)).toThrow();
+      expect(() => truncateToTokenLimitSync('abcdef', 1.5)).toThrow();
+      expect(() => budgetTokens(-10, [{ name: 'a', priority: 1 }])).toThrow();
+    });
+
+    it('honours a zero budget (no text, no ellipsis)', () => {
+      const result = truncateToTokenLimitSync('a'.repeat(100), 0);
+      expect(result.text).toBe('');
+      const tail = truncateToTokenLimitSync('a'.repeat(100), 0, {
+        preserveEnd: true,
+      });
+      expect(tail.text).toBe('');
+    });
+
+    it('keeps a configured zero model limit', () => {
+      expect(getModelTokenLimit('whisper-large-v3')).toBe(0);
+      expect(getModelTokenLimit('unknown-model')).toBe(8192);
+    });
+
+    it('allocates only minimums when no section has priority', () => {
+      expect(
+        budgetTokens(100, [
+          { name: 'a', priority: 0, minTokens: 10 },
+          { name: 'b', priority: 0 },
+        ])
+      ).toEqual({ a: 10, b: 0 });
+    });
+  });
 });

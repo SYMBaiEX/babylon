@@ -1,8 +1,10 @@
 /**
- * Automated OpenAPI Specification Generator
+ * OpenAPI Specification
  *
  * @module lib/swagger/auto-generator
- * @description Returns the canonical Feed OpenAPI spec used by the docs route.
+ * @description Returns the canonical (hand-maintained) Feed OpenAPI spec used
+ * by the docs route. Despite the module name, nothing is generated from
+ * route code.
  */
 
 import { swaggerDefinition } from './config';

@@ -16,9 +16,9 @@ export interface IdentityRegistryContract {
   /** Get the token ID for a registered agent address */
   getTokenId(address: string): Promise<bigint>;
   /** Get the owner address of a token ID */
-  ownerOf(tokenId: number): Promise<string>;
+  ownerOf(tokenId: bigint): Promise<string>;
   /** Get the complete profile for an agent token */
-  getAgentProfile(tokenId: number): Promise<AgentProfileResult>;
+  getAgentProfile(tokenId: bigint): Promise<AgentProfileResult>;
   /** Check if an address is registered as an agent */
   isRegistered(address: string): Promise<boolean>;
   /** Get all active agent token IDs */
@@ -36,11 +36,11 @@ export interface IdentityRegistryContract {
  */
 export interface ReputationSystemContract {
   /** Get reputation metrics for an agent token */
-  getReputation(tokenId: number): Promise<ReputationResult>;
+  getReputation(tokenId: bigint): Promise<ReputationResult>;
   /** Get the total number of feedback entries for an agent */
-  getFeedbackCount(tokenId: number): Promise<bigint>;
+  getFeedbackCount(tokenId: bigint): Promise<bigint>;
   /** Get a specific feedback entry by index */
-  getFeedback(tokenId: number, index: number): Promise<FeedbackResult>;
+  getFeedback(tokenId: bigint, index: bigint): Promise<FeedbackResult>;
   /** Get agent token IDs with minimum reputation score */
   getAgentsByMinScore(minScore: number): Promise<bigint[]>;
 }
@@ -91,8 +91,8 @@ export type ReputationResult = [
 export interface FeedbackResult {
   /** Address of the user who submitted the feedback */
   from: string;
-  /** Rating value (int8 from contract, mapped to number) */
-  rating: number;
+  /** Rating value (int8 from contract, -5 to +5; ethers v6 returns bigint) */
+  rating: bigint;
   /** Feedback comment text */
   comment: string;
   /** Block timestamp when feedback was submitted */
@@ -198,6 +198,6 @@ export interface FeedbackSubmittedEvent {
   tokenId: bigint;
   /** Address submitting the feedback */
   from: string;
-  /** Rating value (typically -1 to 1) */
-  rating: number;
+  /** Rating value (int8 from contract, -5 to +5; ethers v6 returns bigint) */
+  rating: bigint;
 }

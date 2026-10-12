@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import {
   AssetOrUrlSchema,
+  createQueryBooleanSchema,
   createTrimmedStringSchema,
   EmailSchema,
   PaginationSchema,
@@ -238,13 +239,13 @@ export const UserListResponseSchema = z.object({
  */
 export const UserPostsQuerySchema = z.object({
   type: z.enum(['posts', 'replies']).default('posts'),
-  page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(100),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
 });
 
 /**
  * User followers/following query schema
  */
 export const UserFollowersQuerySchema = PaginationSchema.extend({
-  includeMutual: z.coerce.boolean().default(false),
+  includeMutual: createQueryBooleanSchema(false),
 });

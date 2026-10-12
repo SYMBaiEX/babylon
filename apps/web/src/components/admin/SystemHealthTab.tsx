@@ -93,7 +93,7 @@ interface SystemStatusData {
   };
   llm: {
     callsLast24h: number;
-    errorsLastHour: number;
+    errorsLastHour: number | null;
   };
   realtime: {
     outboxPending: number;
@@ -482,7 +482,11 @@ export function SystemHealthTab() {
         <MetricCard
           icon={Activity}
           label="LLM errors"
-          value={String(data.llm.errorsLastHour)}
+          value={
+            data.llm.errorsLastHour === null
+              ? 'n/a'
+              : String(data.llm.errorsLastHour)
+          }
           subValue={`${data.llm.callsLast24h.toLocaleString()} calls in the last 24h`}
         />
       </div>

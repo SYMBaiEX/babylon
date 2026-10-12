@@ -61,7 +61,7 @@ import type { NextRequest } from 'next/server';
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
-  const rateLimitError = checkRateLimitAndDuplicates(
+  const rateLimitError = await checkRateLimitAndDuplicates(
     authUser.userId,
     null,
     RATE_LIMIT_CONFIGS.SUBMIT_FEEDBACK

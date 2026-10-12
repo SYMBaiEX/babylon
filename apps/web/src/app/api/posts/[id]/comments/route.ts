@@ -361,7 +361,7 @@ export const POST = withErrorHandling(
     }
 
     // Apply rate limiting and duplicate detection
-    const rateLimitError = checkRateLimitAndDuplicates(
+    const rateLimitError = await checkRateLimitAndDuplicates(
       user.userId,
       content,
       RATE_LIMIT_CONFIGS.CREATE_COMMENT,

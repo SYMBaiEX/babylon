@@ -78,9 +78,11 @@ import {
   JsonRpcTransportHandler,
 } from '@a2a-js/sdk/server';
 import {
+  authorizeTaskReference,
   FeedAgentExecutor,
   feedAgentCard,
   PersistentTaskStore,
+  scopeRequestToCaller,
 } from '@feed/a2a';
 import { withErrorHandling } from '@feed/api';
 import { logger } from '@feed/shared';
@@ -143,69 +145,42 @@ export const POST = withErrorHandling(async function POST(
     userId: authResult?.userId,
   });
 
-  // SECURITY: User-scoped execution for user API keys
-  // When authenticated via per-user API key, enforce that the ACTOR identity
-  // (contextId) is the authenticated user. This prevents impersonation attacks.
-  //
-  // NOTE: We do NOT enforce params.userId because many operations use it as
-  // the TARGET (e.g., blockUser targets params.userId, actor is contextId).
-  // The executor uses contextId as the actor for all write operations.
-  if (authResult?.authMethod === 'user-key') {
-    const authenticatedUserId = authResult.userId;
-
-    // Validate userId is present and non-empty
-    if (!authenticatedUserId || typeof authenticatedUserId !== 'string') {
+  // SECURITY: User-scoped execution for user API keys.
+  // For per-user API keys the ACTOR identity (contextId) is bound to the
+  // authenticated user, preventing impersonation. params.userId is NOT
+  // enforced because many operations use it as the TARGET.
+  if (authResult) {
+    const scope = scopeRequestToCaller(body, authResult);
+    if (!scope.ok) {
       logger.error('User API key authenticated but userId is missing', {
         authMethod: authResult.authMethod,
-        hasUserId: !!authenticatedUserId,
       });
       return NextResponse.json(
         {
           jsonrpc: '2.0',
-          error: {
-            code: -32001,
-            message: 'Authentication error: Invalid user identity',
-          },
+          error: { code: -32001, message: scope.message },
           id: body.id ?? null,
         },
         { status: 401 }
       );
     }
 
-    // Type guard: ensure params is a plain object
-    const isPlainObject = (val: unknown): val is Record<string, unknown> =>
-      typeof val === 'object' && val !== null && !Array.isArray(val);
-
-    // Ensure params exists and is a plain object
-    if (!isPlainObject(body.params)) {
-      body.params = {};
+    // Tasks are addressed by ID; only their owner may read or act on them.
+    const taskAccess = await authorizeTaskReference(
+      body,
+      authResult,
+      taskStore
+    );
+    if (!taskAccess.ok) {
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          error: { code: -32001, message: 'Task not found' },
+          id: body.id ?? null,
+        },
+        { status: 404 }
+      );
     }
-
-    // Validate and override contextId in message params
-    if (isPlainObject(body.params.message)) {
-      if (
-        body.params.message.contextId &&
-        body.params.message.contextId !== authenticatedUserId
-      ) {
-        logger.warn('Overriding mismatched message contextId', {
-          providedContextId: body.params.message.contextId,
-          authenticatedUserId,
-        });
-      }
-      body.params.message.contextId = authenticatedUserId;
-    }
-
-    // Validate and override contextId at params level (for tasks/get and other methods)
-    if (
-      body.params.contextId &&
-      body.params.contextId !== authenticatedUserId
-    ) {
-      logger.warn('Overriding mismatched params contextId', {
-        providedContextId: body.params.contextId,
-        authenticatedUserId,
-      });
-    }
-    body.params.contextId = authenticatedUserId;
   }
 
   // SECURITY: Server API key and localhost bypass

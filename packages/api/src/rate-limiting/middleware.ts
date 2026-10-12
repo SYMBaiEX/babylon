@@ -15,11 +15,7 @@ import {
   type DUPLICATE_DETECTION_CONFIGS,
 } from '../utils/duplicate-detector';
 import { getClientIp } from '../utils/ip-utils';
-import {
-  checkRateLimit,
-  checkRateLimitAsync,
-  RATE_LIMIT_CONFIGS,
-} from './user-rate-limiter';
+import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from './user-rate-limiter';
 
 function isRateLimitingDisabled() {
   return (
@@ -85,10 +81,10 @@ export function duplicateContentError(lastPostedAt?: Date) {
  * }
  * ```
  */
-export function applyRateLimit(
+export async function applyRateLimit(
   userId: string,
   config: (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS]
-) {
+): Promise<{ allowed: boolean; retryAfter?: number; remaining?: number }> {
   if (isRateLimitingDisabled()) {
     return {
       allowed: true,
@@ -96,7 +92,7 @@ export function applyRateLimit(
     };
   }
 
-  return checkRateLimit(userId, config);
+  return checkRateLimitAsync(userId, config);
 }
 
 /**
@@ -137,18 +133,18 @@ export function applyDuplicateDetection(
  * if (errorResponse) return errorResponse;
  * ```
  */
-export function checkRateLimitAndDuplicates(
+export async function checkRateLimitAndDuplicates(
   userId: string,
   content: string | null,
   rateLimitConfig: (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS],
   duplicateConfig?: (typeof DUPLICATE_DETECTION_CONFIGS)[keyof typeof DUPLICATE_DETECTION_CONFIGS]
-): NextResponse | null {
+): Promise<NextResponse | null> {
   if (isRateLimitingDisabled()) {
     return null;
   }
 
   // Check rate limit first
-  const rateLimitResult = checkRateLimit(userId, rateLimitConfig);
+  const rateLimitResult = await checkRateLimitAsync(userId, rateLimitConfig);
   if (!rateLimitResult.allowed) {
     logger.warn('Rate limit check failed', {
       userId,

@@ -354,7 +354,7 @@ async function runMigrations(): Promise<void> {
   }
 
   logger.step('Pushing schema changes...');
-  await $`bunx drizzle-kit push --config=packages/db/drizzle.config.ts`;
+  await $`bunx drizzle-kit push --config=packages/db/drizzle.config.cjs`;
   logger.success('Migrations complete');
 }
 
@@ -403,7 +403,7 @@ async function resetDatabase(): Promise<void> {
   }
 
   logger.step('Resetting schema...');
-  await $`bunx drizzle-kit push --force --config=packages/db/drizzle.config.ts`;
+  await $`bunx drizzle-kit push --force --config=packages/db/drizzle.config.cjs`;
   logger.success('Database reset complete');
 }
 

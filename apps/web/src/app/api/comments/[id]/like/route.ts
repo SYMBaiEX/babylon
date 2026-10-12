@@ -141,7 +141,7 @@ export const POST = withErrorHandling(
     const { id: commentId } = IdParamSchema.parse(await context.params);
 
     // Apply rate limiting (no duplicate detection needed - DB prevents duplicate likes)
-    const rateLimitError = checkRateLimitAndDuplicates(
+    const rateLimitError = await checkRateLimitAndDuplicates(
       user.userId,
       null,
       RATE_LIMIT_CONFIGS.LIKE_COMMENT

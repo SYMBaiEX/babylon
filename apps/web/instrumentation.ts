@@ -23,15 +23,8 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     // Dynamically import Node.js-only modules to avoid Edge Runtime errors
     // Import from main package entry point
-    const {
-      setReputationService,
-      setNotificationService,
-      setDefaultErrorCapture,
-      ReputationService,
-      createNotification,
-      logDevCredentials,
-      getStorageClient,
-    } = await import('@feed/api');
+    const { setDefaultErrorCapture, logDevCredentials, getStorageClient } =
+      await import('@feed/api');
     const { createSentryApiRouteCapture } = await import(
       './src/lib/sentry/api-route-capture'
     );
@@ -78,31 +71,6 @@ export async function register() {
     if (process.env.DEPLOYMENT_PLATFORM !== 'cloudflare') {
       void npcBootstrapService.bootstrapAllNpcs();
     }
-
-    // Initialize shared moderation services with web app implementations
-    setReputationService({
-      awardReputation: async (userId, amount, reason, metadata) => {
-        // Cast metadata from Record<string, unknown> to Record<string, JsonValue>
-        // JsonValue is a subset of unknown, so this cast is safe
-        // JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
-        return await ReputationService.awardReputation(
-          userId,
-          amount,
-          reason as never,
-          metadata as Parameters<typeof ReputationService.awardReputation>[3]
-        );
-      },
-    });
-
-    setNotificationService({
-      createNotification: async (params) => {
-        // Cast params to match CreateNotificationParams type
-        // setNotificationService interface uses string for type, but createNotification expects NotificationType
-        return await createNotification(
-          params as Parameters<typeof createNotification>[0]
-        );
-      },
-    });
 
     // Initialize API key lastUsedAt write-back cache flusher
     // WHY: Batches Redis updates and flushes to database periodically, reducing DB load by 90%+.

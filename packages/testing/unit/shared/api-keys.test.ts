@@ -116,5 +116,20 @@ describe('API Key Utilities', () => {
 
       expect(verifyApiKey(modifiedKey, hash)).toBe(false);
     });
+
+    it('returns false (does not throw) for malformed stored hashes', () => {
+      const key = generateApiKey();
+      const hash = hashApiKey(key);
+      for (const storedHash of [
+        '',
+        'abc',
+        hash.slice(0, 63),
+        `${hash}0`,
+        hash.toUpperCase(),
+        `${hash.slice(0, 63)}z`,
+      ]) {
+        expect(verifyApiKey(key, storedHash)).toBe(false);
+      }
+    });
   });
 });

@@ -120,7 +120,7 @@ export const POST = withErrorHandling(async function POST(req: NextRequest) {
     });
   }
 
-  const rateLimitError = checkRateLimitAndDuplicates(
+  const rateLimitError = await checkRateLimitAndDuplicates(
     user.userId,
     null,
     RATE_LIMIT_CONFIGS.GENERATE_AGENT_AVATAR

@@ -87,17 +87,41 @@ export interface AuthResult {
 // Utility Functions
 // ============================================================================
 
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
+
 /**
- * Check if host is localhost
+ * Check if a Host header value names a loopback host exactly, with an optional
+ * port. Prefix matches such as `localhost.evil.com` or `127.0.0.10` are
+ * rejected. IPv6 loopback may be bare (`::1`) or bracketed (`[::1]:3000`).
  */
 export function isLocalHost(host: string | undefined | null): boolean {
   if (!host) return false;
-  const lowerHost = host.toLowerCase();
-  return (
-    lowerHost.startsWith('localhost') ||
-    lowerHost.startsWith('127.0.0.1') ||
-    lowerHost.startsWith('::1')
-  );
+  const value = host.trim().toLowerCase();
+
+  let hostname: string;
+  let port: string | undefined;
+  if (value.startsWith('[')) {
+    const close = value.indexOf(']');
+    if (close === -1) return false;
+    hostname = value.slice(1, close);
+    const rest = value.slice(close + 1);
+    if (rest !== '') {
+      if (!rest.startsWith(':')) return false;
+      port = rest.slice(1);
+    }
+  } else if (value === '::1') {
+    hostname = value;
+  } else {
+    const parts = value.split(':');
+    if (parts.length > 2) return false;
+    hostname = parts[0]!;
+    port = parts[1];
+  }
+
+  if (port !== undefined) {
+    if (!/^\d{1,5}$/.test(port) || Number(port) > 65535) return false;
+  }
+  return LOOPBACK_HOSTNAMES.has(hostname);
 }
 
 // ============================================================================

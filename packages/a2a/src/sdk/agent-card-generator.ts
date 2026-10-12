@@ -110,8 +110,16 @@ function createAgentCardObject(
       stateTransitionHistory: true,
     },
 
-    securitySchemes: {},
-    security: [],
+    securitySchemes: {
+      feedApiKey: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-Feed-Api-Key',
+        description:
+          'Feed API key (server key or per-user key). Per-user keys act only as their own user.',
+      },
+    },
+    security: [{ feedApiKey: [] }],
 
     defaultInputModes: ['text/plain', 'application/json'],
     defaultOutputModes: ['application/json'],

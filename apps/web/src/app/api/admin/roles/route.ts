@@ -83,7 +83,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const admin = await requireSuperAdmin(request);
 
   // Rate limit role management to prevent abuse
-  const rateLimitResult = applyRateLimit(
+  const rateLimitResult = await applyRateLimit(
     admin.userId,
     RATE_LIMIT_CONFIGS.ADMIN_ACTION
   );

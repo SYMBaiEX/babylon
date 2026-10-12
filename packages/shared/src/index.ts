@@ -71,7 +71,6 @@ export * from './utils/json-parser';
 // Logger (works in browser)
 export * from './utils/logger';
 // Name replacement utilities (pure functions)
-export * from './utils/name-replacement';
 // OASF skill mapper (pure functions)
 export * from './utils/oasf-skill-mapper';
 // Post utilities (pure functions)

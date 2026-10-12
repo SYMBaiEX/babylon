@@ -340,6 +340,73 @@ describe('Referral Points Integration Tests', () => {
     });
   });
 
+  describe('Concurrency and idempotency', () => {
+    it('pays a referral signup once across retries and concurrent requests', async () => {
+      const { userId: referrerId } = await createTestUser({
+        registrationIpHash: 'idem-referrer',
+      });
+      const { userId: referredUserId } = await createTestUser({
+        referredBy: referrerId,
+        registrationIpHash: 'idem-referred',
+      });
+
+      const results = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          PointsService.awardReferralSignup(referrerId, referredUserId)
+        )
+      );
+      expect(results.filter((r) => r.reputationAwarded > 0)).toHaveLength(1);
+
+      const retry = await PointsService.awardReferralSignup(
+        referrerId,
+        referredUserId
+      );
+      expect(retry.alreadyAwarded).toBe(true);
+
+      const [referrer] = await db
+        .select({
+          reputationPoints: users.reputationPoints,
+          referralCount: users.referralCount,
+        })
+        .from(users)
+        .where(eq(users.id, referrerId));
+      expect(referrer).toEqual({
+        reputationPoints: 1000 + POINTS.REFERRAL_SIGNUP,
+        referralCount: 1,
+      });
+    });
+
+    it('applies concurrent distinct rewards without losing updates', async () => {
+      const { userId } = await createTestUser();
+      await Promise.all([
+        PointsService.awardReputation(userId, 5, 'admin_award'),
+        PointsService.awardReputation(userId, 7, 'admin_award'),
+        PointsService.awardReputation(userId, 11, 'admin_award'),
+      ]);
+      const [user] = await db
+        .select({ reputationPoints: users.reputationPoints })
+        .from(users)
+        .where(eq(users.id, userId));
+      expect(user?.reputationPoints).toBe(1023);
+    });
+
+    it('treats private group/channel creation as one-time rewards', async () => {
+      const { userId } = await createTestUser();
+      const first = await PointsService.awardReputation(
+        userId,
+        50,
+        'private_group_create'
+      );
+      const second = await PointsService.awardReputation(
+        userId,
+        50,
+        'private_group_create'
+      );
+      expect(first.reputationAwarded).toBe(50);
+      expect(second.alreadyAwarded).toBe(true);
+    });
+  });
+
   describe('Referral Qualification', () => {
     it('should qualify referral when referred user links social account', async () => {
       // Create referrer
