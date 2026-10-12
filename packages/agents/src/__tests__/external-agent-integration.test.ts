@@ -20,6 +20,7 @@ import {
   AuthMethod,
   ExternalAgentAdapter,
   TrustLevel,
+  validateJsonRpcResponse,
 } from '../external/ExternalAgentAdapter';
 import type { AgentCard } from '../types/agent-registry';
 
@@ -203,7 +204,51 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
     });
   });
 
+  describe('JSON-RPC response validation', () => {
+    it('rejects a response whose id does not match the request', async () => {
+      adapter['connections'].set('agent-1', {
+        id: 'conn-1',
+        externalId: 'agent-1',
+        endpoint: 'https://agent.example.com/a2a',
+        protocol: 'a2a' as const,
+        isHealthy: true,
+      });
+      mockFetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ jsonrpc: '2.0', id: 999, result: { ok: true } }),
+      } as Response);
+
+      await expect(
+        adapter.sendMessage('agent-1', { type: 'greeting', content: 'Hello' })
+      ).rejects.toThrow('does not match request id');
+    });
+
+    it('rejects responses without result/error or with the wrong version', () => {
+      expect(() =>
+        validateJsonRpcResponse({ jsonrpc: '2.0', id: 1 }, 1)
+      ).toThrow('exactly one of result or error');
+      expect(() =>
+        validateJsonRpcResponse({ jsonrpc: '1.0', id: 1, result: 1 }, 1)
+      ).toThrow('missing jsonrpc');
+      expect(
+        validateJsonRpcResponse({ jsonrpc: '2.0', id: 1, result: 0 }, 1)
+      ).toEqual({ ok: true, id: 1, result: 0 });
+    });
+  });
+
   describe('Authentication Support', () => {
+    it('fails instead of sending unauthenticated requests', () => {
+      adapter.configureAuth('agent-1', { method: AuthMethod.BEARER_TOKEN });
+      expect(() => adapter['getAuthHeaders']('agent-1')).toThrow(
+        'Bearer token missing'
+      );
+
+      adapter.configureAuth('agent-2', { method: AuthMethod.MUTUAL_TLS });
+      expect(() => adapter['getAuthHeaders']('agent-2')).toThrow(
+        'Unsupported auth method'
+      );
+    });
+
     it('should configure bearer token authentication', () => {
       adapter.configureAuth('agent-1', {
         method: AuthMethod.BEARER_TOKEN,
@@ -424,8 +469,9 @@ describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
 
       const trustLevel = await adapter.verifyAgent('agent-1');
 
-      expect(trustLevel).toBe(TrustLevel.VERIFIED);
-      expect(mockConnection.trustLevel).toBe(TrustLevel.VERIFIED);
+      // A self-declared, unsigned card never yields VERIFIED
+      expect(trustLevel).toBe(TrustLevel.BASIC);
+      expect(mockConnection.trustLevel).toBe(TrustLevel.BASIC);
       expect(mockConnection.trustScore).toBeGreaterThan(0);
       expect(mockConnection.agentCard).toEqual(mockAgentCard);
     });
@@ -608,11 +654,13 @@ describe('ExternalAgentAdapter mocked A2A workflow', () => {
 
     // Verify agent and establish trust
     const trustLevel = await adapter.verifyAgent('external-agent-1');
-    expect(trustLevel).toBe(TrustLevel.VERIFIED);
+    // Discovery alone (unsigned card) establishes BASIC trust, not VERIFIED
+    expect(trustLevel).toBe(TrustLevel.BASIC);
 
     // Get trust score
     const connection = adapter.getConnectionStatus('external-agent-1');
-    expect(connection?.trustScore).toBeGreaterThanOrEqual(60);
+    // BASIC (10) + healthy (20) + agent card (20)
+    expect(connection?.trustScore).toBe(50);
 
     // Send authenticated message through the adapter
     const response = await adapter.sendMessage('external-agent-1', {

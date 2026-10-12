@@ -20,9 +20,9 @@ import {
   worldFacts,
 } from '@feed/db';
 import { generateSnowflakeId, logger } from '@feed/shared';
+import { SHARED_CHAT_CONTEXT_CATEGORY } from '../world-facts-service';
 import { GroupChatService } from './group-chat-service';
 
-const SHARED_CHAT_CONTEXT_CATEGORY = 'shared_chat_context';
 const SHARED_CHAT_CONTEXT_SOURCE = 'shared-chat-context';
 const DEFAULT_MESSAGE_WINDOW = 10;
 const DEFAULT_CHAT_LIMIT = 10;
@@ -576,6 +576,7 @@ export class SharedChatContextService {
     if (memberChatIds.size === 0) {
       return [];
     }
+    const visibleKeys = memberships.map((chat) => this.getSnapshotKey(chat.id));
 
     const rows = await db
       .select()
@@ -584,7 +585,8 @@ export class SharedChatContextService {
         and(
           eq(worldFacts.category, SHARED_CHAT_CONTEXT_CATEGORY),
           eq(worldFacts.source, SHARED_CHAT_CONTEXT_SOURCE),
-          eq(worldFacts.isActive, true)
+          eq(worldFacts.isActive, true),
+          inArray(worldFacts.key, visibleKeys)
         )
       )
       .orderBy(desc(worldFacts.updatedAt))

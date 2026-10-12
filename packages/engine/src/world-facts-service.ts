@@ -37,8 +37,9 @@ import { isSimulationMode } from './storage-bridge';
  * chat snapshots, agent working memory). They must never be published through
  * the global "current reality" readers.
  */
+export const SHARED_CHAT_CONTEXT_CATEGORY = 'shared_chat_context';
 const PRIVATE_CONTEXT_CATEGORIES = [
-  'shared_chat_context',
+  SHARED_CHAT_CONTEXT_CATEGORY,
   'agent_working_memory',
 ];
 

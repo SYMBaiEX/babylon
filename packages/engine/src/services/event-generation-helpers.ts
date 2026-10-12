@@ -14,7 +14,6 @@ import { arcEventCoverage } from '@feed/db/schema';
 import { generateSnowflakeId, logger } from '@feed/shared';
 import { ArticleGenerator } from '../ArticleGenerator';
 import type { FeedLLMClient } from '../llm/openai-client';
-import type { ArcEventStatus } from '../NewsArticlePacingEngine';
 import { toDateString, toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom, weightedPick } from '../utils/entropy';
 import { formatError } from '../utils/error-utils';
@@ -30,6 +29,15 @@ import {
   getSignalDirection,
 } from './narrative-state-service';
 import { StaticDataRegistry } from './static-data-registry';
+
+/**
+ * Arc event status - determines when an org can report on an event again.
+ * Coverage is tracked durably in the `arc_event_coverage` table.
+ */
+export type ArcEventStatus =
+  | 'created' // Arc event just created (breaking news)
+  | 'updated' // Significant new information added
+  | 'resolved'; // Arc event concluded/resolved
 
 // Minimal question type for event generation (only fields actually used)
 // outcome is optional - only used for arc plan signal direction, and the code handles missing outcome

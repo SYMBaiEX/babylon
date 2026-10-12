@@ -104,8 +104,8 @@ export const dispatchToAgentAction: Action = {
     // broadcastFn is injected by the coordinator route into state.data
     const broadcastFn = state?.data?.broadcastFn as BroadcastFn | undefined;
 
-    const agentId = actionParams?.agentId;
-    const command = actionParams?.command;
+    const agentId = actionParams?.agentId?.trim();
+    const command = actionParams?.command?.trim();
     const ownerId = state?.values?.ownerId as string | undefined;
     const teamChatId = state?.values?.teamChatId as string | undefined;
     const ownerName = state?.values?.ownerName as string | undefined;

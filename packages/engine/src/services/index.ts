@@ -24,7 +24,6 @@ export {
   type InviteChance,
   type SweepDecision,
 } from './group-chat-service';
-export * from './initial-investment-service';
 export * from './jsonb-validators';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
