@@ -239,7 +239,7 @@ describe('World Facts Update - Lock Renewal Interval Calculation', () => {
   test('rejects durations that cannot renew before expiry', () => {
     for (const durationMs of [0, 1, -5, Number.NaN]) {
       expect(() => computeLockRenewalIntervalMs(durationMs)).toThrow(
-        'Invalid lock duration'
+        'Lock duration must be a finite number'
       );
     }
   });
