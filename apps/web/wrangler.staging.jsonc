@@ -18,6 +18,8 @@
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
+      // Local proxy only (docker-compose Postgres); deployed Workers use the Hyperdrive config.
+      "localConnectionString": "postgresql://feed:feed_dev_password@localhost:5433/feed",
       "id": "e379cb0027b449588ee8eee7250ceffa"
     }
   ],
