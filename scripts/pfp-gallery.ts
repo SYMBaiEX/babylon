@@ -23,7 +23,7 @@ import { join } from 'node:path';
 const ROOT = join(import.meta.dir, '..');
 const OUTPUT_DIR = join(ROOT, 'output', 'pfp-gallery');
 const ACTORS_DIR = join(ROOT, 'packages/engine/src/data/actors');
-const ORGS_DIR = join(ROOT, 'packages/engine/src/data/organizations');
+const ORGS_DIR = join(ROOT, 'packages/pack-default/src/organizations');
 const PUBLIC_ACTORS = join(ROOT, 'apps/web/public/images/actors');
 const PUBLIC_ACTOR_BANNERS = join(ROOT, 'apps/web/public/images/actor-banners');
 const PUBLIC_ORGS = join(ROOT, 'apps/web/public/images/organizations');
