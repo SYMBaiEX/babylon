@@ -217,9 +217,6 @@ export {
   calculateGameScore,
   // Reputation Calculation Service
   calculateReputationScore,
-  calculateRiskScore,
-  calculateSharpeRatio,
-  calculateTradeMetrics,
   calculateTradeScore,
   calculateWinRate,
   type GameMetrics,
