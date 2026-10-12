@@ -147,7 +147,8 @@ async function approveAppeal(
       falsePositiveHistory: history,
       appealStaked: false,
       appealStakeAmount: null,
-      appealStakeTxHash: null,
+      // appealStakeTxHash is kept so the same escrow payment cannot fund (and be
+      // refunded for) a later appeal; /api/moderation/appeal checks it for reuse.
     })
     .where(inHumanReview(userId));
 

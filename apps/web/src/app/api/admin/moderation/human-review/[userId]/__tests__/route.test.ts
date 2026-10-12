@@ -7,6 +7,7 @@ type UserRow = {
   appealStatus: string;
   appealStaked: boolean;
   appealStakeAmount: string | null;
+  appealStakeTxHash?: string | null;
   falsePositiveHistory: actualDb.JsonValue;
 };
 
@@ -81,6 +82,7 @@ describe('POST /api/admin/moderation/human-review/[userId]', () => {
       appealStatus: 'human_review',
       appealStaked: true,
       appealStakeAmount: '25',
+      appealStakeTxHash: '0xstake',
       falsePositiveHistory: null,
     };
     credit.mockReset();
@@ -102,6 +104,12 @@ describe('POST /api/admin/moderation/human-review/[userId]', () => {
     expect(user.appealStatus).toBe('approved');
     expect(user.appealStaked).toBe(false);
     expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the stake tx hash so the escrow cannot fund a later appeal', async () => {
+    const res = await call('approve');
+    expect(res.status).toBe(200);
+    expect(user.appealStakeTxHash).toBe('0xstake');
   });
 
   it('ignores a malformed falsePositiveHistory instead of crashing', async () => {
