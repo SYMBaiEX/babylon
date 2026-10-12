@@ -264,7 +264,6 @@ export class PriceAlertService {
     return Boolean(membership);
   }
 
-
   /**
    * Set lastTriggeredAt for one enabled alert only if its current value equals
    * `expected` (null = never triggered). Single atomic UPDATE; returns whether
