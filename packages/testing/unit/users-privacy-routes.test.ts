@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { NextRequest } from 'next/server';
 
 type Row = Record<string, unknown>;
-type Ctx = { params: Promise<Record<string, string>> };
+type Ctx = { params: Promise<{ userId: string }> };
 type Handler = (request: NextRequest, context: Ctx) => Promise<Response>;
 
 let profileRow: Row | null = null;

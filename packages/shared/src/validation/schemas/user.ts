@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import {
   AssetOrUrlSchema,
+  createQueryBooleanSchema,
   createTrimmedStringSchema,
   EmailSchema,
   SnowflakeIdSchema,
@@ -247,4 +248,5 @@ export const UserPostsQuerySchema = z.object({
 export const UserFollowersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(100),
+  includeMutual: createQueryBooleanSchema(false),
 });

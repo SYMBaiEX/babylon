@@ -67,7 +67,6 @@
  * ```
  */
 
-import { parseJsonRpcEnvelope } from '@/lib/a2a/jsonrpc-guard';
 import type { Task } from '@a2a-js/sdk';
 import type { DefaultRequestHandler as DefaultRequestHandlerType } from '@a2a-js/sdk/server';
 import {
@@ -92,6 +91,7 @@ import { db, eq, users } from '@feed/db';
 import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { parseJsonRpcEnvelope } from '@/lib/a2a/jsonrpc-guard';
 import { checkApiKey } from '@/lib/api/check-api-key';
 
 // Type assertions are used instead of type guards due to intersection type issues

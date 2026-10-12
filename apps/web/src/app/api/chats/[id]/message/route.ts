@@ -334,7 +334,6 @@ export const POST = withErrorHandling(
           'write'
         );
       }
-
     }
     // 5. Check kick probability for group chats (not DMs) - skip for now since we don't want to kick during message send
     let sweepDecision: SweepDecision | null = null;

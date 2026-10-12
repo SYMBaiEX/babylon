@@ -49,7 +49,9 @@ const NetworkStatsSchema = z.object({
   server: z.object({
     /** null on Cloudflare Workers, which have no per-process metrics. */
     uptime: z.object({ formatted: z.string() }).nullable(),
-    memory: z.object({ heapUsed: z.number(), heapTotal: z.number() }).nullable(),
+    memory: z
+      .object({ heapUsed: z.number(), heapTotal: z.number() })
+      .nullable(),
     env: z.string().optional(),
     pid: z.number(),
   }),

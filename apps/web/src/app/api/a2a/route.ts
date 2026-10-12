@@ -72,7 +72,6 @@
  *                   type: string
  */
 
-import { parseJsonRpcEnvelope } from '@/lib/a2a/jsonrpc-guard';
 import {
   DefaultExecutionEventBusManager,
   DefaultRequestHandler,
@@ -89,6 +88,7 @@ import { withErrorHandling } from '@feed/api';
 import { logger } from '@feed/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { parseJsonRpcEnvelope } from '@/lib/a2a/jsonrpc-guard';
 import { checkApiKey } from '@/lib/api/check-api-key';
 
 // Initialize A2A protocol components with Redis-backed persistence

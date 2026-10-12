@@ -159,7 +159,6 @@ export const GET = withErrorHandling(
       );
     }
 
-
     // Get chat with messages
     const fetchChatData = async (
       db: Parameters<Parameters<typeof asSystem>[0]>[0]

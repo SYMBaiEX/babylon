@@ -180,5 +180,4 @@ describe('POST /api/agents/[agentId]/a2a', () => {
       status: 'working',
     });
   });
-
 });

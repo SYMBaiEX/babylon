@@ -306,9 +306,9 @@ describeTests('AutomationPipeline - Unit Tests', () => {
       expect(result.stats.totalTrajectories).toBe(30);
       // Thresholds are reported so the admin UI never hardcodes them
       expect(result.thresholds).toEqual({
-        minTrajectories: mockConfig.minTrajectoriesForTraining,
+        minTrajectories: 50,
         minScenarioGroups: 10,
-        minDataQuality: mockConfig.dataQualityThreshold,
+        minDataQuality: 0.9,
       });
     });
 
