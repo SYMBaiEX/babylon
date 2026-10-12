@@ -196,19 +196,44 @@ describe('Content Pacing', () => {
       expect(result).toBeLessThanOrEqual(1);
     });
 
-    it('should calculate based on target posts per hour', () => {
-      // With 60 ticks per hour and 12 posts/hour target = 0.2 posts/tick
-      // Ceil(0.2) = 1 post per tick
-      const result = calculatePostsForTick(10, 60);
-      expect(result).toBeGreaterThan(0);
+    it('averages to the hourly target instead of one post every tick', () => {
+      const ticksPerHour = 60;
+      const perTick = CONTENT_PACING.targetPostsPerHour / ticksPerHour;
+      // Deterministic RNG sweeping [0, 1) uniformly across one hour of ticks
+      let total = 0;
+      for (let tick = 0; tick < ticksPerHour; tick++) {
+        total += calculatePostsForTick(
+          1000,
+          ticksPerHour,
+          () => tick / ticksPerHour
+        );
+      }
+      expect(total).toBe(
+        Math.round(
+          Math.min(perTick, CONTENT_PACING.maxPostsPerTick) * ticksPerHour
+        )
+      );
+    });
+
+    it('generates the fractional post only when the draw falls below it', () => {
+      const perTick = CONTENT_PACING.targetPostsPerHour / 60;
+      const whole = Math.floor(perTick);
+      expect(calculatePostsForTick(1000, 60, () => 0)).toBe(
+        Math.min(
+          whole + (perTick > whole ? 1 : 0),
+          CONTENT_PACING.maxPostsPerTick
+        )
+      );
+      expect(calculatePostsForTick(1000, 60, () => 0.999999)).toBe(
+        Math.min(whole, CONTENT_PACING.maxPostsPerTick)
+      );
     });
 
     it('should scale with different tick rates', () => {
       // Fewer ticks per hour = more posts per tick
-      const fast = calculatePostsForTick(10, 60); // 1-minute ticks
-      const slow = calculatePostsForTick(10, 6); // 10-minute ticks
+      const fast = calculatePostsForTick(10, 60, () => 0.5); // 1-minute ticks
+      const slow = calculatePostsForTick(10, 6, () => 0.5); // 10-minute ticks
 
-      // With slower tick rate, should calculate more posts per tick
       expect(slow).toBeGreaterThanOrEqual(fast);
     });
   });
