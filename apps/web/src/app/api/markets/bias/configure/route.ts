@@ -121,7 +121,7 @@ const SetBiasSchema = z.object({
   entityName: z.string().min(1),
   direction: z.enum(['up', 'down']),
   strength: z.number().min(0).max(1).optional(),
-  durationHours: z.number().optional(),
+  durationHours: z.number().positive().finite().optional(),
   decayRate: z.number().min(0).max(1).optional(),
 });
 
@@ -139,7 +139,7 @@ const BulkSetBiasSchema = z.object({
         entityName: z.string().min(1),
         direction: z.enum(['up', 'down']),
         strength: z.number().min(0).max(1).optional(),
-        durationHours: z.number().optional(),
+        durationHours: z.number().positive().finite().optional(),
         decayRate: z.number().min(0).max(1).optional(),
       })
     )

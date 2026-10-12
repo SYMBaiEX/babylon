@@ -172,8 +172,17 @@ function extractKeywords(text: string): Set<string> {
  */
 const PROPER_NOUN_PATTERN = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g;
 
-function extractProperNouns(text: string): string[] {
-  return text.match(PROPER_NOUN_PATTERN) ?? [];
+/**
+ * Distinct (case-insensitive) multi-word proper nouns in `text`, first
+ * spelling kept. Repeating one name must not count as several entities.
+ */
+export function extractProperNouns(text: string): string[] {
+  const unique = new Map<string, string>();
+  for (const match of text.match(PROPER_NOUN_PATTERN) ?? []) {
+    const key = match.toLowerCase();
+    if (!unique.has(key)) unique.set(key, match);
+  }
+  return [...unique.values()];
 }
 
 /**

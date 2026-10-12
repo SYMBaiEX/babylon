@@ -93,6 +93,8 @@ export function resolvePerpTickerFrom(
       );
     };
 
+    // Only a UNIQUE prefix match is accepted: picking the first of several
+    // candidates would route a trade to a guessed market.
     const partials = allOrgs.filter(
       (org) =>
         matchesPrefix(org.ticker) ||

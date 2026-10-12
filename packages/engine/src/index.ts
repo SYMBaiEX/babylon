@@ -119,18 +119,6 @@ export {
   OrganizationBehavior,
   type OrganizationType,
 } from './GameGenerator';
-// Game Loop (tick-based simulation orchestrator)
-export { GameLoop } from './GameLoop';
-// Game Simulator (standalone simulation engine)
-export {
-  type GameConfig,
-  type GameEvent,
-  type GameResult,
-  GameSimulator,
-  type MarketState as SimulatedMarketState,
-  type ReputationChange,
-  type SimulatedAgent,
-} from './GameSimulator';
 // Game World
 export {
   type CausalEventContext,
