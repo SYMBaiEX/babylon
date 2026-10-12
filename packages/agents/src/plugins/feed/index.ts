@@ -52,10 +52,8 @@ import {
   marketsProvider,
   messagesProvider,
   notificationsProvider,
-  portfolioProvider,
   recentRelevantGroupContextProvider,
   sharedChatFactsProvider,
-  trendingProvider,
   trendingTopicsProvider,
   userProfileProvider,
   userWalletProvider,
@@ -79,9 +77,9 @@ export type { FeedRuntime } from './types';
  * Providers (7):
  * - FEED_DASHBOARD: Comprehensive context dashboard (portfolio, markets, social, pending items)
  * - FEED_MARKETS: Market data for predictions and perpetuals
- * - FEED_PORTFOLIO: Agent portfolio, positions, and balance
+ * - FEED_AGENT_WALLET: Agent balance, points, and all open positions
  * - FEED_FEED: Social feed with recent posts
- * - FEED_TRENDING: Trending topics and tags
+ * - FEED_TRENDING_TOPICS: Trending topics and tags
  * - FEED_MESSAGES: Unread messages and chats
  * - FEED_NOTIFICATIONS: Recent notifications
  *
@@ -168,10 +166,8 @@ export const feedPlugin: Plugin = {
     agentWalletProvider, // Agent's own complete wallet & investments
     marketsProvider,
     marketMoversProvider, // Top gainers and losers
-    portfolioProvider,
     feedProvider,
-    trendingProvider,
-    trendingTopicsProvider, // Database-backed trending topics
+    trendingTopicsProvider, // Trending tags and topics (A2A getTrendingTags)
     headlinesProvider, // Recent news headlines
     messagesProvider,
     notificationsProvider,

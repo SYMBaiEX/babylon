@@ -6,11 +6,8 @@
 
 // PNL Normalization utilities
 export {
-  calculateAverageROI,
   calculateConfidenceScore,
-  calculateSharpeRatio,
   calculateWinRate,
-  denormalizePnL,
   getTrustLevel,
   normalizePnL,
 } from './pnl-normalizer';

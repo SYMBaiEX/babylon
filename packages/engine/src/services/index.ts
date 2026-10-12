@@ -15,7 +15,6 @@ export * from './ActorSocialActions';
 export * from './activity-pattern-service';
 export * from './actor-context-builder';
 export * from './alpha-group-invite-service';
-export * from './arc-context-service';
 export * from './capital-allocation-service';
 export * from './event-reaction-service';
 export * from './following-mechanics';
@@ -32,7 +31,6 @@ export * from './jsonb-validators';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
 export * from './narrative-event-processor';
-export * from './npc-follow-bootstrap';
 export * from './npc-group-chat-onboarding-service';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
@@ -48,7 +46,6 @@ export * from './reply-rate-limiter';
 export * from './shared-chat-context-service';
 export * from './tier-config';
 export * from './tiered-group-service';
-export * from './training-quality-monitor';
 export * from './user-alpha-group-assignment-service';
 
 // =============================================================================
@@ -113,7 +110,6 @@ export * from './trending-grouping-service';
 // Core Services
 // =============================================================================
 
-export * from './agent-trade-notification';
 export * from './character-mapping-service';
 export * from './daily-topic-service';
 export * from './distributed-lock-service';
@@ -135,7 +131,6 @@ export {
 } from './game-context-cache';
 export * from './group-chat-invite-notifier';
 export * from './market-context-service';
-export * from './market-impact-service';
 export * from './npc-wallet-adapter';
 export * from './realtime-broadcaster';
 export * from './rss-feed-service';

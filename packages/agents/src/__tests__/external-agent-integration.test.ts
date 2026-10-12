@@ -82,13 +82,6 @@ mock.module('@feed/db', () => ({
   or: () => ({}),
 }));
 
-// Mock agent registry
-mock.module('../services/interfaces', () => ({
-  agentRegistry: {
-    getAgentById: mock(() => Promise.resolve(null)),
-  },
-}));
-
 describe('ExternalAgentAdapter - Enhanced A2A Protocol', () => {
   let adapter: ExternalAgentAdapter;
 

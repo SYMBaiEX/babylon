@@ -162,7 +162,6 @@ export { cosineSimilarity, getEmbedding } from './llm/embedding-client';
 export {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
-  parseContinuationContent,
 } from './llm/json-continuation-parser';
 // LLM Exports (re-exported for convenience)
 export {
@@ -253,7 +252,6 @@ export {
 export * from './rate-limiting';
 // Reputation Module
 export {
-  calculateAverageROI,
   calculateConfidenceScore,
   // Trade Feedback Calculator
   calculateEntryTimingScore,
@@ -262,11 +260,9 @@ export {
   // Reputation Calculation Service
   calculateReputationScore,
   calculateRiskScore,
-  calculateSharpeRatio,
   calculateTradeMetrics,
   calculateTradeScore,
   calculateWinRate,
-  denormalizePnL,
   type GameMetrics,
   generateBatchGameFeedback,
   generateGameCompletionFeedback,

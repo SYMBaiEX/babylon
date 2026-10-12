@@ -56,11 +56,6 @@ import type {
 } from '../types/market-decisions';
 import { formatError } from '../utils/error-utils';
 import { FeeService } from './fee-service';
-import {
-  type AggregatedImpact,
-  aggregateTradeImpacts,
-  type TradeImpactInput,
-} from './market-impact-service';
 import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
 import { createPerpPriceImpactPort } from './perp-price-impact-port';
@@ -1125,24 +1120,5 @@ export class TradeExecutionService {
       positionId: position.id,
       timestamp: new Date().toISOString(),
     };
-  }
-
-  /**
-   * Get total trade impact by ticker/market
-   */
-  async getTradeImpacts(
-    executedTrades: ExecutedTrade[]
-  ): Promise<Map<string, AggregatedImpact>> {
-    const inputs: TradeImpactInput[] = executedTrades.map(
-      (trade: ExecutedTrade) => ({
-        marketType: trade.marketType,
-        ticker: trade.ticker,
-        marketId: trade.marketId,
-        side: trade.side,
-        size: trade.size,
-      })
-    );
-
-    return aggregateTradeImpacts(inputs);
   }
 }
