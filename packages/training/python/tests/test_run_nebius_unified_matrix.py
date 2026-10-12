@@ -24,6 +24,24 @@ nebius_script = load_script_module(
 )
 
 
+@pytest.fixture(autouse=True)
+def _forbid_real_nebius_cli(monkeypatch):
+    """Fail fast if a test reaches the real `nebius` CLI.
+
+    Unpatched calls would query (or mutate) the developer's cloud account when
+    the CLI is installed, and raise FileNotFoundError on CI runners without it.
+    Tests that need CLI behaviour patch run_command themselves.
+    """
+    original_run_command = nebius_script.run_command
+
+    def guarded_run_command(command, **kwargs):
+        if command and command[0] == "nebius":
+            raise AssertionError(f"unexpected real nebius CLI call: {command}")
+        return original_run_command(command, **kwargs)
+
+    monkeypatch.setattr(nebius_script, "run_command", guarded_run_command)
+
+
 def test_build_cloud_init_user_data_embeds_username_and_key():
     payload = nebius_script.build_cloud_init_user_data(
         "trainer",
@@ -540,6 +558,9 @@ def test_main_deletes_boot_disk_after_instance_create_failure(monkeypatch, tmp_p
 
     monkeypatch.setattr(nebius_script, "create_instance", fail_create_instance)
     monkeypatch.setattr(nebius_script, "delete_boot_disk", fake_delete_boot_disk)
+    # The failed create left no partial instance behind.
+    monkeypatch.setattr(nebius_script, "find_instance_id_by_name", lambda **_kwargs: None)
+    monkeypatch.setattr(nebius_script, "wait_for_disk_detach", lambda _disk_id: None)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -554,12 +575,8 @@ def test_main_deletes_boot_disk_after_instance_create_failure(monkeypatch, tmp_p
         ],
     )
 
-    try:
+    with pytest.raises(RuntimeError, match="create instance failed"):
         nebius_script.main()
-    except RuntimeError as exc:
-        assert str(exc) == "create instance failed"
-    else:
-        raise AssertionError("Expected instance creation failure to be propagated")
 
     assert deleted_disk_ids == ["disk-1"]
 
