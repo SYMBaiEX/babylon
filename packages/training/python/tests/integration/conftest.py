@@ -6,6 +6,7 @@ Provides shared fixtures for both JSON-mode and DB-mode integration tests.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -99,6 +100,10 @@ def _uses_default_test_database(database_url: str) -> bool:
 
 
 def _docker_available() -> bool:
+    # Hosts without Docker (e.g. CI runners using a service container) must
+    # report "unavailable" rather than crash collection.
+    if shutil.which("docker") is None:
+        return False
     completed = subprocess.run(
         ["docker", "info"],
         check=False,

@@ -16,17 +16,16 @@ import {
   and,
   closeDatabase,
   db,
-  generateSnowflakeId as dbGenerateSnowflakeId,
   desc,
   eq,
   gameConfigs,
   games,
+  generateSnowflakeId,
   isNull,
   posts,
 } from '@feed/db';
 import type { GameHistory, GroupMessage } from '@feed/engine';
 import { GameGenerator, loadActorsData } from '@feed/engine';
-import { nanoid } from 'nanoid';
 import { getFlag, parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
@@ -57,16 +56,6 @@ EXAMPLES:
 }
 
 /**
- * Generates a unique snowflake ID for game entities.
- *
- * @returns A 21-character nanoid string
- * @internal
- */
-async function generateSnowflakeId(): Promise<string> {
-  return nanoid(21);
-}
-
-/**
  * Controls game state by starting or pausing the continuous game.
  *
  * Creates a new continuous game if none exists, or updates the existing game state.
@@ -86,7 +75,7 @@ async function controlGame(action: 'start' | 'pause'): Promise<void> {
   let game = result[0];
 
   if (!game) {
-    const gameId = await dbGenerateSnowflakeId();
+    const gameId = await generateSnowflakeId();
     const created = await db
       .insert(games)
       .values({
@@ -359,11 +348,9 @@ async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
   let gameNumber = 1;
 
   if (existingGames.length > 0) {
-    for (
-      let i = Math.max(0, existingGames.length - 2);
-      i < existingGames.length;
-      i++
-    ) {
+    // existingGames is newest-first: load the two most recent games, oldest of
+    // the pair first, numbering games chronologically (oldest = 1).
+    for (let i = Math.min(2, existingGames.length) - 1; i >= 0; i--) {
       const gameData = existingGames[i];
       if (!gameData) continue;
 
@@ -377,7 +364,12 @@ async function generateGame(args: ReturnType<typeof parseArgs>): Promise<void> {
       if (historyConfig?.value) {
         history.push(validateGameHistory(historyConfig.value));
       } else {
-        history.push(await generateMinimalGameHistory(gameData.id, i + 1));
+        history.push(
+          await generateMinimalGameHistory(
+            gameData.id,
+            existingGames.length - i
+          )
+        );
       }
     }
 

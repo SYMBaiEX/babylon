@@ -4,7 +4,7 @@ services:
     container_name: feed-postgres
     restart: unless-stopped
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_USER: feed
       POSTGRES_PASSWORD: feed_dev_password
@@ -50,7 +50,7 @@ services:
     container_name: feed-pgbouncer
     restart: unless-stopped
     ports:
-      - "6432:5432"
+      - "127.0.0.1:6432:5432"
     environment:
       DATABASE_URL: "postgresql://feed:feed_dev_password@postgres:5432/feed"
       POOL_MODE: transaction
@@ -89,7 +89,7 @@ services:
     container_name: feed-redis
     restart: unless-stopped
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - redis_data:/data
     command: >
@@ -115,8 +115,8 @@ services:
     container_name: feed-minio
     restart: unless-stopped
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: feed
       MINIO_ROOT_PASSWORD: feed_dev_password
@@ -138,7 +138,7 @@ services:
     container_name: feed-steward
     restart: unless-stopped
     ports:
-      - "3200:3200"
+      - "127.0.0.1:3200:3200"
     environment:
       PORT: 3200
       STEWARD_BIND_HOST: "0.0.0.0"

@@ -30,7 +30,7 @@ OPTIONS:
   -n, --num-agents    Agents per archetype (default: 2)
   -t, --ticks         Ticks per agent (default: 10)
   -p, --parallel      Max agents running simultaneously (default: 5, max: 10)
-  --manager-id        Manager user ID (uses first admin if not provided)
+  --manager-id        Manager user ID (defaults to the first admin user)
   --cleanup           Delete created agents after generation
   --dry-run           Show what would be generated
 
@@ -53,6 +53,21 @@ NOTES:
 `);
 }
 
+function parsePositiveInt(
+  parsed: ReturnType<typeof parseArgs>,
+  long: string,
+  short: string,
+  fallback: string
+): number {
+  const raw = getOption(parsed, long, short) || fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
+    logger.fail(`--${long} must be a positive integer, received "${raw}"`);
+    process.exit(1);
+  }
+  return value;
+}
+
 export async function runParallelGeneration(
   parsed: ReturnType<typeof parseArgs>
 ): Promise<void> {
@@ -68,9 +83,9 @@ export async function runParallelGeneration(
       ? ArchetypeConfigService.getAvailableArchetypes()
       : archetypesArg.split(',').map((a) => a.trim());
 
-  const numAgents = parseInt(getOption(parsed, 'num-agents', 'n') || '2', 10);
-  const ticks = parseInt(getOption(parsed, 'ticks', 't') || '10', 10);
-  const parallel = parseInt(getOption(parsed, 'parallel', 'p') || '5', 10);
+  const numAgents = parsePositiveInt(parsed, 'num-agents', 'n', '2');
+  const ticks = parsePositiveInt(parsed, 'ticks', 't', '10');
+  const parallel = parsePositiveInt(parsed, 'parallel', 'p', '5');
   const cleanup = getFlag(parsed, 'cleanup');
   const dryRun = getFlag(parsed, 'dry-run');
   const providedManagerId = getOption(parsed, 'manager-id');
@@ -117,21 +132,15 @@ export async function runParallelGeneration(
       .where(eq(users.isAdmin, true))
       .limit(1);
 
-    if (adminUsers[0]) {
-      managerId = adminUsers[0].id;
-      logger.info(`Using admin user as manager: ${adminUsers[0].username}`);
-    } else {
-      // Try any user
-      const anyUser = await db.select().from(users).limit(1);
-
-      if (!anyUser[0]) {
-        logger.fail('No users found. Please create a user first.');
-        await closeDatabase();
-        process.exit(1);
-      }
-      managerId = anyUser[0].id;
-      logger.warn(`Using regular user as manager: ${anyUser[0].username}`);
+    if (!adminUsers[0]) {
+      // Never fall back to an arbitrary regular user: generated agents would
+      // be owned by an unrelated account.
+      logger.fail('No admin user found. Pass --manager-id explicitly.');
+      await closeDatabase();
+      process.exit(1);
     }
+    managerId = adminUsers[0].id;
+    logger.info(`Using admin user as manager: ${adminUsers[0].username}`);
   }
 
   // Create generator configuration
@@ -205,8 +214,12 @@ export async function runParallelGeneration(
   console.log();
   console.log('Next steps:');
   console.log('  1. Score trajectories: feed train score');
-  console.log('  2. Export for training: feed train export');
-  console.log('  3. Train model: feed train pipeline');
+  console.log('  2. Train model: feed train pipeline');
 
   await closeDatabase();
+
+  if (result.errors.length > 0) {
+    logger.fail(`${result.errors.length} agent error(s) during generation`);
+    process.exit(1);
+  }
 }

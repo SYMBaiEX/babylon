@@ -60,6 +60,7 @@
     "out",
     "ios",
     "android",
+    "../web/src/**/__tests__/**/*",
     "../web/src/app/sw.ts",
     "../web/public/sw.js"
   ]

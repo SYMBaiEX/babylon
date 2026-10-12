@@ -81,7 +81,7 @@ External Agent (TypeScript / Python / OpenClaw / Hermes)
 
 ## External Frameworks
 
-The harness supports running external AI agent frameworks against Feed. See the [ScamBench Runbook](../../training/SCAMBENCH_RUNBOOK.md) for details on the training and benchmarking pipeline.
+The harness supports running external AI agent frameworks against Feed. See the [ScamBench Runbook](../training/SCAMBENCH_RUNBOOK.md) for details on the training and benchmarking pipeline.
 
 ### Hermes (NousResearch)
 

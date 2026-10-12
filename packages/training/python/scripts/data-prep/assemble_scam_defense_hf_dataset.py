@@ -31,8 +31,8 @@ from pathlib import Path
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-FEED_ROOT = Path(__file__).resolve().parents[4]
-WORKSPACE_ROOT = Path(__file__).resolve().parents[5]
+FEED_ROOT = Path(__file__).resolve().parents[5]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[6]
 DATASETS_WORKSPACE_ROOT = WORKSPACE_ROOT / "datasets"
 PROCESS_ROOT = DATASETS_WORKSPACE_ROOT / "process"
 BASE_SCRIPTS_ROOT = PROCESS_ROOT / "base-scripts"
@@ -173,8 +173,11 @@ STYLE_BROKEN_MARKERS = (
 STYLE_LEET_PATTERN = re.compile(r"\b[a-z]*[43015][a-z0-9]*\b", re.I)
 STYLE_SHORTCHAT_TOKEN_PATTERN = re.compile(r"\b(u|ur)\b", re.I)
 
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+# Sibling helpers live next to this file; shared helpers (scam_defense_exchange)
+# live in the parent scripts/ directory.
+for _import_root in (SCRIPT_DIR, SCRIPT_DIR.parent):
+    if str(_import_root) not in sys.path:
+        sys.path.insert(0, str(_import_root))
 
 from deduplicate_training_data import DeduplicationResult, deduplicate
 from scam_defense_exchange import (

@@ -4,7 +4,8 @@
  * Head-to-Head Benchmark Script
  *
  * Runs two parallel simulations on the exact same market conditions ("Fixed Seed").
- * Compares "Baseline" (Random/Momentum) vs "Challenger" (Smart LLM Agent).
+ * Compares a random baseline against a momentum heuristic. No LLM or trained
+ * model is involved; use run-benchmark-suite.ts / run-vllm-benchmark.ts for that.
  *
  * Usage:
  *   bun packages/training/scripts/run-baseline-comparison.ts
@@ -34,7 +35,7 @@ async function main() {
   console.log(
     '═══════════════════════════════════════════════════════════════'
   );
-  console.log('  🥊 HEAD-TO-HEAD BENCHMARK: Random vs LLM Agent');
+  console.log('  🥊 HEAD-TO-HEAD BENCHMARK: Random vs Momentum heuristic');
   console.log(
     '═══════════════════════════════════════════════════════════════\n'
   );
@@ -85,17 +86,16 @@ async function main() {
     forceStrategy: 'random', // Force dumb strategy
   });
 
-  // 3. Run Challenger (Smart/Momentum Strategy for this demo)
-  // We use 'momentum' here to simulate a "Smart" agent for demonstration.
-  logger.info('>>> STARTING RUN B: CHALLENGER (MOMENTUM/LLM) <<<');
+  // 3. Run challenger: the momentum heuristic (not an LLM agent).
+  logger.info('>>> STARTING RUN B: CHALLENGER (MOMENTUM HEURISTIC) <<<');
 
   const challengerResult = await BenchmarkRunner.runSingle({
     generatorConfig, // Same config -> Same seed -> Same market conditions
     agentRuntime: mockRuntime,
     agentUserId: 'challenger-agent',
-    saveTrajectory: true, // Record trajectory for the "Smart" agent to analyze decisions
+    saveTrajectory: true, // Record the challenger trajectory to analyze decisions
     outputDir: path.join(outputDir, 'challenger'),
-    forceStrategy: 'momentum', // Simulating "Smart" behavior
+    forceStrategy: 'momentum',
   });
 
   // 4. Generate Comparison Report

@@ -326,7 +326,8 @@ class FeedHybridEnv(BaseEnv):
         data, archetype = item
 
         # Check if it's a Scenario (online) or Dict (offline)
-        if hasattr(data, "metadata") and data.metadata.get("source") == "online":
+        # _get_online_item tags scenarios with metadata["mode"] = "online".
+        if hasattr(data, "metadata") and data.metadata.get("mode") == "online":
             return await self._collect_online(data, archetype)
         else:
             return await self._collect_offline(data, archetype)

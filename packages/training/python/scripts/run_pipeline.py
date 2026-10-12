@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import logging
 import os
 import shutil
@@ -43,11 +44,11 @@ def _find_ancestor_with_child(start: Path, child: str) -> Path:
     raise RuntimeError(f"Could not locate ancestor containing {child!r} from {start}")
 
 
-def _find_workspace_root(start: Path) -> Path:
+def _find_workspace_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
         if (candidate / "scambench").exists() or (candidate / "benchmarks" / "scambench").exists():
             return candidate
-    raise RuntimeError(f"Could not locate workspace root containing ScamBench from {start}")
+    return None
 
 
 def _resolve_scambench_root(workspace_root: Path) -> Path:
@@ -63,7 +64,10 @@ def _resolve_scambench_root(workspace_root: Path) -> Path:
 
 PYTHON_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = _find_ancestor_with_child(SCRIPT_DIR, "packages/training")
-WORKSPACE_ROOT = _find_workspace_root(SCRIPT_DIR)
+# ScamBench is an optional sibling checkout. Stages that need it
+# check SCAMBENCH_ROOT.exists() and report a clear error, while --help, prepare-only
+# and skip-scambench runs must not require it.
+WORKSPACE_ROOT = _find_workspace_root(SCRIPT_DIR) or REPO_ROOT.parent
 SCAMBENCH_ROOT = _resolve_scambench_root(WORKSPACE_ROOT)
 LOCAL_SCAMBENCH_SCRIPT = SCRIPT_DIR / "run_scambench_local.py"
 
@@ -369,20 +373,23 @@ class CanonicalPipeline:
 
     @staticmethod
     def _safe_float(value: Any) -> float | None:
+        # NaN/inf compare False against every threshold, so they would pass
+        # quality gates; treat them (and booleans) as missing metrics.
+        if value is None or isinstance(value, bool):
+            return None
         try:
-            if value is None:
-                return None
-            return float(value)
+            result = float(value)
         except (TypeError, ValueError):
             return None
+        return result if math.isfinite(result) else None
 
     @staticmethod
     def _safe_int(value: Any) -> int | None:
+        if value is None or isinstance(value, bool):
+            return None
         try:
-            if value is None:
-                return None
             return int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return None
 
     def _normalize_served_eval_stage(
@@ -931,9 +938,12 @@ class CanonicalPipeline:
             "model": self.model_name,
             "components": {},
         }
-        workspace_root = _find_workspace_root(SCRIPT_DIR)
-        for component in ("feed", "scambench", "datasets"):
-            comp_dir = workspace_root / component
+        component_dirs = {
+            "feed": REPO_ROOT,
+            "scambench": SCAMBENCH_ROOT,
+            "datasets": WORKSPACE_ROOT / "datasets",
+        }
+        for component, comp_dir in component_dirs.items():
             if not comp_dir.exists():
                 continue
             try:

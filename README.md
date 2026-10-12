@@ -189,7 +189,6 @@ Cloudflare Workers observability provides deployment logs. PostHog remains the p
 | `apps/web` | Primary Next.js app — UI, API routes, SSE, Steward auth wiring |
 | `apps/cli` | `feed` CLI — db migrations, game control, agent management |
 | `apps/mobile` | Capacitor mobile shell |
-| `apps/dag-visualizer` | Visual DAG explorer for game-tick data flow (port 4000) |
 
 ### Packages
 
@@ -355,8 +354,9 @@ Bootstrap agent frameworks (run once):
 
 ```bash
 bun run agent-frameworks:bootstrap
-# or skip with: FEED_SKIP_AGENT_FRAMEWORKS_BOOTSTRAP=1
 ```
+
+This clones and builds the frameworks into `../external-sources`; it is not run by `bun install`.
 
 The **training harness** in `packages/examples/harness` wires agents against the game engine for evaluation. See `packages/training/SCAMBENCH_RUNBOOK.md` for detailed setup.
 

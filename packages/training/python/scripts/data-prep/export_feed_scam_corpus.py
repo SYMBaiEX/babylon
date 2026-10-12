@@ -14,9 +14,12 @@ from pathlib import Path
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PYTHON_ROOT = SCRIPT_DIR.parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+PYTHON_ROOT = SCRIPT_DIR.parents[1]
+# Sibling helpers live next to this file; shared helpers (scam_defense_exchange)
+# live in the parent scripts/ directory.
+for _import_root in (SCRIPT_DIR, SCRIPT_DIR.parent):
+    if str(_import_root) not in sys.path:
+        sys.path.insert(0, str(_import_root))
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
@@ -235,13 +238,9 @@ def build_training_row(
     reasoning_trace = resolved_reasoning_trace(llm_call, action, normalized)
 
     row = {
-        "record_id": (
-            f"feed::{trajectory_id or 'unknown-trajectory'}::{step_index}::{call_index}"
-        ),
+        "record_id": (f"feed::{trajectory_id or 'unknown-trajectory'}::{step_index}::{call_index}"),
         "group_id": scenario_id or "feed-group",
-        "scenario_id": scenario_id
-        or normalize_text(metadata.get("scenarioId"))
-        or "feed-scenario",
+        "scenario_id": scenario_id or normalize_text(metadata.get("scenarioId")) or "feed-scenario",
         "category": category or "social-engineering",
         "prompt": user_prompt,
         "chosen_action": chosen_action,

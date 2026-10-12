@@ -77,7 +77,7 @@ graph LR
 
 ```bash
 make bridge-server
-# or: cd packages/engine && bun run src/services/simulation-bridge-server.ts
+# or: cd packages/sim && bun run core/bridge/simulation-bridge-server.ts
 ```
 
 #### Terminal 2: Start Training

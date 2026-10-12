@@ -19,9 +19,9 @@
  */
 
 import { mkdir, readdir } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
-const scriptsDir = dirname(new URL(import.meta.url).pathname);
+const scriptsDir = import.meta.dir;
 const rootDir = resolve(scriptsDir, '../..');
 const vendorsRoot = join(rootDir, 'docs/vendors');
 

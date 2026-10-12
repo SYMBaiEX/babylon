@@ -10,7 +10,7 @@
  *   bun run scripts/restore-user-groups.ts --user=<user-id>
  */
 
-import { db, eq, ilike, users } from '@feed/db';
+import { db, eq, sql, users } from '@feed/db';
 import {
   TieredGroupService,
   UserAlphaGroupAssignmentService,
@@ -68,7 +68,9 @@ async function main() {
           displayName: users.displayName,
         })
         .from(users)
-        .where(ilike(users.username, username))
+        // Exact case-insensitive match: ILIKE would treat '_' and '%' in
+        // usernames as wildcards and could select a different user.
+        .where(sql`lower(${users.username}) = lower(${username})`)
         .limit(1);
 
       if (!userCI) {

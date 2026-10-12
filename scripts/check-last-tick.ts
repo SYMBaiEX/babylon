@@ -52,7 +52,9 @@ async function checkLastTick() {
       })
       .from(users)
       .where(eq(users.isAgent, true))
-      .orderBy(desc(users.agentLastTickAt))
+      // Postgres sorts NULLs first for DESC; never-ticked agents must not hide
+      // the most recent ticks.
+      .orderBy(sql`${users.agentLastTickAt} DESC NULLS LAST`)
       .limit(10);
 
     console.log('Agents with most recent ticks:');

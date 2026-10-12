@@ -79,7 +79,7 @@ The `vllm/vllm-openai:v0.14.0` base image provides:
 
 ```bash
 # Copy and configure
-cp deploy/env.example deploy/.env
+cp deploy/.env.example deploy/.env
 # Edit .env with your settings
 
 # Run with env file
@@ -242,7 +242,7 @@ docker push ghcr.io/yourorg/feed-training:latest
 
 ## Environment Variables
 
-See [`../env.example`](../env.example) for the complete list.
+See [`../.env.example`](../.env.example) for the complete list.
 
 | Variable | Required | Description |
 |----------|----------|-------------|

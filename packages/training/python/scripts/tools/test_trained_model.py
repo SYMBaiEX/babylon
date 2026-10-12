@@ -28,14 +28,14 @@ from pathlib import Path
 from typing import Literal
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
 
 from src.training.local_models import default_local_model_for_backend
 
 # Load environment
-env_path = Path(__file__).parent.parent.parent.parent.parent / ".env"
+env_path = Path(__file__).resolve().parents[5] / ".env"
 if env_path.exists():
     load_dotenv(env_path)
 

@@ -91,7 +91,16 @@ async function supportsTestPrivyDidAuth(baseUrl: string): Promise<boolean> {
       signal: AbortSignal.timeout(10_000),
     });
 
-    return response.status !== 401;
+    // Auth is supported only if the route accepted the token: a success or a
+    // request-validation error. Auth rejections, a missing route (404) and
+    // server errors must not be mistaken for support.
+    if (response.ok) return true;
+    const authRejectedOrUnavailable = [401, 403, 404].includes(response.status);
+    return (
+      response.status >= 400 &&
+      response.status < 500 &&
+      !authRejectedOrUnavailable
+    );
   } catch {
     return false;
   }

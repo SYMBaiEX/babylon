@@ -319,6 +319,7 @@ async function uploadDataset(
   // Upload files
   logger.step('Uploading files...');
 
+  const failedUploads: string[] = [];
   for (const file of jsonFiles) {
     const filePath = path.join(sourceDir, file);
     const content = await fs.readFile(filePath, 'utf-8');
@@ -340,7 +341,15 @@ async function uploadDataset(
     } else {
       const errorText = await uploadResponse.text();
       logger.warn(`  Failed to upload ${file}: ${errorText}`);
+      failedUploads.push(file);
     }
+  }
+
+  if (failedUploads.length > 0) {
+    logger.fail(
+      `Dataset upload incomplete: ${failedUploads.length}/${jsonFiles.length} file(s) failed`
+    );
+    process.exit(1);
   }
 
   logger.success('Dataset upload complete!');
@@ -628,8 +637,10 @@ async function ollamaStatus(): Promise<void> {
     const modelNames = data.models?.map((m) => m.name) || [];
     console.log('\n  Recommended models:');
     for (const model of recommendedModels) {
-      const installed = modelNames.some((m) =>
-        m.includes(model.split(':')[0] ?? '')
+      // Compare exact tags: matching only the family (e.g. "qwen3.5") marked
+      // every size as installed when any one was.
+      const installed = modelNames.some(
+        (m) => m === model || m === `${model}:latest`
       );
       console.log(`    ${installed ? '✅' : '❌'} ${model}`);
     }
@@ -640,6 +651,7 @@ async function ollamaStatus(): Promise<void> {
     }
   } else {
     logger.fail(`Ollama returned status ${response.status}`);
+    process.exit(1);
   }
 }
 
