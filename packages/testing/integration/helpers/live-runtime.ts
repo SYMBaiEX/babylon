@@ -15,7 +15,6 @@ export function resolveLiveLlmTestConfig(): LiveLlmTestConfig {
   const requested = isTruthyEnv('RUN_LIVE_LLM_TESTS');
   const hasCredential =
     (process.env.SURPLUS_API_KEY?.trim() ?? '') !== '' ||
-    (process.env.ELIZACLOUD_API_KEY?.trim() ?? '') !== '' ||
     (process.env.GROQ_API_KEY?.trim() ?? '') !== '' ||
     (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ||
     (process.env.OPENAI_API_KEY?.trim() ?? '') !== '';
@@ -33,7 +32,7 @@ export function resolveLiveLlmTestConfig(): LiveLlmTestConfig {
       requested,
       enabled: false,
       skipReason:
-        'RUN_LIVE_LLM_TESTS is enabled but no SURPLUS_API_KEY, ELIZACLOUD_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY is configured',
+        'RUN_LIVE_LLM_TESTS is enabled but no SURPLUS_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY is configured',
     };
   }
 
