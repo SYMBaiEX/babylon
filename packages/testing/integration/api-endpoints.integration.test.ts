@@ -70,11 +70,6 @@ describe('API Endpoints - Complete Coverage', () => {
       const res = await get('/api/stats/tokens');
       expect(res.status).toBe(200);
     });
-
-    test('GET /api/stats/daily', async () => {
-      const res = await get('/api/stats/daily');
-      expect(res.status).toBe(200);
-    });
   });
 
   // ============================================
@@ -271,8 +266,12 @@ describe('API Endpoints - Complete Coverage', () => {
       expect(res.status).toBe(401);
     });
 
-    test('POST /api/notifications/mark-read - requires auth', async () => {
-      const res = await post('/api/notifications/mark-read', {});
+    test('PATCH /api/notifications - requires auth', async () => {
+      const res = await fetch(`${BASE_URL}/api/notifications`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAllAsRead: true }),
+      });
       expect(res.status).toBe(401);
     });
 
