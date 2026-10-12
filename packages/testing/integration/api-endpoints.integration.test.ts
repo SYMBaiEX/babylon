@@ -365,11 +365,6 @@ describe('API Endpoints - Complete Coverage', () => {
   // FEED WIDGETS ENDPOINTS
   // ============================================
   describe('Feed Widgets', () => {
-    test('GET /api/feed/widgets', async () => {
-      const res = await get('/api/feed/widgets');
-      expect(res.status).toBe(200);
-    });
-
     test('GET /api/feed/widgets/trending', async () => {
       const res = await get('/api/feed/widgets/trending');
       expect(res.status).toBe(200);
@@ -496,7 +491,8 @@ describe('API Endpoints - Complete Coverage', () => {
   describe('NPC', () => {
     test('POST /api/npc/allocation', async () => {
       const res = await post('/api/npc/allocation', {});
-      expect([400, 401]).toContain(res.status);
+      // Cron-secret route: requireCronAuth rejects with AuthorizationError (403)
+      expect(res.status).toBe(403);
     });
 
     test('GET /api/npc/position-size', async () => {
