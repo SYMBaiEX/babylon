@@ -137,4 +137,4 @@ const health = await fetch(`${origin}/api/health`, {
 if (!health.ok)
   throw new Error(`Live health check returned HTTP ${health.status}`);
 await health.arrayBuffer();
-console.info(`Verified ${sha} at ${origin}; scheduler remains disabled`);
+console.info(`Verified ${sha} at ${origin}`);
