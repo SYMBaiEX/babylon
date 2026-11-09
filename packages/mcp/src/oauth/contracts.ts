@@ -1,6 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
+export const clientIdSchema = z
+  .string()
+  .min(1)
+  .max(2048)
+  .refine((value) => new TextEncoder().encode(value).byteLength <= 2048);
 export const DEVICE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
 export const FEED_MCP_CAPABILITIES = {
   grantTypes: ['authorization_code', 'refresh_token', DEVICE_GRANT_TYPE],
@@ -16,7 +21,7 @@ export const FEED_MCP_CAPABILITIES = {
     'get_profile',
   ],
   deviceAuthorization: true,
-  clientIdMetadataDocuments: false,
+  clientIdMetadataDocuments: true,
 } as const;
 export const scopeSchema = z.enum(FEED_MCP_CAPABILITIES.scopes);
 export type FeedScope = z.infer<typeof scopeSchema>;
@@ -140,7 +145,7 @@ export const registrationSchema = z
 export const authorizationSchema = z
   .object({
     response_type: z.literal('code'),
-    client_id: z.string().max(100),
+    client_id: clientIdSchema,
     redirect_uri: z.string().max(2048),
     state: z.string().max(4096).default(''),
     code_challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
