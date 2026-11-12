@@ -56,6 +56,7 @@ import type { FeeProcessor, WalletPort } from '@feed/core/markets/shared';
 import {
   and,
   db,
+  dbWrite,
   desc,
   eq,
   favorites,
@@ -1523,7 +1524,7 @@ export async function executeCreateComment(
   agent: AuthenticatedAgent,
   args: CreateCommentArgs
 ): Promise<CreateCommentResult> {
-  const post = await db.post.findFirst({
+  const post = await dbWrite.post.findFirst({
     where: { id: args.postId },
   });
 
