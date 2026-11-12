@@ -1523,6 +1523,24 @@ export async function executeCreateComment(
   agent: AuthenticatedAgent,
   args: CreateCommentArgs
 ): Promise<CreateCommentResult> {
+  const post = await db.post.findFirst({
+    where: { id: args.postId },
+  });
+
+  // Unknown posts cannot take comments (and are never created from the ID:
+  // comments.postId has no foreign key, so an unchecked comment would
+  // become an orphan row).
+  if (!post) {
+    throw new NotFoundError('Post', args.postId);
+  }
+
+  // Soft-deleted posts are hidden everywhere, so they cannot collect new
+  // comments — the web post comments route applies the same rule, as does
+  // the A2A createComment executor.
+  if (post.deletedAt) {
+    throw new NotFoundError('Post (deleted)', args.postId);
+  }
+
   const commentId = await generateSnowflakeId();
   const comment = await db.comment.create({
     data: {
